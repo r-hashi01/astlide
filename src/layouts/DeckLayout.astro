@@ -1,0 +1,150 @@
+---
+import '../styles/base.css';
+import '../styles/themes/default.css';
+
+interface Props {
+  title: string;
+  theme?: string;
+  currentSlide: number;
+  totalSlides: number;
+  deck: string;
+}
+
+const { title, theme = 'default', currentSlide, totalSlides, deck } = Astro.props;
+---
+
+<!DOCTYPE html>
+<html lang="en" data-theme={theme}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body data-total-slides={totalSlides}>
+    <div class="presentation">
+      <slot />
+    </div>
+
+    <nav class="slide-nav" aria-label="Slide navigation">
+      <a
+        href={currentSlide > 1 ? `/${deck}/${currentSlide - 1}` : undefined}
+        class:list={['nav-btn', 'nav-prev', { disabled: currentSlide <= 1 }]}
+        aria-label="Previous slide"
+      >
+        ←
+      </a>
+      <span class="nav-indicator">{currentSlide} / {totalSlides}</span>
+      <a
+        href={currentSlide < totalSlides ? `/${deck}/${currentSlide + 1}` : undefined}
+        class:list={['nav-btn', 'nav-next', { disabled: currentSlide >= totalSlides }]}
+        aria-label="Next slide"
+      >
+        →
+      </a>
+    </nav>
+
+    <script define:vars={{ currentSlide, totalSlides, deck }}>
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight' || e.key === ' ') {
+          e.preventDefault();
+          if (currentSlide < totalSlides) {
+            window.location.href = `/${deck}/${currentSlide + 1}`;
+          }
+        } else if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          if (currentSlide > 1) {
+            window.location.href = `/${deck}/${currentSlide - 1}`;
+          }
+        } else if (e.key === 'f') {
+          document.documentElement.requestFullscreen?.();
+        } else if (e.key === 'Escape') {
+          document.exitFullscreen?.();
+        }
+      });
+    </script>
+  </body>
+</html>
+
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background-color: var(--color-background);
+  }
+
+  .presentation {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #000;
+  }
+
+  .slide-nav {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem 1rem;
+    background: rgba(0, 0, 0, 0.7);
+    border-radius: 2rem;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  body:hover .slide-nav {
+    opacity: 1;
+  }
+
+  .nav-btn {
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    text-decoration: none;
+    font-size: 1.25rem;
+    transition: background 0.2s ease;
+  }
+
+  .nav-btn:hover:not(.disabled) {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .nav-btn.disabled {
+    opacity: 0.3;
+    pointer-events: none;
+  }
+
+  .nav-indicator {
+    color: white;
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+    min-width: 4rem;
+    text-align: center;
+  }
+
+  /* Fullscreen styles */
+  :fullscreen .slide-nav {
+    bottom: 1rem;
+  }
+
+  /* Print styles */
+  @media print {
+    .slide-nav {
+      display: none;
+    }
+  }
+</style>

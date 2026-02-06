@@ -1,0 +1,104 @@
+---
+import { getCollection } from 'astro:content';
+import fs from 'node:fs';
+import path from 'node:path';
+import DeckLayout from '@/layouts/DeckLayout.astro';
+import Slide from '@/components/Slide.astro';
+import Left from '@/components/layouts/Left.astro';
+import Right from '@/components/layouts/Right.astro';
+
+export async function getStaticPaths() {
+  const allSlides = await getCollection('decks');
+  
+  // Group slides by deck
+  const deckMap = new Map<string, typeof allSlides>();
+  
+  for (const slide of allSlides) {
+    const [deckName] = slide.id.split('/');
+    if (!deckMap.has(deckName)) {
+      deckMap.set(deckName, []);
+    }
+    deckMap.get(deckName)!.push(slide);
+  }
+  
+  const paths: Array<{
+    params: { deck: string; slide: string };
+    props: {
+      slide: (typeof allSlides)[0];
+      deckName: string;
+      slideNumber: number;
+      totalSlides: number;
+      deckConfig: Record<string, unknown>;
+    };
+  }> = [];
+  
+  for (const [deckName, slides] of deckMap) {
+    // Sort slides by filename
+    const sortedSlides = slides
+      .filter((s) => !s.id.endsWith('_config.json'))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    
+    // Load deck config
+    const configPath = `src/content/decks/${deckName}/_config.json`;
+    let deckConfig = { title: deckName };
+    
+    if (fs.existsSync(configPath)) {
+      const content = fs.readFileSync(configPath, 'utf-8');
+      deckConfig = JSON.parse(content);
+    }
+    
+    for (let i = 0; i < sortedSlides.length; i++) {
+      paths.push({
+        params: {
+          deck: deckName,
+          slide: String(i + 1),
+        },
+        props: {
+          slide: sortedSlides[i],
+          deckName,
+          slideNumber: i + 1,
+          totalSlides: sortedSlides.length,
+          deckConfig,
+        },
+      });
+    }
+  }
+  
+  return paths;
+}
+
+const { slide, deckName, slideNumber, totalSlides, deckConfig } = Astro.props;
+const { Content } = await slide.render();
+
+const {
+  layout = 'default',
+  transition = 'fade',
+  background,
+  class: className,
+  hidden,
+} = slide.data;
+
+// Skip hidden slides in production
+if (hidden && import.meta.env.PROD) {
+  return Astro.redirect(`/${deckName}/${slideNumber + 1}`);
+}
+---
+
+<DeckLayout
+  title={`${deckConfig.title} - Slide ${slideNumber}`}
+  theme={deckConfig.theme}
+  currentSlide={slideNumber}
+  totalSlides={totalSlides}
+  deck={deckName}
+>
+  <Slide
+    layout={layout}
+    transition={transition}
+    background={background}
+    class={className}
+    slideNumber={slideNumber}
+    totalSlides={totalSlides}
+  >
+    <Content components={{ Left, Right }} />
+  </Slide>
+</DeckLayout>

@@ -1,0 +1,19 @@
+---
+layout: code
+---
+
+# Code Example
+
+```typescript
+import { defineCollection, z } from 'astro:content';
+
+const decks = defineCollection({
+  type: 'content',
+  schema: z.object({
+    layout: z.enum(['default', 'cover', 'code']),
+    transition: z.enum(['fade', 'slide']).default('fade'),
+  }),
+});
+
+export const collections = { decks };
+```
