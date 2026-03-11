@@ -1,0 +1,139 @@
+---
+import { getCollection } from 'astro:content';
+import fs from 'node:fs';
+import path from 'node:path';
+
+// Get all deck directories
+const decksDir = path.join(process.cwd(), 'src', 'content', 'decks');
+const deckNames = fs.readdirSync(decksDir).filter((name) => {
+  const stat = fs.statSync(path.join(decksDir, name));
+  return stat.isDirectory();
+});
+
+// Load deck configs
+const decks = await Promise.all(
+  deckNames.map(async (name) => {
+    const configPath = path.join(decksDir, name, '_config.json');
+    let config: Record<string, string> = { title: name };
+
+    if (fs.existsSync(configPath)) {
+      const content = fs.readFileSync(configPath, 'utf-8');
+      config = JSON.parse(content);
+    }
+
+    // Count slides
+    const slides = await getCollection('decks', (entry) =>
+      entry.id.startsWith(`${name}/`) && !entry.id.endsWith('_config.json')
+    );
+
+    return {
+      name,
+      ...config,
+      slideCount: slides.length,
+    };
+  })
+);
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Slide Decks</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <main>
+      <h1>Slide Decks</h1>
+
+      <div class="deck-grid">
+        {decks.map((deck) => (
+          <a href={`/${deck.name}/1`} class="deck-card">
+            <h2>{deck.title}</h2>
+            {deck.author && <p class="author">{deck.author}</p>}
+            {deck.date && <p class="date">{new Date(deck.date).toLocaleDateString()}</p>}
+            <p class="slides">{deck.slideCount} slides</p>
+          </a>
+        ))}
+      </div>
+    </main>
+  </body>
+</html>
+
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #0f172a;
+    color: #f8fafc;
+    min-height: 100vh;
+    padding: 4rem 2rem;
+  }
+
+  main {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 3rem;
+  }
+
+  .deck-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .deck-card {
+    display: block;
+    padding: 2rem;
+    background: #1e293b;
+    border-radius: 1rem;
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .deck-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  }
+
+  .deck-card h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: #f8fafc;
+  }
+
+  .deck-card .author {
+    color: #94a3b8;
+    font-size: 0.875rem;
+  }
+
+  .deck-card .date {
+    color: #64748b;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+  }
+
+  .deck-card .slides {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #334155;
+    color: #3b82f6;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+</style>

@@ -1,0 +1,24 @@
+---
+/**
+ * TextPanel — the text side of image-left / image-right layouts.
+ */
+interface Props {
+  class?: string;
+}
+const { class: className } = Astro.props;
+---
+
+<div class:list={['text-panel', className]}>
+  <slot />
+</div>
+
+<style>
+  .text-panel {
+    flex: 1;
+    padding: var(--slide-padding, 4rem);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1rem;
+  }
+</style>

@@ -1,0 +1,35 @@
+---
+/**
+ * Fragment — reveals content step-by-step on each keypress / swipe.
+ *
+ * Usage in MDX:
+ *   <Fragment>First item</Fragment>
+ *   <Fragment index={2}>Second item — appears after first</Fragment>
+ *
+ * Props:
+ *   index   — explicit step order (auto-increments within page if omitted)
+ *   effect  — animation variant: "fade" | "slide-up" | "zoom" | "highlight"
+ */
+interface Props {
+  index?: number;
+  effect?: 'fade' | 'slide-up' | 'zoom' | 'highlight';
+  class?: string;
+}
+
+const { index, effect = 'slide-up', class: className } = Astro.props;
+---
+
+<span
+  data-fragment
+  data-fragment-index={index ?? ''}
+  data-fragment-effect={effect}
+  class:list={['fragment', className]}
+>
+  <slot />
+</span>
+
+<style>
+  .fragment {
+    display: inline-block;
+  }
+</style>

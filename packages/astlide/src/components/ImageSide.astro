@@ -1,0 +1,40 @@
+---
+/**
+ * ImageSide — used inside image-left / image-right layouts.
+ *
+ * Usage:
+ *   <ImageSide src="/photo.jpg" alt="Photo" />
+ *   Then put text content after it — Slide handles the flex layout.
+ *
+ * Or use <Left> / <Right> for full manual control.
+ */
+interface Props {
+  src: string;
+  alt?: string;
+  width?: string;
+  class?: string;
+}
+
+const { src, alt = '', width = '50%', class: className } = Astro.props;
+---
+
+<div class:list={['image-side', className]} style={`width: ${width}; flex-shrink: 0;`}>
+  <img src={src} alt={alt} />
+</div>
+
+<style>
+  .image-side {
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .image-side img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 0;
+  }
+</style>

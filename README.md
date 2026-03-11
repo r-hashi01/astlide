@@ -4,12 +4,16 @@ A multi-deck slide presentation framework built on Astro.
 
 ## Features
 
-- **Multi-deck support** – Manage multiple presentations in one repository
-- **MDX slides** – Write slides in Markdown with JSX components
-- **Theme system** – Customizable design with CSS variables
-- **PDF export** – Generate PDFs with Playwright
-- **Keyboard navigation** – Arrow keys, fullscreen, presenter mode
-- **Type-safe** – Content Collections with Zod schema
+- **Viewport scaling** — slides auto-scale to any screen/window size
+- **MDX slides** — write in Markdown with JSX components
+- **Fragment reveals** — step-by-step content with `<Fragment>`
+- **Overview mode** — press `o` to see all slides in a grid
+- **Presenter mode** — press `p` to open speaker notes in a separate window
+- **Notes overlay** — press `n` to show notes in the main window
+- **Touch / swipe** — swipe to navigate on mobile
+- **Theme system** — 6 built-in themes + full CSS variable control
+- **PDF / PNG export** — Playwright + pdf-lib, proper multi-page merging
+- **Type-safe** — Content Collections with Zod schema
 
 ## Quick Start
 
@@ -17,25 +21,16 @@ A multi-deck slide presentation framework built on Astro.
 # Clone the repository
 git clone https://github.com/YOUR_USERNAME/astlide.git
 cd astlide
-
-# Install dependencies
 npm install
-
-# Start dev server
 npm run dev
-
 # Open http://localhost:4321
 ```
 
 ## Creating a Deck
 
-1. Create a new directory in `src/content/decks/`:
+1. Create a directory in `src/content/decks/my-presentation/`
 
-```bash
-mkdir src/content/decks/my-presentation
-```
-
-2. Add a deck configuration `_config.json`:
+2. Add `_config.json`:
 
 ```json
 {
@@ -46,80 +41,105 @@ mkdir src/content/decks/my-presentation
 }
 ```
 
-3. Add slides as MDX files with numeric prefixes:
+3. Add slides as numbered MDX files:
 
 ```
 my-presentation/
 ├── _config.json
 ├── 01-cover.mdx
 ├── 02-intro.mdx
-├── 03-content.mdx
-└── 04-end.mdx
+└── 03-end.mdx
 ```
 
 ## Slide Frontmatter
 
+> **Important:** Use `slideLayout` (not `layout`) — Astro MDX reserves the `layout` key.
+
 ```yaml
 ---
-layout: default | cover | section | two-column | image-full | code | quote
-transition: none | fade | slide-left | slide-right | slide-up | zoom
-background: "#hex" | "url(/path/to/image.jpg)"
-class: "custom-class"
-notes: "Speaker notes"
-hidden: false
+slideLayout: default   # see Layouts below
+transition: fade       # none | fade | slide-left | slide-right | slide-up | zoom
+background: "#1e293b"  # hex, gradient string, or image URL
+class: "text-light"    # extra CSS classes on the slide element
+notes: "Speaker notes shown in presenter/notes mode"
+hidden: false          # set true to skip slide in production builds
 ---
 ```
 
 ## Layouts
 
-### Default
-Standard content slide.
+| `slideLayout` | Description |
+|---|---|
+| `default` | Standard content slide |
+| `cover` | Centred title / closing slide |
+| `section` | Chapter divider |
+| `two-column` | Side-by-side with `<Left>` / `<Right>` |
+| `image-full` | Background image with text overlay |
+| `image-left` | Image on left, text on right via `<ImageSide>` / `<TextPanel>` |
+| `image-right` | Image on right, text on left |
+| `code` | Optimised padding for code blocks |
+| `quote` | Centred blockquote |
+| `statement` | Single large sentence |
 
-### Cover
-Centered title slide for opening/closing.
-
-### Two Column
-Split layout with `<Left>` and `<Right>` slots:
+### Two-column example
 
 ```mdx
 ---
-layout: two-column
+slideLayout: two-column
 ---
-
 # Comparison
-
 <Left>
-### Option A
-Content for left side
+### Before
+Old approach
 </Left>
-
 <Right>
-### Option B
-Content for right side
+### After
+New approach
 </Right>
 ```
 
-### Code
-Optimized for code blocks with syntax highlighting.
+### Image-left example
 
-### Quote
-Styled blockquote with attribution.
+```mdx
+---
+slideLayout: image-left
+---
+<ImageSide src="/photo.jpg" alt="Photo" />
+<TextPanel>
+## Caption
+Description text here.
+</TextPanel>
+```
+
+## Fragments (Step-by-Step Reveals)
+
+Use `<Fragment>` to reveal content one step at a time:
+
+```mdx
+<Fragment index={1}>First point appears</Fragment>
+
+<Fragment index={2}>Second point appears</Fragment>
+
+<Fragment index={3} effect="zoom">Third — zoom effect</Fragment>
+
+<Fragment index={4} effect="highlight">Fourth — highlighted</Fragment>
+```
+
+Effects: `fade` (default) | `slide-up` | `zoom` | `highlight`
 
 ## Themes
 
-Built-in themes: `default`, `dark`, `minimal`, `corporate`
+Built-in: `default`, `dark`, `minimal`, `corporate`, `gradient`, `rose`, `forest`
 
 Set in `_config.json`:
 
 ```json
-{
-  "theme": "dark"
-}
+{ "theme": "dark" }
 ```
 
-### Custom Themes
+### Custom Theme
 
-Create a CSS file in `src/styles/themes/` and override CSS variables:
+Add a selector in `src/styles/themes/default.css`:
 
 ```css
 [data-theme="my-theme"] {
@@ -129,27 +149,40 @@ Create a CSS file in `src/styles/themes/` and override CSS variables:
 }
 ```
 
-## PDF Export
+## Keyboard Shortcuts
+
+| Key | Action |
+|---|---|
+| `→` / `Space` | Next slide (or next fragment) |
+| `←` | Previous slide (or previous fragment) |
+| `Home` / `↑` | First slide |
+| `End` / `↓` | Last slide |
+| `o` | Overview mode |
+| `p` | Open presenter window |
+| `n` | Toggle notes overlay |
+| `f` | Toggle fullscreen |
+| `Esc` | Exit fullscreen / close overlays |
+
+## PDF / PNG Export
+
+Make sure the dev/preview server is running, then:
 
 ```bash
-# Export specific deck
+# Export a deck to PDF
 npm run export -- --deck my-presentation
 
 # Export all decks
 npm run export -- --all
 
+# Export as PNG images
+npm run export -- --deck my-presentation --format png
+
 # Custom output path
 npm run export -- --deck my-presentation --output ./exports/slides.pdf
+
+# Point at a custom server
+npm run export -- --deck my-presentation --base-url http://localhost:4321
 ```
-
-## Keyboard Shortcuts
-
-| Key | Action |
-|-----|--------|
-| `→` / `Space` | Next slide |
-| `←` | Previous slide |
-| `f` | Toggle fullscreen |
-| `Esc` | Exit fullscreen |
 
 ## Project Structure
 
@@ -157,19 +190,27 @@ npm run export -- --deck my-presentation --output ./exports/slides.pdf
 astlide/
 ├── src/
 │   ├── content/
-│   │   ├── config.ts         # Slide schema
-│   │   └── decks/            # Your presentations
+│   │   ├── config.ts              # Slide schema (Zod)
+│   │   └── decks/                 # Your presentations
+│   │       └── my-deck/
+│   │           ├── _config.json
+│   │           └── 01-slide.mdx
 │   ├── components/
-│   │   ├── Slide.astro       # Base slide component
-│   │   └── layouts/          # Layout components
+│   │   ├── Slide.astro            # Base slide
+│   │   ├── Fragment.astro         # Step-by-step reveals
+│   │   └── layouts/
+│   │       ├── Left.astro
+│   │       ├── Right.astro
+│   │       ├── ImageSide.astro
+│   │       └── TextPanel.astro
 │   ├── layouts/
-│   │   └── DeckLayout.astro  # Deck wrapper
+│   │   └── DeckLayout.astro       # Viewport scaling, nav, overlays
 │   ├── pages/
-│   │   ├── index.astro       # Deck listing
+│   │   ├── index.astro            # Deck listing
 │   │   └── [deck]/[...slide].astro
 │   └── styles/
 │       ├── base.css
-│       └── themes/
+│       └── themes/default.css
 ├── scripts/
 │   └── export-pdf.ts
 └── package.json

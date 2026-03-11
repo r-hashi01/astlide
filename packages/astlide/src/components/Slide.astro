@@ -1,0 +1,225 @@
+---
+interface Props {
+  layout?: string;
+  transition?: string;
+  background?: string;
+  class?: string;
+  slideNumber?: number;
+  totalSlides?: number;
+}
+
+const {
+  layout = 'default',
+  transition = 'fade',
+  background,
+  class: className,
+} = Astro.props;
+
+let backgroundStyle = '';
+if (background) {
+  if (background.startsWith('linear-gradient') || background.startsWith('radial-gradient')) {
+    backgroundStyle = `background: ${background};`;
+  } else if (background.startsWith('url(') || background.match(/\.(png|jpe?g|gif|webp|svg)(\?|$)/)) {
+    backgroundStyle = `background-image: url(${background.startsWith('url(') ? background.slice(4, -1) : background}); background-size: cover; background-position: center;`;
+  } else {
+    backgroundStyle = `background-color: ${background};`;
+  }
+}
+---
+
+<section
+  class:list={['slide', `slide-${layout}`, className]}
+  data-transition={transition}
+  style={backgroundStyle}
+>
+  <div class="slide-content">
+    <slot />
+  </div>
+</section>
+
+<style>
+  /* ── Base slide ── */
+  .slide {
+    width: var(--slide-width, 1920px);
+    height: var(--slide-height, 1080px);
+    padding: var(--slide-padding, 4rem);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-body);
+  }
+
+  .slide-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--content-gap, 2rem);
+    min-height: 0;
+  }
+
+  /* ── Layouts ── */
+
+  /* cover: centered title slide */
+  .slide-cover {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+  .slide-cover .slide-content {
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* section: chapter divider */
+  .slide-section {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+  .slide-section .slide-content {
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* two-column: side-by-side columns */
+  .slide-two-column .slide-content {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  /* code: optimised for code blocks */
+  .slide-code {
+    padding: 2rem;
+  }
+  .slide-code .slide-content {
+    gap: 1rem;
+  }
+
+  /* quote: centred blockquote */
+  .slide-quote {
+    justify-content: center;
+    align-items: center;
+  }
+  .slide-quote .slide-content {
+    max-width: 75%;
+    text-align: center;
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* image-full: background image with text overlay at bottom */
+  .slide-image-full {
+    padding: 0;
+  }
+  .slide-image-full .slide-content {
+    padding: var(--slide-padding);
+    justify-content: flex-end;
+    background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 60%);
+  }
+
+  /* image-left: image on left, text on right */
+  .slide-image-left .slide-content {
+    flex-direction: row;
+    align-items: center;
+    gap: 0;
+    padding: 0;
+  }
+
+  /* image-right: text on left, image on right */
+  .slide-image-right .slide-content {
+    flex-direction: row-reverse;
+    align-items: center;
+    gap: 0;
+    padding: 0;
+  }
+
+  /* statement: single large sentence, centered */
+  .slide-statement {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+  .slide-statement .slide-content {
+    justify-content: center;
+    align-items: center;
+    max-width: 80%;
+  }
+  .slide-statement :global(p) {
+    font-size: var(--font-size-h2);
+    font-weight: 500;
+    line-height: 1.3;
+    margin: 0;
+  }
+
+  /* ── Fragment (step-by-step) support ── */
+
+  /* Default hidden state: fade + slide-up */
+  :global([data-fragment]) {
+    opacity: 0;
+    transform: translateY(12px);
+    transition: opacity 0.35s ease, transform 0.35s ease;
+    pointer-events: none;
+  }
+
+  /* fade: just opacity */
+  :global([data-fragment-effect="fade"]) {
+    transform: none;
+    transition: opacity 0.4s ease;
+  }
+
+  /* zoom: scale down instead of translate */
+  :global([data-fragment-effect="zoom"]) {
+    transform: scale(0.85);
+    transition: opacity 0.35s ease, transform 0.35s ease;
+  }
+
+  /* highlight: always visible, just background change */
+  :global([data-fragment-effect="highlight"]) {
+    opacity: 1;
+    transform: none;
+    background: transparent;
+    transition: background 0.4s ease, color 0.4s ease;
+    pointer-events: auto;
+  }
+
+  /* Visible state for all fragments */
+  :global([data-fragment][data-fragment-visible]) {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+
+  /* highlight visible: apply accent background */
+  :global([data-fragment-effect="highlight"][data-fragment-visible]) {
+    background: var(--color-accent, #f59e0b);
+    color: #000;
+    padding: 0.1em 0.3em;
+    border-radius: 0.2em;
+  }
+
+  /* ── Utility classes ── */
+  :global(.text-light) { color: #ffffff !important; }
+  :global(.text-dark) { color: #1a1a1a !important; }
+  :global(.text-center) { text-align: center; }
+  :global(.text-left) { text-align: left; }
+  :global(.text-right) { text-align: right; }
+
+  :global(.highlight) {
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  :global(.badge) {
+    display: inline-block;
+    padding: 0.2em 0.75em;
+    background: var(--color-primary);
+    color: white;
+    border-radius: 1em;
+    font-size: 0.75em;
+    font-weight: 600;
+    vertical-align: middle;
+  }
+</style>

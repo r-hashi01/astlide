@@ -1,0 +1,97 @@
+---
+import { getCollection } from 'astro:content';
+import fs from 'node:fs';
+import path from 'node:path';
+import DeckLayout from '../DeckLayout.astro';
+import Slide from '../../components/Slide.astro';
+import Left from '../../components/Left.astro';
+import Right from '../../components/Right.astro';
+import ImageSide from '../../components/ImageSide.astro';
+import TextPanel from '../../components/TextPanel.astro';
+import Fragment from '../../components/Fragment.astro';
+
+export async function getStaticPaths() {
+  const allSlides = await getCollection('decks');
+
+  // Group slides by deck
+  const deckMap = new Map<string, typeof allSlides>();
+  for (const slide of allSlides) {
+    const [deckName] = slide.id.split('/');
+    if (!deckMap.has(deckName)) deckMap.set(deckName, []);
+    deckMap.get(deckName)!.push(slide);
+  }
+
+  const paths: Array<{
+    params: { deck: string; slide: string };
+    props: {
+      slide: (typeof allSlides)[0];
+      deckName: string;
+      slideNumber: number;
+      totalSlides: number;
+      deckConfig: Record<string, unknown>;
+    };
+  }> = [];
+
+  for (const [deckName, slides] of deckMap) {
+    const sortedSlides = slides
+      .filter((s) => !s.id.endsWith('_config.json'))
+      .sort((a, b) => a.id.localeCompare(b.id));
+
+    const configPath = path.join(process.cwd(), 'src', 'content', 'decks', deckName, '_config.json');
+    let deckConfig: Record<string, unknown> = { title: deckName };
+    if (fs.existsSync(configPath)) {
+      deckConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    }
+
+    for (let i = 0; i < sortedSlides.length; i++) {
+      paths.push({
+        params: { deck: deckName, slide: String(i + 1) },
+        props: {
+          slide: sortedSlides[i],
+          deckName,
+          slideNumber: i + 1,
+          totalSlides: sortedSlides.length,
+          deckConfig,
+        },
+      });
+    }
+  }
+
+  return paths;
+}
+
+const { slide, deckName, slideNumber, totalSlides, deckConfig } = Astro.props;
+const { Content } = await slide.render();
+
+const {
+  slideLayout: layout = 'default',
+  transition = 'fade',
+  background,
+  class: className,
+  notes,
+  hidden,
+} = slide.data;
+
+// Skip hidden slides in production
+if (hidden && import.meta.env.PROD) {
+  return Astro.redirect(`/${deckName}/${slideNumber + 1}`);
+}
+---
+
+<DeckLayout
+  title={`${deckConfig.title} - Slide ${slideNumber}`}
+  theme={deckConfig.theme as string | undefined}
+  currentSlide={slideNumber}
+  totalSlides={totalSlides}
+  deck={deckName}
+  notes={notes}
+>
+  <Slide
+    layout={layout}
+    transition={transition}
+    background={background}
+    class={className}
+  >
+    <Content components={{ Left, Right, ImageSide, TextPanel, Fragment }} />
+  </Slide>
+</DeckLayout>

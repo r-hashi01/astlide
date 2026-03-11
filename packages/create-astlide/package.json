@@ -1,0 +1,21 @@
+{
+	"name": "create-astlide",
+	"version": "0.1.0",
+	"type": "module",
+	"bin": {
+		"create-astlide": "./dist/index.js"
+	},
+	"files": [
+		"dist",
+		"template"
+	],
+	"scripts": {
+		"build": "tsc",
+		"prepublishOnly": "bun run build"
+	},
+	"devDependencies": {
+		"@types/node": "^22.0.0",
+		"typescript": "^5.4.0"
+	},
+	"license": "MIT"
+}
