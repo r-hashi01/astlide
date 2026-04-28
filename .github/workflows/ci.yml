@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Allow the dependabot-bun-lock workflow to retrigger CI after it pushes a
+  # lockfile-sync commit (GITHUB_TOKEN-authored commits do not retrigger
+  # workflows by default).
+  workflow_dispatch:
 
 # Astro 6 requires Node.js >=22.12. Bun ships its own Node-compat runtime,
 # but `bunx astro check` and `astro build` shell into the system `node` for
