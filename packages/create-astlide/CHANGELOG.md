@@ -1,5 +1,11 @@
 # create-astlide
 
+## 0.1.2
+
+### Patch Changes
+
+- [`ee7db18`](https://github.com/r-hashi01/astlide/commit/ee7db18e26e5f37a2084b77b87f071780d4cad1c) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Make tsconfig + source compatible with TypeScript 6: explicitly include `node` in `compilerOptions.types` and annotate readline callback parameters as `string` (TS 6 no longer infers them implicitly).
+
 ## 0.1.1
 
 ### Patch Changes
