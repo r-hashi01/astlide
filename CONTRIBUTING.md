@@ -76,7 +76,7 @@ bun run docs            # generate TypeDoc API reference under docs/api/
 | Astro components | `packages/astlide/tests/astro-components.test.ts` | New `.astro` component, new prop on existing component |
 | Visual regression | `e2e/visual.test.ts` + `e2e/__snapshots__/visual/` | New layout, new theme, anything that should be visually stable. macOS-only (font drift). |
 
-`astro-components.test.ts` runs in a dedicated vitest project (`vmThreads` pool) — see [PROBLEM.md](PROBLEM.md) for background on why.
+`astro-components.test.ts` runs in a dedicated vitest project (`vmThreads` pool) — `getViteConfig` plus a `forks` worker deadlocks when transforming `.astro` files, so this suite is isolated to keep the rest of the test pyramid fast.
 
 We deliberately do **not** run general-purpose browser e2e (keyboard nav, fragment toggles, UI mode flips). Those flows live in `DeckLayout.astro`'s inline `<script>`; until that is extracted into a separately-testable module, the cost of maintaining a real-browser harness for them outweighs the value at the current project size. Visual regression is kept because the only meaningful failure mode (CSS / theme drift) genuinely requires a real browser.
 
