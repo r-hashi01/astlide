@@ -36,5 +36,5 @@ Initial public release.
 
 ### Compatibility
 
-- **Node**: `>=20.0.0`.
+- **Node**: `>=22.12.0` (required by Astro 6).
 - Works with bun, npm, pnpm, and yarn.

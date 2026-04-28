@@ -27,7 +27,7 @@
 		"directory": "packages/astlide"
 	},
 	"engines": {
-		"node": ">=20.0.0"
+		"node": ">=22.12.0"
 	},
 	"sideEffects": [
 		"*.css",

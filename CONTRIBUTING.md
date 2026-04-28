@@ -12,7 +12,7 @@ Thanks for your interest in improving Astlide!
 ## Prerequisites
 
 - [Bun](https://bun.sh) ≥ 1.2 — Astlide is bun-only. Do not use npm / pnpm / yarn for repo-local installs.
-- Node.js ≥ 20 (Bun bundles its own Node-compatible runtime; this is just for editor tooling).
+- Node.js ≥ 22.12 (required by Astro 6 — Bun's Node-compat alone is not enough; `astro check` and `astro build` shell into the system `node`).
 - A Chromium-based browser for e2e tests (`agent-browser` downloads one automatically).
 
 ## Repository layout

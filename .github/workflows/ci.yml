@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+# Astro 6 requires Node.js >=22.12. Bun ships its own Node-compat runtime,
+# but `bunx astro check` and `astro build` shell into the system `node` for
+# child processes — so every job that runs Astro needs setup-node@v4 with
+# node-version: 22 alongside setup-bun.
 jobs:
   lint:
     name: Lint
@@ -22,6 +26,9 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: oven-sh/setup-bun@ecf28ddc73e819eb6fa29df6b34ef8921c743461 # v2
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4
+        with:
+          node-version: 22
       - run: bun install --frozen-lockfile
       - name: Run astro check
         run: bunx astro check
@@ -33,6 +40,9 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: oven-sh/setup-bun@ecf28ddc73e819eb6fa29df6b34ef8921c743461 # v2
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4
+        with:
+          node-version: 22
       - run: bun install --frozen-lockfile
       - run: bun run test
 
@@ -42,6 +52,9 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: oven-sh/setup-bun@ecf28ddc73e819eb6fa29df6b34ef8921c743461 # v2
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4
+        with:
+          node-version: 22
       - run: bun install --frozen-lockfile
       - run: bun run build
 
@@ -67,6 +80,9 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: oven-sh/setup-bun@ecf28ddc73e819eb6fa29df6b34ef8921c743461 # v2
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4
+        with:
+          node-version: 22
       - run: bun install --frozen-lockfile
       - name: Override Astro version
         run: |

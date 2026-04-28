@@ -32,7 +32,7 @@ Initial public release.
 ### Compatibility
 
 - **Astro**: `^6.0.0` (peer dependency). Tested against 6.0.8 and 6.1.9 in CI.
-- **Node**: `>=20.0.0`.
+- **Node**: `>=22.12.0` (required by Astro 6).
 - **Package manager**: bun is the source-of-truth; npm/pnpm/yarn work for consumers.
 
 ### Distribution
