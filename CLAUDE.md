@@ -1,79 +1,58 @@
 # Astlide — Astro Slide Framework
 
-Slidev のような Astro ベースのスライドプレゼンテーションフレームワーク。
-
-## プロジェクト構成
-
-bun workspaces によるモノレポ。パッケージマネージャーは **bun** を使う。
+bun workspaces モノレポ。パッケージマネージャーは **bun**。
 
 ```
-packages/astlide/          — @astlide/core: コアパッケージ (Astro Integration)
-packages/create-astlide/   — create-astlide: CLI スキャフォルダー (bun create astlide)
-playground/                — 開発テスト用 Astro プロジェクト (workspace:* で @astlide/core をリンク)
+packages/astlide/          — @astlide/core (Astro Integration)
+packages/create-astlide/   — create-astlide (CLI scaffolder)
+playground/                — 開発用 Astro プロジェクト
 ```
-
-### packages/astlide (@astlide/core)
-
-- `src/index.ts` — Astro Integration エントリ (`injectRoute` でページ注入)
-- `src/schema.ts` — Zod スキーマ (`slideSchema`)。ユーザーが content config で import する
-- `src/components/` — Slide, Fragment, Left, Right, ImageSide, TextPanel
-- `src/internal/DeckLayout.astro` — ビューポートスケーリング、ナビ、プレゼンター、オーバービュー等
-- `src/internal/pages/` — Integration が inject するルート (slide.astro, index.astro)
-- `src/styles/` — base.css + themes/default.css (7テーマ内蔵)
-- `src/cli/export-pdf.ts` — Playwright + pdf-lib による PDF/PNG エクスポート
-
-### packages/create-astlide (CLI)
-
-- `src/index.ts` — CLI 本体。template/ ディレクトリをコピーする
-- `template/` — スキャフォルドされるテンプレートプロジェクト
-
-### playground
-
-`@astlide/core` を workspace 依存で使う開発環境。example-deck (6スライド) 付き。
 
 ## コマンド
 
 ```bash
-bun run dev        # playground の dev server 起動
-bun run build      # playground のビルド
-bun run preview    # playground のプレビュー
-bun run lint       # Biome で lint チェック
-bun run lint:fix   # Biome で lint 自動修正
-bun run format     # Biome でフォーマット
-bun install        # 依存関係インストール
+bun run dev          # playground dev server
+bun run build        # playground build
+bun run lint         # Biome lint
+bun run lint:fix     # Biome lint 自動修正
+bun run format       # Biome format
+bun run test         # vitest unit tests
+bun run test:e2e     # Playwright e2e tests
+bun run docs         # TypeDoc API リファレンス生成 (→ docs/api/)
+bun run changeset    # changeset 作成
 ```
 
-## 技術スタック
+## 絶対に守るルール
 
-- **Astro 5** + @astrojs/mdx 4
-- Content Collections + Zod schema
-- CSS transform ベースのビューポートスケーリング (1920×1080)
-- TypeScript (strict)
-- Biome (linter + formatter、タブインデント)
-
-## 重要な規約
-
-- frontmatter では `slideLayout` を使う（`layout` は Astro MDX の予約語）
-- スライドファイル名は `01-name.mdx`, `02-name.mdx` のように番号付き
-- デッキ設定は `_config.json` (title, author, date, theme)
+- ❌ frontmatter で `layout` を使わない → ✅ `slideLayout` を使う（`layout` は Astro MDX 予約語）
+- ❌ パッケージ内部で相対パス import → ✅ `@astlide/core/...` パスを使う（`exports` マップで解決）
+- ❌ npm/pnpm → ✅ bun のみ
+- スライドファイル名: `01-name.mdx`, `02-name.mdx` の番号付き
+- デッキ設定: `_config.json` (title, author, date, theme)
 - テーマ: default, dark, minimal, corporate, gradient, rose, forest
 
-## Astro Integration の仕組み
+## キーファイル
 
-`astlide()` を `astro.config.mjs` に追加すると:
-1. MDX integration を自動追加（未設定の場合）
-2. `injectRoute` で `/` と `/[deck]/[...slide]` を注入
-3. Shiki のコードハイライト設定
+- `packages/astlide/src/index.ts` — Integration エントリ
+- `packages/astlide/src/schema.ts` — Zod スキーマ (`slideSchema`)
+- `packages/astlide/src/internal/DeckLayout.astro` — ビューポートスケーリング・ナビ・プレゼンター
+- `packages/astlide/src/internal/pages/` — inject されるルート
+- `packages/astlide/package.json` — `exports` マップ（公開API定義）
 
-ユーザー側に必要なのは:
-- `astro.config.mjs` に `import astlide from '@astlide/core'` して `astlide()` を追加
-- `src/content/config.ts` で `import { slideSchema } from '@astlide/core/schema'` して collection 定義
-- `src/content/decks/<deck-name>/` にスライドを配置
+## ドキュメント運用
 
-## レイアウト一覧
+- **公開APIを変更したら TSDoc コメントも同時に更新する**（コメントがソースの真実）
+- `bun run docs` で `docs/api/` に HTML リファレンスを生成（生成物は git 管理外）
+- 将来 Starlight サイトを作る際は `docs/` をそのままルートにできる構成
 
-default, cover, section, two-column, image-full, image-left, image-right, code, quote, statement
+### リリースフロー
 
-## キーボードショートカット
+```bash
+bun run changeset   # 変更内容を記録（機能追加・破壊的変更のたびに実行）
+bun run version     # バージョンバンプ + CHANGELOG.md を自動生成
+bun run release     # npm publish（CI での実行を推奨）
+```
 
-→/Space: 次, ←: 前, o: オーバービュー, p: プレゼンター, n: ノート, f: フルスクリーン
+## コードレビュー
+
+`/review` コマンドを使用（`.claude/commands/review.md`）

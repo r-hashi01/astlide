@@ -25,3 +25,16 @@ Thumbs.db
 # Exports
 *.pdf
 exports/
+
+# Playwright
+playwright-report/
+test-results/
+
+# Visual regression actuals & diffs (only baselines under e2e/__snapshots__/visual/*.png are committed)
+e2e/__snapshots__/visual/actual/
+
+# TypeDoc generated API reference (regenerate with: bun run docs)
+docs/api/
+
+# Claude Code
+.claude/settings.local.json

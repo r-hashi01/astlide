@@ -8,11 +8,31 @@
 		"dev": "bun run --filter astlide-playground dev",
 		"build": "bun run --filter astlide-playground build",
 		"preview": "bun run --filter astlide-playground preview",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:e2e": "vitest run --config vitest.config.e2e.ts",
 		"lint": "biome check .",
 		"lint:fix": "biome check --fix .",
-		"format": "biome format --write ."
+		"format": "biome format --write .",
+		"docs": "bun run --cwd packages/astlide docs",
+		"changeset": "changeset",
+		"version": "changeset version",
+		"release": "changeset publish"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.4.6"
+		"@astrojs/check": "^0.9.8",
+		"@biomejs/biome": "^2.4.6",
+		"@changesets/changelog-github": "^0.6.0",
+		"@changesets/cli": "^2.30.0",
+		"@types/pixelmatch": "^5.2.6",
+		"@types/pngjs": "^6.0.5",
+		"agent-browser": "^0.21.0",
+		"jszip": "3.10.1",
+		"pixelmatch": "^7.1.0",
+		"pngjs": "^7.0.0",
+		"pptxgenjs": "^4.0.1",
+		"typescript": "^6.0.3",
+		"vitest": "^4.0.18",
+		"zod": "^4.3.6"
 	}
 }

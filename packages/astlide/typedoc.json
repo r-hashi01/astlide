@@ -1,0 +1,14 @@
+{
+	"entryPoints": ["src/index.ts", "src/schema.ts", "src/utils/sanitize.ts"],
+	"entryPointStrategy": "expand",
+	"tsconfig": "./tsconfig.typedoc.json",
+	"out": "../../docs/api",
+	"name": "@astlide/core API Reference",
+	"readme": "none",
+	"excludePrivate": true,
+	"excludeInternal": true,
+	"groupOrder": ["Functions", "Interfaces", "Type Aliases", "Variables", "Enumerations"],
+	"navigationLinks": {
+		"GitHub": "https://github.com/r-hashi01/astlide"
+	}
+}
