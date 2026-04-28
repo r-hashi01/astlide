@@ -1,0 +1,95 @@
+# Dependabot configuration for Astlide.
+# - Security updates run automatically via the repository setting (no config needed)
+# - Version updates are scoped here per ecosystem.
+
+version: 2
+updates:
+  # GitHub Actions used in our workflows (.github/workflows/)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "deps"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(actions)"
+
+  # Root npm workspace — covers playground devDeps
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    labels:
+      - "deps"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      # Group all minor/patch bumps so PR volume stays sane
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # Astro is a peer dependency in @astlide/core; we test against a matrix
+      # in CI rather than tracking a moving target via Dependabot.
+      - dependency-name: "astro"
+
+  - package-ecosystem: "npm"
+    directory: "/packages/astlide"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    labels:
+      - "deps"
+      - "@astlide/core"
+    commit-message:
+      prefix: "chore(deps,core)"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "astro"
+
+  - package-ecosystem: "npm"
+    directory: "/packages/create-astlide"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "deps"
+      - "create-astlide"
+    commit-message:
+      prefix: "chore(deps,cli)"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "npm"
+    directory: "/playground"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "deps"
+      - "playground"
+    commit-message:
+      prefix: "chore(deps,playground)"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "astro"

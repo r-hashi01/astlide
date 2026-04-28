@@ -1,0 +1,15 @@
+# Astlide CODEOWNERS
+# Auto-assigns reviewers on PRs. Owners listed here also get permission to
+# approve under the main branch ruleset.
+#
+# Currently solo-maintained — when new maintainers join, scope them per
+# directory below rather than as global owners.
+
+* @r-hashi01
+
+# Release infrastructure — extra-careful reviews recommended once there
+# are co-maintainers.
+/.github/workflows/        @r-hashi01
+/.changeset/               @r-hashi01
+/RELEASING.md              @r-hashi01
+/SECURITY.md               @r-hashi01
