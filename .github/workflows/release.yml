@@ -1,9 +1,18 @@
 name: Release
 
+# Disabled until v0.1.0 ships from a local `npm publish` (see RELEASING.md
+# "First publish" — chicken-egg with Trusted Publishing). After v0.1.0 lands
+# and Trusted Publishing is configured per package on npmjs.com, switch the
+# trigger back to:
+#
+#   on:
+#     push:
+#       branches:
+#         - main
+#
+# and remove `workflow_dispatch` if you don't want manual triggering.
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
