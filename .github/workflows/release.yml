@@ -46,3 +46,9 @@ jobs:
           commit: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # `npm publish --provenance` triggers the OIDC handshake that npm Trusted
+          # Publishing requires. Without it, `changeset publish` calls `npm publish`
+          # in plain mode → registry returns 404 (anonymous). Setting it via env
+          # avoids polluting package.json's publishConfig (which would break local
+          # `npm publish` outside GitHub Actions OIDC).
+          NPM_CONFIG_PROVENANCE: "true"
