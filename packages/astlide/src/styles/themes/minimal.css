@@ -1,0 +1,13 @@
+/* Minimal Theme */
+[data-theme="minimal"] {
+	--color-background: #fafafa;
+	--color-foreground: #18181b;
+	--color-primary: #18181b;
+	--color-secondary: #71717a;
+	--color-accent: #18181b;
+	--color-muted: #f4f4f5;
+
+	--font-heading: "Inter", system-ui, sans-serif;
+	--font-size-h1: 4rem;
+	--slide-padding: 6rem;
+}

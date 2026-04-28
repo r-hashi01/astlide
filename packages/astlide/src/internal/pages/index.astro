@@ -2,6 +2,26 @@
 import { getCollection } from 'astro:content';
 import fs from 'node:fs';
 import path from 'node:path';
+import { deckConfigSchema } from '@astlide/core/schema';
+
+declare const __ASTLIDE_CSP__: boolean | string;
+
+const DEFAULT_CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: https:",
+  "connect-src 'self'",
+  "frame-src 'self'",
+].join('; ');
+
+const cspOption: boolean | string =
+  typeof __ASTLIDE_CSP__ !== 'undefined' ? __ASTLIDE_CSP__ : true;
+const cspContent =
+  cspOption === false ? null
+  : typeof cspOption === 'string' && cspOption !== 'true' ? cspOption
+  : DEFAULT_CSP;
 
 // Get all deck directories
 const decksDir = path.join(process.cwd(), 'src', 'content', 'decks');
@@ -14,22 +34,40 @@ const deckNames = fs.readdirSync(decksDir).filter((name) => {
 const decks = await Promise.all(
   deckNames.map(async (name) => {
     const configPath = path.join(decksDir, name, '_config.json');
-    let config: Record<string, string> = { title: name };
+    let config = deckConfigSchema.parse({});  // schema defaults
 
     if (fs.existsSync(configPath)) {
-      const content = fs.readFileSync(configPath, 'utf-8');
-      config = JSON.parse(content);
+      try {
+        const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        const result = deckConfigSchema.safeParse(raw);
+        if (result.success) {
+          config = result.data;
+        }
+        // Invalid _config.json values — schema defaults remain in effect
+      } catch {
+        // Malformed JSON — schema defaults remain in effect
+      }
     }
 
     // Count slides
     const slides = await getCollection('decks', (entry) =>
-      entry.id.startsWith(`${name}/`) && !entry.id.endsWith('_config.json')
+      entry.id.startsWith(`${name}/`)
     );
+
+    // Parse date safely — skip if the value is not a valid date
+    const rawDate = config.date ?? null;
+    const parsedDate = rawDate
+      ? (() => { const d = new Date(rawDate); return Number.isNaN(d.getTime()) ? null : d; })()
+      : null;
+    const formattedDate = parsedDate ? parsedDate.toLocaleDateString() : null;
 
     return {
       name,
-      ...config,
+      title:  config.title ?? name,   // string: falls back to deck directory name
+      author: config.author,
+      theme:  config.theme,
       slideCount: slides.length,
+      formattedDate,
     };
   })
 );
@@ -40,6 +78,7 @@ const decks = await Promise.all(
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    {cspContent && <meta http-equiv="Content-Security-Policy" content={cspContent} />}
     <title>Slide Decks</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -54,7 +93,7 @@ const decks = await Promise.all(
           <a href={`/${deck.name}/1`} class="deck-card">
             <h2>{deck.title}</h2>
             {deck.author && <p class="author">{deck.author}</p>}
-            {deck.date && <p class="date">{new Date(deck.date).toLocaleDateString()}</p>}
+            {deck.formattedDate && <p class="date">{deck.formattedDate}</p>}
             <p class="slides">{deck.slideCount} slides</p>
           </a>
         ))}

@@ -1,0 +1,20 @@
+/* Gradient Theme — dark background with vivid gradient accents */
+[data-theme="gradient"] {
+	--color-background: #0a0a0f;
+	--color-foreground: #f0f0ff;
+	--color-primary: #818cf8;
+	--color-secondary: #94a3b8;
+	--color-accent: #f472b6;
+	--color-muted: #1e1e2e;
+	--code-background: #13131f;
+
+	--font-size-h1: 4rem;
+	--font-size-h2: 2.75rem;
+}
+
+[data-theme="gradient"] h1 {
+	background: linear-gradient(135deg, #818cf8, #f472b6);
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	background-clip: text;
+}

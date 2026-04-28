@@ -216,7 +216,67 @@ cite::before {
 	content: "— ";
 }
 
-/* Transitions */
+/* ── View Transitions: per-slide entrance/exit animations ── */
+@media (prefers-reduced-motion: no-preference) {
+	/* Default: instant swap (no animation) */
+	::view-transition-old(slide-content),
+	::view-transition-new(slide-content) {
+		animation: none;
+		mix-blend-mode: normal;
+	}
+
+	/* fade */
+	html[data-slide-transition="fade"] ::view-transition-old(slide-content) {
+		animation: fadeOut var(--transition-duration, 300ms)
+			var(--transition-easing, cubic-bezier(0.4, 0, 0.2, 1));
+	}
+	html[data-slide-transition="fade"] ::view-transition-new(slide-content) {
+		animation: fadeIn var(--transition-duration, 300ms)
+			var(--transition-easing, cubic-bezier(0.4, 0, 0.2, 1));
+	}
+
+	/* slide-left: new slide enters from right, old exits to left */
+	html[data-slide-transition="slide-left"] ::view-transition-old(slide-content) {
+		animation: slideToLeft var(--transition-duration, 300ms)
+			var(--transition-easing, cubic-bezier(0.4, 0, 0.2, 1));
+	}
+	html[data-slide-transition="slide-left"] ::view-transition-new(slide-content) {
+		animation: slideFromRight var(--transition-duration, 300ms)
+			var(--transition-easing, cubic-bezier(0.4, 0, 0.2, 1));
+	}
+
+	/* slide-right: new slide enters from left, old exits to right */
+	html[data-slide-transition="slide-right"] ::view-transition-old(slide-content) {
+		animation: slideToRight var(--transition-duration, 300ms)
+			var(--transition-easing, cubic-bezier(0.4, 0, 0.2, 1));
+	}
+	html[data-slide-transition="slide-right"] ::view-transition-new(slide-content) {
+		animation: slideFromLeft var(--transition-duration, 300ms)
+			var(--transition-easing, cubic-bezier(0.4, 0, 0.2, 1));
+	}
+
+	/* slide-up: new slide enters from bottom, old exits to top */
+	html[data-slide-transition="slide-up"] ::view-transition-old(slide-content) {
+		animation: slideToTop var(--transition-duration, 300ms)
+			var(--transition-easing, cubic-bezier(0.4, 0, 0.2, 1));
+	}
+	html[data-slide-transition="slide-up"] ::view-transition-new(slide-content) {
+		animation: slideFromBottom var(--transition-duration, 300ms)
+			var(--transition-easing, cubic-bezier(0.4, 0, 0.2, 1));
+	}
+
+	/* zoom */
+	html[data-slide-transition="zoom"] ::view-transition-old(slide-content) {
+		animation: zoomOut var(--transition-duration, 300ms)
+			var(--transition-easing, cubic-bezier(0.4, 0, 0.2, 1));
+	}
+	html[data-slide-transition="zoom"] ::view-transition-new(slide-content) {
+		animation: zoomIn var(--transition-duration, 300ms)
+			var(--transition-easing, cubic-bezier(0.4, 0, 0.2, 1));
+	}
+}
+
+/* ── Slide-level CSS animations (initial render / fallback) ── */
 @media (prefers-reduced-motion: no-preference) {
 	.slide[data-transition="fade"] {
 		animation: fadeIn var(--transition-duration) var(--transition-easing);
@@ -239,6 +299,7 @@ cite::before {
 	}
 }
 
+/* ── Entrance keyframes ── */
 @keyframes fadeIn {
 	from {
 		opacity: 0;
@@ -289,6 +350,60 @@ cite::before {
 	to {
 		transform: scale(1);
 		opacity: 1;
+	}
+}
+
+/* ── Exit keyframes ── */
+@keyframes fadeOut {
+	from {
+		opacity: 1;
+	}
+	to {
+		opacity: 0;
+	}
+}
+
+@keyframes slideToLeft {
+	from {
+		transform: translateX(0);
+		opacity: 1;
+	}
+	to {
+		transform: translateX(-100px);
+		opacity: 0;
+	}
+}
+
+@keyframes slideToRight {
+	from {
+		transform: translateX(0);
+		opacity: 1;
+	}
+	to {
+		transform: translateX(100px);
+		opacity: 0;
+	}
+}
+
+@keyframes slideToTop {
+	from {
+		transform: translateY(0);
+		opacity: 1;
+	}
+	to {
+		transform: translateY(-100px);
+		opacity: 0;
+	}
+}
+
+@keyframes zoomOut {
+	from {
+		transform: scale(1);
+		opacity: 1;
+	}
+	to {
+		transform: scale(1.1);
+		opacity: 0;
 	}
 }
 

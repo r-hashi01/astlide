@@ -1,23 +1,55 @@
 {
 	"name": "@astlide/core",
 	"version": "0.1.0",
+	"description": "Astro-based slide presentation framework — like Slidev, but for the Astro ecosystem",
 	"type": "module",
 	"types": "./src/index.ts",
 	"exports": {
 		".": "./src/index.ts",
+		"./plugin": "./src/plugin.ts",
 		"./schema": "./src/schema.ts",
 		"./components/*": "./src/components/*",
 		"./internal/*": "./src/internal/*",
-		"./styles/*": "./src/styles/*"
+		"./styles/*": "./src/styles/*",
+		"./utils/*": "./src/utils/*"
 	},
 	"files": [
-		"src"
+		"src",
+		"CHANGELOG.md"
 	],
+	"scripts": {
+		"docs": "typedoc",
+		"prepublishOnly": "echo '✓ @astlide/core ready to publish (source-only package)'"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/r-hashi01/astlide.git",
+		"directory": "packages/astlide"
+	},
+	"engines": {
+		"node": ">=20.0.0"
+	},
+	"sideEffects": [
+		"*.css",
+		"*.astro"
+	],
+	"publishConfig": {
+		"access": "public",
+		"provenance": true
+	},
+	"homepage": "https://github.com/r-hashi01/astlide#readme",
+	"bugs": "https://github.com/r-hashi01/astlide/issues",
 	"peerDependencies": {
-		"astro": "^5.0.0"
+		"astro": "^6.0.0"
 	},
 	"dependencies": {
-		"@astrojs/mdx": "^4.0.0"
+		"@astrojs/mdx": "^5.0.0",
+		"katex": "^0.16.0",
+		"js-yaml": "^4.1.0",
+		"remark-mdx": "^3.0.0",
+		"remark-parse": "^11.0.0",
+		"remark-rehype": "^11.0.0",
+		"unified": "^11.0.0"
 	},
 	"optionalDependencies": {
 		"playwright": "^1.40.0",
@@ -28,7 +60,11 @@
 		"astro-integration",
 		"slides",
 		"presentation",
-		"mdx"
+		"mdx",
+		"slidev"
 	],
-	"license": "MIT"
+	"license": "MIT",
+	"devDependencies": {
+		"typedoc": "^0.28.17"
+	}
 }

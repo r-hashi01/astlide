@@ -1,0 +1,61 @@
+---
+/**
+ * Columns — flexible multi-column layout component.
+ *
+ * Usage in MDX:
+ *   <Columns>
+ *     <div>Column 1 content</div>
+ *     <div>Column 2 content</div>
+ *     <div>Column 3 content</div>
+ *   </Columns>
+ *
+ * Props:
+ *   columns — number of columns (auto-detected from children if omitted)
+ *   gap     — gap between columns (CSS value, default: "2rem")
+ *   align   — vertical alignment: "start" | "center" | "end" | "stretch"
+ *   widths  — custom column widths (e.g., "1fr 2fr 1fr" or "300px 1fr")
+ */
+interface Props {
+	columns?: number;
+	gap?: string;
+	align?: 'start' | 'center' | 'end' | 'stretch';
+	widths?: string;
+	class?: string;
+}
+
+const {
+	columns,
+	gap = '2rem',
+	align = 'start',
+	widths,
+	class: className,
+} = Astro.props;
+
+const gridTemplate = widths
+	? widths
+	: columns
+		? `repeat(${columns}, 1fr)`
+		: undefined;
+
+const style = [
+	gridTemplate ? `grid-template-columns: ${gridTemplate}` : '',
+	`gap: ${gap}`,
+	`align-items: ${align}`,
+].filter(Boolean).join('; ');
+---
+
+<div class:list={['columns', className]} style={style}>
+	<slot />
+</div>
+
+<style>
+	.columns {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+		width: 100%;
+	}
+
+	.columns > :global(*) {
+		min-width: 0;
+	}
+</style>

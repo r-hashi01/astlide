@@ -1,4 +1,6 @@
 ---
+import { sanitizeBackground } from '@astlide/core/utils/sanitize';
+
 interface Props {
   layout?: string;
   transition?: string;
@@ -13,16 +15,22 @@ const {
   transition = 'fade',
   background,
   class: className,
+  slideNumber,
+  totalSlides,
 } = Astro.props;
 
+// Sanitize background before CSS injection — guards against callers that bypass
+// the Zod schema (e.g. using <Slide> directly in .astro files).
+const safeBackground = background ? sanitizeBackground(background) : undefined;
+
 let backgroundStyle = '';
-if (background) {
-  if (background.startsWith('linear-gradient') || background.startsWith('radial-gradient')) {
-    backgroundStyle = `background: ${background};`;
-  } else if (background.startsWith('url(') || background.match(/\.(png|jpe?g|gif|webp|svg)(\?|$)/)) {
-    backgroundStyle = `background-image: url(${background.startsWith('url(') ? background.slice(4, -1) : background}); background-size: cover; background-position: center;`;
+if (safeBackground) {
+  if (safeBackground.startsWith('linear-gradient') || safeBackground.startsWith('radial-gradient')) {
+    backgroundStyle = `background: ${safeBackground};`;
+  } else if (safeBackground.startsWith('url(') || safeBackground.match(/\.(png|jpe?g|gif|webp|svg)(\?|$)/)) {
+    backgroundStyle = `background-image: url(${safeBackground.startsWith('url(') ? safeBackground.slice(4, -1) : safeBackground}); background-size: cover; background-position: center;`;
   } else {
-    backgroundStyle = `background-color: ${background};`;
+    backgroundStyle = `background-color: ${safeBackground};`;
   }
 }
 ---
@@ -31,6 +39,9 @@ if (background) {
   class:list={['slide', `slide-${layout}`, className]}
   data-transition={transition}
   style={backgroundStyle}
+  role="region"
+  aria-roledescription="slide"
+  aria-label={slideNumber && totalSlides ? `Slide ${slideNumber} of ${totalSlides}` : undefined}
 >
   <div class="slide-content">
     <slot />
@@ -198,6 +209,20 @@ if (background) {
     color: #000;
     padding: 0.1em 0.3em;
     border-radius: 0.2em;
+  }
+
+  /* ── Reduced motion ── */
+  @media (prefers-reduced-motion: reduce) {
+    :global([data-fragment]) {
+      transition: none;
+      transform: none;
+    }
+    :global([data-fragment-effect="zoom"]) {
+      transform: none;
+    }
+    :global([data-fragment-effect="highlight"]) {
+      transition: none;
+    }
   }
 
   /* ── Utility classes ── */

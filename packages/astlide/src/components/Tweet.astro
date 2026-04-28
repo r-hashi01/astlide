@@ -1,0 +1,148 @@
+---
+/**
+ * Tweet — Twitter/X ツイートの静的スタイルドカード。
+ *
+ * 外部 API への依存なし。ビルド時レンダリングのため、ツイート内容を props で提供する。
+ * カードをクリックすると元ツイートを新タブで開く。
+ *
+ * Usage in MDX:
+ *   <Tweet
+ *     url="https://twitter.com/astrodotbuild/status/1234567890"
+ *     text="Astro 5.0 is here! 🚀"
+ *     author="Astro"
+ *     handle="@astrodotbuild"
+ *     date="Dec 3, 2024"
+ *   />
+ *
+ * Props:
+ *   url     — ツイートURL（リンク先）
+ *   text    — ツイート本文（\n で改行可）
+ *   author  — 表示名
+ *   handle  — @ハンドル名（@ なしでも可）
+ *   date    — 投稿日時テキスト（省略可）
+ *   avatar  — アバター画像 URL（省略可）
+ *   class   — 追加 CSS クラス
+ */
+interface Props {
+	url: string;
+	text: string;
+	author: string;
+	handle: string;
+	date?: string;
+	avatar?: string;
+	class?: string;
+}
+
+const { url, text, author, handle, date, avatar, class: className } = Astro.props;
+const displayHandle = handle.startsWith('@') ? handle : `@${handle}`;
+---
+
+<a
+  href={url}
+  target="_blank"
+  rel="noopener noreferrer"
+  class:list={['tweet-card', className]}
+  aria-label={`Tweet by ${author}: ${text}`}
+>
+  <div class="tweet-header">
+    {avatar
+      ? <img src={avatar} alt={author} class="tweet-avatar" width="40" height="40" />
+      : <div class="tweet-avatar-placeholder" aria-hidden="true"></div>
+    }
+    <div class="tweet-author">
+      <span class="tweet-name">{author}</span>
+      <span class="tweet-handle">{displayHandle}</span>
+    </div>
+    <!-- X (Twitter) logo -->
+    <svg class="tweet-logo" viewBox="0 0 24 24" aria-hidden="true" fill="#1d9bf0" width="20" height="20">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.748l7.73-8.835L1.254 2.25H8.08l4.259 5.63 5.905-5.63zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  </div>
+  <p class="tweet-text">{text}</p>
+  {date && <time class="tweet-date">{date}</time>}
+</a>
+
+<style>
+  .tweet-card {
+    display: block;
+    max-width: min(480px, 100%);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 16px;
+    padding: 1rem 1.25rem;
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.15s;
+  }
+
+  .tweet-card:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .tweet-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .tweet-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .tweet-avatar-placeholder {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(29, 155, 240, 0.2);
+    flex-shrink: 0;
+  }
+
+  .tweet-author {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .tweet-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tweet-handle {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .tweet-logo {
+    flex-shrink: 0;
+  }
+
+  .tweet-text {
+    font-size: 1rem;
+    line-height: 1.6;
+    margin: 0;
+    white-space: pre-wrap;
+  }
+
+  .tweet-date {
+    display: block;
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.45);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tweet-card {
+      transition: none;
+    }
+  }
+</style>

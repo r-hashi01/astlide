@@ -1,0 +1,10 @@
+/* Rose Theme */
+[data-theme="rose"] {
+	--color-background: #fff1f2;
+	--color-foreground: #881337;
+	--color-primary: #e11d48;
+	--color-secondary: #9f1239;
+	--color-accent: #fb7185;
+	--color-muted: #ffe4e6;
+	--code-background: #1e0a10;
+}

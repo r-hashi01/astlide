@@ -1,0 +1,25 @@
+---
+/**
+ * Notes — speaker notes for presenter mode & notes overlay.
+ *
+ * Usage in MDX:
+ *   <Notes>
+ *     These notes are shown in presenter mode and the notes overlay (press `n`).
+ *     You can use **markdown** here.
+ *   </Notes>
+ *
+ * Alternative: use `notes` in frontmatter for plain-text notes.
+ * If both exist, the <Notes> component content takes priority.
+ */
+---
+
+<div class="slide-notes" data-slide-notes aria-hidden="true">
+  <slot />
+</div>
+
+<style>
+  /* Hidden from normal view — picked up by DeckLayout JS */
+  .slide-notes {
+    display: none !important;
+  }
+</style>

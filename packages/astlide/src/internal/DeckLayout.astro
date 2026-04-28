@@ -1,6 +1,31 @@
 ---
-import '../styles/base.css';
-import '../styles/themes/default.css';
+import '@astlide/core/styles/base.css';
+// All theme CSS is registered through the Astlide plugin API and emitted as side-effect
+// imports by the `virtual:astlide/themes` Vite virtual module.
+import 'virtual:astlide/themes';
+import { ClientRouter } from 'astro:transitions';
+import { sanitizeHTML } from '@astlide/core/utils/sanitize';
+
+// Vite defines injected by the astlide() integration
+declare const __ASTLIDE_CSP__: boolean | string;
+declare const __ASTLIDE_INDEXABLE__: boolean;
+
+const DEFAULT_CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: https:",
+  "connect-src 'self'",
+  "frame-src 'self' https://www.youtube-nocookie.com",
+].join('; ');
+
+const cspOption: boolean | string =
+  typeof __ASTLIDE_CSP__ !== 'undefined' ? __ASTLIDE_CSP__ : true;
+const cspContent =
+  cspOption === false ? null
+  : typeof cspOption === 'string' && cspOption !== 'true' ? cspOption
+  : DEFAULT_CSP;
 
 interface Props {
   title: string;
@@ -9,101 +34,162 @@ interface Props {
   totalSlides: number;
   deck: string;
   notes?: string;
+  transition?: string;
 }
 
-const { title, theme = 'default', currentSlide, totalSlides, deck, notes } = Astro.props;
+const { title, theme = 'default', currentSlide, totalSlides, deck, notes, transition = 'fade' } = Astro.props;
+const sanitizedNotes = notes ? sanitizeHTML(notes) : undefined;
 const progress = (currentSlide / totalSlides) * 100;
-const isPresenter = Astro.url.searchParams.has('presenter');
+const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEXABLE__ : false;
 ---
 
 <!DOCTYPE html>
-<html lang="en" data-theme={theme} data-presenter={isPresenter ? 'true' : undefined}>
+<html lang="en" data-theme={theme} data-slide-transition={transition}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    {cspContent && <meta http-equiv="Content-Security-Policy" content={cspContent} />}
     <title>{title}</title>
+    <meta name="description" content={`${title} — slide ${currentSlide} of ${totalSlides}`} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={`Slide deck: ${title}`} />
+    <meta property="og:type" content="website" />
+    {!indexable && <meta name="robots" content="noindex, nofollow" />}
+    {currentSlide < totalSlides && <link rel="prefetch" href={`/${deck}/${currentSlide + 1}`} />}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <ClientRouter />
+    <script>if(new URLSearchParams(location.search).has('presenter'))document.documentElement.setAttribute('data-presenter','');</script>
   </head>
-  <body data-total-slides={totalSlides} data-current-slide={currentSlide}>
+  <body data-total-slides={totalSlides} data-current-slide={currentSlide} data-deck={deck} data-slide-transition={transition}>
+
+    <!-- Skip link for keyboard navigation -->
+    <a href="#slide-scaler" class="skip-link">Skip to slide content</a>
+
+    <!-- aria-live region for screen reader announcements -->
+    <div class="sr-only" aria-live="polite" aria-atomic="true" id="slide-announcer">
+      {`Slide ${currentSlide} of ${totalSlides}`}
+    </div>
 
     <!-- Progress bar -->
-    <div class="progress-bar" style={`width: ${progress}%`} aria-hidden="true"></div>
+    <div class="progress-bar" style={`width: ${progress}%`} role="progressbar" aria-valuenow={currentSlide} aria-valuemin={1} aria-valuemax={totalSlides} aria-label={`Slide progress: ${currentSlide} of ${totalSlides}`}></div>
 
-    {isPresenter ? (
-      <!-- Presenter mode layout -->
-      <div class="presenter-layout">
-        <div class="presenter-slide-area">
-          <div class="presenter-current">
-            <div class="slide-scaler" id="slide-scaler"><slot /></div>
-          </div>
+    <!-- Presenter mode layout (hidden by default; shown via CSS when html[data-presenter]) -->
+    <div class="presenter-layout">
+      <div class="presenter-slide-area">
+        <div class="presenter-current">
+          <!-- #slide-scaler moved here by JS when in presenter mode -->
         </div>
-        <aside class="presenter-panel">
-          <div class="presenter-info">
-            <span class="presenter-counter">{currentSlide} / {totalSlides}</span>
+      </div>
+      <aside class="presenter-panel" aria-label="Presenter controls">
+        <div class="presenter-info">
+          <span class="presenter-counter">{currentSlide} / {totalSlides}</span>
+          <div class="timer-wrapper">
             <span class="presenter-timer" id="presenter-timer">00:00</span>
+            <button class="timer-btn" id="timer-btn" type="button" aria-label="Start timer" title="Start timer">▶</button>
+            <button class="timer-reset-btn" id="timer-reset" type="button" aria-label="Reset timer" title="Reset timer">↺</button>
           </div>
-          <div class="presenter-notes">
-            <h3>Notes</h3>
-            {notes
-              ? <div class="notes-content" set:html={notes} />
-              : <p class="no-notes">No notes for this slide.</p>
-            }
-          </div>
-          <div class="presenter-nav">
-            <a href={currentSlide > 1 ? `/${deck}/${currentSlide - 1}?presenter` : undefined}
-               class:list={['pnav-btn', { disabled: currentSlide <= 1 }]}>← Prev</a>
-            <a href={currentSlide < totalSlides ? `/${deck}/${currentSlide + 1}?presenter` : undefined}
-               class:list={['pnav-btn', { disabled: currentSlide >= totalSlides }]}>Next →</a>
-          </div>
-        </aside>
-      </div>
-    ) : (
-      <!-- Normal presentation layout -->
-      <div class="presentation">
-        <div class="slide-scaler" id="slide-scaler"><slot /></div>
-      </div>
-    )}
-
-    <!-- Navigation (hidden until hover, not shown in presenter) -->
-    {!isPresenter && (
-      <nav class="slide-nav" aria-label="Slide navigation">
-        <a href={currentSlide > 1 ? `/${deck}/${currentSlide - 1}` : undefined}
-           class:list={['nav-btn', { disabled: currentSlide <= 1 }]}
-           aria-label="Previous slide">←</a>
-        <span class="nav-indicator">{currentSlide} / {totalSlides}</span>
-        <a href={currentSlide < totalSlides ? `/${deck}/${currentSlide + 1}` : undefined}
-           class:list={['nav-btn', { disabled: currentSlide >= totalSlides }]}
-           aria-label="Next slide">→</a>
-      </nav>
-    )}
-
-    <!-- Notes overlay (toggled with 'n') -->
-    {!isPresenter && notes && (
-      <div class="notes-overlay" id="notes-overlay" aria-hidden="true">
-        <div class="notes-overlay-content">
-          <div class="notes-overlay-header">
-            <span>Speaker Notes</span>
-            <button class="notes-close" id="notes-close">✕</button>
-          </div>
-          <div class="notes-body" set:html={notes} />
         </div>
+        <div class="presenter-notes">
+          <h3>Notes</h3>
+          {sanitizedNotes
+            ? <div class="notes-content" set:html={sanitizedNotes} />
+            : <p class="no-notes">No notes for this slide.</p>
+          }
+        </div>
+        <div class="presenter-nav">
+          <a href={currentSlide > 1 ? `/${deck}/${currentSlide - 1}?presenter` : undefined}
+             class:list={['pnav-btn', { disabled: currentSlide <= 1 }]}
+             aria-disabled={currentSlide <= 1 ? 'true' : undefined}
+             tabindex={currentSlide <= 1 ? -1 : undefined}>← Prev</a>
+          <a href={currentSlide < totalSlides ? `/${deck}/${currentSlide + 1}?presenter` : undefined}
+             class:list={['pnav-btn', { disabled: currentSlide >= totalSlides }]}
+             aria-disabled={currentSlide >= totalSlides ? 'true' : undefined}
+             tabindex={currentSlide >= totalSlides ? -1 : undefined}>Next →</a>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Normal presentation layout (always rendered with slot) -->
+    <div class="presentation" role="main" aria-label="Slide presentation">
+      <div class="slide-scaler" id="slide-scaler" tabindex="-1" transition:name="slide-content" transition:animate="none"><slot /></div>
+    </div>
+
+    <!-- Navigation (hidden until hover; hidden in presenter mode via CSS) -->
+    <nav class="slide-nav" aria-label="Slide navigation">
+      <a href={currentSlide > 1 ? `/${deck}/${currentSlide - 1}` : undefined}
+         class:list={['nav-btn', { disabled: currentSlide <= 1 }]}
+         aria-label="Previous slide"
+         aria-disabled={currentSlide <= 1 ? 'true' : undefined}
+         tabindex={currentSlide <= 1 ? -1 : undefined}>←</a>
+      <span class="nav-indicator">{currentSlide} / {totalSlides}</span>
+      <a href={currentSlide < totalSlides ? `/${deck}/${currentSlide + 1}` : undefined}
+         class:list={['nav-btn', { disabled: currentSlide >= totalSlides }]}
+         aria-label="Next slide"
+         aria-disabled={currentSlide >= totalSlides ? 'true' : undefined}
+         tabindex={currentSlide >= totalSlides ? -1 : undefined}>→</a>
+    </nav>
+
+    <!-- Notes overlay (toggled with 'n'; hidden in presenter mode via CSS) -->
+    <div class="notes-overlay" id="notes-overlay" role="complementary" aria-label="Speaker notes" aria-hidden="true">
+      <div class="notes-overlay-content">
+        <div class="notes-overlay-header">
+          <span>Speaker Notes</span>
+          <button class="notes-close" id="notes-close" aria-label="Close speaker notes">✕</button>
+        </div>
+        {sanitizedNotes
+          ? <div class="notes-body" set:html={sanitizedNotes} />
+          : <div class="notes-body"><p class="no-notes">No notes for this slide.</p></div>
+        }
       </div>
-    )}
+    </div>
 
     <!-- Overview mode overlay -->
-    <div class="overview" id="overview" aria-hidden="true">
+    <div class="overview" id="overview" role="dialog" aria-label="Slide overview" aria-hidden="true">
       <div class="overview-header">
         Overview — press <kbd>o</kbd> or <kbd>Esc</kbd> to close
       </div>
-      <div class="overview-grid" id="overview-grid"></div>
+      <div class="overview-grid" id="overview-grid" role="list"></div>
     </div>
 
-    <script define:vars={{ currentSlide, totalSlides, deck, isPresenter }}>
-      // ── 1. Viewport scaling ────────────────────────────────────
+    <!-- Module script: expose Astro navigate() for ClientRouter -->
+    <script>
+      import { navigate } from 'astro:transitions/client';
+      window.__astlide_navigate = navigate;
+    </script>
+
+    <script define:vars={{ currentSlide, totalSlides, deck }}>
+      // ── 0. Presenter mode (detected from live URL, works for SSG) ─
+      const isPresenter = document.documentElement.hasAttribute('data-presenter');
+
+      // Encode deck name for safe URL construction (SSG value, but encode defensively
+      // to prevent open-redirect if the deck directory name contains special characters).
+      const deckPath = encodeURIComponent(deck);
+
+      // ── 1. Cleanup from previous page (ClientRouter) ─────────
+      if (window.__astlide_cleanup) {
+        try { window.__astlide_cleanup(); } catch(e) { /* ignore */ }
+      }
+
+      // ── 2. Navigation helper (uses ClientRouter if available) ─
+      function navTo(url) {
+        if (window.__astlide_navigate) {
+          window.__astlide_navigate(url);
+        } else {
+          window.location.href = url;
+        }
+      }
+
+      // ── 3. Viewport scaling ────────────────────────────────────
       const scaler = document.getElementById('slide-scaler');
       const slideEl = scaler ? scaler.querySelector('.slide') : null;
+
+      // Move slide content into presenter area if in presenter mode
+      if (isPresenter && scaler) {
+        const presenterCurrent = document.querySelector('.presenter-current');
+        if (presenterCurrent) presenterCurrent.appendChild(scaler);
+      }
 
       function updateScale() {
         if (!slideEl || !scaler) return;
@@ -132,18 +218,31 @@ const isPresenter = Astro.url.searchParams.has('presenter');
       updateScale();
       window.addEventListener('resize', updateScale);
 
-      // ── 2. Fragment support ────────────────────────────────────
-      const fragments = Array.from(document.querySelectorAll('[data-fragment]')).sort(
-        (a, b) =>
-          parseInt(a.getAttribute('data-fragment-index') || '0') -
-          parseInt(b.getAttribute('data-fragment-index') || '0')
-      );
+      // Focus management: move focus to slide content on page load
+      if (scaler && !isPresenter) {
+        scaler.focus({ preventScroll: true });
+      }
+
+      // ── 3. Fragment support ────────────────────────────────────
+      const fragments = Array.from(document.querySelectorAll('[data-fragment]')).sort((a, b) => {
+        const ai = parseInt(a.getAttribute('data-fragment-index') || '0', 10);
+        const bi = parseInt(b.getAttribute('data-fragment-index') || '0', 10);
+        return (Number.isNaN(ai) ? 0 : ai) - (Number.isNaN(bi) ? 0 : bi);
+      });
       let currentFragment = -1;
+
+      // Initialize ARIA for fragments — Fragment.astro omits static aria-hidden so that
+      // screen readers can access content when JS is unavailable (CSS hides it visually).
+      // With JS running, we manage aria-hidden here to match the visual reveal state.
+      for (const frag of fragments) {
+        frag.setAttribute('aria-hidden', 'true');
+      }
 
       function showNextFragment() {
         if (currentFragment < fragments.length - 1) {
           currentFragment++;
           fragments[currentFragment].setAttribute('data-fragment-visible', 'true');
+          fragments[currentFragment].setAttribute('aria-hidden', 'false');
           return true;
         }
         return false;
@@ -152,26 +251,57 @@ const isPresenter = Astro.url.searchParams.has('presenter');
       function showPrevFragment() {
         if (currentFragment >= 0) {
           fragments[currentFragment].removeAttribute('data-fragment-visible');
+          fragments[currentFragment].setAttribute('aria-hidden', 'true');
           currentFragment--;
           return true;
         }
         return false;
       }
 
-      // ── 3. Navigation ──────────────────────────────────────────
+      // ── 4. Presenter sync (BroadcastChannel with fallback) ────
+      let syncChannel = null;
+      try {
+        if (typeof BroadcastChannel !== 'undefined') {
+          syncChannel = new BroadcastChannel('astlide-sync-' + deck);
+          syncChannel.onmessage = function(e) {
+            const data = e.data;
+            if (data && data.type === 'navigate' && data.slide !== currentSlide) {
+              navTo('/' + deckPath + '/' + data.slide + (isPresenter ? '?presenter' : ''));
+            }
+          };
+        }
+      } catch (_) {
+        // BroadcastChannel not available — each window navigates independently
+        syncChannel = null;
+      }
+
+      function broadcastSlide(slideNum) {
+        if (syncChannel) {
+          try { syncChannel.postMessage({ type: 'navigate', slide: slideNum }); }
+          catch (_) { /* ignore */ }
+        }
+      }
+
+      // ── 5. Navigation ──────────────────────────────────────────
       function goNext() {
         if (fragments.length > 0 && showNextFragment()) return;
-        if (currentSlide < totalSlides)
-          window.location.href = '/' + deck + '/' + (currentSlide + 1) + (isPresenter ? '?presenter' : '');
+        if (currentSlide < totalSlides) {
+          const next = currentSlide + 1;
+          broadcastSlide(next);
+          navTo('/' + deckPath + '/' + next + (isPresenter ? '?presenter' : ''));
+        }
       }
 
       function goPrev() {
         if (fragments.length > 0 && showPrevFragment()) return;
-        if (currentSlide > 1)
-          window.location.href = '/' + deck + '/' + (currentSlide - 1) + (isPresenter ? '?presenter' : '');
+        if (currentSlide > 1) {
+          const prev = currentSlide - 1;
+          broadcastSlide(prev);
+          navTo('/' + deckPath + '/' + prev + (isPresenter ? '?presenter' : ''));
+        }
       }
 
-      // ── 4. Overview mode ───────────────────────────────────────
+      // ── 6. Overview mode ───────────────────────────────────────
       const overview = document.getElementById('overview');
       const overviewGrid = document.getElementById('overview-grid');
       let overviewOpen = false;
@@ -184,12 +314,13 @@ const isPresenter = Astro.url.searchParams.has('presenter');
         if (overviewGrid && overviewGrid.children.length === 0) {
           for (let i = 1; i <= totalSlides; i++) {
             const item = document.createElement('a');
-            item.href = '/' + deck + '/' + i;
+            item.href = '/' + deckPath + '/' + i;
             item.className = 'overview-item' + (i === currentSlide ? ' current' : '');
-            item.setAttribute('aria-label', 'Slide ' + i);
+            item.setAttribute('role', 'listitem');
+            item.setAttribute('aria-label', 'Slide ' + i + ' of ' + totalSlides + (i === currentSlide ? ' (current)' : ''));
 
             const iframe = document.createElement('iframe');
-            iframe.src = '/' + deck + '/' + i;
+            iframe.src = '/' + deckPath + '/' + i;
             iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts');
             iframe.setAttribute('scrolling', 'no');
             iframe.tabIndex = -1;
@@ -215,7 +346,75 @@ const isPresenter = Astro.url.searchParams.has('presenter');
 
       if (overview) overview.addEventListener('click', (e) => { if (e.target === overview) closeOverview(); });
 
-      // ── 5. Notes overlay ───────────────────────────────────────
+      // ── 7. <Notes> component detection ──────────────────────────
+      // If the <Notes> component is used in MDX, its HTML content takes priority
+      // over frontmatter `notes`. We inject it into presenter notes & notes overlay.
+
+      /**
+       * Client-side HTML sanitizer for Notes content.
+       * Uses DOMParser so scripts never execute during parsing.
+       *
+       * Strategy mirrors the server-side sanitizeHTML() in utils/sanitize.ts:
+       *   1. Remove known-dangerous tags (with content) entirely.
+       *   2. Allowlist safe tags — strip any tag not in the list (promote children).
+       *   3. Strip on* event-handler attributes from every remaining element.
+       */
+      function sanitizeNotesHTML(html) {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+
+        // 1. Remove dangerous tags entirely (mirrors server-side STRIP_WITH_CONTENT)
+        const STRIP_TAGS = ['script', 'style', 'iframe', 'object', 'embed', 'form',
+          'input', 'textarea', 'select', 'button', 'link', 'meta', 'base',
+          'applet', 'frame', 'frameset', 'layer', 'ilayer', 'bgsound'];
+        for (const tag of STRIP_TAGS) {
+          doc.body.querySelectorAll(tag).forEach((el) => el.remove());
+        }
+
+        // 2. Allowlist safe tags (mirrors server-side ALLOWED_TAGS set).
+        //    Process deepest elements first so nested unknown tags are safely unwrapped.
+        const ALLOWED_TAGS = new Set(['b', 'i', 'em', 'strong', 'code', 'pre', 'a',
+          'ul', 'ol', 'li', 'p', 'br', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+          'blockquote', 'span', 'div', 'hr', 'table', 'thead', 'tbody', 'tr',
+          'th', 'td', 'dl', 'dt', 'dd', 'sup', 'sub', 'mark', 'del', 'ins',
+          'kbd', 'abbr', 'small', 'details', 'summary']);
+        Array.from(doc.body.querySelectorAll('*')).reverse().forEach((el) => {
+          if (!ALLOWED_TAGS.has(el.tagName.toLowerCase())) {
+            el.replaceWith(...Array.from(el.childNodes));
+          }
+        });
+
+        // 3. Strip on* event-handler attributes from every remaining element
+        doc.body.querySelectorAll('*').forEach((el) => {
+          Array.from(el.attributes).forEach((attr) => {
+            if (/^on\w+$/i.test(attr.name)) el.removeAttribute(attr.name);
+          });
+        });
+
+        return doc.body.innerHTML;
+      }
+
+      const slideNotesEl = document.querySelector('[data-slide-notes]');
+      if (slideNotesEl && slideNotesEl.innerHTML.trim()) {
+        const notesHTML = sanitizeNotesHTML(slideNotesEl.innerHTML);
+        // Update presenter notes panel
+        const presenterNotesContent = document.querySelector('.presenter-notes .notes-content');
+        const presenterNoNotes = document.querySelector('.presenter-notes .no-notes');
+        if (presenterNotesContent) {
+          presenterNotesContent.innerHTML = notesHTML;
+        } else if (presenterNoNotes) {
+          const div = document.createElement('div');
+          div.className = 'notes-content';
+          div.innerHTML = notesHTML;
+          presenterNoNotes.replaceWith(div);
+        }
+        // Update notes overlay body
+        const notesBody = document.querySelector('.notes-body');
+        if (notesBody) {
+          notesBody.innerHTML = notesHTML;
+        }
+      }
+
+      // ── 8. Notes overlay ───────────────────────────────────────
       const notesOverlay = document.getElementById('notes-overlay');
       const notesClose = document.getElementById('notes-close');
       let notesOpen = false;
@@ -229,20 +428,63 @@ const isPresenter = Astro.url.searchParams.has('presenter');
 
       if (notesClose) notesClose.addEventListener('click', toggleNotes);
 
-      // ── 6. Presenter timer ─────────────────────────────────────
+      // ── 9. Presenter timer (manual start/pause/reset) ──────────
       const timerEl = document.getElementById('presenter-timer');
-      if (timerEl) {
-        const startTime = Date.now();
-        setInterval(() => {
-          const elapsed = Math.floor((Date.now() - startTime) / 1000);
-          const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
-          const s = String(elapsed % 60).padStart(2, '0');
-          timerEl.textContent = m + ':' + s;
-        }, 1000);
+      const timerBtn = document.getElementById('timer-btn');
+      const timerResetBtn = document.getElementById('timer-reset');
+      let timerInterval = null;
+      let timerRunning = false;
+      let timerElapsed = 0;
+      let timerStartTime = 0;
+
+      function formatTimer(secs) {
+        const m = String(Math.floor(secs / 60)).padStart(2, '0');
+        const s = String(secs % 60).padStart(2, '0');
+        return m + ':' + s;
       }
 
-      // ── 7. Keyboard shortcuts ──────────────────────────────────
-      document.addEventListener('keydown', function(e) {
+      if (timerBtn) {
+        timerBtn.addEventListener('click', () => {
+          if (timerRunning) {
+            timerElapsed += Math.floor((Date.now() - timerStartTime) / 1000);
+            clearInterval(timerInterval);
+            timerInterval = null;
+            timerRunning = false;
+            timerBtn.textContent = '▶';
+            timerBtn.title = 'Resume timer';
+            timerBtn.setAttribute('aria-label', 'Resume timer');
+          } else {
+            timerStartTime = Date.now();
+            timerRunning = true;
+            timerInterval = setInterval(() => {
+              const elapsed = timerElapsed + Math.floor((Date.now() - timerStartTime) / 1000);
+              if (timerEl) timerEl.textContent = formatTimer(elapsed);
+            }, 1000);
+            timerBtn.textContent = '⏸';
+            timerBtn.title = 'Pause timer';
+            timerBtn.setAttribute('aria-label', 'Pause timer');
+          }
+        });
+      }
+
+      if (timerResetBtn) {
+        timerResetBtn.addEventListener('click', () => {
+          if (timerInterval) clearInterval(timerInterval);
+          timerInterval = null;
+          timerRunning = false;
+          timerElapsed = 0;
+          timerStartTime = 0;
+          if (timerEl) timerEl.textContent = '00:00';
+          if (timerBtn) {
+            timerBtn.textContent = '▶';
+            timerBtn.title = 'Start timer';
+            timerBtn.setAttribute('aria-label', 'Start timer');
+          }
+        });
+      }
+
+      // ── 10. Keyboard shortcuts ──────────────────────────────────
+      function handleKeydown(e) {
         if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
         if (overviewOpen) {
@@ -263,12 +505,14 @@ const isPresenter = Astro.url.searchParams.has('presenter');
           case 'ArrowUp':
           case 'Home':
             e.preventDefault();
-            window.location.href = '/' + deck + '/1' + (isPresenter ? '?presenter' : '');
+            broadcastSlide(1);
+            navTo('/' + deckPath + '/1' + (isPresenter ? '?presenter' : ''));
             break;
           case 'ArrowDown':
           case 'End':
             e.preventDefault();
-            window.location.href = '/' + deck + '/' + totalSlides + (isPresenter ? '?presenter' : '');
+            broadcastSlide(totalSlides);
+            navTo('/' + deckPath + '/' + totalSlides + (isPresenter ? '?presenter' : ''));
             break;
           case 'f':
             if (!isPresenter) document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
@@ -291,18 +535,20 @@ const isPresenter = Astro.url.searchParams.has('presenter');
             if (!isPresenter) toggleNotes();
             break;
         }
-      });
+      }
 
-      // ── 8. Touch / swipe support ───────────────────────────────
+      document.addEventListener('keydown', handleKeydown);
+
+      // ── 11. Touch / swipe support ──────────────────────────────
       let touchStartX = 0;
       let touchStartY = 0;
 
-      document.addEventListener('touchstart', (e) => {
+      function handleTouchstart(e) {
         touchStartX = e.changedTouches[0].clientX;
         touchStartY = e.changedTouches[0].clientY;
-      }, { passive: true });
+      }
 
-      document.addEventListener('touchend', (e) => {
+      function handleTouchend(e) {
         const dx = e.changedTouches[0].clientX - touchStartX;
         const dy = e.changedTouches[0].clientY - touchStartY;
         if (Math.abs(dx) < 30 && Math.abs(dy) < 30) return;
@@ -310,7 +556,23 @@ const isPresenter = Astro.url.searchParams.has('presenter');
           if (dx < 0) goNext();
           else goPrev();
         }
-      }, { passive: true });
+      }
+
+      document.addEventListener('touchstart', handleTouchstart, { passive: true });
+      document.addEventListener('touchend', handleTouchend, { passive: true });
+
+      // ── 12. Cleanup (called by next page on ClientRouter) ───
+      window.__astlide_cleanup = function() {
+        document.removeEventListener('keydown', handleKeydown);
+        document.removeEventListener('touchstart', handleTouchstart);
+        document.removeEventListener('touchend', handleTouchend);
+        window.removeEventListener('resize', updateScale);
+        if (timerInterval) clearInterval(timerInterval);
+        if (syncChannel) {
+          syncChannel.onmessage = null; // Remove listener to prevent memory leaks
+          try { syncChannel.close(); } catch(e) { /* ignore */ }
+        }
+      };
     </script>
   </body>
 </html>
@@ -323,6 +585,43 @@ const isPresenter = Astro.url.searchParams.has('presenter');
     width: 100vw;
     height: 100vh;
     background: #000;
+  }
+
+  /* ── Skip link (visually hidden, visible on focus) ── */
+  .skip-link {
+    position: fixed;
+    top: -100%;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    padding: 0.75rem 1.5rem;
+    background: var(--color-primary, #3b82f6);
+    color: white;
+    text-decoration: none;
+    border-radius: 0 0 0.5rem 0.5rem;
+    font-family: system-ui, sans-serif;
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: top 0.15s ease;
+  }
+
+  .skip-link:focus {
+    top: 0;
+    outline: 2px solid white;
+    outline-offset: 2px;
+  }
+
+  /* ── Screen reader only ── */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   /* ── Progress bar ── */
@@ -353,15 +652,31 @@ const isPresenter = Astro.url.searchParams.has('presenter');
   }
 
   /* ── Presenter layout ── */
-  [data-presenter] {
-    overflow: hidden;
-  }
-
   .presenter-layout {
-    display: flex;
+    display: none;
     width: 100vw;
     height: 100vh;
     background: #111;
+  }
+
+  html[data-presenter] {
+    overflow: hidden;
+  }
+
+  html[data-presenter] .presenter-layout {
+    display: flex;
+  }
+
+  html[data-presenter] .presentation {
+    display: none;
+  }
+
+  html[data-presenter] .slide-nav {
+    display: none !important;
+  }
+
+  html[data-presenter] #notes-overlay {
+    display: none !important;
   }
 
   .presenter-slide-area {
@@ -409,11 +724,35 @@ const isPresenter = Astro.url.searchParams.has('presenter');
     font-weight: 600;
   }
 
+  .timer-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
   .presenter-timer {
     font-size: 1.5rem;
     font-variant-numeric: tabular-nums;
     color: #60a5fa;
     font-family: monospace;
+  }
+
+  .timer-btn,
+  .timer-reset-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    padding: 0.15rem 0.45rem;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    font-size: 0.8rem;
+    line-height: 1.4;
+  }
+
+  .timer-btn:hover,
+  .timer-reset-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.95);
   }
 
   .presenter-notes {
@@ -654,6 +993,18 @@ const isPresenter = Astro.url.searchParams.has('presenter');
     border-radius: 1em;
     font-family: monospace;
     font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Reduced motion ── */
+  @media (prefers-reduced-motion: reduce) {
+    .progress-bar { transition: none; }
+    .slide-nav { transition: none; }
+    .notes-overlay { transition: none; }
+    .overview-item { transition: none; }
+    .pnav-btn { transition: none; }
+    .nav-btn { transition: none; }
+    .notes-close { transition: none; }
+    .deck-card { transition: none; }
   }
 
   /* ── Print ── */

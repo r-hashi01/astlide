@@ -1,14 +1,23 @@
 ---
-import { getCollection } from 'astro:content';
+import { getCollection, render } from 'astro:content';
 import fs from 'node:fs';
 import path from 'node:path';
-import DeckLayout from '../DeckLayout.astro';
-import Slide from '../../components/Slide.astro';
-import Left from '../../components/Left.astro';
-import Right from '../../components/Right.astro';
-import ImageSide from '../../components/ImageSide.astro';
-import TextPanel from '../../components/TextPanel.astro';
-import Fragment from '../../components/Fragment.astro';
+import { deckConfigSchema } from '@astlide/core/schema';
+import type { DeckConfig } from '@astlide/core/schema';
+import DeckLayout from '@astlide/core/internal/DeckLayout.astro';
+import ErrorOverlay, { type Diagnostic } from '@astlide/core/internal/ErrorOverlay.astro';
+import Slide from '@astlide/core/components/Slide.astro';
+import Left from '@astlide/core/components/Left.astro';
+import Right from '@astlide/core/components/Right.astro';
+import ImageSide from '@astlide/core/components/ImageSide.astro';
+import TextPanel from '@astlide/core/components/TextPanel.astro';
+import Fragment from '@astlide/core/components/Fragment.astro';
+import Notes from '@astlide/core/components/Notes.astro';
+import Columns from '@astlide/core/components/Columns.astro';
+import CodeBlock from '@astlide/core/components/CodeBlock.astro';
+import Math from '@astlide/core/components/Math.astro';
+import YouTube from '@astlide/core/components/YouTube.astro';
+import Tweet from '@astlide/core/components/Tweet.astro';
 
 export async function getStaticPaths() {
   const allSlides = await getCollection('decks');
@@ -28,22 +37,45 @@ export async function getStaticPaths() {
       deckName: string;
       slideNumber: number;
       totalSlides: number;
-      deckConfig: Record<string, unknown>;
+      deckConfig: DeckConfig;
+      nextVisibleSlide: number;
+      configIssue: string | null;
     };
   }> = [];
 
   for (const [deckName, slides] of deckMap) {
     const sortedSlides = slides
-      .filter((s) => !s.id.endsWith('_config.json'))
       .sort((a, b) => a.id.localeCompare(b.id));
 
     const configPath = path.join(process.cwd(), 'src', 'content', 'decks', deckName, '_config.json');
-    let deckConfig: Record<string, unknown> = { title: deckName };
+    let deckConfig: DeckConfig = deckConfigSchema.parse({});  // schema defaults
+    let configIssue: string | null = null;
     if (fs.existsSync(configPath)) {
-      deckConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      try {
+        const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        const result = deckConfigSchema.safeParse(raw);
+        if (result.success) {
+          deckConfig = result.data;
+        } else {
+          configIssue = `Invalid _config.json: ${result.error.issues.map((i) => `${i.path.join('.') || '<root>'} — ${i.message}`).join('; ')}`;
+        }
+      } catch (e) {
+        configIssue = `Malformed _config.json: ${(e as Error).message}`;
+      }
     }
 
+    // Pre-compute first visible slide for fallback
+    const firstVisible = sortedSlides.find((s) => !s.data.hidden);
+
     for (let i = 0; i < sortedSlides.length; i++) {
+      // Find the next non-hidden slide; fall back to first visible or slide 1
+      const nextVisible = sortedSlides.slice(i + 1).find((s) => !s.data.hidden);
+      const nextVisibleSlide = nextVisible
+        ? sortedSlides.indexOf(nextVisible) + 1
+        : firstVisible
+          ? sortedSlides.indexOf(firstVisible) + 1
+          : 1;
+
       paths.push({
         params: { deck: deckName, slide: String(i + 1) },
         props: {
@@ -51,7 +83,9 @@ export async function getStaticPaths() {
           deckName,
           slideNumber: i + 1,
           totalSlides: sortedSlides.length,
-          deckConfig,
+          deckConfig,    // typed as DeckConfig
+          nextVisibleSlide,
+          configIssue,
         },
       });
     }
@@ -60,8 +94,8 @@ export async function getStaticPaths() {
   return paths;
 }
 
-const { slide, deckName, slideNumber, totalSlides, deckConfig } = Astro.props;
-const { Content } = await slide.render();
+const { slide, deckName, slideNumber, totalSlides, deckConfig, nextVisibleSlide, configIssue } = Astro.props;
+const { Content } = await render(slide);
 
 const {
   slideLayout: layout = 'default',
@@ -72,26 +106,64 @@ const {
   hidden,
 } = slide.data;
 
-// Skip hidden slides in production
+// Skip hidden slides in production — redirect to next visible slide
 if (hidden && import.meta.env.PROD) {
-  return Astro.redirect(`/${deckName}/${slideNumber + 1}`);
+  return Astro.redirect(`/${deckName}/${nextVisibleSlide}`);
+}
+
+// Vite-defined plugin name lists (resolved at build time by the astlide() integration).
+declare const __ASTLIDE_LAYOUT_NAMES__: string[];
+declare const __ASTLIDE_TRANSITION_NAMES__: string[];
+declare const __ASTLIDE_THEME_NAMES__: string[];
+
+// Dev-only diagnostics. Failing on these would block the whole deck for a typo, so we
+// warn (console + on-screen overlay) and fall through to CSS defaults instead.
+const diagnostics: Diagnostic[] = [];
+if (import.meta.env.DEV) {
+  const knownLayouts = typeof __ASTLIDE_LAYOUT_NAMES__ !== 'undefined' ? __ASTLIDE_LAYOUT_NAMES__ : [];
+  const knownTransitions = typeof __ASTLIDE_TRANSITION_NAMES__ !== 'undefined' ? __ASTLIDE_TRANSITION_NAMES__ : [];
+  const knownThemes = typeof __ASTLIDE_THEME_NAMES__ !== 'undefined' ? __ASTLIDE_THEME_NAMES__ : [];
+
+  if (configIssue) {
+    diagnostics.push({ severity: 'error', message: configIssue, source: `decks/${deckName}/_config.json` });
+    console.error(`[astlide] ${configIssue} (decks/${deckName}/_config.json)`);
+  }
+  if (knownLayouts.length && !knownLayouts.includes(layout)) {
+    const msg = `Unknown slideLayout "${layout}". Known: ${knownLayouts.join(', ')}`;
+    diagnostics.push({ severity: 'warn', message: msg, source: `${deckName}/slide ${slideNumber}` });
+    console.warn(`[astlide] ${msg} (${deckName}/slide ${slideNumber})`);
+  }
+  if (knownTransitions.length && !knownTransitions.includes(transition)) {
+    const msg = `Unknown transition "${transition}". Known: ${knownTransitions.join(', ')}`;
+    diagnostics.push({ severity: 'warn', message: msg, source: `${deckName}/slide ${slideNumber}` });
+    console.warn(`[astlide] ${msg} (${deckName}/slide ${slideNumber})`);
+  }
+  if (deckConfig.theme && knownThemes.length && !knownThemes.includes(deckConfig.theme)) {
+    const msg = `Unknown theme "${deckConfig.theme}". Known: ${knownThemes.join(', ')}`;
+    diagnostics.push({ severity: 'warn', message: msg, source: `decks/${deckName}/_config.json` });
+    console.warn(`[astlide] ${msg} (decks/${deckName})`);
+  }
 }
 ---
 
 <DeckLayout
-  title={`${deckConfig.title} - Slide ${slideNumber}`}
-  theme={deckConfig.theme as string | undefined}
+  title={`${deckConfig.title ?? deckName} - Slide ${slideNumber}`}
+  theme={deckConfig.theme}
   currentSlide={slideNumber}
   totalSlides={totalSlides}
   deck={deckName}
   notes={notes}
+  transition={transition}
 >
   <Slide
     layout={layout}
     transition={transition}
     background={background}
     class={className}
+    slideNumber={slideNumber}
+    totalSlides={totalSlides}
   >
-    <Content components={{ Left, Right, ImageSide, TextPanel, Fragment }} />
+    <Content components={{ Left, Right, ImageSide, TextPanel, Fragment, Notes, Columns, CodeBlock, Math, YouTube, Tweet }} />
   </Slide>
+  {import.meta.env.DEV && diagnostics.length > 0 && <ErrorOverlay diagnostics={diagnostics} />}
 </DeckLayout>

@@ -1,0 +1,119 @@
+---
+/**
+ * Dev-only diagnostics overlay.
+ *
+ * Surfaces Astlide-specific issues (unknown theme / layout / transition,
+ * malformed _config.json) directly on the slide so authors can spot typos
+ * without scanning the terminal. Astro / Vite handle MDX syntax errors via
+ * their own overlays — this component does not duplicate that.
+ *
+ * Render only when `import.meta.env.DEV` is true.
+ */
+
+export type DiagSeverity = 'warn' | 'error';
+
+export interface Diagnostic {
+  severity: DiagSeverity;
+  message: string;
+  /** Optional file path / location hint. */
+  source?: string;
+}
+
+interface Props {
+  diagnostics: Diagnostic[];
+}
+
+const { diagnostics } = Astro.props;
+---
+
+{diagnostics.length > 0 && (
+  <aside class="astlide-diag" data-astlide-diag aria-label="Astlide diagnostics">
+    <header class="astlide-diag-header">
+      <span class="astlide-diag-title">Astlide ⚠ {diagnostics.length}</span>
+      <button type="button" class="astlide-diag-close" aria-label="Dismiss diagnostics">×</button>
+    </header>
+    <ul class="astlide-diag-list" role="list">
+      {diagnostics.map((d) => (
+        <li class={`astlide-diag-item astlide-diag-${d.severity}`}>
+          <span class="astlide-diag-msg">{d.message}</span>
+          {d.source && <span class="astlide-diag-source">{d.source}</span>}
+        </li>
+      ))}
+    </ul>
+  </aside>
+)}
+
+<script>
+  // Dismiss handler — also persists across ClientRouter navigations within the session.
+  const KEY = 'astlide:diag-dismissed';
+  function bind() {
+    const aside = document.querySelector<HTMLElement>('[data-astlide-diag]');
+    if (!aside) return;
+    if (sessionStorage.getItem(KEY) === '1') {
+      aside.style.display = 'none';
+      return;
+    }
+    aside.querySelector('.astlide-diag-close')?.addEventListener('click', () => {
+      aside.style.display = 'none';
+      sessionStorage.setItem(KEY, '1');
+    });
+  }
+  bind();
+  document.addEventListener('astro:after-swap', bind);
+</script>
+
+<style>
+  .astlide-diag {
+    position: fixed;
+    bottom: 0.75rem;
+    right: 0.75rem;
+    max-width: 26rem;
+    background: rgba(20, 22, 30, 0.96);
+    color: #f3f4f6;
+    border: 1px solid #f59e0b;
+    border-radius: 0.5rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    z-index: 9999;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.75rem;
+    overflow: hidden;
+  }
+  .astlide-diag-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.4rem 0.75rem;
+    background: #f59e0b;
+    color: #1f2937;
+    font-weight: 600;
+  }
+  .astlide-diag-close {
+    background: transparent;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0 0.25rem;
+  }
+  .astlide-diag-list {
+    list-style: none;
+    margin: 0;
+    padding: 0.5rem 0.75rem;
+    max-height: 14rem;
+    overflow-y: auto;
+  }
+  .astlide-diag-item {
+    padding: 0.25rem 0;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+  }
+  .astlide-diag-item:last-child { border-bottom: none; }
+  .astlide-diag-error { color: #fca5a5; }
+  .astlide-diag-msg { display: block; line-height: 1.35; }
+  .astlide-diag-source {
+    display: block;
+    margin-top: 0.15rem;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.65rem;
+  }
+</style>

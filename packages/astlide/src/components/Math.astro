@@ -1,0 +1,46 @@
+---
+/**
+ * Math — KaTeX による LaTeX 数式レンダリングコンポーネント（ビルド時 SSR）。
+ *
+ * KaTeX の出力は sanitizeKaTeXOutput() を通すことで SVG/inline-style を保持しつつ
+ * スクリプトインジェクションを防止する。
+ *
+ * Usage in MDX:
+ *   Inline: <Math formula="\frac{x^2}{2}" />
+ *   Block:  <Math formula="\sum_{i=1}^n i^2 = \frac{n(n+1)(2n+1)}{6}" display />
+ *
+ * Props:
+ *   formula  — LaTeX 数式文字列
+ *   display  — true: ブロック表示（数式が中央に大きく表示される）、false (default): インライン表示
+ *   class    — 追加 CSS クラス
+ */
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
+import { sanitizeKaTeXOutput } from '@astlide/core/utils/sanitize';
+
+interface Props {
+	formula: string;
+	display?: boolean;
+	class?: string;
+}
+
+const { formula, display = false, class: className } = Astro.props;
+const rawHtml = katex.renderToString(formula, {
+	displayMode: display,
+	throwOnError: false,
+	output: 'html',
+	strict: false,
+});
+const html = sanitizeKaTeXOutput(rawHtml);
+---
+
+<span class:list={['math', { 'math-display': display }, className]} set:html={html} />
+
+<style>
+  .math-display {
+    display: block;
+    text-align: center;
+    margin: 0.5em 0;
+    overflow-x: auto;
+  }
+</style>

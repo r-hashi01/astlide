@@ -1,0 +1,10 @@
+/* Forest Theme */
+[data-theme="forest"] {
+	--color-background: #f0fdf4;
+	--color-foreground: #14532d;
+	--color-primary: #16a34a;
+	--color-secondary: #166534;
+	--color-accent: #4ade80;
+	--color-muted: #dcfce7;
+	--code-background: #052e16;
+}

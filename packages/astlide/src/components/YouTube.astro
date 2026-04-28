@@ -1,0 +1,64 @@
+---
+/**
+ * YouTube — プライバシー強化モードの YouTube 埋め込みコンポーネント。
+ *
+ * Usage in MDX:
+ *   <YouTube id="dQw4w9WgXcQ" />
+ *   <YouTube id="https://www.youtube.com/watch?v=dQw4w9WgXcQ" title="Rick Astley" />
+ *   <YouTube id="dQw4w9WgXcQ" start={42} />
+ *
+ * Props:
+ *   id     — YouTube 動画 ID または URL（フルURL から自動抽出）
+ *   title  — iframe のアクセシビリティタイトル（default: 'YouTube video'）
+ *   start  — 開始秒数
+ *   class  — 追加 CSS クラス
+ */
+interface Props {
+	id: string;
+	title?: string;
+	start?: number;
+	class?: string;
+}
+
+const { id: rawId, title = 'YouTube video', start, class: className } = Astro.props;
+
+// Extract the 11-character video ID from a full URL if provided
+const urlMatch = rawId.match(
+	/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
+);
+const videoId = urlMatch ? urlMatch[1] : rawId;
+
+const params = new URLSearchParams();
+if (start !== undefined) params.set('start', String(start));
+const query = params.toString() ? `?${params}` : '';
+const src = `https://www.youtube-nocookie.com/embed/${videoId}${query}`;
+---
+
+<div class:list={['youtube-embed', className]}>
+  <iframe
+    src={src}
+    title={title}
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowfullscreen
+    loading="lazy"
+  ></iframe>
+</div>
+
+<style>
+  .youtube-embed {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: var(--radius, 8px);
+    overflow: hidden;
+    background: #000;
+  }
+
+  .youtube-embed iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+  }
+</style>
