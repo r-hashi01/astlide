@@ -19,7 +19,9 @@ permissions:
 
 jobs:
   sync:
-    if: github.actor == 'dependabot[bot]'
+    # Match the PR author so the workflow still runs when a maintainer
+    # reopens or rebases the PR (github.actor would be the maintainer then).
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
