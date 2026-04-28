@@ -49,7 +49,7 @@ async function ask(question: string, defaultValue = ""): Promise<string> {
 		output: process.stdout,
 	});
 	return new Promise((resolve) => {
-		rl.question(`  ${question}${hint}: `, (answer) => {
+		rl.question(`  ${question}${hint}: `, (answer: string) => {
 			rl.close();
 			resolve(answer.trim() || defaultValue);
 		});
@@ -74,7 +74,7 @@ async function askChoice<T extends string>(
 		output: process.stdout,
 	});
 	return new Promise((resolve) => {
-		rl.question(`  ${dim(`Enter 1-${choices.length}`)} [${defaultIndex + 1}]: `, (answer) => {
+		rl.question(`  ${dim(`Enter 1-${choices.length}`)} [${defaultIndex + 1}]: `, (answer: string) => {
 			rl.close();
 			const num = Number.parseInt(answer.trim(), 10);
 			if (num >= 1 && num <= choices.length) {
@@ -94,7 +94,7 @@ async function askYesNo(question: string, defaultYes = true): Promise<boolean> {
 		output: process.stdout,
 	});
 	return new Promise((resolve) => {
-		rl.question(`  ${question} ${dim(hint)}: `, (answer) => {
+		rl.question(`  ${question} ${dim(hint)}: `, (answer: string) => {
 			rl.close();
 			const a = answer.trim().toLowerCase();
 			if (!a) resolve(defaultYes);
