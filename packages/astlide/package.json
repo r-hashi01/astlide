@@ -34,8 +34,7 @@
 		"*.astro"
 	],
 	"publishConfig": {
-		"access": "public",
-		"provenance": true
+		"access": "public"
 	},
 	"homepage": "https://github.com/r-hashi01/astlide#readme",
 	"bugs": "https://github.com/r-hashi01/astlide/issues",

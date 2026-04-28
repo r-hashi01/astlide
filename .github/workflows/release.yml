@@ -1,18 +1,12 @@
 name: Release
 
-# Disabled until v0.1.0 ships from a local `npm publish` (see RELEASING.md
-# "First publish" — chicken-egg with Trusted Publishing). After v0.1.0 lands
-# and Trusted Publishing is configured per package on npmjs.com, switch the
-# trigger back to:
-#
-#   on:
-#     push:
-#       branches:
-#         - main
-#
-# and remove `workflow_dispatch` if you don't want manual triggering.
+# Trusted Publishing (OIDC) is configured on npm for both @astlide/core and
+# create-astlide via `npm trust github ... --file release.yml --repo r-hashi01/astlide`.
+# No NPM_TOKEN is needed — npm verifies this workflow's id-token at publish time.
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -23,7 +17,7 @@ jobs:
     permissions:
       contents: write       # Required to create the "Version Packages" PR + tags
       pull-requests: write  # Required to open the Version Packages PR
-      id-token: write       # Required for npm provenance (OIDC)
+      id-token: write       # Required for npm Trusted Publishing (OIDC)
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -35,8 +29,8 @@ jobs:
 
       - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4
         with:
-          # changesets/action shells out to `npm publish` even when version uses bun;
-          # set up Node so a registry-auth ~/.npmrc is written by setup-node.
+          # changesets/action shells out to `npm publish`; npm 11.5.1+ on Node 22.14+
+          # is required for Trusted Publishing OIDC.
           node-version: 22
           registry-url: "https://registry.npmjs.org"
 
@@ -52,7 +46,3 @@ jobs:
           commit: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          # npm publish --provenance reads this to confirm the OIDC issuer.
-          NPM_CONFIG_PROVENANCE: "true"
