@@ -8,7 +8,7 @@
     "preview": "astro preview"
   },
   "dependencies": {
-    "astro": "^5.0.0",
+    "astro": "^6.0.0",
     "@astlide/core": "^0.1.0"
   }
 }

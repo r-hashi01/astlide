@@ -1,21 +1,44 @@
 {
 	"name": "create-astlide",
 	"version": "0.1.0",
+	"description": "Scaffold a new Astlide slide project",
 	"type": "module",
 	"bin": {
 		"create-astlide": "./dist/index.js"
 	},
 	"files": [
 		"dist",
-		"template"
+		"template",
+		"CHANGELOG.md"
 	],
 	"scripts": {
 		"build": "tsc",
 		"prepublishOnly": "bun run build"
 	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/r-hashi01/astlide.git",
+		"directory": "packages/create-astlide"
+	},
+	"homepage": "https://github.com/r-hashi01/astlide#readme",
+	"bugs": "https://github.com/r-hashi01/astlide/issues",
+	"engines": {
+		"node": ">=20.0.0"
+	},
+	"publishConfig": {
+		"access": "public",
+		"provenance": true
+	},
 	"devDependencies": {
 		"@types/node": "^22.0.0",
 		"typescript": "^5.4.0"
 	},
+	"keywords": [
+		"create",
+		"astro",
+		"slides",
+		"presentation",
+		"scaffolding"
+	],
 	"license": "MIT"
 }
