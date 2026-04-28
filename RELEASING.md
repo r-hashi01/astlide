@@ -150,3 +150,4 @@ See <https://github.com/r-hashi01/astlide/settings/branches>.
 - [`.changeset/config.json`](.changeset/config.json) — changesets config (changelog format, base branch, ignored packages)
 - [Changesets docs](https://github.com/changesets/changesets/blob/main/docs/intro-to-using-changesets.md) — upstream guidance
 - [npm provenance docs](https://docs.npmjs.com/generating-provenance-statements) — supply-chain transparency
+
