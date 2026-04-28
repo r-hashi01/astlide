@@ -74,15 +74,18 @@ async function askChoice<T extends string>(
 		output: process.stdout,
 	});
 	return new Promise((resolve) => {
-		rl.question(`  ${dim(`Enter 1-${choices.length}`)} [${defaultIndex + 1}]: `, (answer: string) => {
-			rl.close();
-			const num = Number.parseInt(answer.trim(), 10);
-			if (num >= 1 && num <= choices.length) {
-				resolve(choices[num - 1]);
-			} else {
-				resolve(choices[defaultIndex]);
-			}
-		});
+		rl.question(
+			`  ${dim(`Enter 1-${choices.length}`)} [${defaultIndex + 1}]: `,
+			(answer: string) => {
+				rl.close();
+				const num = Number.parseInt(answer.trim(), 10);
+				if (num >= 1 && num <= choices.length) {
+					resolve(choices[num - 1]);
+				} else {
+					resolve(choices[defaultIndex]);
+				}
+			},
+		);
 	});
 }
 
