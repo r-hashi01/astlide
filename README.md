@@ -1,50 +1,83 @@
 # Astlide
 
-A multi-deck slide presentation framework built on Astro.
+[![CI](https://github.com/r-hashi01/astlide/actions/workflows/ci.yml/badge.svg)](https://github.com/r-hashi01/astlide/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/@astlide/core.svg)](https://www.npmjs.com/package/@astlide/core)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Bun](https://img.shields.io/badge/runtime-Bun-fbf0df.svg)](https://bun.sh)
+
+An Astro-based slide presentation framework — like Slidev, but for the Astro ecosystem.
 
 ## Features
 
-- **Viewport scaling** — slides auto-scale to any screen/window size
 - **MDX slides** — write in Markdown with JSX components
+- **Viewport scaling** — slides auto-scale to any screen/window size (1920×1080)
+- **7 built-in themes** — default, dark, minimal, corporate, gradient, rose, forest
 - **Fragment reveals** — step-by-step content with `<Fragment>`
+- **Presenter mode** — speaker notes + timer in a separate window, synced via BroadcastChannel
 - **Overview mode** — press `o` to see all slides in a grid
-- **Presenter mode** — press `p` to open speaker notes in a separate window
-- **Notes overlay** — press `n` to show notes in the main window
-- **Touch / swipe** — swipe to navigate on mobile
-- **Theme system** — 6 built-in themes + full CSS variable control
-- **PDF / PNG export** — Playwright + pdf-lib, proper multi-page merging
+- **PDF / PNG export** — Playwright + pdf-lib with CLI options
 - **Type-safe** — Content Collections with Zod schema
+- **Touch / swipe** — navigate on mobile
 
 ## Quick Start
 
 ```bash
-# Clone the repository
-git clone https://github.com/YOUR_USERNAME/astlide.git
-cd astlide
-npm install
-npm run dev
-# Open http://localhost:4321
+# Scaffold a new project
+bun create astlide my-slides
+cd my-slides
+bun install
+bun run dev
+```
+
+Or add to an existing Astro project:
+
+```bash
+bun add @astlide/core
+```
+
+Then configure:
+
+```js
+// astro.config.mjs
+import { defineConfig } from 'astro/config';
+import astlide from '@astlide/core';
+
+export default defineConfig({
+  integrations: [astlide()],
+});
+```
+
+```ts
+// src/content.config.ts
+import { defineCollection } from 'astro:content';
+import { glob } from 'astro/loaders';
+import { slideSchema } from '@astlide/core/schema';
+
+const decks = defineCollection({
+  loader: glob({ pattern: '**/*.mdx', base: 'src/content/decks' }),
+  schema: slideSchema,
+});
+
+export const collections = { decks };
 ```
 
 ## Creating a Deck
 
-1. Create a directory in `src/content/decks/my-presentation/`
-
-2. Add `_config.json`:
+1. Create `src/content/decks/my-talk/_config.json`:
 
 ```json
 {
-  "title": "My Presentation",
+  "title": "My Talk",
   "author": "Your Name",
-  "date": "2024-01-15",
+  "date": "2025-01-15",
   "theme": "default"
 }
 ```
 
-3. Add slides as numbered MDX files:
+2. Add slides as numbered MDX files:
 
 ```
-my-presentation/
+src/content/decks/my-talk/
 ├── _config.json
 ├── 01-cover.mdx
 ├── 02-intro.mdx
@@ -57,12 +90,12 @@ my-presentation/
 
 ```yaml
 ---
-slideLayout: default   # see Layouts below
-transition: fade       # none | fade | slide-left | slide-right | slide-up | zoom
-background: "#1e293b"  # hex, gradient string, or image URL
-class: "text-light"    # extra CSS classes on the slide element
+slideLayout: default
+transition: fade
+background: "#1e293b"
+class: "text-light"
 notes: "Speaker notes shown in presenter/notes mode"
-hidden: false          # set true to skip slide in production builds
+hidden: false
 ---
 ```
 
@@ -75,7 +108,7 @@ hidden: false          # set true to skip slide in production builds
 | `section` | Chapter divider |
 | `two-column` | Side-by-side with `<Left>` / `<Right>` |
 | `image-full` | Background image with text overlay |
-| `image-left` | Image on left, text on right via `<ImageSide>` / `<TextPanel>` |
+| `image-left` | Image on left, text on right |
 | `image-right` | Image on right, text on left |
 | `code` | Optimised padding for code blocks |
 | `quote` | Centred blockquote |
@@ -98,6 +131,38 @@ New approach
 </Right>
 ```
 
+### Multi-column example
+
+```mdx
+---
+slideLayout: default
+---
+# Comparison
+
+<Columns columns={3} gap="1.5rem">
+<div>
+
+### Option A
+First option details.
+
+</div>
+<div>
+
+### Option B
+Second option details.
+
+</div>
+<div>
+
+### Option C
+Third option details.
+
+</div>
+</Columns>
+```
+
+Props: `columns` (number) | `gap` (CSS value) | `align` ("start" | "center" | "end" | "stretch") | `widths` (e.g., "1fr 2fr 1fr")
+
 ### Image-left example
 
 ```mdx
@@ -111,21 +176,39 @@ Description text here.
 </TextPanel>
 ```
 
-## Fragments (Step-by-Step Reveals)
+## Fragments
 
-Use `<Fragment>` to reveal content one step at a time:
+Use `<Fragment>` for step-by-step reveals:
 
 ```mdx
-<Fragment index={1}>First point appears</Fragment>
-
-<Fragment index={2}>Second point appears</Fragment>
-
+<Fragment index={1}>First point</Fragment>
+<Fragment index={2}>Second point</Fragment>
 <Fragment index={3} effect="zoom">Third — zoom effect</Fragment>
-
 <Fragment index={4} effect="highlight">Fourth — highlighted</Fragment>
 ```
 
 Effects: `fade` (default) | `slide-up` | `zoom` | `highlight`
+
+## Speaker Notes
+
+Use the `<Notes>` component for rich presenter notes with full Markdown support:
+
+```mdx
+---
+slideLayout: default
+---
+# My Slide
+
+Content here.
+
+<Notes>
+Key points to mention:
+- **First** important thing
+- Second point with `code`
+</Notes>
+```
+
+Notes are displayed in presenter mode (`p`) and the notes overlay (`n`). If both frontmatter `notes` and the `<Notes>` component exist, the component takes priority.
 
 ## Themes
 
@@ -134,20 +217,70 @@ Built-in: `default`, `dark`, `minimal`, `corporate`, `gradient`, `rose`, `forest
 Set in `_config.json`:
 
 ```json
-{ "theme": "dark" }
+{ "theme": "gradient" }
 ```
 
 ### Custom Theme
 
-Add a selector in `src/styles/themes/default.css`:
+Create a CSS file with `[data-theme="my-theme"]` selector targeting the CSS custom properties:
 
 ```css
+/* my-theme.css */
 [data-theme="my-theme"] {
   --color-background: #fef3c7;
   --color-foreground: #78350f;
   --color-primary: #d97706;
+  --color-secondary: #92400e;
+  --color-accent: #fbbf24;
+  --color-muted: #fde68a;
+  --code-background: #451a03;
 }
 ```
+
+Register it through the Plugin API (next section), then set `"theme": "my-theme"` in your deck's `_config.json`.
+
+## Plugin API
+
+Plugins extend Astlide with custom themes, layout names, transition names, and Shiki languages/themes.
+
+```ts
+// astro.config.mjs
+import { defineConfig } from 'astro/config';
+import astlide from '@astlide/core';
+import { defineAstlidePlugin } from '@astlide/core/plugin';
+
+const myPlugin = defineAstlidePlugin({
+  name: 'astlide-plugin-midnight',
+  themes: [
+    { name: 'midnight', cssEntrypoint: './themes/midnight.css' },
+  ],
+  layouts: [{ name: 'split-quote' }],
+  transitions: [{ name: 'iris' }],
+  shiki: {
+    langs: [/* additional Shiki langs */],
+    themes: [{ name: 'neon-night', /* shiki theme JSON */ }],
+  },
+});
+
+export default defineConfig({
+  integrations: [astlide({ plugins: [myPlugin] })],
+});
+```
+
+`cssEntrypoint` is resolved as a Vite import — use any module specifier that resolves to a CSS file (relative path, npm package, etc.). Built-in themes are registered as a synthetic plugin so the resolution path is unified.
+
+### Distributing a plugin on npm
+
+Convention for community plugins:
+
+| Field | Value |
+|---|---|
+| Package name | `astlide-plugin-*` or `@scope/astlide-plugin-*` |
+| `keywords` | must include `"astlide-plugin"` |
+| `peerDependencies` | `{ "@astlide/core": "^x.y" }` |
+| Default export | `defineAstlidePlugin({ ... })` |
+
+Layout / transition contributions in v1 register the **name** only. The class is applied on the slide element so any plugin-shipped CSS can target it (e.g. `.slide.slide-split-quote { ... }`, `[data-slide-transition="iris"] { ... }`). Component-driven layouts and JS-driven transitions are deferred to v2.
 
 ## Keyboard Shortcuts
 
@@ -165,55 +298,52 @@ Add a selector in `src/styles/themes/default.css`:
 
 ## PDF / PNG Export
 
-Make sure the dev/preview server is running, then:
+Requires `playwright` and `pdf-lib` (optional dependencies). Start the dev server, then:
 
 ```bash
 # Export a deck to PDF
-npm run export -- --deck my-presentation
+bun run astlide-export --deck my-talk
 
 # Export all decks
-npm run export -- --all
+bun run astlide-export --all
 
 # Export as PNG images
-npm run export -- --deck my-presentation --format png
+bun run astlide-export --deck my-talk --format png
 
-# Custom output path
-npm run export -- --deck my-presentation --output ./exports/slides.pdf
+# Custom viewport size
+bun run astlide-export --deck my-talk --width 1280 --height 720
 
-# Point at a custom server
-npm run export -- --deck my-presentation --base-url http://localhost:4321
+# Custom server URL
+bun run astlide-export --deck my-talk --base-url http://localhost:3000
 ```
 
 ## Project Structure
 
 ```
-astlide/
-├── src/
-│   ├── content/
-│   │   ├── config.ts              # Slide schema (Zod)
-│   │   └── decks/                 # Your presentations
-│   │       └── my-deck/
-│   │           ├── _config.json
-│   │           └── 01-slide.mdx
-│   ├── components/
-│   │   ├── Slide.astro            # Base slide
-│   │   ├── Fragment.astro         # Step-by-step reveals
-│   │   └── layouts/
-│   │       ├── Left.astro
-│   │       ├── Right.astro
-│   │       ├── ImageSide.astro
-│   │       └── TextPanel.astro
-│   ├── layouts/
-│   │   └── DeckLayout.astro       # Viewport scaling, nav, overlays
-│   ├── pages/
-│   │   ├── index.astro            # Deck listing
-│   │   └── [deck]/[...slide].astro
-│   └── styles/
-│       ├── base.css
-│       └── themes/default.css
-├── scripts/
-│   └── export-pdf.ts
-└── package.json
+packages/
+├── astlide/              # @astlide/core — Astro Integration
+│   ├── src/
+│   │   ├── index.ts      # Integration entry (injectRoute, config)
+│   │   ├── schema.ts     # Zod schema (slideSchema)
+│   │   ├── components/   # Slide, Fragment, Notes, Columns, Left, Right, ImageSide, TextPanel
+│   │   ├── internal/     # DeckLayout, injected pages
+│   │   ├── styles/       # base.css + themes/
+│   │   └── cli/          # export-pdf.ts
+│   └── package.json
+└── create-astlide/       # CLI scaffolder (bun create astlide)
+    ├── src/index.ts
+    └── template/
+```
+
+## Development
+
+```bash
+bun install        # Install all workspace dependencies
+bun run dev        # Start playground dev server
+bun run build      # Build playground
+bun run lint       # Run Biome linter
+bun run lint:fix   # Auto-fix lint issues
+bun run format     # Format with Biome
 ```
 
 ## License

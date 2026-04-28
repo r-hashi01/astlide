@@ -1,0 +1,70 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a report.
+        Please search [existing issues](https://github.com/r-hashi01/astlide/issues) first to avoid duplicates.
+
+  - type: input
+    id: astlide-version
+    attributes:
+      label: "@astlide/core version"
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: astro-version
+    attributes:
+      label: Astro version
+      placeholder: "6.0.3"
+    validations:
+      required: true
+
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime / package manager
+      description: bun version, OS, browser
+      placeholder: "Bun 1.2.0, macOS 15, Chrome 131"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: |
+        The smallest MDX + `_config.json` + `astro.config.mjs` snippet that reproduces the issue.
+        A link to a minimal repo or StackBlitz is preferred for non-trivial cases.
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happened
+      description: Include error messages, stack traces, screenshots if relevant.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I searched existing issues and could not find a duplicate
+          required: true
+        - label: I am using the latest `@astlide/core`
+          required: false

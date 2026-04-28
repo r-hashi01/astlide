@@ -1,0 +1,42 @@
+name: Visual Regression
+
+# Visual regression baselines are captured on macOS — Linux runners render
+# fonts differently and produce noisy false positives. Run on macOS-latest
+# nightly + on demand, not on every PR.
+
+on:
+  schedule:
+    - cron: "0 12 * * 1" # Monday 12:00 UTC weekly
+  workflow_dispatch:
+    inputs:
+      update_snapshots:
+        description: "Regenerate baselines (commits changes? — no, just produces artifacts)"
+        type: boolean
+        default: false
+
+jobs:
+  visual:
+    name: Visual diff
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: oven-sh/setup-bun@ecf28ddc73e819eb6fa29df6b34ef8921c743461 # v2
+      - run: bun install --frozen-lockfile
+      - name: Run visual regression suite
+        run: bun run test:e2e
+        env:
+          UPDATE_SNAPSHOTS: ${{ inputs.update_snapshots && '1' || '' }}
+      - name: Upload diff artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: visual-diffs
+          path: e2e/__snapshots__/visual/actual/
+          if-no-files-found: ignore
+      - name: Upload regenerated baselines
+        if: ${{ inputs.update_snapshots }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: regenerated-baselines
+          path: e2e/__snapshots__/visual/*.png

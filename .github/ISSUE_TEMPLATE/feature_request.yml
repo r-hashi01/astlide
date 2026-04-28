@@ -1,0 +1,44 @@
+name: Feature request
+description: Propose a new capability or enhancement
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, check whether this can be solved as an [Astlide plugin](../../README.md#plugin-api).
+        Plugin-shaped solutions ship faster than core changes.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user need is currently unmet? Describe the use case, not the solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: API shape, configuration, or behaviour you have in mind. Code samples welcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you tried, related projects that solve this differently, etc.
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Where should this live?
+      options:
+        - "@astlide/core"
+        - "create-astlide template"
+        - "Plugin (external package)"
+        - "Documentation"
+        - "Not sure"
+    validations:
+      required: true
