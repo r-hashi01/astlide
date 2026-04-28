@@ -29,9 +29,11 @@ jobs:
 
       - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4
         with:
-          # changesets/action shells out to `npm publish`; npm 11.5.1+ on Node 22.14+
-          # is required for Trusted Publishing OIDC.
-          node-version: 22
+          # Node 24 (LTS) ships with npm 11 — Trusted Publishing requires npm
+          # 11.5.1+ for the OIDC handshake. Node 22 ships with npm 10 and
+          # silently falls back to anonymous publish → 404. See
+          # https://github.com/npm/cli/issues/8976
+          node-version: 24
           registry-url: "https://registry.npmjs.org"
 
       - run: bun install --frozen-lockfile
