@@ -33,14 +33,24 @@ The repository ships v0.1.0 as the initial release, so there is no prior changes
    cd ../create-astlide && npm pack --dry-run
    ```
    Both should list `package.json`, `README.md`, `LICENSE`, `CHANGELOG.md`, plus `src/` (core) or `dist/` + `template/` (CLI).
-4. **Publish from local** (only because no prior tags exist for changesets/action to detect):
+4. **Publish from local** (only because no prior tags exist for changesets/action to detect, and granular tokens cannot pre-authorise unscoped packages that don't exist on npm yet):
+
    ```bash
+   # Easier: full-permission interactive auth — not a long-lived token.
+   npm logout
+   npm login
+   npm whoami    # confirm
+
+   # Provenance requires GitHub Actions OIDC; from local it falls back to
+   # un-attested. v0.1.1+ will carry provenance via Trusted Publishing.
    cd packages/astlide
-   npm publish --access=public --provenance
+   npm publish --access=public
+
    cd ../create-astlide
-   npm publish --access=public --provenance
+   npm publish --access=public
    ```
-   Provenance requires npm ≥ 9.5.0 and a 2FA-enabled account. The `--provenance` flag is also pinned in `publishConfig` of each `package.json`.
+
+   The Release workflow has its `push` trigger removed for the same chicken-egg reason — re-enable it after step 6.
 5. **Tag the release in git** so changesets can compute future diffs:
    ```bash
    git tag @astlide/core@0.1.0
@@ -68,6 +78,7 @@ After the first publish lands, swap the long-lived `NPM_TOKEN` for npm Trusted P
 4. Remove the `NPM_TOKEN` secret from
    <https://github.com/r-hashi01/astlide/settings/secrets/actions>.
 5. Drop the `NPM_TOKEN` / `NODE_AUTH_TOKEN` env lines from `release.yml`. The workflow then publishes via short-lived OIDC tokens minted at publish time, signed with provenance.
+6. Re-enable the `push: branches: [main]` trigger in `release.yml` (it's currently `workflow_dispatch` only — see the comment in the workflow file).
 
 Until step 5 is done, v0.1.1+ continues to use the long-lived granular token.
 
