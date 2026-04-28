@@ -36,7 +36,9 @@ jobs:
           node-version: 24
           registry-url: "https://registry.npmjs.org"
 
-      - run: bun install --frozen-lockfile
+      # Release does not modify the repository state, so use a regular install here.
+      # Bun can still re-resolve optional/native packages differently on GitHub runners.
+      - run: bun install
 
       - name: Create Release Pull Request or Publish
         id: changesets
