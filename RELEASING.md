@@ -117,6 +117,22 @@ If a published version is bad:
    ```
 2. Land the fix on `main`, add a changeset (`patch`), let the workflow publish the next patch version.
 
+## Signed commits (required on main)
+
+The `main` branch ruleset enforces `required_signatures`, so every commit landing on `main` must carry a verified signature. Auto-merged PRs squash-commit via GitHub's web-flow user (auto-verified). Direct pushes from a maintainer require local SSH/GPG signing setup:
+
+```bash
+ssh-keygen -t ed25519 -C "<your-handle>@github astlide signing" -f ~/.ssh/id_ed25519_astlide -N ""
+git config --global gpg.format ssh
+git config --global user.signingkey ~/.ssh/id_ed25519_astlide.pub
+git config --global commit.gpgsign true
+git config --global tag.gpgsign true
+```
+
+Then upload the public key to <https://github.com/settings/ssh/new> as a **Signing Key** (not Authentication Key).
+
+The release-tags ruleset deliberately does not require signatures — `changesets/action` creates tags from inside CI without a configured signing key, and the registry-side provenance attestation already binds each tag to a verified GitHub Actions workflow run.
+
 ## Branch protection (recommended)
 
 Once v0.1.0 is out, set up branch protection on `main`:
