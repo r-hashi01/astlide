@@ -1,5 +1,20 @@
 # @astlide/core
 
+## 1.0.1
+
+### Patch Changes
+
+- [#25](https://github.com/r-hashi01/astlide/pull/25) [`d4a6ac8`](https://github.com/r-hashi01/astlide/commit/d4a6ac8077837422ec2d2bc9fdd4f53cdeddd87b) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Add `injectIndexRoute` option and auto-skip the `/` index route when you have your own home page.
+
+  Astlide injects a deck-index page at `/`. If your project has its own
+  `src/pages/index.{astro,md,mdx,html}`, that previously produced an Astro route
+  collision warning (a hard error in future Astro).
+
+  - **Default (auto):** the `/` route is injected only when no user index page
+    exists — a custom home page now works out of the box, no collision.
+  - `injectIndexRoute: false` — never inject; you own `/`.
+  - `injectIndexRoute: true` — always inject, even alongside your own index.
+
 ## 1.0.0
 
 ### Major Changes
