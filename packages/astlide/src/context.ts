@@ -37,12 +37,22 @@ export interface DeckContext {
 	config: DeckConfig;
 }
 
-/** Well-known key under which the context is stashed on `Astro.locals`. */
-const LOCALS_KEY = "astlide";
+// Augment Astro's `App.Locals` so `Astro.locals.astlide` is typed everywhere the
+// context module is imported. Astro types `Astro.locals` as `App.Locals` (an
+// interface with no index signature), so a plain `Record<string, unknown>`
+// param would reject it — this augmentation is the idiomatic, type-safe fix.
+declare global {
+	namespace App {
+		interface Locals {
+			/** Current deck/slide metadata, published by Astlide's slide route. */
+			astlide?: DeckContext;
+		}
+	}
+}
 
-/** Shape of the `locals` bag we read/write — kept structural to avoid a hard Astro type dep. */
+/** Shape of the `Astro` global we read/write — just the `locals` bag. */
 interface HasLocals {
-	locals: Record<string, unknown>;
+	locals: App.Locals;
 }
 
 /**
@@ -50,7 +60,7 @@ interface HasLocals {
  * app code normally only needs {@link getDeckContext}.
  */
 export function setDeckContext(astro: HasLocals, ctx: DeckContext): void {
-	astro.locals[LOCALS_KEY] = ctx;
+	astro.locals.astlide = ctx;
 }
 
 /**
@@ -60,7 +70,7 @@ export function setDeckContext(astro: HasLocals, ctx: DeckContext): void {
  * @returns The context, or `undefined` if called outside a slide render.
  */
 export function getDeckContext(astro: HasLocals): DeckContext | undefined {
-	return astro.locals?.[LOCALS_KEY] as DeckContext | undefined;
+	return astro.locals.astlide;
 }
 
 /**
