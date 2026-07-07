@@ -183,6 +183,29 @@ describe("Slide", () => {
 		const html = await container.renderToString(Slide, { props: {} });
 		expect(html).not.toContain("aria-label=");
 	});
+
+	// C-5: plugin layout component dispatch via virtual:astlide/layouts.
+	// vitest.config.astro.ts registers a fixture layout named "fixture-layout"
+	// that renders a section with data-fixture-layout="true".
+	it("dispatches to a plugin-contributed layout component when the layout name matches", async () => {
+		const html = await container.renderToString(Slide, {
+			props: { layout: "fixture-layout", slideNumber: 2, totalSlides: 9, transition: "zoom" },
+		});
+		expect(html).toContain('data-fixture-layout="true"');
+		expect(html).toContain('data-slide-number="2"');
+		expect(html).toContain('data-total-slides="9"');
+		expect(html).toContain('data-transition="zoom"');
+		// The default <section class="slide slide-fixture-layout"> shell must NOT also render —
+		// the plugin component fully owns the markup.
+		expect(html).not.toMatch(/slide-content/);
+	});
+
+	it("falls back to the default <section> shell for layout names without a component", async () => {
+		const html = await container.renderToString(Slide, { props: { layout: "cover" } });
+		expect(html).toContain("slide-cover");
+		expect(html).toContain("slide-content");
+		expect(html).not.toContain("data-fixture-layout");
+	});
 });
 
 // ── Columns ───────────────────────────────────────────────────────────────────

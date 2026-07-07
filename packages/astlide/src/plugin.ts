@@ -4,6 +4,8 @@
  * A plugin contributes themes, layout names, transition names, and Shiki languages/themes
  * to an Astlide deck. Plugins are registered via `astlide({ plugins: [...] })`.
  *
+ * ## Minimal plugin
+ *
  * @example
  * ```ts
  * // my-plugin.ts
@@ -14,6 +16,63 @@
  *   themes: [{ name: 'midnight', cssEntrypoint: 'astlide-plugin-midnight/midnight.css' }],
  * });
  * ```
+ *
+ * ## Full custom-theme plugin
+ *
+ * A theme plugin is just an npm package (or a local module) that contributes:
+ *   1. A `themes[].cssEntrypoint` that defines CSS variables under `[data-theme="<name>"]`.
+ *   2. Optionally additional layouts, transitions, Shiki langs/themes.
+ *
+ * Directory layout:
+ * ```
+ * astlide-plugin-acme/
+ *   package.json       # "exports": { "./acme.css": "./acme.css", ".": "./index.ts" }
+ *   index.ts
+ *   acme.css
+ * ```
+ *
+ * `index.ts`:
+ * ```ts
+ * import { defineAstlidePlugin } from '@astlide/core/plugin';
+ *
+ * export default defineAstlidePlugin({
+ *   name: 'astlide-plugin-acme',
+ *   themes: [{ name: 'acme', cssEntrypoint: 'astlide-plugin-acme/acme.css' }],
+ *   transitions: [{ name: 'acme-warp' }],
+ * });
+ * ```
+ *
+ * `acme.css`:
+ * ```css
+ * [data-theme="acme"] {
+ *   --color-bg: #0b132b;
+ *   --color-fg: #fefefe;
+ *   --color-primary: #5bc0eb;
+ *   --font-heading: "JetBrains Mono", monospace;
+ *   --font-body: "Inter", system-ui, sans-serif;
+ * }
+ *
+ * [data-theme="acme"] .slide[data-transition="acme-warp"] {
+ *   animation: acme-warp 320ms cubic-bezier(.2, .9, .3, 1);
+ * }
+ *
+ * @keyframes acme-warp {
+ *   from { transform: scale(1.04) skewX(-2deg); opacity: 0; }
+ *   to   { transform: none; opacity: 1; }
+ * }
+ * ```
+ *
+ * Consume from `astro.config.mjs`:
+ * ```ts
+ * import astlide from '@astlide/core';
+ * import acme from 'astlide-plugin-acme';
+ *
+ * export default defineConfig({
+ *   integrations: [astlide({ plugins: [acme] })],
+ * });
+ * ```
+ *
+ * Then use `theme: "acme"` in `_config.json` and `transition: "acme-warp"` per slide.
  */
 
 /** A theme contribution: registers a theme name and the CSS entrypoint that supplies its `[data-theme="<name>"]` rules. */
@@ -24,13 +83,42 @@ export interface ThemeContribution {
 	cssEntrypoint: string;
 }
 
-/** A layout contribution: registers a layout name. v1 only validates the name; component injection is deferred to v2. */
+/** A layout contribution: registers a layout name and (optionally) an Astro component that owns the slide markup. */
 export interface LayoutContribution {
 	/** Layout name used in slide frontmatter `slideLayout` field. */
 	name: string;
 	/**
-	 * Optional component entrypoint (deferred to v2 — currently informational).
-	 * In v1 the layout name is simply passed through as a CSS class on `.slide`.
+	 * Module specifier of an Astro component to render this layout, resolved as a Vite import
+	 * (e.g. `"astlide-plugin-acme/QuoteLayout.astro"`). When provided, the component
+	 * replaces the default `<section class="slide">` shell — it receives all `Slide`
+	 * props (`layout`, `transition`, `background`, `class`, `slideNumber`, `totalSlides`)
+	 * and the MDX body as the default slot.
+	 *
+	 * When omitted, the layout name only contributes a `.slide-<name>` CSS class that
+	 * theme CSS can target — useful for purely visual variants.
+	 *
+	 * @example
+	 * ```ts
+	 * defineAstlidePlugin({
+	 *   name: 'astlide-plugin-acme',
+	 *   layouts: [
+	 *     { name: 'acme-quote', componentEntrypoint: 'astlide-plugin-acme/QuoteLayout.astro' },
+	 *   ],
+	 * });
+	 * ```
+	 *
+	 * The component (`QuoteLayout.astro`):
+	 * ```astro
+	 * ---
+	 * interface Props { layout?: string; background?: string; slideNumber?: number; totalSlides?: number; transition?: string; class?: string; }
+	 * const { transition, class: className, slideNumber, totalSlides } = Astro.props;
+	 * ---
+	 * <section class:list={['slide', 'slide-acme-quote', className]} data-transition={transition}
+	 *          role="region" aria-roledescription="slide"
+	 *          aria-label={slideNumber && totalSlides ? `Slide ${slideNumber} of ${totalSlides}` : undefined}>
+	 *   <blockquote class="slide-content"><slot /></blockquote>
+	 * </section>
+	 * ```
 	 */
 	componentEntrypoint?: string;
 }
@@ -41,6 +129,29 @@ export interface TransitionContribution {
 	name: string;
 	/** Optional informational reference to the CSS class that styles the transition. */
 	cssClass?: string;
+}
+
+/**
+ * A slide decorator: a component rendered on **every** slide, after the slide
+ * content. Use it to apply common chrome — logo, footer, page number, a
+ * back-to-index link — without hand-placing it in each MDX/HTML file.
+ *
+ * The component receives the slide props (`slideNumber`, `totalSlides`,
+ * `layout`, `transition`) and can read the full typed metadata via
+ * `getDeckContext(Astro)` from `@astlide/core/context`. Position it with CSS
+ * (`.slide` is `position: relative`).
+ *
+ * @example
+ * ```ts
+ * defineAstlidePlugin({
+ *   name: 'astlide-plugin-acme',
+ *   decorators: [{ componentEntrypoint: 'astlide-plugin-acme/Footer.astro' }],
+ * });
+ * ```
+ */
+export interface DecoratorContribution {
+	/** Module specifier of an `.astro` component resolved as a Vite import. */
+	componentEntrypoint: string;
 }
 
 /** Shiki contribution: extra languages or themes to register on the Astro markdown.shikiConfig. */
@@ -56,6 +167,8 @@ export interface AstlidePlugin {
 	themes?: ThemeContribution[];
 	layouts?: LayoutContribution[];
 	transitions?: TransitionContribution[];
+	/** Components rendered on every slide (logo / footer / page number / home link). */
+	decorators?: DecoratorContribution[];
 	shiki?: ShikiContribution;
 }
 
@@ -69,6 +182,8 @@ export interface ResolvedPlugins {
 	themes: ThemeContribution[];
 	layouts: LayoutContribution[];
 	transitions: TransitionContribution[];
+	/** Every-slide decorator components, in registration order. */
+	decorators: DecoratorContribution[];
 	shiki: { langs: unknown[]; themes: unknown[] };
 	/** Set of all theme names (built-in + plugin) for runtime validation. */
 	themeNames: Set<string>;
@@ -88,6 +203,8 @@ export function resolvePlugins(plugins: AstlidePlugin[]): ResolvedPlugins {
 	const themes: ThemeContribution[] = [];
 	const layouts: LayoutContribution[] = [];
 	const transitions: TransitionContribution[] = [];
+	const decorators: DecoratorContribution[] = [];
+	const decoratorEntrypoints = new Set<string>();
 	const shikiLangs: unknown[] = [];
 	const shikiThemes: unknown[] = [];
 	const themeNames = new Set<string>();
@@ -110,6 +227,11 @@ export function resolvePlugins(plugins: AstlidePlugin[]): ResolvedPlugins {
 			transitionNames.add(transition.name);
 			transitions.push(transition);
 		}
+		for (const decorator of plugin.decorators ?? []) {
+			if (decoratorEntrypoints.has(decorator.componentEntrypoint)) continue;
+			decoratorEntrypoints.add(decorator.componentEntrypoint);
+			decorators.push(decorator);
+		}
 		if (plugin.shiki?.langs) shikiLangs.push(...plugin.shiki.langs);
 		if (plugin.shiki?.themes) shikiThemes.push(...plugin.shiki.themes);
 	}
@@ -118,6 +240,7 @@ export function resolvePlugins(plugins: AstlidePlugin[]): ResolvedPlugins {
 		themes,
 		layouts,
 		transitions,
+		decorators,
 		shiki: { langs: shikiLangs, themes: shikiThemes },
 		themeNames,
 		layoutNames,

@@ -1,6 +1,5 @@
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { PDFDocument } from "pdf-lib";
 import { type Browser, chromium } from "playwright";
 
 interface ExportOptions {
@@ -145,35 +144,26 @@ async function exportToPDF(
 	const page = await browser.newPage();
 	await page.setViewportSize({ width, height });
 
-	const merged = await PDFDocument.create();
+	// Navigate to the /[deck]/all route which stacks every slide with page-break-after,
+	// then let Chromium emit a multi-page PDF in one call. Removes the need for pdf-lib.
+	process.stdout.write(`  Rendering ${slideCount} slide${slideCount === 1 ? "" : "s"}…\r`);
+	await page.goto(`${baseUrl}/${deck}/all`);
+	await page.waitForLoadState("networkidle");
+	await page.waitForFunction(() => document.fonts.ready);
 
-	for (let i = 1; i <= slideCount; i++) {
-		process.stdout.write(`  Slide ${i}/${slideCount}\r`);
-
-		await page.goto(`${baseUrl}/${deck}/${i}`);
-		await page.waitForLoadState("networkidle");
-		await page.waitForFunction(() => document.fonts.ready);
-
-		await page.addStyleTag({ content: EXPORT_STYLE });
-
-		const pdfBytes = await page.pdf({
-			width: `${width}px`,
-			height: `${height}px`,
-			printBackground: true,
-			margin: { top: 0, right: 0, bottom: 0, left: 0 },
-		});
-
-		const singleDoc = await PDFDocument.load(pdfBytes);
-		const [importedPage] = await merged.copyPages(singleDoc, [0]);
-		merged.addPage(importedPage);
-	}
+	const pdfBytes = await page.pdf({
+		width: `${width}px`,
+		height: `${height}px`,
+		printBackground: true,
+		margin: { top: 0, right: 0, bottom: 0, left: 0 },
+		preferCSSPageSize: false,
+	});
 
 	console.log("");
 	await page.close();
 
 	await mkdir(dirname(outputPath), { recursive: true });
-	const finalBytes = await merged.save();
-	await writeFile(outputPath, finalBytes);
+	await writeFile(outputPath, pdfBytes);
 }
 
 async function exportToPNG(

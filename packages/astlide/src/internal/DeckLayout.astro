@@ -5,18 +5,35 @@ import '@astlide/core/styles/base.css';
 import 'virtual:astlide/themes';
 import { ClientRouter } from 'astro:transitions';
 import { sanitizeHTML } from '@astlide/core/utils/sanitize';
+import { renderMarkdown } from '@astlide/core/utils/markdown';
 
 // Vite defines injected by the astlide() integration
 declare const __ASTLIDE_CSP__: boolean | string;
 declare const __ASTLIDE_INDEXABLE__: boolean;
+declare const __ASTLIDE_TOOLBAR__: string[];
+declare const __ASTLIDE_FONT__: { href: string; preconnect: string[] } | null;
+
+const toolbarItems: string[] =
+  typeof __ASTLIDE_TOOLBAR__ !== 'undefined' && Array.isArray(__ASTLIDE_TOOLBAR__)
+    ? __ASTLIDE_TOOLBAR__
+    : ['prev', 'counter', 'next'];
+const fontConfig: { href: string; preconnect: string[] } | null =
+  typeof __ASTLIDE_FONT__ !== 'undefined'
+    ? __ASTLIDE_FONT__
+    : {
+        href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
+        preconnect: ['https://fonts.googleapis.com', 'https://fonts.gstatic.com'],
+      };
 
 const DEFAULT_CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com",
-  "img-src 'self' data: https:",
-  "connect-src 'self'",
+  "font-src 'self' https://fonts.gstatic.com data:",
+  "img-src 'self' data: https: blob:",
+  // `data:` and `blob:` allowed so the in-browser PDF exporter can fetch
+  // its own rasterised page images while assembling the document.
+  "connect-src 'self' data: blob:",
   "frame-src 'self' https://www.youtube-nocookie.com",
 ].join('; ');
 
@@ -27,6 +44,8 @@ const cspContent =
   : typeof cspOption === 'string' && cspOption !== 'true' ? cspOption
   : DEFAULT_CSP;
 
+import type { DeckContext } from '@astlide/core/context';
+
 interface Props {
   title: string;
   theme?: string;
@@ -35,10 +54,12 @@ interface Props {
   deck: string;
   notes?: string;
   transition?: string;
+  /** Typed deck/slide metadata published to `window.__astlide` for client scripts. */
+  context?: DeckContext;
 }
 
-const { title, theme = 'default', currentSlide, totalSlides, deck, notes, transition = 'fade' } = Astro.props;
-const sanitizedNotes = notes ? sanitizeHTML(notes) : undefined;
+const { title, theme = 'default', currentSlide, totalSlides, deck, notes, transition = 'fade', context } = Astro.props;
+const sanitizedNotes = notes ? sanitizeHTML(await renderMarkdown(notes)) : undefined;
 const progress = (currentSlide / totalSlides) * 100;
 const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEXABLE__ : false;
 ---
@@ -56,11 +77,38 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     <meta property="og:type" content="website" />
     {!indexable && <meta name="robots" content="noindex, nofollow" />}
     {currentSlide < totalSlides && <link rel="prefetch" href={`/${deck}/${currentSlide + 1}`} />}
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    {fontConfig?.preconnect?.map((origin) => (
+      <link rel="preconnect" href={origin} crossorigin={origin.includes('gstatic') ? '' : undefined} />
+    ))}
+    {fontConfig?.href && <link href={fontConfig.href} rel="stylesheet" />}
     <ClientRouter />
-    <script>if(new URLSearchParams(location.search).has('presenter'))document.documentElement.setAttribute('data-presenter','');</script>
+    <script is:inline>
+      (function () {
+        // A-4: in the dedicated presenter popup (window.name === 'astlide-presenter'),
+        // treat the window as sticky-presenter so transient ?presenter query drops
+        // during ClientRouter swaps don't kick the popup back to normal mode.
+        function isStickyPresenter() {
+          try { return window.name === 'astlide-presenter'; } catch (_) { return false; }
+        }
+        function applyFlags(doc, search) {
+          var p = new URLSearchParams(search);
+          doc.documentElement.toggleAttribute('data-presenter', p.has('presenter') || isStickyPresenter());
+          doc.documentElement.toggleAttribute('data-print', p.has('print'));
+          doc.documentElement.toggleAttribute('data-share', p.has('share'));
+        }
+        applyFlags(document, location.search);
+        if (!window.__astlide_swap_listeners__) {
+          window.__astlide_swap_listeners__ = true;
+          document.addEventListener('astro:before-swap', function (e) {
+            // Set flags on the new document BEFORE the swap renders, avoiding a flash (A-1, A-2).
+            applyFlags(e.newDocument, new URL(e.to, location.origin).search);
+          });
+          document.addEventListener('astro:after-swap', function () {
+            applyFlags(document, location.search);
+          });
+        }
+      })();
+    </script>
   </head>
   <body data-total-slides={totalSlides} data-current-slide={currentSlide} data-deck={deck} data-slide-transition={transition}>
 
@@ -92,7 +140,14 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
           </div>
         </div>
         <div class="presenter-notes">
-          <h3>Notes</h3>
+          <div class="presenter-notes-header">
+            <h3>Notes</h3>
+            <div class="notes-font-controls" role="group" aria-label="Adjust notes font size">
+              <button type="button" class="notes-font-btn" data-notes-font="dec" aria-label="Decrease notes font size" title="Smaller (Shift+,)">A−</button>
+              <button type="button" class="notes-font-btn" data-notes-font="reset" aria-label="Reset notes font size" title="Reset">A</button>
+              <button type="button" class="notes-font-btn" data-notes-font="inc" aria-label="Increase notes font size" title="Larger (Shift+.)">A+</button>
+            </div>
+          </div>
           {sanitizedNotes
             ? <div class="notes-content" set:html={sanitizedNotes} />
             : <p class="no-notes">No notes for this slide.</p>
@@ -118,17 +173,54 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
 
     <!-- Navigation (hidden until hover; hidden in presenter mode via CSS) -->
     <nav class="slide-nav" aria-label="Slide navigation">
-      <a href={currentSlide > 1 ? `/${deck}/${currentSlide - 1}` : undefined}
-         class:list={['nav-btn', { disabled: currentSlide <= 1 }]}
-         aria-label="Previous slide"
-         aria-disabled={currentSlide <= 1 ? 'true' : undefined}
-         tabindex={currentSlide <= 1 ? -1 : undefined}>←</a>
-      <span class="nav-indicator">{currentSlide} / {totalSlides}</span>
-      <a href={currentSlide < totalSlides ? `/${deck}/${currentSlide + 1}` : undefined}
-         class:list={['nav-btn', { disabled: currentSlide >= totalSlides }]}
-         aria-label="Next slide"
-         aria-disabled={currentSlide >= totalSlides ? 'true' : undefined}
-         tabindex={currentSlide >= totalSlides ? -1 : undefined}>→</a>
+      {toolbarItems.map((item) => {
+        if (item === 'home') return (
+          <a href="/"
+             class="nav-btn nav-action"
+             aria-label="Back to deck index"
+             title="Back to deck index">⌂</a>
+        );
+        if (item === 'prev') return (
+          <a href={currentSlide > 1 ? `/${deck}/${currentSlide - 1}` : undefined}
+             class:list={['nav-btn', { disabled: currentSlide <= 1 }]}
+             aria-label="Previous slide"
+             aria-disabled={currentSlide <= 1 ? 'true' : undefined}
+             tabindex={currentSlide <= 1 ? -1 : undefined}>←</a>
+        );
+        if (item === 'next') return (
+          <a href={currentSlide < totalSlides ? `/${deck}/${currentSlide + 1}` : undefined}
+             class:list={['nav-btn', { disabled: currentSlide >= totalSlides }]}
+             aria-label="Next slide"
+             aria-disabled={currentSlide >= totalSlides ? 'true' : undefined}
+             tabindex={currentSlide >= totalSlides ? -1 : undefined}>→</a>
+        );
+        if (item === 'counter') return (
+          <span class="nav-indicator">{currentSlide} / {totalSlides}</span>
+        );
+        if (item === 'notes') return (
+          <button type="button" class="nav-btn nav-action" data-action="notes" aria-label="Toggle speaker notes" title="Toggle speaker notes (n)">📝</button>
+        );
+        if (item === 'overview') return (
+          <button type="button" class="nav-btn nav-action" data-action="overview" aria-label="Open slide overview" title="Slide overview (o)">▦</button>
+        );
+        if (item === 'presenter') return (
+          <button type="button" class="nav-btn nav-action" data-action="presenter" aria-label="Open presenter window" title="Open presenter window (p)">🎤</button>
+        );
+        if (item === 'fullscreen') return (
+          <button type="button" class="nav-btn nav-action" data-action="fullscreen" aria-label="Toggle fullscreen" title="Toggle fullscreen (f)">⛶</button>
+        );
+        if (item === 'print') return (
+          <button type="button" class="nav-btn nav-action" data-action="print" aria-label="Toggle print mode" title="Toggle print mode">🖨</button>
+        );
+        if (item === 'share') return (
+          <button type="button" class="nav-btn nav-action" data-action="share" aria-label="Toggle share mode" title="Toggle share mode (clean canvas)">📺</button>
+        );
+        if (item === 'download') return (
+          <button type="button" class="nav-btn nav-action" data-action="download" aria-label="Download deck as PDF" title="Download deck as PDF">⬇</button>
+        );
+        if (item === 'spacer') return <span class="nav-spacer" aria-hidden="true"></span>;
+        return null;
+      })}
     </nav>
 
     <!-- Notes overlay (toggled with 'n'; hidden in presenter mode via CSS) -->
@@ -142,6 +234,17 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
           ? <div class="notes-body" set:html={sanitizedNotes} />
           : <div class="notes-body"><p class="no-notes">No notes for this slide.</p></div>
         }
+      </div>
+    </div>
+
+    <!-- PDF download progress overlay -->
+    <div class="pdf-overlay" id="pdf-overlay" role="dialog" aria-label="Generating PDF" aria-hidden="true">
+      <div class="pdf-overlay-card">
+        <div class="pdf-overlay-title">Generating PDF</div>
+        <div class="pdf-overlay-progress">
+          <div class="pdf-overlay-bar" id="pdf-overlay-bar" style="width: 0%"></div>
+        </div>
+        <div class="pdf-overlay-status" id="pdf-overlay-status">Preparing…</div>
       </div>
     </div>
 
@@ -159,7 +262,21 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       window.__astlide_navigate = navigate;
     </script>
 
-    <script define:vars={{ currentSlide, totalSlides, deck }}>
+    <!-- Module script: lazy-load the PDF export pipeline on demand. -->
+    <script>
+      window.__astlide_download_pdf = async function (opts) {
+        const mod = await import('@astlide/core/internal/pdf-export');
+        const result = await mod.exportDeckToPdf(opts);
+        mod.downloadBlob(result.blob, opts.deck + '.pdf');
+        return result;
+      };
+    </script>
+
+    <script define:vars={{ currentSlide, totalSlides, deck, deckContext: context ?? null }}>
+      // ── 0. Publish typed deck/slide metadata for client scripts ──
+      // Replaces parsing document.title / body.dataset. See @astlide/core/context.
+      if (deckContext) window.__astlide = deckContext;
+
       // ── 0. Presenter mode (detected from live URL, works for SSG) ─
       const isPresenter = document.documentElement.hasAttribute('data-presenter');
 
@@ -281,6 +398,24 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
           catch (_) { /* ignore */ }
         }
       }
+
+      // ── 4b. Broadcast on link click (A-3) ──────────────────────
+      // Nav buttons and presenter-panel buttons navigate via <a href>, bypassing
+      // goNext()/goPrev(). Capture clicks on those links to keep the sibling
+      // window in sync.
+      function handleNavClick(e) {
+        const a = e.target.closest && e.target.closest('a.nav-btn, a.pnav-btn');
+        if (!a || a.classList.contains('disabled')) return;
+        const href = a.getAttribute('href');
+        if (!href) return;
+        const m = href.match(/\/([^/?#]+)\/(\d+)(?:[?#]|$)/);
+        if (!m) return;
+        const targetDeck = decodeURIComponent(m[1]);
+        const targetSlide = parseInt(m[2], 10);
+        if (targetDeck !== deck || Number.isNaN(targetSlide)) return;
+        broadcastSlide(targetSlide);
+      }
+      document.addEventListener('click', handleNavClick, true);
 
       // ── 5. Navigation ──────────────────────────────────────────
       function goNext() {
@@ -428,6 +563,123 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
 
       if (notesClose) notesClose.addEventListener('click', toggleNotes);
 
+      // ── 8b. URL flag toggles (share / print) ───────────────────
+      function toggleUrlFlag(flag) {
+        const u = new URL(window.location.href);
+        if (u.searchParams.has(flag)) u.searchParams.delete(flag);
+        else u.searchParams.set(flag, '');
+        navTo(u.pathname + (u.search ? u.search : '') + u.hash);
+      }
+
+      // ── 8c. Notes font-size controls (persisted in localStorage) ─
+      function applyNotesFontSize(size) {
+        const clamped = Math.max(0.7, Math.min(2.0, size));
+        document.documentElement.style.setProperty('--astlide-notes-font-size', clamped + 'rem');
+        try { localStorage.setItem('astlide:notes-font-size', String(clamped)); } catch (_) {}
+      }
+      try {
+        const stored = parseFloat(localStorage.getItem('astlide:notes-font-size') || '');
+        if (!Number.isNaN(stored) && stored > 0) applyNotesFontSize(stored);
+      } catch (_) {}
+      function adjustNotesFontSize(delta) {
+        const current = parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue('--astlide-notes-font-size') || '1'
+        ) || 1;
+        applyNotesFontSize(current + delta);
+      }
+      function handleNotesFontClick(e) {
+        const btn = e.target.closest && e.target.closest('[data-notes-font]');
+        if (!btn) return;
+        const op = btn.getAttribute('data-notes-font');
+        if (op === 'inc') adjustNotesFontSize(0.1);
+        else if (op === 'dec') adjustNotesFontSize(-0.1);
+        else if (op === 'reset') applyNotesFontSize(1);
+      }
+      document.addEventListener('click', handleNotesFontClick);
+
+      // ── 8d. Toolbar button actions (C-3) ────────────────────────
+      function handleToolbarClick(e) {
+        const btn = e.target.closest && e.target.closest('.nav-btn[data-action]');
+        if (!btn) return;
+        e.preventDefault();
+        const action = btn.getAttribute('data-action');
+        switch (action) {
+          case 'notes': toggleNotes(); break;
+          case 'overview': openOverview(); break;
+          case 'presenter': {
+            const u = new URL(window.location.href);
+            u.searchParams.set('presenter', '');
+            window.open(u.toString(), 'astlide-presenter', 'width=1280,height=800,menubar=no,toolbar=no,status=no');
+            break;
+          }
+          case 'fullscreen': {
+            if (document.fullscreenElement) document.exitFullscreen?.();
+            else document.documentElement.requestFullscreen?.();
+            break;
+          }
+          case 'print': toggleUrlFlag('print'); break;
+          case 'share': toggleUrlFlag('share'); break;
+          case 'download': downloadPdf(); break;
+        }
+      }
+      document.addEventListener('click', handleToolbarClick);
+
+      // ── 8e. PDF download via @astlide/crispdf (lazy-loaded) ─────
+      const pdfOverlay = document.getElementById('pdf-overlay');
+      const pdfBar = document.getElementById('pdf-overlay-bar');
+      const pdfStatus = document.getElementById('pdf-overlay-status');
+      let pdfBusy = false;
+
+      function setPdfStatus(text, percent) {
+        if (pdfStatus) pdfStatus.textContent = text;
+        if (pdfBar && typeof percent === 'number') pdfBar.style.width = Math.max(0, Math.min(100, percent)) + '%';
+      }
+
+      function showPdfOverlay(show) {
+        if (!pdfOverlay) return;
+        pdfOverlay.setAttribute('aria-hidden', String(!show));
+        pdfOverlay.classList.toggle('open', !!show);
+      }
+
+      async function downloadPdf() {
+        if (pdfBusy) return;
+        if (!window.__astlide_download_pdf) {
+          console.error('[astlide] PDF download module is not available');
+          return;
+        }
+        pdfBusy = true;
+        showPdfOverlay(true);
+        setPdfStatus('Loading PDF engine…', 0);
+        try {
+          const { warnings } = await window.__astlide_download_pdf({
+            deck,
+            onProgress: (done, total) => {
+              setPdfStatus('Rendering slide ' + done + ' / ' + total, (done / total) * 100);
+            },
+          });
+          setPdfStatus('Saving…', 100);
+          if (warnings && warnings.length) {
+            console.warn('[astlide] PDF export warnings:', warnings);
+          }
+        } catch (err) {
+          console.error('[astlide] PDF export failed:', err);
+          // Friendly text ONLY when crispdf truly isn't installed — match the
+          // specific Vite/Node "cannot find module" shape, not just any string
+          // that happens to contain "crispdf".
+          const missingCrispdf =
+            err && err.message &&
+            (err.code === 'ERR_MODULE_NOT_FOUND' || /Cannot find (?:module|package) ['"]@astlide\/crispdf/i.test(err.message));
+          const msg = missingCrispdf
+            ? 'Install @astlide/crispdf to enable PDF download.'
+            : 'PDF export failed — see console for details.';
+          setPdfStatus(msg, 0);
+          await new Promise((r) => setTimeout(r, 2500));
+        } finally {
+          showPdfOverlay(false);
+          pdfBusy = false;
+        }
+      }
+
       // ── 9. Presenter timer (manual start/pause/reset) ──────────
       const timerEl = document.getElementById('presenter-timer');
       const timerBtn = document.getElementById('timer-btn');
@@ -534,6 +786,17 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
           case 'n':
             if (!isPresenter) toggleNotes();
             break;
+          case 's':
+            if (!isPresenter) toggleUrlFlag('share');
+            break;
+          case '>':
+          case '.':
+            if (e.shiftKey) { e.preventDefault(); adjustNotesFontSize(0.1); }
+            break;
+          case '<':
+          case ',':
+            if (e.shiftKey) { e.preventDefault(); adjustNotesFontSize(-0.1); }
+            break;
         }
       }
 
@@ -566,6 +829,9 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         document.removeEventListener('keydown', handleKeydown);
         document.removeEventListener('touchstart', handleTouchstart);
         document.removeEventListener('touchend', handleTouchend);
+        document.removeEventListener('click', handleNavClick, true);
+        document.removeEventListener('click', handleNotesFontClick);
+        document.removeEventListener('click', handleToolbarClick);
         window.removeEventListener('resize', updateScale);
         if (timerInterval) clearInterval(timerInterval);
         if (syncChannel) {
@@ -585,6 +851,41 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     width: 100vw;
     height: 100vh;
     background: #000;
+  }
+
+  /* A-2: in presenter mode, paint <html> the same color as the panel so the
+     view-transition swap can't flash a #000 frame against the dark slate UI. */
+  html[data-presenter],
+  html[data-presenter] body {
+    background: #0f172a;
+  }
+
+  /* B-1: ?print mode — hide all chrome and let the deck paint on white. */
+  html[data-print],
+  html[data-print] body {
+    background: #fff;
+    overflow: auto;
+    height: auto;
+  }
+  html[data-print] .slide-nav,
+  html[data-print] .progress-bar,
+  html[data-print] .notes-overlay,
+  html[data-print] .overview,
+  html[data-print] .presenter-layout {
+    display: none !important;
+  }
+  html[data-print] .presentation {
+    background: transparent;
+  }
+
+  /* C-4: ?share mode — strip chrome but keep the slide visible, so the
+     audience on a Web-conference screen-share sees a clean canvas. */
+  html[data-share] .slide-nav,
+  html[data-share] .progress-bar,
+  html[data-share] .notes-overlay,
+  html[data-share] .overview,
+  html[data-share] .presenter-layout {
+    display: none !important;
   }
 
   /* ── Skip link (visually hidden, visible on focus) ── */
@@ -629,8 +930,8 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     position: fixed;
     top: 0;
     left: 0;
-    height: 3px;
-    background: var(--color-primary, #3b82f6);
+    height: var(--astlide-progress-height, 3px);
+    background: var(--astlide-progress-color, var(--color-primary, #3b82f6));
     z-index: 200;
     transition: width 0.25s ease;
     pointer-events: none;
@@ -698,13 +999,13 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
   }
 
   .presenter-panel {
-    width: 360px;
+    width: var(--astlide-presenter-width, 360px);
     flex-shrink: 0;
-    background: #1a1a2e;
+    background: var(--astlide-presenter-bg, #1a1a2e);
     border-left: 1px solid rgba(255,255,255,0.08);
     display: flex;
     flex-direction: column;
-    color: #e0e0e0;
+    color: var(--astlide-presenter-fg, #e0e0e0);
     font-family: system-ui, sans-serif;
     overflow: hidden;
   }
@@ -722,6 +1023,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     font-size: 1.5rem;
     font-variant-numeric: tabular-nums;
     font-weight: 600;
+    white-space: nowrap;
   }
 
   .timer-wrapper {
@@ -733,8 +1035,8 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
   .presenter-timer {
     font-size: 1.5rem;
     font-variant-numeric: tabular-nums;
-    color: #60a5fa;
-    font-family: monospace;
+    color: var(--astlide-presenter-accent, #60a5fa);
+    font-family: var(--astlide-presenter-timer-font, monospace);
   }
 
   .timer-btn,
@@ -761,18 +1063,47 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     padding: 1.25rem;
   }
 
+  .presenter-notes-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+  }
+
   .presenter-notes h3 {
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: #64748b;
-    margin-bottom: 0.75rem;
+    margin: 0;
     font-weight: 600;
+  }
+
+  .notes-font-controls {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .notes-font-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.7);
+    border-radius: 4px;
+    padding: 0.1rem 0.4rem;
+    font-size: 0.7rem;
+    line-height: 1.4;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .notes-font-btn:hover {
+    background: rgba(255, 255, 255, 0.16);
+    color: rgba(255, 255, 255, 0.95);
   }
 
   .notes-content,
   .presenter-notes .notes-body {
-    font-size: 1rem;
+    font-size: var(--astlide-notes-font-size, 1rem);
     line-height: 1.6;
     color: #cbd5e1;
   }
@@ -816,7 +1147,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     align-items: center;
     gap: 1rem;
     padding: 0.5rem 1.25rem;
-    background: rgba(0, 0, 0, 0.65);
+    background: var(--astlide-nav-bg, rgba(0, 0, 0, 0.65));
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     border-radius: 2rem;
@@ -826,9 +1157,21 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     pointer-events: none;
   }
 
-  body:hover .slide-nav {
+  body:hover .slide-nav,
+  /* Keyboard users: reveal while any toolbar control is focused. */
+  .slide-nav:focus-within {
     opacity: 1;
     pointer-events: auto;
+  }
+
+  /* Touch devices have no hover, so the toolbar (and its home/back link) would
+     otherwise be permanently invisible. Keep it visible when a fine pointer
+     (mouse) is unavailable. */
+  @media (hover: none) {
+    .slide-nav {
+      opacity: 1;
+      pointer-events: auto;
+    }
   }
 
   .nav-btn {
@@ -838,8 +1181,8 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.12);
-    color: white;
+    background: var(--astlide-nav-btn-bg, rgba(255, 255, 255, 0.12));
+    color: var(--astlide-nav-fg, white);
     text-decoration: none;
     font-size: 1.1rem;
     transition: background 0.15s;
@@ -855,6 +1198,20 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     min-width: 3.5rem;
     text-align: center;
     font-family: monospace;
+    white-space: nowrap;
+  }
+
+  /* Plugin-composed toolbar buttons (notes / overview / presenter / fullscreen / print / share). */
+  button.nav-btn {
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
+  }
+
+  .nav-spacer {
+    width: 0.5rem;
+    height: 1px;
   }
 
   /* ── Notes overlay ── */
@@ -863,7 +1220,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     bottom: 0;
     left: 0;
     right: 0;
-    height: 35vh;
+    height: var(--astlide-notes-overlay-height, 70vh);
     background: rgba(15, 23, 42, 0.95);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -911,8 +1268,64 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     flex: 1;
     color: #cbd5e1;
     font-family: system-ui, sans-serif;
-    font-size: 1rem;
+    font-size: var(--astlide-notes-font-size, 1rem);
     line-height: 1.6;
+  }
+
+  /* ── PDF download overlay ── */
+  .pdf-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 600;
+  }
+  .pdf-overlay.open { display: flex; }
+
+  .pdf-overlay-card {
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 1.5rem 2rem;
+    border-radius: 0.75rem;
+    width: min(28rem, 90vw);
+    font-family: system-ui, sans-serif;
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
+  }
+
+  .pdf-overlay-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-bottom: 0.85rem;
+  }
+
+  .pdf-overlay-progress {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 0.6rem;
+  }
+
+  .pdf-overlay-bar {
+    height: 100%;
+    background: var(--color-primary, #3b82f6);
+    transition: width 0.2s ease;
+  }
+
+  .pdf-overlay-status {
+    font-size: 0.85rem;
+    color: rgba(226, 232, 240, 0.75);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Hide the overlay in print/share modes too. */
+  html[data-print] .pdf-overlay,
+  html[data-share] .pdf-overlay {
+    display: none !important;
   }
 
   /* ── Overview mode ── */
@@ -1007,10 +1420,16 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     .deck-card { transition: none; }
   }
 
-  /* ── Print ── */
+  /* ── Print (D-1: sensible defaults for PDF export) ── */
+  @page {
+    size: 1920px 1080px landscape;
+    margin: 0;
+  }
   @media print {
-    .slide-nav, .progress-bar, .overview, .notes-overlay { display: none !important; }
+    html, body { background: #fff !important; }
+    .slide-nav, .progress-bar, .overview, .notes-overlay, .presenter-layout { display: none !important; }
     .presentation { background: transparent; }
-    .slide-scaler { transform: none !important; width: 100% !important; height: 100% !important; }
+    .slide-scaler { transform: none !important; width: 100% !important; height: 100% !important; page-break-after: always; }
+    .slide-scaler:last-child { page-break-after: auto; }
   }
 </style>

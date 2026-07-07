@@ -1,0 +1,30 @@
+---
+slideLayout: default
+background: "#0b132b"
+class: "text-light"
+notes: "Authored as raw HTML (.html) with an inline <style> block — same trust level as MDX."
+---
+<style>
+  .html-demo-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin-top: 2rem;
+  }
+  .html-demo-card {
+    padding: 1.5rem;
+    border-radius: 1rem;
+    background: rgba(91, 192, 235, 0.12);
+    border: 1px solid rgba(91, 192, 235, 0.35);
+  }
+  .html-demo-card h3 { margin: 0 0 0.5rem; color: #5bc0eb; }
+</style>
+
+<h1>HTML slides</h1>
+<p>This slide is a self-contained <strong>.html</strong> file with an inline <code>&lt;style&gt;</code> block.</p>
+
+<div class="html-demo-grid">
+  <div class="html-demo-card"><h3>Self-contained</h3>Bring your own markup and styles.</div>
+  <div class="html-demo-card"><h3>Zero build DSL</h3>Paste HTML straight in — great for AI-generated decks.</div>
+  <div class="html-demo-card"><h3>Same frontmatter</h3>Layout, background, and notes all apply.</div>
+</div>

@@ -6,7 +6,19 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash .claude/hooks/post-edit-lint.sh"
+						"command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/post-edit-lint.sh\""
+					}
+				]
+			}
+		],
+		"Stop": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/verify.sh\"",
+						"timeout": 240,
+						"statusMessage": "Running type check + tests (local CI gate)…"
 					}
 				]
 			}

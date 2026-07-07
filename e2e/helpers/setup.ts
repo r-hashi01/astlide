@@ -4,9 +4,12 @@
  */
 
 import { type ChildProcess, spawn } from "node:child_process";
+import { resolve } from "node:path";
 import type { GlobalSetupContext } from "vitest/node";
 
-const PORT = 4321;
+// Port is configurable so the suite can run when the default 4321 is busy
+// (e.g. another dev server). Keep it in sync with helpers/browser.ts via E2E_PORT.
+const PORT = Number(process.env.E2E_PORT ?? 4321);
 const URL = `http://localhost:${PORT}`;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -21,8 +24,8 @@ export default async function setup(_ctx: GlobalSetupContext) {
 		}
 	}
 
-	const proc: ChildProcess = spawn("bun", ["run", "dev"], {
-		cwd: process.cwd(),
+	const proc: ChildProcess = spawn("bunx", ["astro", "dev", "--port", String(PORT)], {
+		cwd: resolve(process.cwd(), "playground"),
 		stdio: ["ignore", "ignore", "pipe"],
 	});
 

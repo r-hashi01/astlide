@@ -1,0 +1,32 @@
+---
+/**
+ * Demo slide decorator: a footer shown on every slide, reading typed deck
+ * metadata via getDeckContext(Astro). Wired through astlide({ slideDecorators }).
+ */
+import { getDeckContext } from "@astlide/core/context";
+
+const ctx = getDeckContext(Astro);
+---
+{ctx && ctx.slideNumber > 1 && (
+  <footer class="deck-footer" aria-hidden="true">
+    <span class="deck-footer-title">{ctx.config.title ?? ctx.deck}</span>
+    <span class="deck-footer-page">{ctx.slideNumber} / {ctx.totalSlides}</span>
+  </footer>
+)}
+
+<style>
+  .deck-footer {
+    position: absolute;
+    bottom: 1.5rem;
+    left: 4rem;
+    right: 4rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+    opacity: 0.55;
+    pointer-events: none;
+    font-family: var(--font-body, system-ui, sans-serif);
+  }
+  .deck-footer-page { font-variant-numeric: tabular-nums; }
+</style>

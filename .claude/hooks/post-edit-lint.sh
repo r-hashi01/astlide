@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Resolve the repo root from this script's own location so the hook works
+# regardless of the caller's CWD (cmux, herdr, CI, direct invocation, …).
+# `bunx biome` and biome.json discovery both depend on running at the root.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$PROJECT_DIR"
+
 input="$(cat)"
 file="$(jq -r '.tool_input.file_path // .tool_input.path // empty' <<< "$input")"
 

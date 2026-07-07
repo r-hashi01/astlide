@@ -1,0 +1,28 @@
+---
+/**
+ * Test fixture: a plugin-contributed layout component.
+ *
+ * It receives the standard Slide props and renders a uniquely-identifiable shell
+ * so astro-components.test.ts can assert dispatch via virtual:astlide/layouts.
+ */
+interface Props {
+  layout?: string;
+  transition?: string;
+  background?: string;
+  class?: string;
+  slideNumber?: number;
+  totalSlides?: number;
+}
+const { transition, slideNumber, totalSlides } = Astro.props;
+---
+<section
+  class="slide slide-fixture-layout"
+  data-fixture-layout="true"
+  data-transition={transition}
+  data-slide-number={slideNumber}
+  data-total-slides={totalSlides}
+  role="region"
+  aria-roledescription="slide"
+>
+  <div class="fixture-content"><slot /></div>
+</section>

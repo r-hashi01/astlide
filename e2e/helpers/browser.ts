@@ -10,7 +10,7 @@
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 
-const BASE_URL = "http://localhost:4321";
+const BASE_URL = `http://localhost:${process.env.E2E_PORT ?? 4321}`;
 const BIN = resolve(__dirname, "../../node_modules/.bin/agent-browser");
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

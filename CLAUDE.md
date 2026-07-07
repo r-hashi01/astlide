@@ -27,16 +27,21 @@ bun run changeset    # changeset 作成
 - ❌ frontmatter で `layout` を使わない → ✅ `slideLayout` を使う（`layout` は Astro MDX 予約語）
 - ❌ パッケージ内部で相対パス import → ✅ `@astlide/core/...` パスを使う（`exports` マップで解決）
 - ❌ npm/pnpm → ✅ bun のみ
-- スライドファイル名: `01-name.mdx`, `02-name.mdx` の番号付き
+- スライドファイル名: `01-name.mdx` の番号付き。`.mdx` / `.md` / `.html` を混在可（`astlideDeckLoader()` が処理、番号順にソート）
 - デッキ設定: `_config.json` (title, author, date, theme)
 - テーマ: default, dark, minimal, corporate, gradient, rose, forest
+- content collection の loader は `astlideDeckLoader()` を使う（`glob({ pattern: '**/*.mdx' })` ではなく）
 
 ## キーファイル
 
-- `packages/astlide/src/index.ts` — Integration エントリ
+- `packages/astlide/src/index.ts` — Integration エントリ（`toolbar` / `font` / `slideDecorators` オプション）
 - `packages/astlide/src/schema.ts` — Zod スキーマ (`slideSchema`)
-- `packages/astlide/src/internal/DeckLayout.astro` — ビューポートスケーリング・ナビ・プレゼンター
-- `packages/astlide/src/internal/pages/` — inject されるルート
+- `packages/astlide/src/loader.ts` — `astlideDeckLoader()`（.mdx/.md/.html を扱う content loader）
+- `packages/astlide/src/context.ts` — 型付きメタデータ API (`getDeckContext` / `getClientDeckContext`)
+- `packages/astlide/src/plugin.ts` — プラグインAPI（themes/layouts/transitions/`decorators`）
+- `packages/astlide/src/internal/DeckLayout.astro` — ビューポートスケーリング・ナビ(toolbar)・プレゼンター・PDF
+- `packages/astlide/src/internal/virtual-plugins.ts` — `virtual:astlide/{themes,layouts,decorators}`
+- `packages/astlide/src/internal/pages/` — inject されるルート（`/`, `/[deck]/[...slide]`, `/[deck]/all`）
 - `packages/astlide/package.json` — `exports` マップ（公開API定義）
 
 ## ドキュメント運用

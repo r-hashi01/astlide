@@ -18,9 +18,12 @@ describe("@astlide/core export surface", () => {
 		expect(Object.keys(core).sort()).toMatchInlineSnapshot(`
 			[
 			  "THEMES",
+			  "astlideDeckLoader",
 			  "deckConfigSchema",
 			  "default",
 			  "defineAstlidePlugin",
+			  "getClientDeckContext",
+			  "getDeckContext",
 			  "slideSchema",
 			]
 		`);

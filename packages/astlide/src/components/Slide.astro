@@ -1,5 +1,7 @@
 ---
 import { sanitizeBackground } from '@astlide/core/utils/sanitize';
+import { layouts as pluginLayouts } from 'virtual:astlide/layouts';
+import { decorators as slideDecorators } from 'virtual:astlide/decorators';
 
 interface Props {
   layout?: string;
@@ -33,20 +35,43 @@ if (safeBackground) {
     backgroundStyle = `background-color: ${safeBackground};`;
   }
 }
+
+// C-5: plugin-contributed layout component, if any, owns the slide markup.
+const LayoutComponent = (pluginLayouts as Record<string, unknown>)[layout] as
+  | undefined
+  | ((_props: Record<string, unknown>) => unknown);
+
+// Every-slide decorators (logo / footer / page number / home link).
+const decoratorProps = { layout, transition, slideNumber, totalSlides };
 ---
 
-<section
-  class:list={['slide', `slide-${layout}`, className]}
-  data-transition={transition}
-  style={backgroundStyle}
-  role="region"
-  aria-roledescription="slide"
-  aria-label={slideNumber && totalSlides ? `Slide ${slideNumber} of ${totalSlides}` : undefined}
->
-  <div class="slide-content">
+{LayoutComponent ? (
+  <LayoutComponent
+    layout={layout}
+    transition={transition}
+    background={safeBackground}
+    class={className}
+    slideNumber={slideNumber}
+    totalSlides={totalSlides}
+  >
     <slot />
-  </div>
-</section>
+    {slideDecorators.map((Decorator) => <Decorator {...decoratorProps} />)}
+  </LayoutComponent>
+) : (
+  <section
+    class:list={['slide', `slide-${layout}`, className]}
+    data-transition={transition}
+    style={backgroundStyle}
+    role="region"
+    aria-roledescription="slide"
+    aria-label={slideNumber && totalSlides ? `Slide ${slideNumber} of ${totalSlides}` : undefined}
+  >
+    <div class="slide-content">
+      <slot />
+    </div>
+    {slideDecorators.map((Decorator) => <Decorator {...decoratorProps} />)}
+  </section>
+)}
 
 <style>
   /* ── Base slide ── */

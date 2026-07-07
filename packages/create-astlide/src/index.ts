@@ -20,6 +20,18 @@ type Theme = (typeof THEMES)[number];
 const PKG_MANAGERS = ["bun", "npm", "pnpm", "yarn"] as const;
 type PkgManager = (typeof PKG_MANAGERS)[number];
 
+const DECK_FORMATS = ["mdx", "md", "html"] as const;
+type DeckFormat = (typeof DECK_FORMATS)[number];
+
+/** Read a `--flag value` (or `--flag=value`) option from argv. */
+function getFlag(args: string[], name: string): string | undefined {
+	const eq = args.find((a) => a.startsWith(`--${name}=`));
+	if (eq) return eq.slice(name.length + 3);
+	const idx = args.indexOf(`--${name}`);
+	if (idx !== -1 && args[idx + 1] && !args[idx + 1].startsWith("--")) return args[idx + 1];
+	return undefined;
+}
+
 function showHelp() {
 	console.log();
 	console.log(bold("  🎴 create-astlide"));
@@ -28,6 +40,12 @@ function showHelp() {
 	console.log();
 	console.log(`  ${bold("Usage:")}`);
 	console.log(`    ${dim("$")} bun create astlide ${cyan("[project-name]")}`);
+	console.log(
+		`    ${dim("$")} bunx create-astlide deck ${cyan("<name>")} ${dim("[--theme t] [--format mdx|md|html]")}`,
+	);
+	console.log();
+	console.log(`  ${bold("Commands:")}`);
+	console.log(`    ${cyan("deck <name>")}     Scaffold a new deck in the current project`);
 	console.log();
 	console.log(`  ${bold("Options:")}`);
 	console.log(`    ${cyan("-h, --help")}      Show this help message`);
@@ -116,6 +134,15 @@ async function main() {
 
 	if (args.includes("-v") || args.includes("--version")) {
 		showVersion();
+		return;
+	}
+
+	// Subcommand: scaffold a new deck inside an existing project.
+	//   create-astlide deck <name> [--theme t] [--format mdx|md|html] [--dir path]
+	//   create-astlide new deck <name> ...
+	if (args[0] === "deck" || (args[0] === "new" && args[1] === "deck")) {
+		const rest = args[0] === "new" ? args.slice(2) : args.slice(1);
+		await scaffoldDeck(rest);
 		return;
 	}
 
@@ -215,6 +242,108 @@ async function main() {
 	console.log(`  ${dim("$")} ${devCmd}`);
 	console.log();
 	console.log(`  Then open ${cyan("http://localhost:4321")}`);
+	console.log();
+}
+
+/** Slide bodies for a fresh deck, keyed by format. Cover / content / end. */
+function deckSlideTemplates(
+	title: string,
+	format: DeckFormat,
+): Array<{ file: string; body: string }> {
+	const fm = (data: Record<string, string>) =>
+		`---\n${Object.entries(data)
+			.map(([k, v]) => `${k}: ${v}`)
+			.join("\n")}\n---\n`;
+
+	if (format === "html") {
+		return [
+			{
+				file: "01-cover.html",
+				body: `${fm({ slideLayout: "cover" })}<h1>${title}</h1>\n<p>Your subtitle here</p>\n`,
+			},
+			{
+				file: "02-content.html",
+				body: `${fm({ slideLayout: "default" })}<h2>Section title</h2>\n<ul>\n  <li>First point</li>\n  <li>Second point</li>\n</ul>\n`,
+			},
+			{
+				file: "03-end.html",
+				body: `${fm({ slideLayout: "cover", background: '"#1e293b"', class: '"text-light"' })}<h1>Thank You!</h1>\n<p>Questions?</p>\n`,
+			},
+		];
+	}
+
+	// mdx and md share the same Markdown body (mdx additionally allows components).
+	return [
+		{
+			file: `01-cover.${format}`,
+			body: `${fm({ slideLayout: "cover" })}\n# ${title}\n\nYour subtitle here\n`,
+		},
+		{
+			file: `02-content.${format}`,
+			body: `${fm({ slideLayout: "default" })}\n## Section title\n\n- First point\n- Second point\n`,
+		},
+		{
+			file: `03-end.${format}`,
+			body: `${fm({ slideLayout: "cover", background: '"#1e293b"', class: '"text-light"' })}\n# Thank You!\n\nQuestions?\n`,
+		},
+	];
+}
+
+/** Scaffold a new deck folder inside an existing project's content collection. */
+async function scaffoldDeck(args: string[]): Promise<void> {
+	console.log();
+	console.log(bold("  🎴 create-astlide — new deck"));
+	console.log();
+
+	const positional = args.find((a) => !a.startsWith("--"));
+	const rawName = positional ?? (await ask("Deck name", "my-deck"));
+	const deckName = path.basename(rawName.replace(/[\\/]+$/, ""));
+	if (!deckName || deckName === "." || deckName === "..") {
+		console.log(red(`\n  Error: Invalid deck name "${rawName}".`));
+		process.exit(1);
+	}
+
+	const theme = ((): Theme => {
+		const flag = getFlag(args, "theme") as Theme | undefined;
+		return flag && THEMES.includes(flag) ? flag : "default";
+	})();
+
+	const format = await (async (): Promise<DeckFormat> => {
+		const flag = getFlag(args, "format") as DeckFormat | undefined;
+		if (flag && DECK_FORMATS.includes(flag)) return flag;
+		return askChoice<DeckFormat>("Slide format:", DECK_FORMATS, 0);
+	})();
+
+	const baseDir = path.resolve(process.cwd(), getFlag(args, "dir") ?? "src/content/decks");
+	const deckDir = path.join(baseDir, deckName);
+	if (fs.existsSync(deckDir) && fs.readdirSync(deckDir).length > 0) {
+		console.log(
+			red(
+				`\n  Error: Deck "${deckName}" already exists at ${path.relative(process.cwd(), deckDir)}.`,
+			),
+		);
+		process.exit(1);
+	}
+
+	fs.mkdirSync(deckDir, { recursive: true });
+
+	// _config.json
+	const title = deckName.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+	fs.writeFileSync(
+		path.join(deckDir, "_config.json"),
+		`${JSON.stringify({ title, theme }, null, 2)}\n`,
+	);
+
+	// Slide files
+	for (const { file, body } of deckSlideTemplates(title, format)) {
+		fs.writeFileSync(path.join(deckDir, file), body);
+	}
+
+	console.log(`${green("  ✓")} Created deck ${cyan(deckName)} (${format}) with 3 slides`);
+	console.log(`${green("  ✓")} Theme: ${cyan(theme)}`);
+	console.log();
+	console.log(`  ${dim("→")} ${path.relative(process.cwd(), deckDir)}/`);
+	console.log(`  ${dim("→")} Open ${cyan(`/${deckName}/1`)} after ${dim("$")} bun run dev`);
 	console.log();
 }
 

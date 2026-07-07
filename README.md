@@ -9,14 +9,16 @@ An Astro-based slide presentation framework — like Slidev, but for the Astro e
 
 ## Features
 
-- **MDX slides** — write in Markdown with JSX components
+- **MDX / Markdown / HTML slides** — author each slide as `.mdx`, `.md`, or plain `.html`, mixed freely in one deck
 - **Viewport scaling** — slides auto-scale to any screen/window size (1920×1080)
 - **7 built-in themes** — default, dark, minimal, corporate, gradient, rose, forest
+- **Composable toolbar** — pick the navigation actions you want, including an always-reachable "back to index" link
+- **Slide decorators** — render a logo / footer / page number on every slide without editing each file
 - **Fragment reveals** — step-by-step content with `<Fragment>`
-- **Presenter mode** — speaker notes + timer in a separate window, synced via BroadcastChannel
+- **Presenter mode** — speaker notes (Markdown) + timer in a separate window, synced via BroadcastChannel
 - **Overview mode** — press `o` to see all slides in a grid
-- **PDF / PNG export** — Playwright + pdf-lib with CLI options
-- **Type-safe** — Content Collections with Zod schema
+- **PDF export** — one-click in-browser download + CLI, via `@astlide/crispdf`
+- **Type-safe** — Content Collections with Zod schema, plus a typed deck/slide metadata API
 - **Touch / swipe** — navigate on mobile
 
 ## Quick Start
@@ -50,11 +52,11 @@ export default defineConfig({
 ```ts
 // src/content.config.ts
 import { defineCollection } from 'astro:content';
-import { glob } from 'astro/loaders';
-import { slideSchema } from '@astlide/core/schema';
+import { astlideDeckLoader, slideSchema } from '@astlide/core';
 
 const decks = defineCollection({
-  loader: glob({ pattern: '**/*.mdx', base: 'src/content/decks' }),
+  // Renders .mdx, .md, and .html slides from src/content/decks/<deck>/
+  loader: astlideDeckLoader(),
   schema: slideSchema,
 });
 
@@ -62,6 +64,14 @@ export const collections = { decks };
 ```
 
 ## Creating a Deck
+
+Scaffold one with the CLI:
+
+```bash
+bunx create-astlide deck my-talk --theme dark --format mdx   # or md | html
+```
+
+Or create it by hand:
 
 1. Create `src/content/decks/my-talk/_config.json`:
 
@@ -74,14 +84,27 @@ export const collections = { decks };
 }
 ```
 
-2. Add slides as numbered MDX files:
+2. Add slides as numbered files — `.mdx`, `.md`, and `.html` can be mixed and sort by name:
 
 ```
 src/content/decks/my-talk/
 ├── _config.json
 ├── 01-cover.mdx
-├── 02-intro.mdx
-└── 03-end.mdx
+├── 02-intro.md
+└── 03-demo.html
+```
+
+### HTML & Markdown slides
+
+Any slide can be a plain `.md` or self-contained `.html` file with the same frontmatter as MDX. HTML bodies are rendered verbatim (inline `<style>` and markup preserved — same trust level as MDX), which is handy for pasting in AI-generated or hand-crafted markup:
+
+```html
+---
+slideLayout: cover
+background: "#0b132b"
+---
+<style>.hero { font-size: 3rem; }</style>
+<h1 class="hero">Everything in one HTML file</h1>
 ```
 
 ## Slide Frontmatter
@@ -280,7 +303,63 @@ Convention for community plugins:
 | `peerDependencies` | `{ "@astlide/core": "^x.y" }` |
 | Default export | `defineAstlidePlugin({ ... })` |
 
-Layout / transition contributions in v1 register the **name** only. The class is applied on the slide element so any plugin-shipped CSS can target it (e.g. `.slide.slide-split-quote { ... }`, `[data-slide-transition="iris"] { ... }`). Component-driven layouts and JS-driven transitions are deferred to v2.
+A layout contribution can either register a **name** only (a `.slide-<name>` class is applied so plugin CSS can target it — e.g. `.slide.slide-split-quote { ... }`), or supply a `componentEntrypoint` so a plugin-provided `.astro` component owns the slide markup:
+
+```ts
+layouts: [
+  { name: 'split-quote', componentEntrypoint: 'astlide-plugin-acme/SplitQuote.astro' },
+],
+```
+
+Plugins can also contribute `decorators` (components rendered on every slide) — see [Slide Decorators](#slide-decorators).
+
+## Navigation Toolbar
+
+Compose the floating bottom toolbar from an ordered list of actions. It reveals on hover, on keyboard focus, and stays visible on touch devices.
+
+```js
+astlide({
+  toolbar: ['home', 'prev', 'counter', 'next', 'spacer', 'notes', 'overview', 'presenter', 'fullscreen', 'download'],
+})
+```
+
+Actions: `home` (back to deck index) · `prev` · `counter` · `next` · `notes` · `overview` · `presenter` · `fullscreen` · `print` · `share` · `download` (PDF) · `spacer`. Default: `['prev', 'counter', 'next']`.
+
+The toolbar, progress bar, and presenter panel read CSS custom properties (`--astlide-nav-bg`, `--astlide-nav-fg`, `--astlide-nav-btn-bg`, `--astlide-progress-color`, `--astlide-presenter-bg`, `--astlide-presenter-fg`, `--astlide-presenter-accent`, …) so themes can restyle them without `!important`.
+
+## Slide Decorators
+
+Render a component on **every** slide (logo, footer, page number, back link) without placing it in each file:
+
+```js
+astlide({ slideDecorators: ['./src/components/DeckFooter.astro'] })
+```
+
+Or contribute them from a plugin (`decorators: [{ componentEntrypoint: '...' }]`). Decorators receive `slideNumber` / `totalSlides` / `layout` / `transition` and can read the full metadata via the context API below.
+
+## Deck / Slide Metadata
+
+Read the current deck name, slide number, total, layout, transition, and parsed config — no more scraping `document.title`:
+
+```astro
+---
+// server-side, inside any slide component
+import { getDeckContext } from '@astlide/core/context';
+const ctx = getDeckContext(Astro);
+---
+<footer>{ctx?.config.title} — {ctx?.slideNumber}/{ctx?.totalSlides}</footer>
+```
+
+In the browser, `getClientDeckContext()` (backed by `window.__astlide`) returns the same shape for client scripts.
+
+## Fonts
+
+Astlide injects the Inter web font by default. Override or disable it:
+
+```js
+astlide({ font: false })  // use whatever your CSS specifies
+astlide({ font: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans&display=swap' })
+```
 
 ## Keyboard Shortcuts
 
@@ -296,24 +375,27 @@ Layout / transition contributions in v1 register the **name** only. The class is
 | `f` | Toggle fullscreen |
 | `Esc` | Exit fullscreen / close overlays |
 
-## PDF / PNG Export
+## PDF Export
 
-Requires `playwright` and `pdf-lib` (optional dependencies). Start the dev server, then:
+> **Experimental.** In-browser PDF export is powered by the pre-1.0
+> [`@astlide/crispdf`](https://www.npmjs.com/package/@astlide/crispdf) and its
+> API/output may change. The CLI exporter (below) is the stable path.
+
+**In-browser (experimental):** add `"download"` to the `toolbar` (see below) for a one-click PDF download of the current deck. This uses `@astlide/crispdf` (an optional dependency) — install it to enable the button:
 
 ```bash
-# Export a deck to PDF
-bun run astlide-export --deck my-talk
+bun add -D @astlide/crispdf
+```
 
-# Export all decks
-bun run astlide-export --all
+Each deck also exposes a print-friendly `/{deck}/all` route that stacks every slide with hard page breaks.
 
-# Export as PNG images
+**CLI:** requires `playwright`. Start the dev server, then:
+
+```bash
+bun run astlide-export --deck my-talk            # → my-talk.pdf (single multi-page PDF)
+bun run astlide-export --all                     # every deck
 bun run astlide-export --deck my-talk --format png
-
-# Custom viewport size
 bun run astlide-export --deck my-talk --width 1280 --height 720
-
-# Custom server URL
 bun run astlide-export --deck my-talk --base-url http://localhost:3000
 ```
 
@@ -323,10 +405,13 @@ bun run astlide-export --deck my-talk --base-url http://localhost:3000
 packages/
 ├── astlide/              # @astlide/core — Astro Integration
 │   ├── src/
-│   │   ├── index.ts      # Integration entry (injectRoute, config)
+│   │   ├── index.ts      # Integration entry (injectRoute, options)
 │   │   ├── schema.ts     # Zod schema (slideSchema)
+│   │   ├── loader.ts     # astlideDeckLoader() — .mdx / .md / .html
+│   │   ├── context.ts    # getDeckContext / getClientDeckContext
+│   │   ├── plugin.ts     # Plugin API (themes / layouts / transitions / decorators)
 │   │   ├── components/   # Slide, Fragment, Notes, Columns, Left, Right, ImageSide, TextPanel
-│   │   ├── internal/     # DeckLayout, injected pages
+│   │   ├── internal/     # DeckLayout, virtual modules, injected pages (incl. /[deck]/all)
 │   │   ├── styles/       # base.css + themes/
 │   │   └── cli/          # export-pdf.ts
 │   └── package.json
@@ -341,6 +426,8 @@ packages/
 bun install        # Install all workspace dependencies
 bun run dev        # Start playground dev server
 bun run build      # Build playground
+bun run test       # Run vitest unit tests
+bun run typecheck  # astro check (type-check the playground graph)
 bun run lint       # Run Biome linter
 bun run lint:fix   # Auto-fix lint issues
 bun run format     # Format with Biome
