@@ -10,6 +10,7 @@
 		"preview": "bun run --filter astlide-playground preview",
 		"test": "vitest run",
 		"test:watch": "vitest",
+		"typecheck": "cd playground && bunx astro check",
 		"test:e2e": "vitest run --config vitest.config.e2e.ts",
 		"lint": "biome check .",
 		"lint:fix": "biome check --fix .",
