@@ -80,6 +80,44 @@ describe("astlide integration", () => {
 				entrypoint: "@astlide/core/internal/pages/index.astro",
 			});
 		});
+
+		const injectedPatterns = (args: ReturnType<typeof runSetup>["args"]): string[] =>
+			(args.injectRoute as ReturnType<typeof vi.fn>).mock.calls.map(
+				(call) => (call[0] as { pattern: string }).pattern,
+			);
+
+		it("skips the index route when injectIndexRoute is false", () => {
+			const { args } = runSetup({ injectIndexRoute: false });
+			const patterns = injectedPatterns(args);
+			expect(patterns).not.toContain("/");
+			// Deck routes are unaffected.
+			expect(patterns).toContain("/[deck]/[...slide]");
+			expect(patterns).toContain("/[deck]/all");
+		});
+
+		it("auto-skips the index route when the user has their own src/pages/index", () => {
+			const dir = mkdtempSync(join(tmpdir(), "astlide-idx-"));
+			mkdirSync(join(dir, "pages"), { recursive: true });
+			writeFileSync(join(dir, "pages", "index.astro"), "<h1>home</h1>");
+			try {
+				const { args } = runSetup(undefined, { srcDir: dir });
+				expect(injectedPatterns(args)).not.toContain("/");
+			} finally {
+				rmSync(dir, { recursive: true, force: true });
+			}
+		});
+
+		it("still injects the index route when injectIndexRoute is true despite a user index", () => {
+			const dir = mkdtempSync(join(tmpdir(), "astlide-idx-"));
+			mkdirSync(join(dir, "pages"), { recursive: true });
+			writeFileSync(join(dir, "pages", "index.mdx"), "# home");
+			try {
+				const { args } = runSetup({ injectIndexRoute: true }, { srcDir: dir });
+				expect(injectedPatterns(args)).toContain("/");
+			} finally {
+				rmSync(dir, { recursive: true, force: true });
+			}
+		});
 	});
 
 	// ── MDX auto-add ──

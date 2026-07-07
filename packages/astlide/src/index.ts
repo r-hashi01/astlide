@@ -44,6 +44,16 @@ export interface AstlideOptions {
 	 */
 	indexable?: boolean;
 	/**
+	 * Whether to inject Astlide's deck-index page at `/`.
+	 *
+	 * - unset (default): **auto** — inject only when you don't already have a
+	 *   `src/pages/index.{astro,md,mdx,html}`, so a custom home page never collides
+	 *   with the built-in index (a route collision is a hard error in future Astro).
+	 * - `false`: never inject — you provide your own `/`.
+	 * - `true`: always inject, even alongside your own index page.
+	 */
+	injectIndexRoute?: boolean;
+	/**
 	 * Astlide plugins. Each plugin can contribute themes, layout names, transition names,
 	 * and Shiki languages/themes. Built-in themes/layouts/transitions are always registered.
 	 */
@@ -289,13 +299,28 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 					pattern: "/[deck]/[...slide]",
 					entrypoint: "@astlide/core/internal/pages/slide.astro",
 				});
-				injectRoute({
-					pattern: "/",
-					entrypoint: "@astlide/core/internal/pages/index.astro",
-				});
+				const srcDir = config.srcDir?.pathname ?? join(process.cwd(), "src");
+
+				// Index route at `/`. Skipped when the user supplies their own
+				// src/pages/index.* so the two don't collide (a route collision is a
+				// hard error in future Astro). `injectIndexRoute` overrides detection:
+				// `false` never injects, `true` always injects.
+				const userIndexExists = ["astro", "md", "mdx", "html"].some((ext) =>
+					existsSync(join(srcDir, "pages", `index.${ext}`)),
+				);
+				if (options.injectIndexRoute ?? !userIndexExists) {
+					injectRoute({
+						pattern: "/",
+						entrypoint: "@astlide/core/internal/pages/index.astro",
+					});
+				} else if (options.injectIndexRoute === undefined) {
+					logger.info(
+						"Detected src/pages/index — skipping Astlide's deck index route at `/`. " +
+							"Set injectIndexRoute: true to force it.",
+					);
+				}
 
 				// Check for content collection config and warn if missing
-				const srcDir = config.srcDir?.pathname ?? join(process.cwd(), "src");
 				const hasContentConfig = ["ts", "js", "mts", "mjs"].some((ext) =>
 					existsSync(join(srcDir, `content.config.${ext}`)),
 				);

@@ -361,6 +361,17 @@ astlide({ font: false })  // use whatever your CSS specifies
 astlide({ font: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans&display=swap' })
 ```
 
+## Custom Home Page
+
+By default Astlide serves its deck index at `/`. If you provide your own
+`src/pages/index.{astro,md,mdx,html}`, Astlide **auto-detects it and skips** its
+index route so the two don't collide. Override the behavior explicitly:
+
+```js
+astlide({ injectIndexRoute: false })  // never inject — you own `/`
+astlide({ injectIndexRoute: true })   // always inject, even with your own index
+```
+
 ## Keyboard Shortcuts
 
 | Key | Action |
