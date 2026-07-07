@@ -1,0 +1,124 @@
+---
+/**
+ * Print-friendly view that stacks every slide of a deck in one document.
+ *
+ * Lets Chromium (via Playwright's `page.pdf()`) emit a multi-page PDF in a single
+ * shot, removing the need for pdf-lib's per-page merge. Not exposed in the
+ * regular deck navigation — accessed by the CLI exporter and the in-browser
+ * "download PDF" button only.
+ */
+import { getCollection, render } from 'astro:content';
+import fs from 'node:fs';
+import path from 'node:path';
+import { deckConfigSchema } from '@astlide/core/schema';
+import type { DeckConfig } from '@astlide/core/schema';
+import '@astlide/core/styles/base.css';
+import 'virtual:astlide/themes';
+import Slide from '@astlide/core/components/Slide.astro';
+import Left from '@astlide/core/components/Left.astro';
+import Right from '@astlide/core/components/Right.astro';
+import ImageSide from '@astlide/core/components/ImageSide.astro';
+import TextPanel from '@astlide/core/components/TextPanel.astro';
+import Fragment from '@astlide/core/components/Fragment.astro';
+import Notes from '@astlide/core/components/Notes.astro';
+import Columns from '@astlide/core/components/Columns.astro';
+import CodeBlock from '@astlide/core/components/CodeBlock.astro';
+import Math from '@astlide/core/components/Math.astro';
+import YouTube from '@astlide/core/components/YouTube.astro';
+import Tweet from '@astlide/core/components/Tweet.astro';
+
+export async function getStaticPaths() {
+  const allSlides = await getCollection('decks');
+
+  const deckMap = new Map<string, typeof allSlides>();
+  for (const slide of allSlides) {
+    const [deckName] = slide.id.split('/');
+    if (!deckMap.has(deckName)) deckMap.set(deckName, []);
+    deckMap.get(deckName)!.push(slide);
+  }
+
+  const paths: Array<{ params: { deck: string }; props: { deckName: string; slides: typeof allSlides; deckConfig: DeckConfig } }> = [];
+
+  for (const [deckName, slides] of deckMap) {
+    const sortedSlides = slides
+      .filter((s) => !s.data.hidden)
+      .sort((a, b) => a.id.localeCompare(b.id));
+
+    const configPath = path.join(process.cwd(), 'src', 'content', 'decks', deckName, '_config.json');
+    let deckConfig: DeckConfig = deckConfigSchema.parse({});
+    if (fs.existsSync(configPath)) {
+      try {
+        const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        const result = deckConfigSchema.safeParse(raw);
+        if (result.success) deckConfig = result.data;
+      } catch {
+        /* ignore — diagnostics already surface in the regular slide route */
+      }
+    }
+
+    paths.push({ params: { deck: deckName }, props: { deckName, slides: sortedSlides, deckConfig } });
+  }
+
+  return paths;
+}
+
+const { deckName, slides, deckConfig } = Astro.props;
+const totalSlides = slides.length;
+
+// Render every slide's MDX content up front so the Astro page body stays declarative.
+const rendered = await Promise.all(
+  slides.map(async (slide) => {
+    const { Content } = await render(slide);
+    return { slide, Content };
+  })
+);
+---
+<!DOCTYPE html>
+<html lang="en" data-theme={deckConfig.theme} data-print data-astlide-all>
+  <head>
+    <meta charset="UTF-8" />
+    <title>{deckConfig.title ?? deckName} — all slides</title>
+    <meta name="robots" content="noindex, nofollow" />
+  </head>
+  <body>
+    {rendered.map(({ slide, Content }, i) => (
+      <Slide
+        layout={slide.data.slideLayout ?? 'default'}
+        transition={slide.data.transition ?? 'none'}
+        background={slide.data.background}
+        class={slide.data.class}
+        slideNumber={i + 1}
+        totalSlides={totalSlides}
+      >
+        <Content components={{ Left, Right, ImageSide, TextPanel, Fragment, Notes, Columns, CodeBlock, Math, YouTube, Tweet }} />
+      </Slide>
+    ))}
+  </body>
+</html>
+
+<style is:global>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+  }
+  /* Stack slides at native 1920x1080 with hard page breaks. Force an opaque
+     background on every slide — Slide.astro relies on a scoped CSS rule that
+     references `var(--color-background)`, but html-to-image's foreignObject
+     clone can drop scoped/inherited styles, leaving transparent pixels that
+     render as black when the PDF exporter rasterises to JPEG. */
+  body > .slide {
+    display: flex;
+    background-color: var(--color-background, #ffffff);
+    page-break-after: always;
+    break-after: page;
+  }
+  body > .slide:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+  @page {
+    size: 1920px 1080px;
+    margin: 0;
+  }
+</style>

@@ -57,19 +57,25 @@ describe("astlide integration", () => {
 	// ── Route injection ──
 
 	describe("route injection", () => {
-		it("injects slide route and index route", () => {
+		it("injects all-slides print route, slide route, and index route", () => {
 			const { args } = runSetup();
 
-			expect(args.injectRoute).toHaveBeenCalledTimes(2);
+			expect(args.injectRoute).toHaveBeenCalledTimes(3);
+
+			// Print route (must be injected before the generic slide pattern so it wins).
+			expect(args.injectRoute).toHaveBeenNthCalledWith(1, {
+				pattern: "/[deck]/all",
+				entrypoint: "@astlide/core/internal/pages/all.astro",
+			});
 
 			// Slide route
-			expect(args.injectRoute).toHaveBeenCalledWith({
+			expect(args.injectRoute).toHaveBeenNthCalledWith(2, {
 				pattern: "/[deck]/[...slide]",
 				entrypoint: "@astlide/core/internal/pages/slide.astro",
 			});
 
 			// Index route
-			expect(args.injectRoute).toHaveBeenCalledWith({
+			expect(args.injectRoute).toHaveBeenNthCalledWith(3, {
 				pattern: "/",
 				entrypoint: "@astlide/core/internal/pages/index.astro",
 			});

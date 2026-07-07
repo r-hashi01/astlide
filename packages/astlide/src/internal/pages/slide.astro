@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { deckConfigSchema } from '@astlide/core/schema';
 import type { DeckConfig } from '@astlide/core/schema';
+import { setDeckContext } from '@astlide/core/context';
 import DeckLayout from '@astlide/core/internal/DeckLayout.astro';
 import ErrorOverlay, { type Diagnostic } from '@astlide/core/internal/ErrorOverlay.astro';
 import Slide from '@astlide/core/components/Slide.astro';
@@ -111,6 +112,18 @@ if (hidden && import.meta.env.PROD) {
   return Astro.redirect(`/${deckName}/${nextVisibleSlide}`);
 }
 
+// Publish typed deck/slide metadata for components rendered inside this slide
+// (server-side via getDeckContext(Astro); client-side via window.__astlide).
+const deckContext = {
+  deck: deckName,
+  slideNumber,
+  totalSlides,
+  layout,
+  transition,
+  config: deckConfig,
+};
+setDeckContext(Astro, deckContext);
+
 // Vite-defined plugin name lists (resolved at build time by the astlide() integration).
 declare const __ASTLIDE_LAYOUT_NAMES__: string[];
 declare const __ASTLIDE_TRANSITION_NAMES__: string[];
@@ -154,6 +167,7 @@ if (import.meta.env.DEV) {
   deck={deckName}
   notes={notes}
   transition={transition}
+  context={deckContext}
 >
   <Slide
     layout={layout}
