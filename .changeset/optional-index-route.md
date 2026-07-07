@@ -1,5 +1,5 @@
 ---
-"@astlide/core": minor
+"@astlide/core": patch
 ---
 
 Add `injectIndexRoute` option and auto-skip the `/` index route when you have your own home page.
