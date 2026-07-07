@@ -58,6 +58,10 @@ export interface AstlideOptions {
 	 * `home` links back to the deck index (`/`) and is always reachable — the
 	 * toolbar reveals on hover, keyboard focus, and stays visible on touch devices.
 	 *
+	 * `download` (in-browser PDF export) is **experimental**: it depends on the
+	 * pre-1.0 optional `@astlide/crispdf` and its output may change. Prefer the
+	 * `astlide-export` CLI for stable output.
+	 *
 	 * Default: `['prev', 'counter', 'next']` (original behavior).
 	 */
 	toolbar?: ToolbarItem[];

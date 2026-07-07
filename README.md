@@ -377,7 +377,11 @@ astlide({ font: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans&display=
 
 ## PDF Export
 
-**In-browser:** add `"download"` to the `toolbar` (see below) for a one-click PDF download of the current deck. This uses [`@astlide/crispdf`](https://www.npmjs.com/package/@astlide/crispdf) (an optional dependency) — install it to enable the button:
+> **Experimental.** In-browser PDF export is powered by the pre-1.0
+> [`@astlide/crispdf`](https://www.npmjs.com/package/@astlide/crispdf) and its
+> API/output may change. The CLI exporter (below) is the stable path.
+
+**In-browser (experimental):** add `"download"` to the `toolbar` (see below) for a one-click PDF download of the current deck. This uses `@astlide/crispdf` (an optional dependency) — install it to enable the button:
 
 ```bash
 bun add -D @astlide/crispdf

@@ -52,11 +52,12 @@ v1.0.0 — upstream feedback from real-world deck usage.
 - New subcommand generates a deck folder (`_config.json` + cover/content/end
   slides) in an existing project. `--theme` and `--format mdx|md|html` flags.
 
-**First-class PDF export**
-- In-browser "download PDF" via `@astlide/crispdf` (optional dependency) wired to
-  the `download` toolbar action, plus a new `/[deck]/all` print route. The CLI
-  exporter now emits a single multi-page PDF from `/all` instead of merging with
-  `pdf-lib` (removes the `pdf-lib` optional dependency).
+**PDF export**
+- CLI exporter now emits a single multi-page PDF from the new `/[deck]/all` print
+  route instead of merging per-page with `pdf-lib` (removes the `pdf-lib` optional
+  dependency). This is the stable export path.
+- In-browser "download PDF" (`download` toolbar action) is **experimental** — it
+  depends on the pre-1.0 optional `@astlide/crispdf` and its output may change.
 
 **Theming hooks**
 - New `font` option to override or disable the injected web-font stylesheet.
