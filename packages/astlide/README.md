@@ -28,18 +28,19 @@ export default defineConfig({
 ```ts
 // src/content.config.ts
 import { defineCollection } from "astro:content";
-import { glob } from "astro/loaders";
-import { slideSchema } from "@astlide/core/schema";
+import { astlideDeckLoader, slideSchema } from "@astlide/core";
 
 const decks = defineCollection({
-  loader: glob({ pattern: "**/*.mdx", base: "src/content/decks" }),
+  // Renders .mdx, .md, and .html slides from src/content/decks/<deck>/
+  loader: astlideDeckLoader(),
   schema: slideSchema,
 });
 
 export const collections = { decks };
 ```
 
-Author slides under `src/content/decks/<name>/01-cover.mdx`, `02-intro.mdx`, ….
+Author slides under `src/content/decks/<name>/` as numbered `.mdx`, `.md`, or `.html`
+files (`01-cover.mdx`, `02-intro.md`, `03-demo.html`, …).
 
 For the full guide (frontmatter, themes, components, plugin API, exports) see the [project README](https://github.com/r-hashi01/astlide#readme).
 
