@@ -44,7 +44,7 @@
 		"astro": "^6.0.0"
 	},
 	"dependencies": {
-		"@astrojs/mdx": "^5.0.0",
+		"@astrojs/mdx": "^7.0.3",
 		"katex": "^0.17.0",
 		"js-yaml": "^4.1.0",
 		"remark-mdx": "^3.0.0",
