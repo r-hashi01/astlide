@@ -45,7 +45,7 @@
 	},
 	"dependencies": {
 		"@astrojs/mdx": "^5.0.0",
-		"katex": "^0.17.0",
+		"katex": "^0.18.1",
 		"js-yaml": "^4.1.0",
 		"remark-mdx": "^3.0.0",
 		"remark-parse": "^11.0.0",

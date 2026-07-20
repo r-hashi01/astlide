@@ -27,7 +27,7 @@
 		"@changesets/cli": "^2.30.0",
 		"@types/pixelmatch": "^5.2.6",
 		"@types/pngjs": "^6.0.5",
-		"agent-browser": "^0.31.1",
+		"agent-browser": "^0.32.3",
 		"jszip": "3.10.1",
 		"pixelmatch": "^7.1.0",
 		"pngjs": "^7.0.0",
