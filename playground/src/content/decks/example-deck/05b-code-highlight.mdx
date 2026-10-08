@@ -1,0 +1,24 @@
+---
+slideLayout: code
+notes: "Line highlighting: `{2,4-6}` highlights statically, `{1|3-6|8|all}` steps through on → / Space and interleaves with Fragments."
+---
+
+# Code Highlight Steps
+
+```ts {1|3-6|8|all}
+import { defineCollection } from 'astro:content';
+
+const decks = defineCollection({
+  loader: astlideDeckLoader(),
+  schema: slideSchema,
+});
+
+export const collections = { decks };
+```
+
+<Fragment>Static highlight with <code>{"{2}"}</code>:</Fragment>
+
+```bash {2}
+bun create astlide my-talk
+cd my-talk && bun run dev
+```

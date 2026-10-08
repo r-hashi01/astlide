@@ -161,6 +161,15 @@ describe("astlide integration", () => {
 			const configCall = args.updateConfig.mock.calls[0][0];
 			expect(configCall.markdown.shikiConfig.theme).toBe("one-dark-pro");
 		});
+
+		it("registers the code highlight transformer", () => {
+			const { args } = runSetup();
+
+			const configCall = args.updateConfig.mock.calls[0][0];
+			expect(
+				configCall.markdown.shikiConfig.transformers.map((t: { name: string }) => t.name),
+			).toEqual(["astlide:code-highlight"]);
+		});
 	});
 
 	// ── Content collection warnings ──
