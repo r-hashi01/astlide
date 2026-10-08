@@ -35,9 +35,7 @@ jobs:
         with:
           node-version: 22
       - run: bun install --frozen-lockfile
-      - name: Run astro check
-        run: bunx astro check
-        working-directory: playground
+      - run: bun run typecheck
 
   test:
     name: Test

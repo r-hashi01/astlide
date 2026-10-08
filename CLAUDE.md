@@ -6,6 +6,7 @@ bun workspaces モノレポ。パッケージマネージャーは **bun**。
 packages/astlide/          — @astlide/core (Astro Integration)
 packages/create-astlide/   — create-astlide (CLI scaffolder)
 playground/                — 開発用 Astro プロジェクト
+tools/ts6/                 — TypeScript 6 ブリッジ（下記）
 ```
 
 ## コマンド
@@ -31,6 +32,13 @@ bun run changeset    # changeset 作成
 - デッキ設定: `_config.json` (title, author, date, theme)
 - テーマ: default, dark, minimal, corporate, gradient, rose, forest
 - content collection の loader は `astlideDeckLoader()` を使う（`glob({ pattern: '**/*.mdx' })` ではなく）
+
+## TypeScript
+
+- リポジトリは **TypeScript 7**（ネイティブ `tsc`）。JS コンパイラ API を必要とするツール（`astro check` の language server、TypeDoc）だけ `tools/ts6` の TS6 を使う
+- `bun run typecheck` / `bun run docs` は `node --import scripts/use-typescript6.mjs` で `typescript` の解決先を TS6 に差し替えて実行
+- `tools/ts6` は TS7 とバージョン衝突させてネスト配置するためのワークスペース（ルートに TS6 を入れると `.bin/tsc` が TS6 にすり替わる）
+- Astro が TS 7.1+ の `@astrojs/ts-content-mapper` に対応したら、ブリッジを外して `tsc --noEmit --runExternalCode` に移行する
 
 ## キーファイル
 

@@ -1,0 +1,9 @@
+{
+	"name": "@astlide/ts6",
+	"private": true,
+	"version": "0.0.0",
+	"description": "TypeScript 6 for tools that still need the JS compiler API (astro check, TypeDoc). The repo itself uses TypeScript 7; this workspace keeps TS6 nested so the root `tsc` stays native.",
+	"dependencies": {
+		"typescript": "^6.0.3"
+	}
+}
