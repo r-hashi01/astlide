@@ -67,7 +67,6 @@
 	],
 	"license": "MIT",
 	"devDependencies": {
-		"@types/js-yaml": "^4.0.9",
 		"typedoc": "^0.28.17"
 	}
 }

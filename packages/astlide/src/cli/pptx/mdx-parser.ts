@@ -19,7 +19,7 @@
 
 import { readFile } from "node:fs/promises";
 import type { Root as HastRoot } from "hast";
-import jsYaml from "js-yaml";
+import { load as parseYaml } from "js-yaml";
 import type { MdxJsxAttribute, MdxJsxFlowElement } from "mdast-util-mdx-jsx";
 import remarkMdx from "remark-mdx";
 import remarkParse from "remark-parse";
@@ -132,7 +132,7 @@ export async function parseMdxFile(filePath: string): Promise<ParsedSlide> {
 
 	const fmMatch = raw.match(FRONTMATTER_RE);
 	if (fmMatch) {
-		frontmatter = (jsYaml.load(fmMatch[1]) as Record<string, unknown>) ?? {};
+		frontmatter = (parseYaml(fmMatch[1]) as Record<string, unknown>) ?? {};
 		body = raw.slice(fmMatch[0].length);
 	}
 

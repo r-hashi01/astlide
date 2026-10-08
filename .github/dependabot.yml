@@ -38,6 +38,11 @@ updates:
       # Astro is a peer dependency in @astlide/core; we test against a matrix
       # in CI rather than tracking a moving target via Dependabot.
       - dependency-name: "astro"
+      # TypeScript 7 (native Go port) drops the JS compiler API that
+      # @astrojs/language-server / `astro check` depend on. Revisit once
+      # Astro tooling supports it.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/packages/astlide"
@@ -74,6 +79,12 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      # TypeScript 7 (native Go port) drops the JS compiler API that
+      # @astrojs/language-server / `astro check` depend on. Revisit once
+      # Astro tooling supports it.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/playground"
