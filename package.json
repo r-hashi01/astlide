@@ -3,7 +3,8 @@
 	"packageManager": "bun@1.4.0",
 	"workspaces": [
 		"packages/*",
-		"playground"
+		"playground",
+		"tools/*"
 	],
 	"scripts": {
 		"dev": "bun run --filter astlide-playground dev",
@@ -11,7 +12,7 @@
 		"preview": "bun run --filter astlide-playground preview",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"typecheck": "cd playground && bunx astro check",
+		"typecheck": "cd playground && bunx astro sync && node --import ../scripts/use-typescript6.mjs ../scripts/typecheck.mjs",
 		"test:e2e": "vitest run --config vitest.config.e2e.ts",
 		"lint": "biome check .",
 		"lint:fix": "biome check --fix .",
@@ -22,7 +23,7 @@
 		"release": "changeset publish"
 	},
 	"devDependencies": {
-		"@astrojs/check": "^0.9.8",
+		"@astrojs/language-server": "^2.17.2",
 		"@biomejs/biome": "^2.4.6",
 		"@changesets/changelog-github": "^1.0.1",
 		"@changesets/cli": "^3.0.3",
@@ -33,7 +34,7 @@
 		"pixelmatch": "^7.1.0",
 		"pngjs": "^7.0.0",
 		"pptxgenjs": "^4.0.1",
-		"typescript": "^6.0.3",
+		"typescript": "^7.0.2",
 		"vitest": "^4.0.18",
 		"zod": "^4.3.6"
 	}

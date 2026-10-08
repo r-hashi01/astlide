@@ -17,8 +17,10 @@ updates:
     commit-message:
       prefix: "chore(actions)"
 
-  # Root bun workspace — covers playground devDeps. The "bun" ecosystem keeps
-  # bun.lock in sync (the "npm" ecosystem only bumped package.json).
+  # One entry for the whole bun workspace (root, packages/*, playground, tools/*):
+  # the "bun" ecosystem updates every workspace manifest together with bun.lock.
+  # Per-directory entries are not needed and produced lockfile-less duplicate PRs.
+  # No version is held back on purpose — adapt the code to new majors instead.
   - package-ecosystem: "bun"
     directory: "/"
     schedule:
@@ -35,73 +37,7 @@ updates:
         update-types:
           - "minor"
           - "patch"
-    ignore:
-      # Astro is a peer dependency in @astlide/core; we test against a matrix
-      # in CI rather than tracking a moving target via Dependabot.
-      - dependency-name: "astro"
-      # TypeScript 7 (native Go port) drops the JS compiler API that
-      # @astrojs/language-server / `astro check` depend on. Revisit once
-      # Astro tooling supports it.
-      - dependency-name: "typescript"
-        update-types: ["version-update:semver-major"]
-
-  - package-ecosystem: "bun"
-    directory: "/packages/astlide"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 10
-    labels:
-      - "deps"
-      - "@astlide/core"
-    commit-message:
-      prefix: "chore(deps,core)"
-    groups:
-      minor-and-patch:
-        update-types:
-          - "minor"
-          - "patch"
-    ignore:
-      - dependency-name: "astro"
-
-  - package-ecosystem: "bun"
-    directory: "/packages/create-astlide"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
-    labels:
-      - "deps"
-      - "create-astlide"
-    commit-message:
-      prefix: "chore(deps,cli)"
-    groups:
-      minor-and-patch:
-        update-types:
-          - "minor"
-          - "patch"
-    ignore:
-      # TypeScript 7 (native Go port) drops the JS compiler API that
-      # @astrojs/language-server / `astro check` depend on. Revisit once
-      # Astro tooling supports it.
-      - dependency-name: "typescript"
-        update-types: ["version-update:semver-major"]
-
-  - package-ecosystem: "bun"
-    directory: "/playground"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
-    labels:
-      - "deps"
-      - "playground"
-    commit-message:
-      prefix: "chore(deps,playground)"
-    groups:
-      minor-and-patch:
-        update-types:
-          - "minor"
-          - "patch"
-    ignore:
-      - dependency-name: "astro"
+    exclude-paths:
+      # Deliberately TypeScript 6: the JS compiler API bridge for tools that
+      # don't support TypeScript 7 yet (see scripts/use-typescript6.mjs).
+      - "tools/ts6"

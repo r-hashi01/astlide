@@ -20,7 +20,7 @@
 		"CHANGELOG.md"
 	],
 	"scripts": {
-		"docs": "typedoc",
+		"docs": "node --import ../../scripts/use-typescript6.mjs ../../node_modules/typedoc/bin/typedoc",
 		"prepublishOnly": "echo '✓ @astlide/core ready to publish (source-only package)'"
 	},
 	"repository": {
