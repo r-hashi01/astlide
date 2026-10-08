@@ -22,19 +22,19 @@
 		"release": "changeset publish"
 	},
 	"devDependencies": {
-		"@astrojs/check": "^0.9.8",
-		"@biomejs/biome": "^2.4.6",
+		"@astrojs/check": "^0.9.10",
+		"@biomejs/biome": "^2.5.15",
 		"@changesets/changelog-github": "^1.0.1",
 		"@changesets/cli": "^3.0.3",
-		"@types/pixelmatch": "^5.2.6",
+		"@types/pixelmatch": "^7.1.0",
 		"@types/pngjs": "^6.0.5",
-		"agent-browser": "^0.37.1",
+		"agent-browser": "^0.38.2",
 		"jszip": "3.10.2",
-		"pixelmatch": "^7.1.0",
+		"pixelmatch": "^7.2.0",
 		"pngjs": "^7.0.0",
 		"pptxgenjs": "^4.0.1",
 		"typescript": "^6.0.3",
 		"vitest": "^4.0.18",
-		"zod": "^4.3.6"
+		"zod": "^4.6.5"
 	}
 }
