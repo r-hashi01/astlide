@@ -5,6 +5,7 @@ import path from 'node:path';
 import { deckConfigSchema } from '@astlide/core/schema';
 import type { DeckConfig } from '@astlide/core/schema';
 import { setDeckContext } from '@astlide/core/context';
+import { slideTitle } from '@astlide/core/utils/slide-title';
 import DeckLayout from '@astlide/core/internal/DeckLayout.astro';
 import ErrorOverlay, { type Diagnostic } from '@astlide/core/internal/ErrorOverlay.astro';
 import Slide from '@astlide/core/components/Slide.astro';
@@ -42,6 +43,7 @@ export async function getStaticPaths() {
       deckConfig: DeckConfig;
       nextVisibleSlide: number;
       configIssue: string | null;
+      outline: Array<{ n: number; title: string }>;
     };
   }> = [];
 
@@ -69,6 +71,13 @@ export async function getStaticPaths() {
     // Pre-compute first visible slide for fallback
     const firstVisible = sortedSlides.find((s) => !s.data.hidden);
 
+    // Deck outline for the go-to-slide dialog (`g`). Hidden slides are omitted in
+    // production, where they redirect anyway.
+    const outline = sortedSlides
+      .map((s, i) => ({ n: i + 1, title: slideTitle(s) ?? `Slide ${i + 1}`, hidden: s.data.hidden }))
+      .filter((s) => !(s.hidden && import.meta.env.PROD))
+      .map(({ n, title }) => ({ n, title }));
+
     for (let i = 0; i < sortedSlides.length; i++) {
       // Find the next non-hidden slide; fall back to first visible or slide 1
       const nextVisible = sortedSlides.slice(i + 1).find((s) => !s.data.hidden);
@@ -88,6 +97,7 @@ export async function getStaticPaths() {
           deckConfig,    // typed as DeckConfig
           nextVisibleSlide,
           configIssue,
+          outline,
         },
       });
     }
@@ -96,7 +106,7 @@ export async function getStaticPaths() {
   return paths;
 }
 
-const { slide, deckName, slideNumber, totalSlides, deckConfig, nextVisibleSlide, configIssue } = Astro.props;
+const { slide, deckName, slideNumber, totalSlides, deckConfig, nextVisibleSlide, configIssue, outline } = Astro.props;
 const { Content } = await render(slide);
 
 const {
@@ -169,6 +179,7 @@ if (import.meta.env.DEV) {
   notes={notes}
   transition={transition}
   context={deckContext}
+  outline={outline}
 >
   <Slide
     layout={layout}
