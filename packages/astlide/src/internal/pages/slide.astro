@@ -12,7 +12,8 @@ import Left from '@astlide/core/components/Left.astro';
 import Right from '@astlide/core/components/Right.astro';
 import ImageSide from '@astlide/core/components/ImageSide.astro';
 import TextPanel from '@astlide/core/components/TextPanel.astro';
-import Fragment from '@astlide/core/components/Fragment.astro';
+// Aliased: Astro 7's compiler injects its own `Fragment` binding into every .astro file.
+import SlideFragment from '@astlide/core/components/Fragment.astro';
 import Notes from '@astlide/core/components/Notes.astro';
 import Columns from '@astlide/core/components/Columns.astro';
 import CodeBlock from '@astlide/core/components/CodeBlock.astro';
@@ -177,7 +178,7 @@ if (import.meta.env.DEV) {
     slideNumber={slideNumber}
     totalSlides={totalSlides}
   >
-    <Content components={{ Left, Right, ImageSide, TextPanel, Fragment, Notes, Columns, CodeBlock, Math, YouTube, Tweet }} />
+    <Content components={{ Left, Right, ImageSide, TextPanel, Fragment: SlideFragment, Notes, Columns, CodeBlock, Math, YouTube, Tweet }} />
   </Slide>
   {import.meta.env.DEV && diagnostics.length > 0 && <ErrorOverlay diagnostics={diagnostics} />}
 </DeckLayout>

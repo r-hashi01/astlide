@@ -41,7 +41,7 @@
 	"homepage": "https://github.com/r-hashi01/astlide#readme",
 	"bugs": "https://github.com/r-hashi01/astlide/issues",
 	"peerDependencies": {
-		"astro": "^6.0.0"
+		"astro": "^7.0.0"
 	},
 	"dependencies": {
 		"@astrojs/mdx": "^7.0.3",

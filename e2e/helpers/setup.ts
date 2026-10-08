@@ -24,10 +24,27 @@ export default async function setup(_ctx: GlobalSetupContext) {
 		}
 	}
 
-	const proc: ChildProcess = spawn("bunx", ["astro", "dev", "--port", String(PORT)], {
-		cwd: resolve(process.cwd(), "playground"),
-		stdio: ["ignore", "ignore", "pipe"],
-	});
+	// `--ignore-lock`: Astro 7 refuses to start when its dev-server lock file points at
+	// another running instance (e.g. a leftover from a previous run).
+	// `env`: Astro 7's dev server skips its request handler when `VITEST` is set
+	// (inherited from this globalSetup), which turns every page into a 404.
+	// `detached`: run in its own process group so teardown can kill the actual node
+	// process that `bunx` spawns, not just the `bunx` wrapper.
+	const proc: ChildProcess = spawn(
+		"bunx",
+		["astro", "dev", "--port", String(PORT), "--ignore-lock"],
+		{
+			cwd: resolve(process.cwd(), "playground"),
+			stdio: ["ignore", "ignore", "pipe"],
+			env: Object.fromEntries(
+				Object.entries(process.env).filter(([key]) => !key.startsWith("VITEST")),
+			),
+			detached: true,
+		},
+	);
+	const stop = () => {
+		if (proc.pid) process.kill(-proc.pid);
+	};
 
 	// Poll until server is ready
 	const deadline = Date.now() + 60_000;
@@ -46,11 +63,11 @@ export default async function setup(_ctx: GlobalSetupContext) {
 	}
 
 	if (!ready) {
-		proc.kill();
+		stop();
 		throw new Error(`Dev server did not start within 60s at ${URL}`);
 	}
 
 	return async () => {
-		proc.kill();
+		stop();
 	};
 }
