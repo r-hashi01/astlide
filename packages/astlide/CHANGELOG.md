@@ -1,5 +1,19 @@
 # @astlide/core
 
+## 2.1.0
+
+### Minor Changes
+
+- [#50](https://github.com/r-hashi01/astlide/pull/50) [`979a01e`](https://github.com/r-hashi01/astlide/commit/979a01ea76769ff392d064d873a082d67fecf401) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Add line highlighting for code fences. `{2,4-6}` after the language highlights those lines and dims the rest; `{1|3-5|all}` steps through the ranges on → / Space, sharing one sequence with `<Fragment>` reveals. Works in `.mdx` and `.md` slides. The Shiki transformer is also exported as `astlideCodeHighlight` from `@astlide/core/utils/code-highlight`.
+
+  Also fixes the print view (`/[deck]/all`, used for PDF export) rendering `<Fragment>` content invisible — fragments and code steps now appear in their final state.
+
+- [#59](https://github.com/r-hashi01/astlide/pull/59) [`b1fa5b6`](https://github.com/r-hashi01/astlide/commit/b1fa5b60ed7630d80f149e60f5b26070b717d6ae) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Upgrade `@astrojs/mdx` to 8. It requires Astro 7.2.10 or later, so the `astro` peer dependency is now `^7.2.10` (was `^7.0.0`), and `create-astlide` scaffolds projects with the same range.
+
+- [#57](https://github.com/r-hashi01/astlide/pull/57) [`30bdcc2`](https://github.com/r-hashi01/astlide/commit/30bdcc24e3bf9e55fe5f14735b5f4b048d2dd1a0) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Presenter mode shows a live preview of the next slide (or "End of deck") and how many steps — `<Fragment>` reveals and code highlight steps — remain on the current slide.
+
+  Slides rendered inside an iframe now switch to an embed mode: no toolbar/progress bar, and no keyboard, touch or presenter-sync handling. This also fixes overview (`o`) thumbnails, whose styles were never applied (they are created by script, so Astro's scoped CSS didn't match) and which could follow the presenter's navigation broadcasts.
+
 ## 2.0.0
 
 ### Major Changes
