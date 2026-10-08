@@ -340,36 +340,70 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         scaler.focus({ preventScroll: true });
       }
 
-      // ── 3. Fragment support ────────────────────────────────────
-      const fragments = Array.from(document.querySelectorAll('[data-fragment]')).sort((a, b) => {
-        const ai = parseInt(a.getAttribute('data-fragment-index') || '0', 10);
-        const bi = parseInt(b.getAttribute('data-fragment-index') || '0', 10);
-        return (Number.isNaN(ai) ? 0 : ai) - (Number.isNaN(bi) ? 0 : bi);
-      });
-      let currentFragment = -1;
-
-      // Initialize ARIA for fragments — Fragment.astro omits static aria-hidden so that
-      // screen readers can access content when JS is unavailable (CSS hides it visually).
-      // With JS running, we manage aria-hidden here to match the visual reveal state.
-      for (const frag of fragments) {
-        frag.setAttribute('aria-hidden', 'true');
+      // ── 3. Steps: <Fragment> reveals + code highlight steps ─────
+      // Each step has show()/hide(). Steps are ordered by data-fragment-index
+      // (default 0); the stable sort keeps document order within an index, so
+      // fragments and code steps interleave in the order they appear.
+      function stepIndex(el) {
+        const i = parseInt(el.getAttribute('data-fragment-index') || '0', 10);
+        return Number.isNaN(i) ? 0 : i;
       }
 
-      function showNextFragment() {
-        if (currentFragment < fragments.length - 1) {
-          currentFragment++;
-          fragments[currentFragment].setAttribute('data-fragment-visible', 'true');
-          fragments[currentFragment].setAttribute('aria-hidden', 'false');
+      // Code fences with `{2|3-5|all}` carry data-code-steps="2|3,4,5|*" (see
+      // utils/code-highlight.ts). Segment 0 is the initial state rendered at build
+      // time; each later segment becomes one step.
+      function applyCodeSegment(pre, segment) {
+        const lines = segment === '*' ? null : new Set(segment.split(',').filter(Boolean));
+        for (const line of pre.querySelectorAll('.line[data-line]')) {
+          line.classList.toggle('highlighted', !lines || lines.has(line.getAttribute('data-line')));
+        }
+      }
+
+      const steps = [];
+      for (const el of document.querySelectorAll('[data-fragment], pre[data-code-steps]')) {
+        if (el.hasAttribute('data-fragment')) {
+          // Fragment.astro omits static aria-hidden so screen readers can access
+          // content when JS is unavailable (CSS hides it visually). With JS running,
+          // we manage aria-hidden here to match the visual reveal state.
+          el.setAttribute('aria-hidden', 'true');
+          steps.push({
+            index: stepIndex(el),
+            show() {
+              el.setAttribute('data-fragment-visible', 'true');
+              el.setAttribute('aria-hidden', 'false');
+            },
+            hide() {
+              el.removeAttribute('data-fragment-visible');
+              el.setAttribute('aria-hidden', 'true');
+            },
+          });
+        } else {
+          const segments = el.getAttribute('data-code-steps').split('|');
+          for (let i = 1; i < segments.length; i++) {
+            steps.push({
+              index: stepIndex(el),
+              show() { applyCodeSegment(el, segments[i]); },
+              hide() { applyCodeSegment(el, segments[i - 1]); },
+            });
+          }
+        }
+      }
+      steps.sort((a, b) => a.index - b.index);
+      let currentStep = -1;
+
+      function showNextStep() {
+        if (currentStep < steps.length - 1) {
+          currentStep++;
+          steps[currentStep].show();
           return true;
         }
         return false;
       }
 
-      function showPrevFragment() {
-        if (currentFragment >= 0) {
-          fragments[currentFragment].removeAttribute('data-fragment-visible');
-          fragments[currentFragment].setAttribute('aria-hidden', 'true');
-          currentFragment--;
+      function showPrevStep() {
+        if (currentStep >= 0) {
+          steps[currentStep].hide();
+          currentStep--;
           return true;
         }
         return false;
@@ -419,7 +453,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
 
       // ── 5. Navigation ──────────────────────────────────────────
       function goNext() {
-        if (fragments.length > 0 && showNextFragment()) return;
+        if (showNextStep()) return;
         if (currentSlide < totalSlides) {
           const next = currentSlide + 1;
           broadcastSlide(next);
@@ -428,7 +462,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       }
 
       function goPrev() {
-        if (fragments.length > 0 && showPrevFragment()) return;
+        if (showPrevStep()) return;
         if (currentSlide > 1) {
           const prev = currentSlide - 1;
           broadcastSlide(prev);

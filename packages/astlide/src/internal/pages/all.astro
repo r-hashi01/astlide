@@ -118,6 +118,24 @@ const rendered = await Promise.all(
     page-break-after: auto;
     break-after: auto;
   }
+  /* No navigation runtime here, so render every step in its final state:
+     all <Fragment>s revealed and code highlight steps on their last segment. */
+  body > .slide [data-fragment] {
+    opacity: 1;
+    transform: none;
+  }
+  body > .slide [data-fragment-effect="highlight"] {
+    background: var(--color-accent, #f59e0b);
+    color: #000;
+    padding: 0.1em 0.3em;
+    border-radius: 0.2em;
+  }
+  body > .slide pre[data-code-steps] .line {
+    opacity: var(--code-dim-opacity, 0.35);
+  }
+  body > .slide pre[data-code-steps] .line.highlighted-last {
+    opacity: 1;
+  }
   @page {
     size: 1920px 1080px;
     margin: 0;

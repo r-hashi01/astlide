@@ -5,6 +5,7 @@ import mdx from "@astrojs/mdx";
 import type { AstroIntegration } from "astro";
 import { astlideVirtualPlugin } from "./internal/virtual-plugins";
 import { type AstlidePlugin, BUILT_IN_PLUGIN, resolvePlugins } from "./plugin";
+import { astlideCodeHighlight } from "./utils/code-highlight";
 
 // Re-export the typed deck/slide metadata API
 export type { DeckContext } from "./context";
@@ -239,6 +240,8 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 						shikiConfig: {
 							theme: options.shikiTheme ?? "github-dark",
 							wrap: true,
+							// `{2,4-6}` / `{2|3-5|all}` line highlighting on code fences.
+							transformers: [astlideCodeHighlight()],
 							// biome-ignore lint/suspicious/noExplicitAny: Shiki types live behind dynamic loading
 							langs: resolved.shiki.langs as any,
 							themes: Object.fromEntries(

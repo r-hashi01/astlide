@@ -236,11 +236,22 @@ const decoratorProps = { layout, transition, slideNumber, totalSlides };
     border-radius: 0.2em;
   }
 
+  /* ── Code line highlighting ({2,4-6} / {2|3-5|all} on code fences) ── */
+  :global(pre.has-highlighted .line) {
+    transition: opacity 0.3s ease;
+  }
+  :global(pre.has-highlighted .line:not(.highlighted)) {
+    opacity: var(--code-dim-opacity, 0.35);
+  }
+
   /* ── Reduced motion ── */
   @media (prefers-reduced-motion: reduce) {
     :global([data-fragment]) {
       transition: none;
       transform: none;
+    }
+    :global(pre.has-highlighted .line) {
+      transition: none;
     }
     :global([data-fragment-effect="zoom"]) {
       transform: none;

@@ -15,6 +15,7 @@ An Astro-based slide presentation framework — like Slidev, but for the Astro e
 - **Composable toolbar** — pick the navigation actions you want, including an always-reachable "back to index" link
 - **Slide decorators** — render a logo / footer / page number on every slide without editing each file
 - **Fragment reveals** — step-by-step content with `<Fragment>`
+- **Code line highlighting** — `{2,4-6}` highlights lines, `{1|3-5|all}` steps through them
 - **Presenter mode** — speaker notes (Markdown) + timer in a separate window, synced via BroadcastChannel
 - **Overview mode** — press `o` to see all slides in a grid
 - **PDF export** — one-click in-browser download + CLI, via `@astlide/crispdf`
@@ -211,6 +212,33 @@ Use `<Fragment>` for step-by-step reveals:
 ```
 
 Effects: `fade` (default) | `slide-up` | `zoom` | `highlight`
+
+## Code Highlighting
+
+Add a `{...}` range after the language of a code fence to highlight lines — the rest are dimmed:
+
+````mdx
+```ts {2,4-6}
+// highlights line 2 and lines 4–6
+```
+````
+
+Separate ranges with `|` to step through them with `→` / `Space`, just like fragments (`all` or `*` highlights every line):
+
+````mdx
+```ts {1|3-6|8|all}
+import { defineCollection } from 'astro:content';
+
+const decks = defineCollection({
+  loader: astlideDeckLoader(),
+  schema: slideSchema,
+});
+
+export const collections = { decks };
+```
+````
+
+Highlight steps and fragments share one sequence, in document order. Fragments with an explicit `index` come after unindexed steps (code steps count as index `0`). Works in `.mdx` and `.md` slides, including inside `<CodeBlock>`. The PDF / `/{deck}/all` view shows every step in its final state. Tweak the dim level with the `--code-dim-opacity` CSS variable (default `0.35`).
 
 ## Speaker Notes
 
