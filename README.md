@@ -18,6 +18,7 @@ An Astro-based slide presentation framework — like Slidev, but for the Astro e
 - **Code line highlighting** — `{2,4-6}` highlights lines, `{1|3-5|all}` steps through them
 - **Presenter mode** — next-slide preview, remaining steps, speaker notes (Markdown) + timer in a separate window, synced via BroadcastChannel
 - **Overview mode** — press `o` to see all slides in a grid
+- **Go to slide** — press `g` to jump by number or search slide titles
 - **PDF export** — one-click in-browser download + CLI, via `@astlide/crispdf`
 - **Type-safe** — Content Collections with Zod schema, plus a typed deck/slide metadata API
 - **Touch / swipe** — navigate on mobile
@@ -351,7 +352,7 @@ astlide({
 })
 ```
 
-Actions: `home` (back to deck index) · `prev` · `counter` · `next` · `notes` · `overview` · `presenter` · `fullscreen` · `print` · `share` · `download` (PDF) · `spacer`. Default: `['prev', 'counter', 'next']`.
+Actions: `home` (back to deck index) · `prev` · `counter` · `next` · `notes` · `overview` · `goto` (go-to-slide dialog) · `presenter` · `fullscreen` · `print` · `share` · `download` (PDF) · `spacer`. Default: `['prev', 'counter', 'next']`.
 
 The toolbar, progress bar, and presenter panel read CSS custom properties (`--astlide-nav-bg`, `--astlide-nav-fg`, `--astlide-nav-btn-bg`, `--astlide-progress-color`, `--astlide-presenter-bg`, `--astlide-presenter-fg`, `--astlide-presenter-accent`, …) so themes can restyle them without `!important`.
 
@@ -409,6 +410,7 @@ astlide({ injectIndexRoute: true })   // always inject, even with your own index
 | `Home` / `↑` | First slide |
 | `End` / `↓` | Last slide |
 | `o` | Overview mode |
+| `g` | Go to slide — type a number or part of a title, `↑`/`↓` to pick, `Enter` to jump |
 | `p` | Open presenter window |
 | `n` | Toggle notes overlay |
 | `f` | Toggle fullscreen |

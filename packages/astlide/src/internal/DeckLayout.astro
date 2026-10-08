@@ -56,9 +56,11 @@ interface Props {
   transition?: string;
   /** Typed deck/slide metadata published to `window.__astlide` for client scripts. */
   context?: DeckContext;
+  /** Slide numbers and titles for the go-to-slide dialog (`g`). */
+  outline?: Array<{ n: number; title: string }>;
 }
 
-const { title, theme = 'default', currentSlide, totalSlides, deck, notes, transition = 'fade', context } = Astro.props;
+const { title, theme = 'default', currentSlide, totalSlides, deck, notes, transition = 'fade', context, outline = [] } = Astro.props;
 const sanitizedNotes = notes ? sanitizeHTML(await renderMarkdown(notes)) : undefined;
 const progress = (currentSlide / totalSlides) * 100;
 const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEXABLE__ : false;
@@ -213,6 +215,9 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         if (item === 'notes') return (
           <button type="button" class="nav-btn nav-action" data-action="notes" aria-label="Toggle speaker notes" title="Toggle speaker notes (n)">📝</button>
         );
+        if (item === 'goto') return (
+          <button type="button" class="nav-btn nav-action" data-action="goto" aria-label="Go to slide" title="Go to slide (g)">⌕</button>
+        );
         if (item === 'overview') return (
           <button type="button" class="nav-btn nav-action" data-action="overview" aria-label="Open slide overview" title="Slide overview (o)">▦</button>
         );
@@ -269,6 +274,25 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       <div class="overview-grid" id="overview-grid" role="list"></div>
     </div>
 
+    <!-- Go-to-slide dialog (g): filter by number or title, Enter to jump -->
+    <div class="goto" id="goto" role="dialog" aria-modal="true" aria-label="Go to slide" aria-hidden="true">
+      <div class="goto-card">
+        <input
+          class="goto-input"
+          id="goto-input"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="Go to slide — number or title"
+          role="combobox"
+          aria-expanded="true"
+          aria-controls="goto-list"
+          aria-autocomplete="list"
+        />
+        <ul class="goto-list" id="goto-list" role="listbox" aria-label="Slides"></ul>
+      </div>
+    </div>
+
     <!-- Module script: expose Astro navigate() for ClientRouter -->
     <script>
       import { navigate } from 'astro:transitions/client';
@@ -285,7 +309,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       };
     </script>
 
-    <script define:vars={{ currentSlide, totalSlides, deck, deckContext: context ?? null }}>
+    <script define:vars={{ currentSlide, totalSlides, deck, deckContext: context ?? null, outline }}>
       // ── 0. Publish typed deck/slide metadata for client scripts ──
       // Replaces parsing document.title / body.dataset. See @astlide/core/context.
       if (deckContext) window.__astlide = deckContext;
@@ -561,6 +585,116 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
 
       if (overview) overview.addEventListener('click', (e) => { if (e.target === overview) closeOverview(); });
 
+      // ── 6b. Go-to-slide dialog (g) ─────────────────────────────
+      const gotoEl = document.getElementById('goto');
+      const gotoInput = document.getElementById('goto-input');
+      const gotoList = document.getElementById('goto-list');
+      let gotoOpen = false;
+      let gotoMatches = [];
+      let gotoActive = 0;
+
+      function filterOutline(query) {
+        const q = query.trim().toLowerCase();
+        if (!q) return outline;
+        const hits = outline.filter((s) => String(s.n).startsWith(q) || s.title.toLowerCase().includes(q));
+        // An exact slide number always comes first.
+        return hits.sort((a, b) => (String(b.n) === q) - (String(a.n) === q));
+      }
+
+      function renderGoto() {
+        gotoMatches = filterOutline(gotoInput.value);
+        gotoActive = Math.min(gotoActive, Math.max(gotoMatches.length - 1, 0));
+        gotoList.replaceChildren(...gotoMatches.map((s, i) => {
+          const li = document.createElement('li');
+          li.id = 'goto-option-' + s.n;
+          li.className = 'goto-option' + (s.n === currentSlide ? ' current' : '');
+          li.setAttribute('role', 'option');
+          li.setAttribute('aria-selected', String(i === gotoActive));
+          li.dataset.slide = String(s.n);
+          const num = document.createElement('span');
+          num.className = 'goto-num';
+          num.textContent = String(s.n);
+          const label = document.createElement('span');
+          label.className = 'goto-title';
+          label.textContent = s.title;
+          li.append(num, label);
+          return li;
+        }));
+        const active = gotoMatches[gotoActive];
+        if (active) {
+          gotoInput.setAttribute('aria-activedescendant', 'goto-option-' + active.n);
+          document.getElementById('goto-option-' + active.n)?.scrollIntoView({ block: 'nearest' });
+        } else {
+          gotoInput.removeAttribute('aria-activedescendant');
+        }
+      }
+
+      function openGoto() {
+        if (!gotoEl || !gotoInput || !gotoList) return;
+        gotoOpen = true;
+        gotoInput.value = '';
+        gotoActive = Math.max(outline.findIndex((s) => s.n === currentSlide), 0);
+        gotoEl.setAttribute('aria-hidden', 'false');
+        gotoEl.classList.add('open');
+        renderGoto();
+        gotoInput.focus();
+      }
+
+      function closeGoto() {
+        if (!gotoEl) return;
+        gotoOpen = false;
+        gotoEl.setAttribute('aria-hidden', 'true');
+        gotoEl.classList.remove('open');
+        if (scaler && !isPresenter) scaler.focus({ preventScroll: true });
+      }
+
+      function goToSlide(n) {
+        closeGoto();
+        if (n === currentSlide) return;
+        broadcastSlide(n);
+        navTo('/' + deckPath + '/' + n + (isPresenter ? '?presenter' : ''));
+      }
+
+      function handleGotoKeydown(e) {
+        switch (e.key) {
+          case 'ArrowDown':
+            e.preventDefault();
+            gotoActive = Math.min(gotoActive + 1, gotoMatches.length - 1);
+            renderGoto();
+            break;
+          case 'ArrowUp':
+            e.preventDefault();
+            gotoActive = Math.max(gotoActive - 1, 0);
+            renderGoto();
+            break;
+          case 'Enter':
+            e.preventDefault();
+            if (gotoMatches[gotoActive]) goToSlide(gotoMatches[gotoActive].n);
+            break;
+          case 'Escape':
+            e.preventDefault();
+            closeGoto();
+            break;
+        }
+      }
+
+      function handleGotoClick(e) {
+        if (e.target === gotoEl) { closeGoto(); return; }
+        const option = e.target.closest && e.target.closest('.goto-option');
+        if (option) goToSlide(parseInt(option.dataset.slide, 10));
+      }
+
+      function handleGotoInput() {
+        gotoActive = 0;
+        renderGoto();
+      }
+
+      if (gotoEl && gotoInput && !isEmbedded) {
+        gotoInput.addEventListener('keydown', handleGotoKeydown);
+        gotoInput.addEventListener('input', handleGotoInput);
+        gotoEl.addEventListener('click', handleGotoClick);
+      }
+
       // ── 7. <Notes> component detection ──────────────────────────
       // If the <Notes> component is used in MDX, its HTML content takes priority
       // over frontmatter `notes`. We inject it into presenter notes & notes overlay.
@@ -686,6 +820,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         switch (action) {
           case 'notes': toggleNotes(); break;
           case 'overview': openOverview(); break;
+          case 'goto': openGoto(); break;
           case 'presenter': {
             const u = new URL(window.location.href);
             u.searchParams.set('presenter', '');
@@ -855,6 +990,10 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
             break;
           case 'o':
             if (!isPresenter) openOverview();
+            break;
+          case 'g':
+            e.preventDefault(); // keep the "g" out of the dialog's input
+            openGoto();
             break;
           case 'p':
             if (!isPresenter) {
@@ -1549,6 +1688,86 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     border-radius: 1em;
     font-family: monospace;
     font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Go-to-slide dialog (g) ── */
+  .goto {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    display: none;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 15vh;
+    background: rgba(0, 0, 0, 0.55);
+    font-family: system-ui, sans-serif;
+  }
+
+  .goto.open { display: flex; }
+
+  .goto-card {
+    width: min(560px, 90vw);
+    background: var(--astlide-nav-bg, #1a1a2e);
+    color: var(--astlide-nav-fg, #e0e0e0);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 0.75rem;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    overflow: hidden;
+  }
+
+  .goto-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.9rem 1.1rem;
+    font: inherit;
+    font-size: 1rem;
+    color: inherit;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    outline: none;
+  }
+
+  .goto-input::placeholder { color: rgba(255,255,255,0.4); }
+
+  .goto-list {
+    list-style: none;
+    margin: 0;
+    padding: 0.35rem;
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+
+  /* Options are created by script — no Astro scope attribute. */
+  .goto-list :global(.goto-option) {
+    display: flex;
+    gap: 0.85rem;
+    align-items: baseline;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.4rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+
+  .goto-list :global(.goto-option[aria-selected="true"]) {
+    background: rgba(255,255,255,0.1);
+  }
+
+  .goto-list :global(.goto-num) {
+    min-width: 2ch;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: rgba(255,255,255,0.45);
+  }
+
+  .goto-list :global(.goto-option.current .goto-num) {
+    color: var(--astlide-presenter-accent, #60a5fa);
+  }
+
+  .goto-list :global(.goto-title) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   /* ── Reduced motion ── */

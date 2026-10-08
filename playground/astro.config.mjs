@@ -12,6 +12,7 @@ export default defineConfig({
 				"spacer",
 				"notes",
 				"overview",
+				"goto",
 				"presenter",
 				"fullscreen",
 				"download",
