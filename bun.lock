@@ -41,7 +41,7 @@
         "playwright": "^1.40.0",
       },
       "peerDependencies": {
-        "astro": "^7.0.0",
+        "astro": "^7.2.10",
       },
     },
     "packages/create-astlide": {
@@ -60,7 +60,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@astlide/core": "workspace:*",
-        "astro": "^7.0.0",
+        "astro": "^7.2.10",
       },
     },
     "tools/ts6": {

@@ -85,7 +85,7 @@ jobs:
       matrix:
         # Pin both the oldest 7.x minor we support and the latest available, so we catch
         # both regressions in old behaviour and breakages introduced upstream.
-        astro: ["7.0.9", "7.3.7"]
+        astro: ["7.2.10", "7.3.7"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -113,6 +113,17 @@ jobs:
           bun install --no-save
       - run: bun run test
       - run: bun run build
+
+  # Single required status check for the Astro matrix. Branch rules require
+  # "Astro Compat" instead of the per-version job names, so changing the matrix
+  # versions doesn't require editing the ruleset.
+  astro-compat-result:
+    name: Astro Compat
+    if: always()
+    needs: astro-compat
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "${{ needs.astro-compat.result }}" = "success"
 
   template-smoke:
     name: Template Smoke
