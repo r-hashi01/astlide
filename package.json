@@ -18,7 +18,7 @@
 		"format": "biome format --write .",
 		"docs": "bun run --cwd packages/astlide docs",
 		"changeset": "changeset",
-		"version": "changeset version",
+		"version": "changeset version && bun install",
 		"release": "changeset publish"
 	},
 	"devDependencies": {

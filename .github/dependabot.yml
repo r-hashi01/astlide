@@ -17,8 +17,9 @@ updates:
     commit-message:
       prefix: "chore(actions)"
 
-  # Root npm workspace — covers playground devDeps
-  - package-ecosystem: "npm"
+  # Root bun workspace — covers playground devDeps. The "bun" ecosystem keeps
+  # bun.lock in sync (the "npm" ecosystem only bumped package.json).
+  - package-ecosystem: "bun"
     directory: "/"
     schedule:
       interval: "weekly"
@@ -44,7 +45,7 @@ updates:
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
 
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/packages/astlide"
     schedule:
       interval: "weekly"
@@ -63,7 +64,7 @@ updates:
     ignore:
       - dependency-name: "astro"
 
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/packages/create-astlide"
     schedule:
       interval: "weekly"
@@ -86,7 +87,7 @@ updates:
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
 
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/playground"
     schedule:
       interval: "weekly"
