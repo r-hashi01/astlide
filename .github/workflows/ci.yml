@@ -7,7 +7,7 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Astro 6 requires Node.js >=22.12. Bun ships its own Node-compat runtime,
+# Astro 7 requires Node.js >=22.12. Bun ships its own Node-compat runtime,
 # but `bunx astro check` and `astro build` shell into the system `node` for
 # child processes — so every job that runs Astro needs setup-node@v4 with
 # node-version: 22 alongside setup-bun.
@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.2.19
+          bun-version-file: package.json
       - run: bun install
       - run: bun run lint
 
@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.2.19
+          bun-version-file: package.json
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v4
         with:
           node-version: 22
@@ -46,7 +46,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.2.19
+          bun-version-file: package.json
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v4
         with:
           node-version: 22
@@ -60,7 +60,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.2.19
+          bun-version-file: package.json
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v4
         with:
           node-version: 22
@@ -74,7 +74,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.2.19
+          bun-version-file: package.json
       - run: bun install
       - run: cd packages/create-astlide && bunx tsc
 
@@ -85,28 +85,32 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Pin both the oldest 6.x minor we support and the latest available, so we catch
+        # Pin both the oldest 7.x minor we support and the latest available, so we catch
         # both regressions in old behaviour and breakages introduced upstream.
-        astro: ["6.0.8", "6.1.9"]
+        astro: ["7.0.9", "7.3.7"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.2.19
+          bun-version-file: package.json
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v4
         with:
           node-version: 22
       - run: bun install
       - name: Override Astro version
         run: |
-          # Pin playground's astro to the matrix version, then re-install so the override
-          # flows through bun's workspace resolution.
+          # Pin playground's astro to the matrix version and force it workspace-wide via
+          # root `overrides`, so astro is hoisted together with its own transitive deps
+          # (e.g. astro 7.0.x needs cookie@1 while 7.2+ needs cookie@2).
           node -e "
             const fs = require('node:fs');
-            const p = './playground/package.json';
-            const pkg = JSON.parse(fs.readFileSync(p, 'utf8'));
-            pkg.dependencies.astro = '${{ matrix.astro }}';
-            fs.writeFileSync(p, JSON.stringify(pkg, null, 2));
+            const edit = (p, fn) => {
+              const pkg = JSON.parse(fs.readFileSync(p, 'utf8'));
+              fn(pkg);
+              fs.writeFileSync(p, JSON.stringify(pkg, null, 2));
+            };
+            edit('./playground/package.json', (pkg) => { pkg.dependencies.astro = '${{ matrix.astro }}'; });
+            edit('./package.json', (pkg) => { pkg.overrides = { ...pkg.overrides, astro: '${{ matrix.astro }}' }; });
           "
           bun install --no-save
       - run: bun run test
@@ -120,7 +124,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.2.19
+          bun-version-file: package.json
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v4
         with:
           node-version: 22

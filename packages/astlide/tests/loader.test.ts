@@ -35,7 +35,7 @@ function createContext(rootDir: string, store: ReturnType<typeof createStore>) {
 		store,
 		meta: { get: () => undefined, set: () => {}, has: () => false, delete: () => {} },
 		logger: { warn: () => {}, info: () => {}, error: () => {}, debug: () => {} },
-		config: { root: pathToFileURL(`${rootDir}/`) },
+		config: { root: pathToFileURL(`${rootDir}/`), srcDir: pathToFileURL(`${rootDir}/src/`) },
 		parseData: async ({ data }: { data: Record<string, unknown> }) => slideSchema.parse(data),
 		generateDigest: (input: unknown) => String(JSON.stringify(input)).length.toString(),
 		renderMarkdown: async (content: string) => ({ html: content }),
