@@ -1,5 +1,11 @@
 # @astlide/core
 
+## 2.2.0
+
+### Minor Changes
+
+- [#61](https://github.com/r-hashi01/astlide/pull/61) [`827565d`](https://github.com/r-hashi01/astlide/commit/827565d59b110143a765e1a6bda2b514949935e0) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Add a go-to-slide dialog: press `g` (or add `goto` to `toolbar`) to jump by slide number or search slide titles, `↑`/`↓` to pick and `Enter` to go. Titles come from frontmatter `title`, else the slide's first heading (Markdown or HTML).
+
 ## 2.1.0
 
 ### Minor Changes
