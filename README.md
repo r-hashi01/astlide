@@ -16,7 +16,7 @@ An Astro-based slide presentation framework — like Slidev, but for the Astro e
 - **Slide decorators** — render a logo / footer / page number on every slide without editing each file
 - **Fragment reveals** — step-by-step content with `<Fragment>`
 - **Code line highlighting** — `{2,4-6}` highlights lines, `{1|3-5|all}` steps through them
-- **Presenter mode** — speaker notes (Markdown) + timer in a separate window, synced via BroadcastChannel
+- **Presenter mode** — next-slide preview, remaining steps, speaker notes (Markdown) + timer in a separate window, synced via BroadcastChannel
 - **Overview mode** — press `o` to see all slides in a grid
 - **PDF export** — one-click in-browser download + CLI, via `@astlide/crispdf`
 - **Type-safe** — Content Collections with Zod schema, plus a typed deck/slide metadata API
