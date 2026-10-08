@@ -22,11 +22,11 @@
     },
     "packages/astlide": {
       "name": "@astlide/core",
-      "version": "1.0.1",
+      "version": "2.0.0",
       "dependencies": {
         "@astrojs/mdx": "^7.0.3",
         "js-yaml": "^5.2.1",
-        "katex": "^0.18.7",
+        "katex": "^0.19.0",
         "rehype-stringify": "^10.0.0",
         "remark-mdx": "^3.0.0",
         "remark-parse": "^11.0.0",
@@ -46,7 +46,7 @@
     },
     "packages/create-astlide": {
       "name": "create-astlide",
-      "version": "0.1.2",
+      "version": "0.2.0",
       "bin": {
         "create-astlide": "./dist/index.js",
       },
@@ -785,7 +785,7 @@
 
     "jszip": ["jszip@3.10.2", "", { "dependencies": { "lie": "~3.3.0", "pako": "~1.0.2", "readable-stream": "~2.3.6", "setimmediate": "^1.0.5" } }, "sha512-3l+rb15IOWtUhU0H5MFqES/T6Kh7abYwjosBey/vD6hDt8zoEffkSC5Ws5SGtgVw3gBx2NEbhTeSW1+kWkpyTQ=="],
 
-    "katex": ["katex@0.18.11", "", { "dependencies": { "commander": "^15.0.0" }, "bin": { "katex": "cli.js" } }, "sha512-yvyz/2VMKqoho/35Hat5w37wIEdWJ5ElVMidTAlWrxr5uW4aBGsEpveTmKh18/zw08v/7lGswCPon4OhqmqrTA=="],
+    "katex": ["katex@0.19.0", "", { "dependencies": { "commander": "^15.0.0" }, "bin": { "katex": "cli.js" } }, "sha512-v6Tznz3zJ7u3niRCoDTsumM2+HA2XXcCu+WAacCeHD2z3p9A9Ks987o5FzfTGBN0e8A0vjEgIDvLbICrXpdw/Q=="],
 
     "kleur": ["kleur@4.1.5", "", {}, "sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ=="],
 
