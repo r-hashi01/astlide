@@ -9,6 +9,6 @@
   },
   "dependencies": {
     "astro": "^7.0.0",
-    "@astlide/core": "^0.1.0"
+    "@astlide/core": "^2.0.0"
   }
 }
