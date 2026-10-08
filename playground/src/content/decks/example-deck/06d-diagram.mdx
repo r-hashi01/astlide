@@ -1,0 +1,14 @@
+---
+slideLayout: default
+notes: "```mermaid fences render as diagrams when the optional `mermaid` package is installed (bun add mermaid)."
+---
+
+# Diagrams
+
+```mermaid
+flowchart LR
+  MDX[".mdx / .md slide"] --> Shiki["Shiki transformer"]
+  Shiki --> Pre["pre.astlide-mermaid"]
+  Pre --> Mermaid["mermaid (lazy-loaded)"]
+  Mermaid --> SVG["SVG diagram"]
+```

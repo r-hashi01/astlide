@@ -299,6 +299,13 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       window.__astlide_navigate = navigate;
     </script>
 
+    <!-- Module script: render ```mermaid diagrams (loads mermaid only when a slide has one). -->
+    <script>
+      import { renderDiagrams } from '@astlide/core/internal/diagrams';
+      // Fires on the first load and after every ClientRouter navigation.
+      document.addEventListener('astro:page-load', () => { renderDiagrams(); });
+    </script>
+
     <!-- Module script: lazy-load the PDF export pipeline on demand. -->
     <script>
       window.__astlide_download_pdf = async function (opts) {
