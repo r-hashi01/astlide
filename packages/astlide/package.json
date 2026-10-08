@@ -54,7 +54,7 @@
 		"unified": "^11.0.0"
 	},
 	"optionalDependencies": {
-		"playwright": "^1.40.0",
+		"playwright": "^1.63.0",
 		"@astlide/crispdf": "^0.0.1"
 	},
 	"keywords": [
@@ -67,6 +67,6 @@
 	],
 	"license": "MIT",
 	"devDependencies": {
-		"typedoc": "^0.28.17"
+		"typedoc": "^0.28.20"
 	}
 }
