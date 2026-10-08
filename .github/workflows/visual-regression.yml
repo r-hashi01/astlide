@@ -1,8 +1,10 @@
 name: Visual Regression
 
 # Visual regression baselines are captured on macOS — Linux runners render
-# fonts differently and produce noisy false positives. Run on macOS-latest
-# nightly + on demand, not on every PR.
+# fonts differently and produce noisy false positives. Runs weekly + on demand,
+# not on every PR. The runner image is pinned because code blocks fall back to
+# system monospace fonts, which change between image versions — bump the label
+# and regenerate baselines together.
 
 on:
   schedule:
@@ -17,7 +19,7 @@ on:
 jobs:
   visual:
     name: Visual diff
-    runs-on: macos-latest
+    runs-on: macos-26
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
