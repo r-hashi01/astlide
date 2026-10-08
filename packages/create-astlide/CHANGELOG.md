@@ -1,5 +1,11 @@
 # create-astlide
 
+## 0.2.1
+
+### Patch Changes
+
+- [#59](https://github.com/r-hashi01/astlide/pull/59) [`b1fa5b6`](https://github.com/r-hashi01/astlide/commit/b1fa5b60ed7630d80f149e60f5b26070b717d6ae) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Upgrade `@astrojs/mdx` to 8. It requires Astro 7.2.10 or later, so the `astro` peer dependency is now `^7.2.10` (was `^7.0.0`), and `create-astlide` scaffolds projects with the same range.
+
 ## 0.2.0
 
 ### Minor Changes
