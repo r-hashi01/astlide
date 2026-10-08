@@ -1,5 +1,18 @@
 # create-astlide
 
+## 0.2.0
+
+### Minor Changes
+
+- [#47](https://github.com/r-hashi01/astlide/pull/47) [`f9b22b5`](https://github.com/r-hashi01/astlide/commit/f9b22b50232ac0815ccabc3089976525e61462ea) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Support Astro 7 (drops Astro 6).
+  - `astro` peer dependency is now `^7.0.0`, and `@astrojs/mdx` is bumped to `^7.0.3` (which requires Astro 7).
+  - The built-in `Fragment` slide component is now registered under an alias internally, since Astro 7's compiler injects its own `Fragment` binding into every `.astro` file. MDX usage (`<Fragment>`) is unchanged.
+  - `create-astlide` scaffolds projects on Astro 7.
+
+### Patch Changes
+
+- [#49](https://github.com/r-hashi01/astlide/pull/49) [`f52de6d`](https://github.com/r-hashi01/astlide/commit/f52de6d8e969cf5174b9dc809b350ab5087d7c55) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Scaffold projects with `@astlide/core@^2.0.0` (the template still pinned `^0.1.0`, which does not support Astro 7).
+
 ## 0.1.2
 
 ### Patch Changes

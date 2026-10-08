@@ -1,5 +1,18 @@
 # @astlide/core
 
+## 2.0.0
+
+### Major Changes
+
+- [#47](https://github.com/r-hashi01/astlide/pull/47) [`f9b22b5`](https://github.com/r-hashi01/astlide/commit/f9b22b50232ac0815ccabc3089976525e61462ea) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Support Astro 7 (drops Astro 6).
+  - `astro` peer dependency is now `^7.0.0`, and `@astrojs/mdx` is bumped to `^7.0.3` (which requires Astro 7).
+  - The built-in `Fragment` slide component is now registered under an alias internally, since Astro 7's compiler injects its own `Fragment` binding into every `.astro` file. MDX usage (`<Fragment>`) is unchanged.
+  - `create-astlide` scaffolds projects on Astro 7.
+
+### Patch Changes
+
+- [#44](https://github.com/r-hashi01/astlide/pull/44) [`ee8f7e3`](https://github.com/r-hashi01/astlide/commit/ee8f7e32f181f270372db8df7350463582f681e3) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Fix `astlide export pptx` frontmatter parsing with js-yaml 5, which no longer provides a default export. `@types/js-yaml` is dropped since js-yaml 5 ships its own types.
+
 ## 1.0.1
 
 ### Patch Changes
@@ -9,7 +22,6 @@
   Astlide injects a deck-index page at `/`. If your project has its own
   `src/pages/index.{astro,md,mdx,html}`, that previously produced an Astro route
   collision warning (a hard error in future Astro).
-
   - **Default (auto):** the `/` route is injected only when no user index page
     exists — a custom home page now works out of the box, no collision.
   - `injectIndexRoute: false` — never inject; you own `/`.
@@ -22,7 +34,6 @@
 - [`b0ded22`](https://github.com/r-hashi01/astlide/commit/b0ded22c58a4fa99beb3c24905c82f35152826e2) Thanks [@r-hashi01](https://github.com/r-hashi01)! - v1.0.0 — upstream feedback from real-world deck usage.
 
   **Multi-format slides: MDX, Markdown, and HTML**
-
   - New `astlideDeckLoader()` (exported from `@astlide/core`, also at
     `@astlide/core/loader`) renders slides authored as `.mdx`, `.md`, **or
     `.html`** from one deck directory. MDX/Markdown are delegated to Astro's
@@ -32,7 +43,6 @@
     accept the same frontmatter as `.mdx`.
 
   **Composable navigation toolbar (`toolbar` option)**
-
   - New `toolbar?: ToolbarItem[]` option composes the floating `.slide-nav` from
     ordered action IDs: `home` `prev` `counter` `next` `notes` `overview`
     `presenter` `fullscreen` `print` `share` `download` `spacer`.
@@ -41,44 +51,37 @@
     devices (`@media (hover: none)`) so the return path is always reachable.
 
   **Speaker notes render as Markdown**
-
   - Frontmatter `notes` are now run through remark/rehype before sanitizing, so
     `**bold**`, lists, links, and `code` render in the presenter panel and notes
     overlay. Adds `rehype-stringify` dependency and `utils/markdown`.
 
   **Layouts can be registered as components**
-
   - `LayoutContribution.componentEntrypoint` is now live: a plugin-contributed
     layout component owns the slide markup via `virtual:astlide/layouts`, instead
     of only toggling a `.slide-<name>` CSS class.
 
   **Every-slide decorators (no more hand-placed extras)**
-
   - New `slideDecorators` option and plugin `decorators` contribution render a
     component on every slide (logo / footer / page number / home link) via
     `virtual:astlide/decorators` — no need to place it in each MDX/HTML file.
 
   **Typed deck/slide metadata API**
-
   - New `@astlide/core/context`: `getDeckContext(Astro)` (server) and
     `getClientDeckContext()` (browser, backed by `window.__astlide`) expose the
     current deck name, slide number, total, layout, transition, and parsed config
     — replacing `document.title`/`body.dataset` scraping.
 
   **Theme-adjustable chrome (fewer `!important` overrides)**
-
   - Progress bar, nav toolbar, and presenter panel read CSS custom properties
     (`--astlide-progress-color`, `--astlide-nav-bg`, `--astlide-nav-btn-bg`,
     `--astlide-nav-fg`, `--astlide-presenter-bg/-fg/-accent/-width`, …) with
     fallbacks to the current defaults.
 
   **`create-astlide deck <name>` scaffolder**
-
   - New subcommand generates a deck folder (`_config.json` + cover/content/end
     slides) in an existing project. `--theme` and `--format mdx|md|html` flags.
 
   **PDF export**
-
   - CLI exporter now emits a single multi-page PDF from the new `/[deck]/all` print
     route instead of merging per-page with `pdf-lib` (removes the `pdf-lib` optional
     dependency). This is the stable export path.
@@ -86,7 +89,6 @@
     depends on the pre-1.0 optional `@astlide/crispdf` and its output may change.
 
   **Theming hooks**
-
   - New `font` option to override or disable the injected web-font stylesheet.
   - Presenter notes font-size controls.
 
