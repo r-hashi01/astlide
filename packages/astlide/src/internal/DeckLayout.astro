@@ -95,6 +95,9 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
           doc.documentElement.toggleAttribute('data-presenter', p.has('presenter') || isStickyPresenter());
           doc.documentElement.toggleAttribute('data-print', p.has('print'));
           doc.documentElement.toggleAttribute('data-share', p.has('share'));
+          // Rendered inside an iframe (overview thumbnails, presenter next-slide
+          // preview): hide chrome and skip navigation/sync — see isEmbedded below.
+          doc.documentElement.toggleAttribute('data-embed', window.self !== window.top);
         }
         applyFlags(document, location.search);
         if (!window.__astlide_swap_listeners__) {
@@ -139,6 +142,16 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
             <button class="timer-reset-btn" id="timer-reset" type="button" aria-label="Reset timer" title="Reset timer">↺</button>
           </div>
         </div>
+        <section class="presenter-next" aria-label="Next slide">
+          <div class="presenter-section-header">
+            <h3>Next</h3>
+            <span class="presenter-steps-left" id="presenter-steps-left" hidden></span>
+          </div>
+          {currentSlide < totalSlides
+            ? <div class="presenter-next-frame" data-next-src={`/${deck}/${currentSlide + 1}`}></div>
+            : <p class="presenter-next-end">End of deck</p>
+          }
+        </section>
         <div class="presenter-notes">
           <div class="presenter-notes-header">
             <h3>Notes</h3>
@@ -279,6 +292,10 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
 
       // ── 0. Presenter mode (detected from live URL, works for SSG) ─
       const isPresenter = document.documentElement.hasAttribute('data-presenter');
+      // Inside an iframe (overview thumbnail / presenter next-slide preview) the page
+      // only renders: no focus grab, keyboard/touch navigation or presenter sync —
+      // otherwise a thumbnail would follow the presenter's navigation broadcasts.
+      const isEmbedded = document.documentElement.hasAttribute('data-embed');
 
       // Encode deck name for safe URL construction (SSG value, but encode defensively
       // to prevent open-redirect if the deck directory name contains special characters).
@@ -336,7 +353,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       window.addEventListener('resize', updateScale);
 
       // Focus management: move focus to slide content on page load
-      if (scaler && !isPresenter) {
+      if (scaler && !isPresenter && !isEmbedded) {
         scaler.focus({ preventScroll: true });
       }
 
@@ -391,10 +408,22 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       steps.sort((a, b) => a.index - b.index);
       let currentStep = -1;
 
+      // Presenter panel: "+N steps" next to the next-slide preview, so the speaker
+      // knows whether → reveals more on this slide or moves on.
+      const stepsLeftEl = document.getElementById('presenter-steps-left');
+      function updateStepsLeft() {
+        if (!stepsLeftEl) return;
+        const left = steps.length - 1 - currentStep;
+        stepsLeftEl.hidden = left <= 0;
+        stepsLeftEl.textContent = '+' + left + (left === 1 ? ' step' : ' steps');
+      }
+      updateStepsLeft();
+
       function showNextStep() {
         if (currentStep < steps.length - 1) {
           currentStep++;
           steps[currentStep].show();
+          updateStepsLeft();
           return true;
         }
         return false;
@@ -404,15 +433,32 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         if (currentStep >= 0) {
           steps[currentStep].hide();
           currentStep--;
+          updateStepsLeft();
           return true;
         }
         return false;
       }
 
+      // Next-slide preview: only the presenter window loads the iframe, so the
+      // audience view never fetches an extra page. The embedded page scales itself
+      // to the iframe's viewport (see updateScale / isEmbedded).
+      if (isPresenter && !isEmbedded) {
+        const nextFrame = document.querySelector('.presenter-next-frame');
+        const nextSrc = nextFrame && nextFrame.getAttribute('data-next-src');
+        if (nextFrame && nextSrc && !nextFrame.querySelector('iframe')) {
+          const iframe = document.createElement('iframe');
+          iframe.src = nextSrc;
+          iframe.title = 'Next slide preview';
+          iframe.setAttribute('scrolling', 'no');
+          iframe.tabIndex = -1;
+          nextFrame.appendChild(iframe);
+        }
+      }
+
       // ── 4. Presenter sync (BroadcastChannel with fallback) ────
       let syncChannel = null;
       try {
-        if (typeof BroadcastChannel !== 'undefined') {
+        if (!isEmbedded && typeof BroadcastChannel !== 'undefined') {
           syncChannel = new BroadcastChannel('astlide-sync-' + deck);
           syncChannel.onmessage = function(e) {
             const data = e.data;
@@ -834,7 +880,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         }
       }
 
-      document.addEventListener('keydown', handleKeydown);
+      if (!isEmbedded) document.addEventListener('keydown', handleKeydown);
 
       // ── 11. Touch / swipe support ──────────────────────────────
       let touchStartX = 0;
@@ -855,8 +901,10 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         }
       }
 
-      document.addEventListener('touchstart', handleTouchstart, { passive: true });
-      document.addEventListener('touchend', handleTouchend, { passive: true });
+      if (!isEmbedded) {
+        document.addEventListener('touchstart', handleTouchstart, { passive: true });
+        document.addEventListener('touchend', handleTouchend, { passive: true });
+      }
 
       // ── 12. Cleanup (called by next page on ClientRouter) ───
       window.__astlide_cleanup = function() {
@@ -919,6 +967,18 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
   html[data-share] .notes-overlay,
   html[data-share] .overview,
   html[data-share] .presenter-layout {
+    display: none !important;
+  }
+
+  /* Embedded in an iframe (overview thumbnail / presenter next-slide preview):
+     render the slide only. */
+  html[data-embed] .slide-nav,
+  html[data-embed] .progress-bar,
+  html[data-embed] .notes-overlay,
+  html[data-embed] .overview,
+  html[data-embed] .presenter-layout,
+  html[data-embed] .skip-link,
+  html[data-embed] :global(astro-dev-toolbar) {
     display: none !important;
   }
 
@@ -1089,6 +1149,55 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
   .timer-reset-btn:hover {
     background: rgba(255, 255, 255, 0.18);
     color: rgba(255, 255, 255, 0.95);
+  }
+
+  .presenter-next {
+    flex-shrink: 0;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .presenter-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6rem;
+  }
+
+  .presenter-next h3 {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.5);
+    margin: 0;
+  }
+
+  .presenter-steps-left {
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--astlide-presenter-accent, #60a5fa);
+  }
+
+  .presenter-next-frame {
+    aspect-ratio: 16 / 9;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #000;
+    outline: 1px solid rgba(255,255,255,0.12);
+  }
+
+  .presenter-next-frame :global(iframe) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: none;
+    pointer-events: none;
+  }
+
+  .presenter-next-end {
+    margin: 0;
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.4);
   }
 
   .presenter-notes {
@@ -1402,7 +1511,9 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     padding: 1.5rem 2rem;
   }
 
-  .overview-item {
+  /* Overview items are created by JS, so they carry no Astro scope attribute —
+     select them through :global() under the (scoped) static grid. */
+  .overview-grid :global(.overview-item) {
     position: relative;
     aspect-ratio: 16 / 9;
     border-radius: 0.5rem;
@@ -1414,22 +1525,20 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     background: #111;
   }
 
-  .overview-item:hover { border-color: rgba(255,255,255,0.4); transform: translateY(-2px); }
-  .overview-item.current { border-color: var(--color-primary, #3b82f6); }
+  .overview-grid :global(.overview-item:hover) { border-color: rgba(255,255,255,0.4); transform: translateY(-2px); }
+  .overview-grid :global(.overview-item.current) { border-color: var(--color-primary, #3b82f6); }
 
-  .overview-item iframe {
+  /* The embedded page scales its slide to the iframe viewport (data-embed). */
+  .overview-grid :global(.overview-item iframe) {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 1920px;
-    height: 1080px;
-    transform: scale(0.1354);
-    transform-origin: top left;
+    inset: 0;
+    width: 100%;
+    height: 100%;
     pointer-events: none;
     border: none;
   }
 
-  .overview-item-label {
+  .overview-grid :global(.overview-item-label) {
     position: absolute;
     bottom: 0.4rem;
     right: 0.6rem;
@@ -1447,7 +1556,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     .progress-bar { transition: none; }
     .slide-nav { transition: none; }
     .notes-overlay { transition: none; }
-    .overview-item { transition: none; }
+    .overview-grid :global(.overview-item) { transition: none; }
     .pnav-btn { transition: none; }
     .nav-btn { transition: none; }
     .notes-close { transition: none; }
