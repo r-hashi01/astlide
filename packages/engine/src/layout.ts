@@ -51,6 +51,14 @@ export interface InlineBox {
 	alpha: number;
 }
 
+/** A block's content box that text was laid out in (one per block of inline content). */
+export interface TextBlock {
+	id: number;
+	x: number;
+	w: number;
+	align: string;
+}
+
 export interface TextLine {
 	text: string;
 	x: number;
@@ -58,6 +66,11 @@ export interface TextLine {
 	w: number;
 	h: number;
 	style: InlineStyle;
+	/** The text block and the line box in it (absent on list markers). */
+	block?: TextBlock;
+	line?: number;
+	lineTop?: number;
+	lineHeight?: number;
 }
 
 export interface SlideLayout {
@@ -590,11 +603,24 @@ export function layoutSlide(
 	}
 	const lines: TextLine[] = [];
 	const inlineBoxes: InlineBox[] = [];
-	for (const leaf of b.leaves) {
+	for (const [id, leaf] of b.leaves.entries()) {
 		const p = b.absolute(leaf.node);
-		const r = layoutLines(leaf.items, leaf.node.getComputedWidth(), leaf.strut, leaf.align, fonts);
+		const width = leaf.node.getComputedWidth();
+		const r = layoutLines(leaf.items, width, leaf.strut, leaf.align, fonts);
+		const block: TextBlock = { id, x: p.x, w: width, align: leaf.align };
 		for (const f of r.fragments)
-			lines.push({ text: f.text, x: p.x + f.x, y: p.y + f.y, w: f.w, h: f.h, style: f.style });
+			lines.push({
+				text: f.text,
+				x: p.x + f.x,
+				y: p.y + f.y,
+				w: f.w,
+				h: f.h,
+				style: f.style,
+				block,
+				line: f.line,
+				lineTop: p.y + f.lineTop,
+				lineHeight: f.lineHeight,
+			});
 		for (const ib of r.inlineBoxes) {
 			const entry = b.inlineEls[ib.id];
 			if (!entry) continue;

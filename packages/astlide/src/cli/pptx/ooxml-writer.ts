@@ -31,6 +31,8 @@ export interface TextRunOptions {
 	bullet?: boolean | { type: "number"; indent?: number } | { indent?: number };
 	indentLevel?: number;
 	paraSpaceAfter?: number;
+	/** Exact line height of the paragraph, in points. */
+	lineSpacing?: number;
 	/** Extra space between characters, in points (CSS letter-spacing). */
 	letterSpacing?: number;
 }
@@ -283,6 +285,7 @@ interface ParagraphGroup {
 	runs: TextRun[];
 	/** Properties from the run that had breakLine=true (paragraph-level props) */
 	paraSpaceAfter?: number;
+	lineSpacing?: number;
 	bullet?: TextRunOptions["bullet"];
 	indentLevel?: number;
 	align?: string;
@@ -300,6 +303,7 @@ function splitIntoParagraphs(runs: TextRun[]): ParagraphGroup[] {
 			paragraphs.push({
 				runs: current,
 				paraSpaceAfter: opts.paraSpaceAfter,
+				lineSpacing: opts.lineSpacing,
 				bullet: opts.bullet,
 				indentLevel: opts.indentLevel,
 				align: opts.align,
@@ -341,6 +345,9 @@ function buildParagraphXml(
 	}
 
 	let pPrInner = "";
+	if (para.lineSpacing !== undefined) {
+		pPrInner += `<a:lnSpc><a:spcPts val="${hpt(para.lineSpacing)}"/></a:lnSpc>`;
+	}
 	if (para.paraSpaceAfter !== undefined) {
 		pPrInner += `<a:spcAft><a:spcPts val="${hpt(para.paraSpaceAfter)}"/></a:spcAft>`;
 	}

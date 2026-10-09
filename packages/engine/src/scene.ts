@@ -7,7 +7,7 @@
 
 import type { Element } from "domhandler";
 import { type Computed, toPx } from "./cascade";
-import type { SlideLayout, TextLine } from "./layout";
+import type { SlideLayout, TextBlock, TextLine } from "./layout";
 
 export interface Color {
 	/** `rrggbb` */
@@ -37,6 +37,13 @@ export type SceneItem =
 			font: { family: string; weight: number; italic: boolean; size: number };
 			color: Color;
 			letterSpacing: number;
+			/** Width of a space in this font and size (CSS px), to rebuild gaps between runs. */
+			space: number;
+			/** Block and line box the text sits in, to rebuild paragraphs (absent on list markers). */
+			block?: TextBlock;
+			line?: number;
+			lineTop?: number;
+			lineHeight?: number;
 	  }
 	| { kind: "image"; x: number; y: number; w: number; h: number; src: string };
 
@@ -156,6 +163,12 @@ function boxRects(
 	return out;
 }
 
+function spaceWidth(l: TextLine): number {
+	const font = l.style.face.font;
+	const advance = font.glyphForCodePoint(0x20)?.advanceWidth ?? font.unitsPerEm / 4;
+	return (advance / font.unitsPerEm) * l.style.size + l.style.letterSpacing;
+}
+
 function textItem(l: TextLine): SceneItem | null {
 	const color = parseColor(l.style.color);
 	if (!color || l.style.alpha * color.alpha < 0.01) return null;
@@ -174,6 +187,11 @@ function textItem(l: TextLine): SceneItem | null {
 		},
 		color: { hex: color.hex, alpha: color.alpha * l.style.alpha },
 		letterSpacing: l.style.letterSpacing,
+		space: spaceWidth(l),
+		block: l.block,
+		line: l.line,
+		lineTop: l.lineTop,
+		lineHeight: l.lineHeight,
 	};
 }
 

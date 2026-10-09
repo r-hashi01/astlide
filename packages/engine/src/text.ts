@@ -178,6 +178,11 @@ export interface PlacedFragment {
 	y: number;
 	w: number;
 	h: number;
+	/** Index of the line box in the block. */
+	line: number;
+	/** Top and height of that line box (relative to the block's content box). */
+	lineTop: number;
+	lineHeight: number;
 	style: InlineStyle;
 }
 
@@ -308,7 +313,7 @@ export function layoutLines(
 	let carried: number[] = [];
 	let y = 0;
 	let maxW = 0;
-	for (const l of lines) {
+	for (const [li, l] of lines.entries()) {
 		const inlineStyles = [strut, ...l.words.flatMap((w) => (w.style ? [w.style] : []))];
 		let above = 0;
 		let below = 0;
@@ -367,6 +372,9 @@ export function layoutLines(
 					y: baseline - m.ascent,
 					w: w.width,
 					h: m.ascent + m.descent,
+					line: li,
+					lineTop: y,
+					lineHeight,
 					style: w.style,
 				};
 				fragments.push(frag);

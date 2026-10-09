@@ -10,7 +10,14 @@
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { PptxFile, type SlideElement } from "./ooxml-writer";
+import type { SceneItem } from "@astlide/engine";
+import {
+	PptxFile,
+	type SlideElement,
+	type TextBoxSpec,
+	type TextRun,
+	type TextRunOptions,
+} from "./ooxml-writer";
 import { getTheme } from "./theme-map";
 
 export interface PptxOptions {
@@ -62,6 +69,103 @@ function fontFor(family: string, weight: number): { face: string; bold: boolean 
 
 const hex = (c: { hex: string }) => c.hex.toUpperCase();
 
+type TextItem = Extract<SceneItem, { kind: "text" }>;
+
+function runOptions(item: TextItem, k: number): TextRunOptions {
+	const f = fontFor(item.font.family, item.font.weight);
+	return {
+		fontSize: item.font.size * k * 72,
+		color: hex(item.color),
+		fontFace: f.face,
+		bold: f.bold,
+		italic: item.font.italic,
+		letterSpacing: item.letterSpacing ? item.letterSpacing * k * 72 : undefined,
+	};
+}
+
+/** Placeholder text box of a block, filled by {@link fillBlock} once all its lines are in. */
+const boxOf = new WeakMap<TextItem[], TextBoxSpec>();
+function blockBox(group: TextItem[]): TextBoxSpec {
+	const box: TextBoxSpec = { type: "textbox", runs: [], x: 0, y: 0, w: 0, h: 0 };
+	boxOf.set(group, box);
+	return box;
+}
+
+/**
+ * One text box per block of text, one paragraph per line box at its exact
+ * line height, so the text keeps the slide's line breaks and stays editable
+ * as a whole. Gaps between runs (spaces trimmed by layout, code indentation)
+ * become spaces again.
+ */
+function fillBlock(box: TextBoxSpec, group: TextItem[], k: number): TextBoxSpec {
+	const block = group[0]?.block;
+	if (!block) return box;
+	const byLine = new Map<number, TextItem[]>();
+	for (const it of group) {
+		const line = byLine.get(it.line ?? 0) ?? [];
+		line.push(it);
+		byLine.set(it.line ?? 0, line);
+	}
+	const indices = [...byLine.keys()].sort((a, b) => a - b);
+	const align = /center/.test(block.align)
+		? "center"
+		: /right|end/.test(block.align)
+			? "right"
+			: "left";
+	const runs: TextRun[] = [];
+	let top = 0;
+	let bottom = 0;
+	let right = block.x;
+	let prev: { index: number; bottom: number } | null = null;
+	for (const index of indices) {
+		const items = (byLine.get(index) ?? []).sort((a, b) => a.x - b.x);
+		const first = items[0];
+		if (!first) continue;
+		const lineTop = first.lineTop ?? first.y;
+		const lineHeight = first.lineHeight ?? first.h;
+		if (prev === null) top = lineTop;
+		else if (index > prev.index + 1) {
+			// Empty line boxes (blank lines in code) in between.
+			const count = index - prev.index - 1;
+			const each = (lineTop - prev.bottom) / count;
+			for (let i = 0; i < count; i++)
+				runs.push({ text: "", options: { breakLine: true, lineSpacing: each * k * 72 } });
+		}
+		// Left-aligned lines keep their indentation as spaces; centered / right ones are aligned by PowerPoint.
+		let x = align === "left" ? block.x : first.x;
+		const lineRuns: TextRun[] = [];
+		for (const it of items) {
+			const gap = it.x - x;
+			const spaces = Math.round(gap / it.space) || (gap > it.space * 0.3 ? 1 : 0);
+			if (spaces > 0) lineRuns.push({ text: " ".repeat(spaces), options: runOptions(it, k) });
+			lineRuns.push({ text: it.text, options: runOptions(it, k) });
+			x = it.x + it.w;
+			right = Math.max(right, x);
+		}
+		const last = lineRuns[lineRuns.length - 1];
+		if (last)
+			last.options = { ...last.options, breakLine: true, align, lineSpacing: lineHeight * k * 72 };
+		runs.push(...lineRuns);
+		bottom = lineTop + lineHeight;
+		prev = { index, bottom };
+	}
+	// The last paragraph ends the text: no trailing empty paragraph.
+	return {
+		...box,
+		runs,
+		x: block.x * k,
+		y: top * k,
+		// Centered / right text needs the block's width; left text gets slack
+		// because PowerPoint's glyph widths differ slightly (lines never wrap).
+		w: align === "left" ? Math.max(block.w, (right - block.x) * 1.05) * k + 0.05 : block.w * k,
+		h: (bottom - top) * k,
+		align,
+		valign: "top",
+		wrap: false,
+		inset: 0,
+	};
+}
+
 export async function exportPptx(deck: string, options: PptxOptions): Promise<void> {
 	const engine = await import("@astlide/engine");
 	if (options.build !== false) {
@@ -97,6 +201,7 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 		const scene = engine.toScene(layout, (eid) => layout.elements[eid]);
 		const k = SLIDE_W_IN / scene.width;
 		const elements: SlideElement[] = [];
+		const blocks = new Map<number, TextItem[]>();
 		for (const item of scene.items) {
 			if (item.kind === "rect") {
 				elements.push({
@@ -118,22 +223,20 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 					radius: item.radius ? item.radius * k : undefined,
 				});
 			} else if (item.kind === "text") {
-				const f = fontFor(item.font.family, item.font.weight);
+				// Text in a block goes in one text box (below); markers stand alone.
+				if (item.block) {
+					const group = blocks.get(item.block.id) ?? [];
+					if (group.length === 0) {
+						blocks.set(item.block.id, group);
+						// Keep the paint position of the block's first text.
+						elements.push(blockBox(group));
+					}
+					group.push(item);
+					continue;
+				}
 				elements.push({
 					type: "textbox",
-					runs: [
-						{
-							text: item.text,
-							options: {
-								fontSize: item.font.size * k * 72,
-								color: hex(item.color),
-								fontFace: f.face,
-								bold: f.bold,
-								italic: item.font.italic,
-								letterSpacing: item.letterSpacing ? item.letterSpacing * k * 72 : undefined,
-							},
-						},
-					],
+					runs: [{ text: item.text, options: runOptions(item, k) }],
 					x: item.x * k,
 					y: item.y * k,
 					// PowerPoint's glyph widths differ slightly; the text never wraps.
@@ -159,6 +262,13 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 				} else {
 					console.warn(`\n  ⚠ slide ${i + 1}: image ${item.src} skipped (only PNG for now)`);
 				}
+			}
+		}
+		// Fill in the block text boxes now that every line is known.
+		for (const [n, el] of elements.entries()) {
+			if (el.type === "textbox" && el.runs.length === 0) {
+				const group = [...blocks.values()].find((g) => g.length && boxOf.get(g) === el);
+				if (group) elements[n] = fillBlock(el, group, k);
 			}
 		}
 		pptx.addSlide({ background: hex(scene.background), elements });
