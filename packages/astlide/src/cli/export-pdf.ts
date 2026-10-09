@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { type Browser, chromium, type Page } from "playwright";
