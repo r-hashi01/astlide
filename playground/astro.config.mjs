@@ -13,6 +13,8 @@ export default defineConfig({
 				"notes",
 				"overview",
 				"goto",
+				"draw",
+				"laser",
 				"presenter",
 				"fullscreen",
 				"download",

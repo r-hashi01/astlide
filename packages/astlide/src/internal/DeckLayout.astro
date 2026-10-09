@@ -183,7 +183,12 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
 
     <!-- Normal presentation layout (always rendered with slot) -->
     <div class="presentation" role="main" aria-label="Slide presentation">
-      <div class="slide-scaler" id="slide-scaler" tabindex="-1" transition:name="slide-content" transition:animate="none"><slot /></div>
+      <div class="slide-scaler" id="slide-scaler" tabindex="-1" transition:name="slide-content" transition:animate="none">
+        <slot />
+        <!-- Pen / laser overlays, in slide coordinates (scale with the slide) -->
+        <canvas class="draw-layer" id="draw-layer" aria-hidden="true"></canvas>
+        <div class="laser-dot" id="laser-dot" aria-hidden="true" hidden></div>
+      </div>
     </div>
 
     <!-- Navigation (hidden until hover; hidden in presenter mode via CSS) -->
@@ -217,6 +222,12 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         );
         if (item === 'goto') return (
           <button type="button" class="nav-btn nav-action" data-action="goto" aria-label="Go to slide" title="Go to slide (g)">⌕</button>
+        );
+        if (item === 'draw') return (
+          <button type="button" class="nav-btn nav-action" data-action="draw" aria-label="Toggle drawing" aria-pressed="false" title="Draw on the slide (d) — c clears">✎</button>
+        );
+        if (item === 'laser') return (
+          <button type="button" class="nav-btn nav-action" data-action="laser" aria-label="Toggle laser pointer" aria-pressed="false" title="Laser pointer (l)">◉</button>
         );
         if (item === 'overview') return (
           <button type="button" class="nav-btn nav-action" data-action="overview" aria-label="Open slide overview" title="Slide overview (o)">▦</button>
@@ -535,6 +546,8 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
               // page to apply once its steps exist.
               if (data.slide === currentSlide) goToStep(data.step);
               else window.__astlide_pending_step = data;
+            } else if (data && (data.type === 'draw' || data.type === 'draw-clear' || data.type === 'laser' || data.type === 'laser-off')) {
+              receiveDrawing(data);
             }
           };
         }
@@ -546,6 +559,13 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       function broadcastSlide(slideNum) {
         if (syncChannel) {
           try { syncChannel.postMessage({ type: 'navigate', slide: slideNum }); }
+          catch (_) { /* ignore */ }
+        }
+      }
+
+      function postSync(message) {
+        if (syncChannel) {
+          try { syncChannel.postMessage(message); }
           catch (_) { /* ignore */ }
         }
       }
@@ -754,6 +774,163 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         gotoEl.addEventListener('click', handleGotoClick);
       }
 
+      // ── 6c. Pen & laser pointer (d / l) ─────────────────────────
+      // Both overlays live inside #slide-scaler in slide coordinates, so they
+      // scale with the slide and line up in every window. Strokes and laser
+      // positions are broadcast, so drawing in the presenter window shows on the
+      // audience screen (and vice versa). Strokes are kept per slide on `window`,
+      // which survives ClientRouter navigations.
+      const drawLayer = document.getElementById('draw-layer');
+      const laserDot = document.getElementById('laser-dot');
+      const drawCtx = drawLayer && drawLayer.getContext ? drawLayer.getContext('2d') : null;
+      const drawings = (window.__astlide_drawings = window.__astlide_drawings || {});
+      const drawingKey = deck + '/' + currentSlide;
+      let tool = null; // 'draw' | 'laser' | null
+      let activeStroke = null;
+      let laserTimer = 0;
+
+      function slideStrokes() {
+        return (drawings[drawingKey] = drawings[drawingKey] || []);
+      }
+
+      function sizeDrawLayer() {
+        if (!drawLayer || !scaler) return;
+        const w = parseFloat(scaler.style.width) || 1920;
+        const h = parseFloat(scaler.style.height) || 1080;
+        if (drawLayer.width !== w || drawLayer.height !== h) {
+          drawLayer.width = w;
+          drawLayer.height = h;
+          redrawStrokes();
+        }
+      }
+
+      function drawSegment(stroke, from, to) {
+        if (!drawCtx) return;
+        drawCtx.strokeStyle = stroke.color;
+        drawCtx.lineWidth = stroke.width;
+        drawCtx.lineCap = 'round';
+        drawCtx.lineJoin = 'round';
+        drawCtx.beginPath();
+        drawCtx.moveTo(from[0], from[1]);
+        drawCtx.lineTo(to[0], to[1]);
+        drawCtx.stroke();
+      }
+
+      function drawStroke(stroke) {
+        const pts = stroke.points;
+        if (pts.length === 1) drawSegment(stroke, pts[0], pts[0]);
+        for (let i = 1; i < pts.length; i++) drawSegment(stroke, pts[i - 1], pts[i]);
+      }
+
+      function redrawStrokes() {
+        if (!drawCtx || !drawLayer) return;
+        drawCtx.clearRect(0, 0, drawLayer.width, drawLayer.height);
+        for (const stroke of slideStrokes()) drawStroke(stroke);
+      }
+
+      // Pointer position → slide coordinates (undoes the scaler's CSS transform).
+      function toSlidePoint(e) {
+        const rect = drawLayer.getBoundingClientRect();
+        return [
+          Math.round(((e.clientX - rect.left) / rect.width) * drawLayer.width),
+          Math.round(((e.clientY - rect.top) / rect.height) * drawLayer.height),
+        ];
+      }
+
+      function setTool(next) {
+        tool = tool === next ? null : next;
+        window.__astlide_tool = tool;
+        if (tool) document.documentElement.setAttribute('data-tool', tool);
+        else document.documentElement.removeAttribute('data-tool');
+        for (const btn of document.querySelectorAll('.nav-btn[data-action="draw"], .nav-btn[data-action="laser"]')) {
+          btn.setAttribute('aria-pressed', String(btn.getAttribute('data-action') === tool));
+        }
+        if (tool !== 'laser') hideLaser(true);
+      }
+
+      function clearDrawings(broadcast) {
+        drawings[drawingKey] = [];
+        redrawStrokes();
+        if (broadcast) postSync({ type: 'draw-clear', slide: currentSlide });
+      }
+
+      function showLaser(point, broadcast) {
+        if (!laserDot) return;
+        laserDot.hidden = false;
+        laserDot.style.transform = 'translate(' + point[0] + 'px, ' + point[1] + 'px)';
+        clearTimeout(laserTimer);
+        // Fade out remote pointers that stop updating (e.g. the window lost focus).
+        if (!broadcast) laserTimer = setTimeout(() => { laserDot.hidden = true; }, 2000);
+        if (broadcast) postSync({ type: 'laser', slide: currentSlide, x: point[0], y: point[1] });
+      }
+
+      function hideLaser(broadcast) {
+        if (laserDot) laserDot.hidden = true;
+        if (broadcast) postSync({ type: 'laser-off', slide: currentSlide });
+      }
+
+      function handleDrawPointerDown(e) {
+        if (tool !== 'draw') return;
+        e.preventDefault();
+        try { drawLayer.setPointerCapture(e.pointerId); } catch (_) { /* keep drawing without capture */ }
+        const color = getComputedStyle(document.documentElement).getPropertyValue('--astlide-pen-color').trim() || '#ef4444';
+        activeStroke = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), color, width: 6, points: [toSlidePoint(e)] };
+        slideStrokes().push(activeStroke);
+        drawStroke(activeStroke);
+        postSync({ type: 'draw', slide: currentSlide, stroke: activeStroke });
+      }
+
+      function handleDrawPointerMove(e) {
+        if (tool === 'laser') { showLaser(toSlidePoint(e), true); return; }
+        if (tool !== 'draw' || !activeStroke) return;
+        const point = toSlidePoint(e);
+        const pts = activeStroke.points;
+        drawSegment(activeStroke, pts[pts.length - 1], point);
+        pts.push(point);
+        postSync({ type: 'draw', slide: currentSlide, stroke: { id: activeStroke.id, color: activeStroke.color, width: activeStroke.width, points: [pts[pts.length - 2], point] } });
+      }
+
+      function handleDrawPointerUp() {
+        activeStroke = null;
+      }
+
+      function handleDrawPointerLeave() {
+        if (tool === 'laser') hideLaser(true);
+      }
+
+      // Incoming pen / laser messages from the other window.
+      function receiveDrawing(data) {
+        if (data.slide !== currentSlide) return;
+        if (data.type === 'laser') showLaser([data.x, data.y], false);
+        else if (data.type === 'laser-off') hideLaser(false);
+        else if (data.type === 'draw-clear') clearDrawings(false);
+        else if (data.type === 'draw') {
+          const strokes = slideStrokes();
+          let stroke = strokes.find((s) => s.id === data.stroke.id);
+          if (!stroke) {
+            stroke = { id: data.stroke.id, color: data.stroke.color, width: data.stroke.width, points: [] };
+            strokes.push(stroke);
+          }
+          const incoming = stroke.points.length === 0 ? data.stroke.points : data.stroke.points.slice(1);
+          for (const point of incoming) {
+            const last = stroke.points[stroke.points.length - 1] || point;
+            drawSegment(stroke, last, point);
+            stroke.points.push(point);
+          }
+        }
+      }
+
+      if (drawLayer && !isEmbedded) {
+        sizeDrawLayer();
+        drawLayer.addEventListener('pointerdown', handleDrawPointerDown);
+        drawLayer.addEventListener('pointermove', handleDrawPointerMove);
+        drawLayer.addEventListener('pointerup', handleDrawPointerUp);
+        drawLayer.addEventListener('pointercancel', handleDrawPointerUp);
+        drawLayer.addEventListener('pointerleave', handleDrawPointerLeave);
+        // Keep the tool active across slide changes.
+        if (window.__astlide_tool) setTool(window.__astlide_tool);
+      }
+
       // ── 7. <Notes> component detection ──────────────────────────
       // If the <Notes> component is used in MDX, its HTML content takes priority
       // over frontmatter `notes`. We inject it into presenter notes & notes overlay.
@@ -880,6 +1057,8 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
           case 'notes': toggleNotes(); break;
           case 'overview': openOverview(); break;
           case 'goto': openGoto(); break;
+          case 'draw': setTool('draw'); break;
+          case 'laser': setTool('laser'); break;
           case 'presenter': {
             const u = new URL(window.location.href);
             u.searchParams.set('presenter', '');
@@ -1044,7 +1223,8 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
             if (!isPresenter) document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
             break;
           case 'Escape':
-            if (document.fullscreenElement) document.exitFullscreen && document.exitFullscreen();
+            if (tool) setTool(tool);
+            else if (document.fullscreenElement) document.exitFullscreen && document.exitFullscreen();
             else if (notesOpen) toggleNotes();
             break;
           case 'o':
@@ -1053,6 +1233,15 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
           case 'g':
             e.preventDefault(); // keep the "g" out of the dialog's input
             openGoto();
+            break;
+          case 'd':
+            setTool('draw');
+            break;
+          case 'l':
+            setTool('laser');
+            break;
+          case 'c':
+            if (tool === 'draw') clearDrawings(true);
             break;
           case 'p':
             if (!isPresenter) {
@@ -1090,6 +1279,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       }
 
       function handleTouchend(e) {
+        if (tool) return; // drawing / pointing, not swiping
         const dx = e.changedTouches[0].clientX - touchStartX;
         const dy = e.changedTouches[0].clientY - touchStartY;
         if (Math.abs(dx) < 30 && Math.abs(dy) < 30) return;
@@ -1240,8 +1430,55 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
   }
 
   .slide-scaler {
+    position: relative;
     transform-origin: center center;
     flex-shrink: 0;
+  }
+
+  /* ── Pen & laser overlays (cover the slide, in slide coordinates) ── */
+  .draw-layer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    touch-action: none;
+    z-index: 50;
+  }
+
+  html[data-tool="draw"] .draw-layer {
+    pointer-events: auto;
+    cursor: crosshair;
+  }
+
+  html[data-tool="laser"] .draw-layer {
+    pointer-events: auto;
+    cursor: none;
+  }
+
+  .laser-dot {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 28px;
+    height: 28px;
+    margin: -14px 0 0 -14px;
+    border-radius: 50%;
+    background: var(--astlide-laser-color, #ef4444);
+    box-shadow: 0 0 18px 6px color-mix(in srgb, var(--astlide-laser-color, #ef4444) 60%, transparent);
+    pointer-events: none;
+    z-index: 51;
+  }
+
+  html[data-print] .draw-layer,
+  html[data-print] .laser-dot,
+  html[data-embed] .draw-layer,
+  html[data-embed] .laser-dot {
+    display: none !important;
+  }
+
+  .nav-btn.nav-action[aria-pressed="true"] {
+    background: var(--astlide-nav-btn-active-bg, rgba(255, 255, 255, 0.25));
   }
 
   /* ── Presenter layout ── */

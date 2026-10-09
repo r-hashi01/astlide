@@ -19,6 +19,7 @@ An Astro-based slide presentation framework — like Slidev, but for the Astro e
 - **Presenter mode** — next-slide preview, remaining steps, speaker notes (Markdown) + timer in a separate window, synced via BroadcastChannel
 - **Overview mode** — press `o` to see all slides in a grid
 - **Go to slide** — press `g` to jump by number or search slide titles
+- **Pen & laser pointer** — draw on slides (`d`) or point (`l`); mirrored on the audience screen when presenting
 - **PDF export** — one-click in-browser download + CLI, via `@astlide/crispdf`
 - **Type-safe** — Content Collections with Zod schema, plus a typed deck/slide metadata API
 - **Touch / swipe** — navigate on mobile
@@ -370,9 +371,9 @@ astlide({
 })
 ```
 
-Actions: `home` (back to deck index) · `prev` · `counter` · `next` · `notes` · `overview` · `goto` (go-to-slide dialog) · `presenter` · `fullscreen` · `print` · `share` · `download` (PDF) · `spacer`. Default: `['prev', 'counter', 'next']`.
+Actions: `home` (back to deck index) · `prev` · `counter` · `next` · `notes` · `overview` · `goto` (go-to-slide dialog) · `draw` (pen) · `laser` · `presenter` · `fullscreen` · `print` · `share` · `download` (PDF) · `spacer`. Default: `['prev', 'counter', 'next']`.
 
-The toolbar, progress bar, and presenter panel read CSS custom properties (`--astlide-nav-bg`, `--astlide-nav-fg`, `--astlide-nav-btn-bg`, `--astlide-progress-color`, `--astlide-presenter-bg`, `--astlide-presenter-fg`, `--astlide-presenter-accent`, …) so themes can restyle them without `!important`.
+The toolbar, progress bar, and presenter panel read CSS custom properties (`--astlide-nav-bg`, `--astlide-nav-fg`, `--astlide-nav-btn-bg`, `--astlide-progress-color`, `--astlide-presenter-bg`, `--astlide-presenter-fg`, `--astlide-presenter-accent`, `--astlide-pen-color`, `--astlide-laser-color`, …) so themes can restyle them without `!important`.
 
 ## Slide Decorators
 
@@ -429,10 +430,12 @@ astlide({ injectIndexRoute: true })   // always inject, even with your own index
 | `End` / `↓` | Last slide |
 | `o` | Overview mode |
 | `g` | Go to slide — type a number or part of a title, `↑`/`↓` to pick, `Enter` to jump |
+| `d` | Toggle the pen — draw on the slide; `c` clears the current slide's drawing |
+| `l` | Toggle the laser pointer |
 | `p` | Open presenter window |
 | `n` | Toggle notes overlay |
 | `f` | Toggle fullscreen |
-| `Esc` | Exit fullscreen / close overlays |
+| `Esc` | Exit pen / laser, fullscreen, close overlays |
 
 ## PDF Export
 
