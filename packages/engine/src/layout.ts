@@ -325,6 +325,19 @@ class Builder {
 	}
 
 	/**
+	 * An image's own size (its `width` / `height` attributes) where CSS leaves
+	 * it `auto`, and its aspect ratio, so a `max-width` scales the height too.
+	 */
+	private replacedSize(el: Element, node: YogaNode, style: Computed): void {
+		const w = Number.parseFloat(el.attribs.width ?? "");
+		const h = Number.parseFloat(el.attribs.height ?? "");
+		if (!(w > 0 && h > 0)) return;
+		const auto = (prop: string) => (style.get(prop) ?? "auto").trim() === "auto";
+		if (auto("width") && auto("height")) node.setWidth(w);
+		node.setAspectRatio(w / h);
+	}
+
+	/**
 	 * @param bfcRoot - The element establishes its own block formatting context
 	 *   (root, flex / grid item, overflow ≠ visible …): child margins don't collapse through it.
 	 */
@@ -333,6 +346,7 @@ class Builder {
 		if (display === "none") return null;
 		const node = Yoga.Node.create(this.config);
 		this.applyBox(node, style);
+		if (el.name === "img") this.replacedSize(el, node, style);
 
 		const isFlex = display === "flex" || display === "inline-flex";
 		const isGrid = display === "grid";

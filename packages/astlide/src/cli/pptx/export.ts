@@ -10,6 +10,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { mermaidThemeFor } from "@astlide/core/utils/mermaid.ts";
 import type { Scene, SceneItem } from "@astlide/engine";
 import { embeddingPermissions, withLegacyFamilyOnly } from "./eot";
 import {
@@ -73,6 +74,93 @@ function fontFor(family: string, weight: number): { face: string; bold: boolean 
 const hex = (c: { hex: string }) => c.hex.toUpperCase();
 
 type TextItem = Extract<SceneItem, { kind: "text" }>;
+type Engine = typeof import("@astlide/engine");
+
+/** Pixels per CSS px when rasterizing vector images (sharp at full-screen size). */
+const RASTER_SCALE = 2;
+
+/** An image as PNG: PNG files as they are, SVG (files or data: URLs) rasterized. */
+function imagePng(
+	engine: Engine,
+	src: string,
+	dist: string,
+	width: number,
+	fontFiles: string[],
+): Buffer | null {
+	let svg: string | null = null;
+	const data = src.match(/^data:image\/svg\+xml(;base64)?,(.*)$/s);
+	if (data) {
+		const body = data[2] ?? "";
+		svg = data[1] ? Buffer.from(body, "base64").toString("utf-8") : decodeURIComponent(body);
+	} else {
+		const path = [join(dist, src), join(dist, src.replace(/^\/[^/]+/, ""))].find((p) =>
+			existsSync(p),
+		);
+		if (path?.endsWith(".png")) return readFileSync(path);
+		if (path?.endsWith(".svg")) svg = readFileSync(path, "utf-8");
+	}
+	return svg ? engine.svgToPng(svg, width * RASTER_SCALE, fontFiles) : null;
+}
+
+const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+const decodeEntities = (s: string) =>
+	s.replace(/&(#x[\da-f]+|#\d+|\w+);/gi, (m, e: string) =>
+		e[0] === "#"
+			? String.fromCodePoint(Number.parseInt(e.slice(e[1] === "x" ? 2 : 1), e[1] === "x" ? 16 : 10))
+			: (ENTITIES[e] ?? m),
+	);
+
+/**
+ * Mermaid diagrams are rendered by the browser on the slides; here they are
+ * rendered ahead of layout (without a browser) and put in the page as SVG
+ * images sized like the slides size them (Mermaid's natural size scaled
+ * from its 16px text to the slide's font size, at most the content width).
+ * Without `mermaid` installed the page is left as it is.
+ */
+async function withDiagrams(
+	engine: Engine,
+	html: string,
+	options: {
+		root: string;
+		font: () => { family: string; font: { familyName: string }; file?: string };
+	},
+): Promise<string> {
+	const blocks = [...html.matchAll(/<pre class="astlide-mermaid"[^>]*>([\s\S]*?)<\/pre>/g)];
+	if (blocks.length === 0) return html;
+	const mermaidPath = engine.resolveEsm("mermaid", options.root);
+	if (!mermaidPath) {
+		console.warn("  ⚠ diagrams skipped: install `mermaid` in the project to export them");
+		return html;
+	}
+	const face = options.font();
+	if (!face.file) {
+		console.warn("  ⚠ diagrams skipped: no font file for their labels");
+		return html;
+	}
+	const theme = mermaidThemeFor(html.match(/<html[^>]*\sdata-theme="([^"]*)"/)?.[1]);
+	const rendered = await engine.renderMermaid(
+		blocks.map((m) => decodeEntities(m[1] ?? "")),
+		{ mermaidPath, theme, fontFamily: face.font.familyName, fontFile: face.file },
+	);
+	let out = "";
+	let at = 0;
+	blocks.forEach((m, i) => {
+		const d = rendered[i];
+		const start = m.index ?? 0;
+		out += html.slice(at, start);
+		at = start + m[0].length;
+		if (!d) {
+			out += m[0];
+			return;
+		}
+		const src = `data:image/svg+xml;base64,${Buffer.from(d.svg).toString("base64")}`;
+		out +=
+			`<div style="display:flex;justify-content:center;margin:0.5em 0">` +
+			`<img src="${src}" width="${d.width}" height="${d.height}" alt="" ` +
+			`style="display:block;width:${d.width / 16}em;max-width:100%"></div>`;
+	});
+	return out + html.slice(at);
+}
 
 /**
  * The font files behind the text, by the typeface and slot the runs use
@@ -274,7 +362,15 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 	if (existsSync(emoji)) fonts.addFallback(emoji);
 
 	const vp = { width: 1920, height: 1080, media: "screen" as const };
-	const layouts = engine.layoutPage(html, dist, fonts, vp);
+	const source = await withDiagrams(engine, readFileSync(html, "utf-8"), {
+		root: options.root,
+		// Labels in the slides' body font (the first slide's).
+		font: () => {
+			const [first] = engine.layoutPage(html, dist, fonts, vp);
+			return fonts.pick(first?.style.get("font-family") ?? "sans-serif", 400, false);
+		},
+	});
+	const layouts = engine.layoutPage(html, dist, fonts, vp, source);
 
 	const config = await readDeckConfig(options.root, deck);
 	const slides: SlideSpec[] = [];
@@ -334,20 +430,19 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 					inset: 0,
 				});
 			} else if (item.kind === "image") {
-				const path = [join(dist, item.src), join(dist, item.src.replace(/^\/[^/]+/, ""))].find(
-					(p) => existsSync(p),
-				);
-				if (path?.endsWith(".png")) {
+				const png = imagePng(engine, item.src, dist, item.w, fonts.files());
+				if (png) {
 					elements.push({
 						type: "image",
 						x: item.x * k,
 						y: item.y * k,
 						w: item.w * k,
 						h: item.h * k,
-						png: readFileSync(path),
+						png,
 					});
 				} else {
-					console.warn(`\n  ⚠ slide ${i + 1}: image ${item.src} skipped (only PNG for now)`);
+					const name = item.src.startsWith("data:") ? item.src.slice(0, 30) : item.src;
+					console.warn(`\n  ⚠ slide ${i + 1}: image ${name} skipped (PNG / SVG only for now)`);
 				}
 			}
 		}

@@ -14,6 +14,13 @@ import { StyleSheets, UA_CSS, type Viewport } from "./cascade";
 import { layoutSlide, type SlideLayout } from "./layout";
 import type { FontRegistry } from "./text";
 
+export {
+	type MermaidOptions,
+	type RenderedDiagram,
+	renderMermaid,
+	resolveEsm,
+	svgToPng,
+} from "./diagrams";
 export { familiesIn, loadFontFaces, loadGoogleFonts } from "./fonts";
 export type { Box, SlideLayout, TextLine } from "./layout";
 export { type Color, parseColor, type Scene, type SceneItem, toScene } from "./scene";
@@ -48,8 +55,10 @@ export function layoutPage(
 	distDir: string,
 	fonts: FontRegistry,
 	vp: Viewport,
+	/** The page's HTML, when it differs from the file (e.g. diagrams pre-rendered). */
+	source = readFileSync(htmlPath, "utf-8"),
 ): SlideLayout[] {
-	const doc = parseDocument(readFileSync(htmlPath, "utf-8"));
+	const doc = parseDocument(source);
 	const sheets = new StyleSheets(vp);
 	sheets.add(UA_CSS, 0);
 	for (const el of elements(doc)) {

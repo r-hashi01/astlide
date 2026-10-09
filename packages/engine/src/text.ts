@@ -58,6 +58,11 @@ export class FontRegistry {
 		this.faces.push({ family: family.toLowerCase(), weight, italic, font, file: path });
 	}
 
+	/** Files of the registered faces (fallbacks excluded). */
+	files(): string[] {
+		return this.faces.flatMap((f) => (f.file ? [f.file] : []));
+	}
+
 	/** First family in a CSS `font-family` list that we have, nearest weight. */
 	pick(familyList: string, weight: number, italic: boolean): FontFace {
 		const families = familyList.split(",").map((f) =>
