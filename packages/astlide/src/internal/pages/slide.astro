@@ -182,6 +182,7 @@ if (import.meta.env.DEV) {
   transition={transition}
   context={deckContext}
   outline={outline}
+  sourcePath={import.meta.env.DEV ? slide.filePath : undefined}
 >
   <Slide
     layout={layout}

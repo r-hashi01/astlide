@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import mdx from "@astrojs/mdx";
 import type { AstroIntegration } from "astro";
+import { astlideEditorPlugin } from "./internal/editor-server";
 import { astlideVirtualPlugin } from "./internal/virtual-plugins";
 import { type AstlidePlugin, BUILT_IN_PLUGIN, resolvePlugins } from "./plugin";
 import { astlideCodeHighlight } from "./utils/code-highlight";
@@ -300,7 +301,11 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 						// `as never`: astlide and Astro can resolve different copies of vite's
 						// types, so our `Plugin` isn't structurally identical to Astro's
 						// `PluginOption`. The value is correct at runtime (build passes).
-						plugins: [astlideVirtualPlugin(resolved, { hasMermaid }) as never],
+						plugins: [
+							astlideVirtualPlugin(resolved, { hasMermaid }) as never,
+							// Dev-only (apply: "serve"): read/write endpoint for the `e` slide editor.
+							astlideEditorPlugin(fileURLToPath(config.root)) as never,
+						],
 						// @astlide/crispdf declares `pdfjs-dist` as an optional peer for its
 						// opt-in self-check feature. We never enable selfCheck from this
 						// integration, so stub it out so Rollup doesn't fail when the peer
