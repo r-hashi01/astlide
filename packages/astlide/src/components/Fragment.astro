@@ -43,5 +43,10 @@ const { index, until, hide = false, effect = 'fade', class: className } = Astro.
 <style>
   .fragment {
     display: inline-block;
+    /* On its own line it's a flex / grid item, where inline-block is ignored and
+       it would stretch to the full width (a full-width bar with "highlight").
+       fit-content keeps it hugging its content and still wraps long text. */
+    width: fit-content;
+    max-width: 100%;
   }
 </style>
