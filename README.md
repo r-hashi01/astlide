@@ -472,15 +472,17 @@ bun add -D @astlide/crispdf
 
 Each deck also exposes a print-friendly `/{deck}/all` route that stacks every slide with hard page breaks.
 
-**CLI:** requires `playwright`. Start the dev server, then:
+**CLI:** requires `playwright` (and [Bun](https://bun.sh) — the CLIs run from TypeScript source). Start the dev server, then:
 
 ```bash
-bun run astlide-export --deck my-talk            # → my-talk.pdf (single multi-page PDF)
-bun run astlide-export --all                     # every deck
-bun run astlide-export --deck my-talk --format png
-bun run astlide-export --deck my-talk --width 1280 --height 720
-bun run astlide-export --deck my-talk --base-url http://localhost:3000
+bunx astlide-export --deck my-talk            # → my-talk.pdf (single multi-page PDF)
+bunx astlide-export --all                     # every deck
+bunx astlide-export --deck my-talk --format png
+bunx astlide-export --deck my-talk --width 1280 --height 720
+bunx astlide-export --deck my-talk --base-url http://localhost:3000
 ```
+
+**PowerPoint:** `bunx astlide-export-pptx --deck my-talk` writes an editable `.pptx` from the MDX source (no dev server needed; `--all` for every deck).
 
 ## Deploying under a sub-path
 

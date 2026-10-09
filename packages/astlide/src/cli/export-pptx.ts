@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 /**
  * astlide-export-pptx — MDX → HAST → OOXML PPTX exporter.
  *
