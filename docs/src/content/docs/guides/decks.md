@@ -91,7 +91,7 @@ Notes show in the presenter window (`p`) and the notes overlay (`n`). If both ex
 
 ## Editing in the browser
 
-While `astro dev` is running, press <kbd>e</kbd> on a slide to open its source file in a panel next to it, and just type: changes are saved a moment after you stop typing (or right away with <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>S</kbd>) and the slide updates **live, without a page reload** — your caret, the current fragment step and things like the camera or a running recording stay as they are. <kbd>Esc</kbd> (or ✕) saves and closes the panel.
+While `astro dev` is running, press <kbd>e</kbd> on a slide to open its source file in a panel next to it, and just type: changes are saved a moment after you stop typing (or right away with <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>S</kbd>) and the slide updates **live, without a page reload**: only the parts of the slide you changed are swapped in, so nothing flickers — your caret, the current fragment step, rendered diagrams and things like the camera or a running recording stay as they are. <kbd>Esc</kbd> (or ✕) saves and closes the panel.
 
 The panel stays open as you move between slides and switches to each slide's source.
 

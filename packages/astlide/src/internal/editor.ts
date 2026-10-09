@@ -5,11 +5,16 @@
  * Edits are saved automatically shortly after you stop typing (or right away
  * with `Cmd/Ctrl+S`) through the dev server (`internal/editor-server.ts`).
  *
- * Live preview without a full reload: the server turns Astro's post-write
- * full reload into an `astlide:source-saved` HMR event, and we refresh only the
- * page content with a ClientRouter soft navigation. The panel lives in a
- * `transition:persist` host, so typing (focus, caret, undo) isn't interrupted,
- * and the current fragment / code step is carried over.
+ * Live preview without re-rendering the page: the server turns Astro's
+ * post-write full reload into an `astlide:source-saved` HMR event. We then
+ * fetch the re-rendered page and patch only the top-level blocks of the slide
+ * that actually changed (compared against the previous server HTML, not the
+ * live DOM, which fragments and diagrams have modified). Untouched blocks —
+ * including rendered diagrams — stay as they are; nothing is re-scaled or
+ * faded. Steps are rebuilt and kept at the current position. If the page
+ * structure doesn't allow a patch, we fall back to a ClientRouter soft
+ * navigation. The panel lives in a `transition:persist` host, so typing
+ * (focus, caret, undo) is never interrupted.
  *
  * The panel stays open across slide navigation (sessionStorage) and reserves
  * room on the right so the slide scales into the remaining space.
@@ -34,9 +39,12 @@ interface EditorState {
 
 let state: EditorState | null = null;
 let autosaveTimer = 0;
+/** Server HTML of each top-level block in `.slide-content`, for diffing. */
+let baseline: { url: string; blocks: string[] } | null = null;
 let saving: Promise<void> | null = null;
 
 type AstlideWindow = Window & {
+	__astlide_resync_steps?: () => void;
 	__astlide_navigate?: (url: string, options?: { history?: "replace" }) => void;
 	__astlide_step?: { slide: number; step: number };
 	__astlide_pending_step?: { slide: number; step: number } | null;
@@ -242,9 +250,114 @@ async function saveSource(): Promise<void> {
 	await saving;
 }
 
-/** Re-render the current page in place (no full reload), keeping the step. */
-function refreshSlide(): void {
+async function fetchPage(): Promise<Document> {
+	const res = await fetch(location.pathname + location.search, { cache: "no-store" });
+	if (!res.ok) throw new Error(res.statusText);
+	return new DOMParser().parseFromString(await res.text(), "text/html");
+}
+
+function slideContent(doc: Document): HTMLElement | null {
+	return doc.querySelector<HTMLElement>("#slide-scaler .slide > .slide-content");
+}
+
+function blocksOf(content: HTMLElement): string[] {
+	return Array.from(content.children, (el) => el.outerHTML);
+}
+
+/** Remember the current slide's server-rendered blocks (before any edit lands). */
+async function captureBaseline(): Promise<void> {
+	const url = location.pathname;
+	try {
+		const content = slideContent(await fetchPage());
+		if (content && location.pathname === url) baseline = { url, blocks: blocksOf(content) };
+	} catch {
+		baseline = null;
+	}
+}
+
+/** Add stylesheets the new render needs (e.g. a component used for the first time). */
+function syncHeadStyles(doc: Document): void {
+	const present = new Set(
+		Array.from(
+			document.head.querySelectorAll("style[data-vite-dev-id], link[rel='stylesheet']"),
+			(el) => el.getAttribute("data-vite-dev-id") ?? el.getAttribute("href"),
+		),
+	);
+	for (const el of doc.head.querySelectorAll("style[data-vite-dev-id], link[rel='stylesheet']")) {
+		const key = el.getAttribute("data-vite-dev-id") ?? el.getAttribute("href");
+		if (key && !present.has(key)) document.head.append(document.importNode(el, true));
+	}
+}
+
+/**
+ * Patch the live slide to match `doc`: sync the `.slide` element's attributes
+ * (layout class, background…) and replace only the changed run of top-level
+ * blocks. Returns false when the structure doesn't allow a patch.
+ */
+function patchSlide(doc: Document): boolean {
+	const liveSlide = document.querySelector<HTMLElement>("#slide-scaler .slide");
+	const nextSlide = doc.querySelector<HTMLElement>("#slide-scaler .slide");
+	const live = slideContent(document);
+	const next = slideContent(doc);
+	if (
+		!liveSlide ||
+		!nextSlide ||
+		!live ||
+		!next ||
+		!baseline ||
+		baseline.url !== location.pathname
+	) {
+		return false;
+	}
+	if (live.children.length !== baseline.blocks.length) return false;
+
+	for (const { name } of Array.from(liveSlide.attributes)) {
+		if (!nextSlide.hasAttribute(name)) liveSlide.removeAttribute(name);
+	}
+	for (const { name, value } of Array.from(nextSlide.attributes)) {
+		if (liveSlide.getAttribute(name) !== value) liveSlide.setAttribute(name, value);
+	}
+
+	// Keep the unchanged prefix and suffix; swap the blocks in between.
+	const before = baseline.blocks;
+	const after = blocksOf(next);
+	let head = 0;
+	while (head < before.length && head < after.length && before[head] === after[head]) head++;
+	let tail = 0;
+	while (
+		tail < before.length - head &&
+		tail < after.length - head &&
+		before[before.length - 1 - tail] === after[after.length - 1 - tail]
+	) {
+		tail++;
+	}
+	const liveBlocks = Array.from(live.children);
+	const anchor = liveBlocks[before.length - tail] ?? null;
+	for (const el of liveBlocks.slice(head, before.length - tail)) el.remove();
+	for (const el of Array.from(next.children).slice(head, after.length - tail)) {
+		live.insertBefore(document.importNode(el, true), anchor);
+	}
+
+	baseline = { url: location.pathname, blocks: after };
+	return true;
+}
+
+/** Apply a saved edit to the slide in place; fall back to a soft navigation. */
+async function refreshSlide(): Promise<void> {
 	const w = window as AstlideWindow;
+	try {
+		const doc = await fetchPage();
+		syncHeadStyles(doc);
+		if (patchSlide(doc)) {
+			w.__astlide_resync_steps?.();
+			// New ```mermaid blocks need rendering; unchanged ones were left alone.
+			const { renderDiagrams } = await import("@astlide/core/internal/diagrams");
+			void renderDiagrams();
+			return;
+		}
+	} catch {
+		// Fall through to a navigation.
+	}
 	if (!w.__astlide_navigate) {
 		location.reload();
 		return;
@@ -270,6 +383,7 @@ export function toggleEditor(force?: boolean): void {
 	host().append(state.panel);
 	reserveSpace(true);
 	sessionStorage.setItem(OPEN_KEY, "1");
+	void captureBaseline();
 	void loadSource().then(() => state?.textarea.focus({ preventScroll: true }));
 }
 
@@ -289,6 +403,7 @@ export function initEditor(): void {
 			void loadSource();
 		}
 		reserveSpace(true);
+		void captureBaseline();
 		return;
 	}
 	state = null;
@@ -303,7 +418,13 @@ export function initEditor(): void {
 }
 
 // The server sends this instead of a full reload after our own writes.
-if (import.meta.hot) import.meta.hot.on(SOURCE_SAVED_EVENT, refreshSlide);
+// Refreshes run one after another so quick successive saves apply in order.
+let refreshQueue: Promise<void> = Promise.resolve();
+if (import.meta.hot) {
+	import.meta.hot.on(SOURCE_SAVED_EVENT, () => {
+		refreshQueue = refreshQueue.then(refreshSlide);
+	});
+}
 
 // Carry the docked layout into the incoming page so the slide doesn't flash at
 // full width before initEditor runs (ClientRouter replaces <html> attributes).
