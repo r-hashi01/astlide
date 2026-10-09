@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { deckConfigSchema } from '@astlide/core/schema';
 import { withBase } from '@astlide/core/utils/base-path';
+import { withDevDirectives } from '@astlide/core/utils/csp';
 
 declare const __ASTLIDE_CSP__: boolean | string;
 
@@ -19,10 +20,13 @@ const DEFAULT_CSP = [
 
 const cspOption: boolean | string =
   typeof __ASTLIDE_CSP__ !== 'undefined' ? __ASTLIDE_CSP__ : true;
+// Dev only: let Vite's client run its reconnect worker (see utils/csp).
 const cspContent =
   cspOption === false ? null
-  : typeof cspOption === 'string' && cspOption !== 'true' ? cspOption
-  : DEFAULT_CSP;
+  : withDevDirectives(
+      typeof cspOption === 'string' && cspOption !== 'true' ? cspOption : DEFAULT_CSP,
+      import.meta.env.DEV,
+    );
 
 // Get all deck directories
 const decksDir = path.join(process.cwd(), 'src', 'content', 'decks');
