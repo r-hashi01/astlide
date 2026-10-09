@@ -1,6 +1,5 @@
 ---
 slideLayout: default
-notes: "A plain .md slide. No components, but code highlighting and Mermaid work."
 ---
 
 # A plain Markdown slide
@@ -15,3 +14,8 @@ const slide = 4; // highlighted
 ```
 
 > Same frontmatter as MDX — `slideLayout`, `notes`, `background`, …
+
+<!--
+A plain .md slide. No components, but code highlighting and Mermaid work.
+These notes are an HTML comment at the end of the file, as in Slidev and Marp.
+-->

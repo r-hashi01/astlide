@@ -1,0 +1,33 @@
+---
+slideLayout: two-column
+notes: "<Tweet> is a static card rendered at build time — no third-party script. <YouTube> uses the privacy-enhanced youtube-nocookie.com player."
+---
+
+# Embeds
+
+<Left>
+
+### `<YouTube>`
+
+```mdx
+<YouTube id="https://youtu.be/…" start={42} />
+```
+
+A responsive 16:9 player in privacy-enhanced mode — pass a video ID or URL.
+
+</Left>
+<Right>
+
+### `<Tweet>`
+
+<Tweet
+  url="https://x.com"
+  text="Wrote my whole talk in MDX and presented it straight from the browser 🎤"
+  author="Your audience"
+  handle="@someone"
+  date="Today"
+/>
+
+A static card: no third-party script, works offline.
+
+</Right>
