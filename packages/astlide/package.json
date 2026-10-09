@@ -16,9 +16,7 @@
 		"./utils/*": "./src/utils/*"
 	},
 	"bin": {
-		"astlide": "./src/cli/astlide.ts",
-		"astlide-export": "./src/cli/export-pdf.ts",
-		"astlide-export-pptx": "./src/cli/export-pptx.ts"
+		"astlide": "./src/cli/astlide.ts"
 	},
 	"files": [
 		"src",
@@ -49,10 +47,10 @@
 		"astro": "^7.2.10"
 	},
 	"dependencies": {
+		"@astlide/engine": "workspace:*",
 		"@astrojs/mdx": "^8.0.2",
 		"katex": "^0.19.0",
 		"js-yaml": "^5.2.1",
-		"remark-mdx": "^3.0.0",
 		"remark-parse": "^11.0.0",
 		"remark-rehype": "^11.0.0",
 		"rehype-stringify": "^10.0.0",
@@ -72,7 +70,6 @@
 	],
 	"license": "MIT",
 	"devDependencies": {
-		"@astlide/engine": "workspace:*",
 		"typedoc": "^0.28.20"
 	}
 }

@@ -5,16 +5,17 @@
  *   astlide export <deck> [--pdf] [--pptx] [--png]
  *   astlide export --all --pdf --pptx
  *
- * PDF and PNG need the rendered site: unless `--base-url` points at a running
- * server, the site is built and served on a free port for the export, then
- * stopped. PPTX is built straight from the slide sources.
+ * Every format starts from the built site. PDF and PNG are rendered by a
+ * browser: unless `--base-url` points at a running server, dist/ is served on
+ * a free port for the export, then stopped. PPTX needs no browser: the built
+ * slides are laid out by @astlide/engine.
  */
 
 import { existsSync, readdirSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { getDecks } from "./pptx/export";
 
-type Format = "pdf" | "png" | "pptx" | "pptx-render" | "pptx-engine";
+type Format = "pdf" | "png" | "pptx";
 
 interface Options {
 	decks: string[];
@@ -42,22 +43,18 @@ Usage:
 
 Formats (combine as needed; default --pdf):
   --pdf                 One multi-page PDF per deck
-  --pptx                Editable PowerPoint, built from the slide sources
+  --pptx                Editable PowerPoint (no browser needed)
   --png                 One PNG per slide
-  --pptx-engine         Experimental: PPTX laid out without a browser
-                        (native shapes + editable text)
-  --pptx-render         Experimental: PPTX matching the rendered slides
-                        (picture background + editable text boxes)
 
 Options:
   -a, --all             Export every deck
   -o, --output <path>   Output file / directory (one deck and one format only)
   --out-dir <dir>       Where exports go (default: ./exports)
-  --base-url <url>      Use a running dev / preview server instead of building
+  --no-build            Use the existing dist/ instead of building first
+  --base-url <url>      PDF / PNG: render from a running dev / preview server
                         (include Astro's base, e.g. http://localhost:4321/my-repo)
-  --no-build            Serve the existing dist/ instead of building first
-  --width <px>          Slide width (default: 1920)
-  --height <px>         Slide height (default: 1080)
+  --width <px>          PDF / PNG: slide width (default: 1920)
+  --height <px>         PDF / PNG: slide height (default: 1080)
   --cwd <dir>           Project root (default: current directory)
   -h, --help            Show this help
 
@@ -97,8 +94,6 @@ function parseExportArgs(args: string[]): Options {
 			case "--pdf":
 			case "--png":
 			case "--pptx":
-			case "--pptx-render":
-			case "--pptx-engine":
 				options.formats.add(arg.slice(2) as Format);
 				break;
 			case "-a":
@@ -142,8 +137,6 @@ function outputFor(options: Options, deck: string, format: Format): string {
 	if (options.output) return resolve(options.cwd, options.output);
 	const dir = resolve(options.cwd, options.outDir);
 	if (format === "png") return join(dir, `${deck}-slides`);
-	if (format === "pptx-render") return join(dir, `${deck}-render.pptx`);
-	if (format === "pptx-engine") return join(dir, `${deck}-engine.pptx`);
 	return join(dir, `${deck}.${format}`);
 }
 
@@ -214,14 +207,14 @@ async function runExport(options: Options): Promise<void> {
 		fail("--output works with one deck and one format; use --out-dir otherwise");
 	}
 
-	// Engine PPTX: build only, no browser or server.
-	if (options.formats.has("pptx-engine")) {
-		const { exportEnginePptx } = await import("./pptx/engine/export");
+	// PPTX first: it needs the build but no browser or server.
+	if (options.formats.has("pptx")) {
+		const { exportPptx } = await import("./pptx/export");
 		for (const [n, deck] of decks.entries()) {
-			console.log(`\nPPTX (engine): ${deck}`);
-			await exportEnginePptx(deck, {
+			console.log(`\nPPTX: ${deck}`);
+			await exportPptx(deck, {
 				root: options.cwd,
-				output: outputFor(options, deck, "pptx-engine"),
+				output: outputFor(options, deck, "pptx"),
 				// Build once; later decks (and PDF / PNG) reuse dist/.
 				build: options.build && n === 0,
 			});
@@ -229,16 +222,7 @@ async function runExport(options: Options): Promise<void> {
 		options.build = false;
 	}
 
-	// PPTX first: it needs no server.
-	if (options.formats.has("pptx")) {
-		const { exportDeck } = await import("./pptx/export");
-		for (const deck of decks) {
-			console.log(`\nPPTX: ${deck}`);
-			await exportDeck(deck, { cwd: options.cwd, output: outputFor(options, deck, "pptx") });
-		}
-	}
-
-	const rendered = (["pdf", "png", "pptx-render"] as const).filter((f) => options.formats.has(f));
+	const rendered = (["pdf", "png"] as const).filter((f) => options.formats.has(f));
 	if (rendered.length === 0) return;
 
 	// Imported only now so PPTX-only exports work without Playwright installed.
@@ -257,13 +241,6 @@ async function runExport(options: Options): Promise<void> {
 	try {
 		for (const deck of decks) {
 			for (const format of rendered) {
-				if (format === "pptx-render") {
-					// Experimental: PPTX from the rendered slides (see cli/pptx/render).
-					const { exportRenderedPptx } = await import("./pptx/render/export");
-					console.log(`\nPPTX (rendered): ${deck}`);
-					await exportRenderedPptx(deck, { baseUrl, output: outputFor(options, deck, format) });
-					continue;
-				}
 				await exportDeck(deck, {
 					format,
 					baseUrl,

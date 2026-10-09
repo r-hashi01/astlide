@@ -1,10 +1,9 @@
 /**
  * PDF / PNG rendering of a deck from a running site (dev, preview or the
- * temporary server `astlide export` starts). Shared by `astlide export` and
- * the `astlide-export` command.
+ * temporary server `astlide export` starts).
  */
 
-import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { type Browser, chromium, type Page } from "playwright";
 
@@ -16,12 +15,6 @@ export interface RenderOptions {
 	baseUrl: string;
 	width: number;
 	height: number;
-}
-
-export async function getDecks(cwd: string = process.cwd()): Promise<string[]> {
-	const decksDir = join(cwd, "src", "content", "decks");
-	const entries = await readdir(decksDir, { withFileTypes: true });
-	return entries.filter((e) => e.isDirectory()).map((e) => e.name);
 }
 
 async function getSlideCount(browser: Browser, baseUrl: string, deck: string): Promise<number> {

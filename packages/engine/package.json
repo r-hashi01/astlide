@@ -1,9 +1,17 @@
 {
 	"name": "@astlide/engine",
-	"private": true,
 	"version": "0.0.0",
 	"type": "module",
-	"description": "Lay out HTML + CSS slides without a browser (spike)",
+	"description": "Lay out HTML + CSS slides without a browser",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/r-hashi01/astlide.git",
+		"directory": "packages/engine"
+	},
+	"files": [
+		"src"
+	],
 	"exports": {
 		".": "./src/index.ts"
 	},
