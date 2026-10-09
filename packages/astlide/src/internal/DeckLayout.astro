@@ -70,9 +70,23 @@ interface Props {
   sourcePath?: string;
   /** Dev only: the deck's source files in slide order (live updates on add/remove). */
   deckSources?: string[];
+  /**
+   * Neighbouring and first / last slides to navigate to. In production these
+   * skip hidden slides (which only redirect); default: the adjacent numbers.
+   */
+  prevSlide?: number | null;
+  nextSlide?: number | null;
+  firstSlide?: number;
+  lastSlide?: number;
 }
 
 const { title, theme = 'default', currentSlide, totalSlides, deck, notes, transition = 'fade', context, outline = [], sourcePath, deckSources } = Astro.props;
+const {
+  prevSlide = currentSlide > 1 ? currentSlide - 1 : null,
+  nextSlide = currentSlide < totalSlides ? currentSlide + 1 : null,
+  firstSlide = 1,
+  lastSlide = totalSlides,
+} = Astro.props;
 const sanitizedNotes = notes ? sanitizeHTML(await renderMarkdown(notes)) : undefined;
 // Internal links honour Astro's `base` (sub-path deployments).
 const deckHref = withBase(`/${deck}`);
@@ -92,7 +106,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     <meta property="og:description" content={`Slide deck: ${title}`} />
     <meta property="og:type" content="website" />
     {!indexable && <meta name="robots" content="noindex, nofollow" />}
-    {currentSlide < totalSlides && <link rel="prefetch" href={`${deckHref}/${currentSlide + 1}`} />}
+    {nextSlide && <link rel="prefetch" href={`${deckHref}/${nextSlide}`} />}
     {fontConfig?.preconnect?.map((origin) => (
       <link rel="preconnect" href={origin} crossorigin={origin.includes('gstatic') ? '' : undefined} />
     ))}
@@ -163,8 +177,8 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
             <h3>Next</h3>
             <span class="presenter-steps-left" id="presenter-steps-left" hidden></span>
           </div>
-          {currentSlide < totalSlides
-            ? <div class="presenter-next-frame" data-next-src={`${deckHref}/${currentSlide + 1}`}></div>
+          {nextSlide
+            ? <div class="presenter-next-frame" data-next-src={`${deckHref}/${nextSlide}`}></div>
             : <p class="presenter-next-end">End of deck</p>
           }
         </section>
@@ -183,14 +197,14 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
           }
         </div>
         <div class="presenter-nav">
-          <a href={currentSlide > 1 ? `${deckHref}/${currentSlide - 1}?presenter` : undefined}
-             class:list={['pnav-btn', { disabled: currentSlide <= 1 }]}
-             aria-disabled={currentSlide <= 1 ? 'true' : undefined}
-             tabindex={currentSlide <= 1 ? -1 : undefined}>← Prev</a>
-          <a href={currentSlide < totalSlides ? `${deckHref}/${currentSlide + 1}?presenter` : undefined}
-             class:list={['pnav-btn', { disabled: currentSlide >= totalSlides }]}
-             aria-disabled={currentSlide >= totalSlides ? 'true' : undefined}
-             tabindex={currentSlide >= totalSlides ? -1 : undefined}>Next →</a>
+          <a href={prevSlide ? `${deckHref}/${prevSlide}?presenter` : undefined}
+             class:list={['pnav-btn', { disabled: !prevSlide }]}
+             aria-disabled={!prevSlide ? 'true' : undefined}
+             tabindex={!prevSlide ? -1 : undefined}>← Prev</a>
+          <a href={nextSlide ? `${deckHref}/${nextSlide}?presenter` : undefined}
+             class:list={['pnav-btn', { disabled: !nextSlide }]}
+             aria-disabled={!nextSlide ? 'true' : undefined}
+             tabindex={!nextSlide ? -1 : undefined}>Next →</a>
         </div>
       </aside>
     </div>
@@ -229,18 +243,18 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
              title="Back to deck index">⌂</a>
         );
         if (item === 'prev') return (
-          <a href={currentSlide > 1 ? `${deckHref}/${currentSlide - 1}` : undefined}
-             class:list={['nav-btn', { disabled: currentSlide <= 1 }]}
+          <a href={prevSlide ? `${deckHref}/${prevSlide}` : undefined}
+             class:list={['nav-btn', { disabled: !prevSlide }]}
              aria-label="Previous slide"
-             aria-disabled={currentSlide <= 1 ? 'true' : undefined}
-             tabindex={currentSlide <= 1 ? -1 : undefined}>←</a>
+             aria-disabled={!prevSlide ? 'true' : undefined}
+             tabindex={!prevSlide ? -1 : undefined}>←</a>
         );
         if (item === 'next') return (
-          <a href={currentSlide < totalSlides ? `${deckHref}/${currentSlide + 1}` : undefined}
-             class:list={['nav-btn', { disabled: currentSlide >= totalSlides }]}
+          <a href={nextSlide ? `${deckHref}/${nextSlide}` : undefined}
+             class:list={['nav-btn', { disabled: !nextSlide }]}
              aria-label="Next slide"
-             aria-disabled={currentSlide >= totalSlides ? 'true' : undefined}
-             tabindex={currentSlide >= totalSlides ? -1 : undefined}>→</a>
+             aria-disabled={!nextSlide ? 'true' : undefined}
+             tabindex={!nextSlide ? -1 : undefined}>→</a>
         );
         if (item === 'counter') return (
           <span class="nav-indicator">{currentSlide} / {totalSlides}</span>
@@ -386,7 +400,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
          This script embeds per-slide values, so without it, returning to a
          previously visited slide would keep the last slide's state (e.g. →
          from a revisited slide 2 after visiting 3 jumped to 4). -->
-    <script data-astro-rerun define:vars={{ currentSlide, totalSlides, deck, deckContext: context ?? null, outline, basePath, persistDrawings }}>
+    <script data-astro-rerun define:vars={{ currentSlide, totalSlides, prevSlide, nextSlide, firstSlide, lastSlide, deck, deckContext: context ?? null, outline, basePath, persistDrawings }}>
       // ── 0. Publish typed deck/slide metadata for client scripts ──
       // Replaces parsing document.title / body.dataset. See @astlide/core/context.
       if (deckContext) window.__astlide = deckContext;
@@ -695,19 +709,18 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       // ── 5. Navigation ──────────────────────────────────────────
       function goNext() {
         if (showNextStep()) { broadcastStep(); return; }
-        if (currentSlide < totalSlides) {
-          const next = currentSlide + 1;
-          broadcastSlide(next);
-          navTo(deckUrl + '/' + next + (isPresenter ? '?presenter' : ''));
+        // nextSlide / prevSlide skip hidden slides in production.
+        if (nextSlide) {
+          broadcastSlide(nextSlide);
+          navTo(deckUrl + '/' + nextSlide + (isPresenter ? '?presenter' : ''));
         }
       }
 
       function goPrev() {
         if (showPrevStep()) { broadcastStep(); return; }
-        if (currentSlide > 1) {
-          const prev = currentSlide - 1;
-          broadcastSlide(prev);
-          navTo(deckUrl + '/' + prev + (isPresenter ? '?presenter' : ''));
+        if (prevSlide) {
+          broadcastSlide(prevSlide);
+          navTo(deckUrl + '/' + prevSlide + (isPresenter ? '?presenter' : ''));
         }
       }
 
@@ -722,7 +735,11 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         overview.setAttribute('aria-hidden', 'false');
         overview.classList.add('open');
         if (overviewGrid && overviewGrid.children.length === 0) {
-          for (let i = 1; i <= totalSlides; i++) {
+          // The outline lists the slides you can visit (no hidden ones in production).
+          const numbers = outline.length > 0
+            ? outline.map((s) => s.n)
+            : Array.from({ length: totalSlides }, (_, k) => k + 1);
+          for (const i of numbers) {
             const item = document.createElement('a');
             item.href = deckUrl + '/' + i;
             item.className = 'overview-item' + (i === currentSlide ? ' current' : '');
@@ -1354,14 +1371,14 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
           case 'ArrowUp':
           case 'Home':
             e.preventDefault();
-            broadcastSlide(1);
-            navTo(deckUrl + '/1' + (isPresenter ? '?presenter' : ''));
+            broadcastSlide(firstSlide);
+            navTo(deckUrl + '/' + firstSlide + (isPresenter ? '?presenter' : ''));
             break;
           case 'ArrowDown':
           case 'End':
             e.preventDefault();
-            broadcastSlide(totalSlides);
-            navTo(deckUrl + '/' + totalSlides + (isPresenter ? '?presenter' : ''));
+            broadcastSlide(lastSlide);
+            navTo(deckUrl + '/' + lastSlide + (isPresenter ? '?presenter' : ''));
             break;
           case 'f':
             if (!isPresenter) document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();

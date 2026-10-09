@@ -124,4 +124,4 @@ The panel stays open as you move between slides and switches to each slide's sou
 
 ## Hidden slides
 
-`hidden: true` keeps a slide in development but skips it in production builds (requests redirect to the next visible slide).
+`hidden: true` keeps a slide in development but skips it in production builds: <kbd>←</kbd> / <kbd>→</kbd>, <kbd>Home</kbd> / <kbd>End</kbd>, the toolbar, the presenter window's next-slide preview, the overview and the go-to dialog all jump over it, and a direct link redirects to the next visible slide.
