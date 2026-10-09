@@ -461,7 +461,7 @@ astlide({ injectIndexRoute: true })   // always inject, even with your own index
 | `n` | Toggle notes overlay |
 | `f` | Toggle fullscreen |
 | `Esc` | Exit pen / laser, fullscreen, close overlays |
-| `e` | Edit the current slide's source in the browser (dev server only) |
+| `e` | Live-edit the current slide's source in the browser (dev server only) |
 
 ## PDF Export
 

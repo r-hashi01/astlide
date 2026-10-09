@@ -199,6 +199,9 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       </div>
     </div>
 
+    <!-- Dev editor (e) host: persisted so live refreshes don't interrupt typing. -->
+    {import.meta.env.DEV && <div id="astlide-editor-host" transition:persist="astlide-editor-host"></div>}
+
     <!-- Camera bubble (v). transition:persist keeps the live stream across slides. -->
     <div id="astlide-camera" class="camera-bubble" transition:persist="astlide-camera" aria-label="Camera" hidden>
       <video autoplay muted playsinline></video>
@@ -451,7 +454,9 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       window.addEventListener('resize', updateScale);
 
       // Focus management: move focus to slide content on page load
-      if (scaler && !isPresenter && !isEmbedded) {
+      // Not while the dev editor is open: a live refresh must leave focus (and the
+      // caret) in the editor.
+      if (scaler && !isPresenter && !isEmbedded && !document.documentElement.hasAttribute('data-editor')) {
         scaler.focus({ preventScroll: true });
       }
 
@@ -483,62 +488,74 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         el.setAttribute('aria-hidden', visible ? 'false' : 'true');
       }
 
-      // <Fragments>: every first-level list item (or direct child) becomes an
-      // unindexed fragment with the group's effect.
-      for (const group of document.querySelectorAll('[data-fragment-group]')) {
-        const listItems = group.querySelectorAll(':scope > ul > li, :scope > ol > li');
-        const items = listItems.length > 0 ? listItems : group.children;
-        for (const item of items) {
-          item.setAttribute('data-fragment', '');
-          item.setAttribute('data-fragment-effect', group.getAttribute('data-fragment-group') || 'fade');
+      let events = [];
+      let steps = [];
+
+      // Collect steps from the DOM, every fragment / code block in its initial
+      // state. Re-run by the dev editor after it patches slide content in place.
+      function buildSteps() {
+        // <Fragments>: every first-level list item (or direct child) becomes an
+        // unindexed fragment with the group's effect.
+        for (const group of document.querySelectorAll('[data-fragment-group]')) {
+          const listItems = group.querySelectorAll(':scope > ul > li, :scope > ol > li');
+          const items = listItems.length > 0 ? listItems : group.children;
+          for (const item of items) {
+            item.setAttribute('data-fragment', '');
+            item.setAttribute('data-fragment-effect', group.getAttribute('data-fragment-group') || 'fade');
+          }
+          group.setAttribute('data-fragment-group-ready', '');
         }
-        group.setAttribute('data-fragment-group-ready', '');
-      }
 
-      const events = [];
-      let eventSeq = 0;
-      function addEvent(index, run, undo) {
-        events.push({ order: index ?? 0, group: index === null ? null : index, seq: eventSeq++, run, undo });
-      }
+        events = [];
+        let eventSeq = 0;
+        function addEvent(index, run, undo) {
+          events.push({ order: index ?? 0, group: index === null ? null : index, seq: eventSeq++, run, undo });
+        }
 
-      for (const el of document.querySelectorAll('[data-fragment], pre[data-code-steps]')) {
-        const index = readIndex(el, 'data-fragment-index');
-        if (el.hasAttribute('data-fragment')) {
-          // Fragment.astro omits static aria-hidden so screen readers can access
-          // content when JS is unavailable (CSS hides it visually). With JS running,
-          // we manage aria-hidden here to match the visual reveal state.
-          if (el.hasAttribute('data-fragment-hide')) {
-            setFragmentVisible(el, true);
-            addEvent(index, () => setFragmentVisible(el, false), () => setFragmentVisible(el, true));
+        for (const el of document.querySelectorAll('[data-fragment], pre[data-code-steps]')) {
+          const index = readIndex(el, 'data-fragment-index');
+          if (el.hasAttribute('data-fragment')) {
+            // Fragment.astro omits static aria-hidden so screen readers can access
+            // content when JS is unavailable (CSS hides it visually). With JS running,
+            // we manage aria-hidden here to match the visual reveal state.
+            if (el.hasAttribute('data-fragment-hide')) {
+              setFragmentVisible(el, true);
+              addEvent(index, () => setFragmentVisible(el, false), () => setFragmentVisible(el, true));
+            } else {
+              setFragmentVisible(el, false);
+              addEvent(index, () => setFragmentVisible(el, true), () => setFragmentVisible(el, false));
+              const until = readIndex(el, 'data-fragment-until');
+              if (until !== null) {
+                addEvent(until, () => setFragmentVisible(el, false), () => setFragmentVisible(el, true));
+              }
+            }
           } else {
-            setFragmentVisible(el, false);
-            addEvent(index, () => setFragmentVisible(el, true), () => setFragmentVisible(el, false));
-            const until = readIndex(el, 'data-fragment-until');
-            if (until !== null) {
-              addEvent(until, () => setFragmentVisible(el, false), () => setFragmentVisible(el, true));
+            const segments = el.getAttribute('data-code-steps').split('|');
+            applyCodeSegment(el, segments[0]);
+            for (let i = 1; i < segments.length; i++) {
+              addEvent(index, () => applyCodeSegment(el, segments[i]), () => applyCodeSegment(el, segments[i - 1]));
             }
           }
-        } else {
-          const segments = el.getAttribute('data-code-steps').split('|');
-          for (let i = 1; i < segments.length; i++) {
-            addEvent(index, () => applyCodeSegment(el, segments[i]), () => applyCodeSegment(el, segments[i - 1]));
-          }
+        }
+        events.sort((a, b) => a.order - b.order || a.seq - b.seq);
+
+        steps = [];
+        for (const event of events) {
+          const last = steps[steps.length - 1];
+          if (last && event.group !== null && last.group === event.group) last.events.push(event);
+          else steps.push({ group: event.group, events: [event] });
         }
       }
-      events.sort((a, b) => a.order - b.order || a.seq - b.seq);
+      buildSteps();
 
-      const steps = [];
-      for (const event of events) {
-        const last = steps[steps.length - 1];
-        if (last && event.group !== null && last.group === event.group) last.events.push(event);
-        else steps.push({ group: event.group, events: [event] });
-      }
       let currentStep = -1;
 
       // Presenter panel: "+N steps" next to the next-slide preview, so the speaker
       // knows whether → reveals more on this slide or moves on.
       const stepsLeftEl = document.getElementById('presenter-steps-left');
       function updateStepsLeft() {
+        // Exposed so the dev editor can keep the step across live refreshes.
+        window.__astlide_step = { slide: currentSlide, step: currentStep };
         if (!stepsLeftEl) return;
         const left = steps.length - 1 - currentStep;
         stepsLeftEl.hidden = left <= 0;
@@ -573,6 +590,16 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         while (currentStep < clamped) showNextStep();
         while (currentStep > clamped) showPrevStep();
       }
+
+      // Dev editor: after slide content is patched in place, rebuild the steps
+      // from the new DOM and return to the same step.
+      window.__astlide_resync_steps = function () {
+        const target = currentStep;
+        buildSteps();
+        currentStep = -1;
+        goToStep(target);
+        updateStepsLeft();
+      };
 
       // Next-slide preview: only the presenter window loads the iframe, so the
       // audience view never fetches an extra page. The embedded page scales itself

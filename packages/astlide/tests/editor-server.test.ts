@@ -1,6 +1,11 @@
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { isSameOrigin, resolveSlideSource } from "../src/internal/editor-server";
+import {
+	interceptReloads,
+	isSameOrigin,
+	resolveSlideSource,
+	SOURCE_SAVED_EVENT,
+} from "../src/internal/editor-server";
 
 const root = resolve("/project");
 
@@ -45,5 +50,38 @@ describe("isSameOrigin", () => {
 		).toBe(false);
 		expect(isSameOrigin({ headers: { host: "localhost:4321" } })).toBe(false);
 		expect(isSameOrigin({ headers: { origin: "not a url", host: "localhost:4321" } })).toBe(false);
+	});
+});
+
+describe("interceptReloads", () => {
+	function channel() {
+		const sent: unknown[] = [];
+		return { sent, send: (payload: unknown) => sent.push(payload) };
+	}
+
+	it("turns the reload after an editor write into one source-saved event", () => {
+		const ch = channel();
+		const write = { path: "src/content/decks/t/01.mdx" };
+		interceptReloads(ch, () => write);
+		ch.send({ type: "full-reload", path: "*" });
+		ch.send({ type: "full-reload" });
+		expect(ch.sent).toEqual([
+			{ type: "custom", event: SOURCE_SAVED_EVENT, data: { path: "src/content/decks/t/01.mdx" } },
+		]);
+	});
+
+	it("passes reloads through when no editor write is pending", () => {
+		const ch = channel();
+		interceptReloads(ch, () => null);
+		ch.send({ type: "full-reload" });
+		ch.send({ type: "update", updates: [] });
+		expect(ch.sent).toEqual([{ type: "full-reload" }, { type: "update", updates: [] }]);
+	});
+
+	it("never swallows non-reload messages", () => {
+		const ch = channel();
+		interceptReloads(ch, () => ({ path: "x.mdx" }));
+		ch.send({ type: "update", updates: [] });
+		expect(ch.sent).toEqual([{ type: "update", updates: [] }]);
 	});
 });
