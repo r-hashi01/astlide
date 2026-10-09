@@ -199,6 +199,9 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       </div>
     </div>
 
+    <!-- Dev editor (e) host: persisted so live refreshes don't interrupt typing. -->
+    {import.meta.env.DEV && <div id="astlide-editor-host" transition:persist="astlide-editor-host"></div>}
+
     <!-- Camera bubble (v). transition:persist keeps the live stream across slides. -->
     <div id="astlide-camera" class="camera-bubble" transition:persist="astlide-camera" aria-label="Camera" hidden>
       <video autoplay muted playsinline></video>
@@ -451,7 +454,9 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       window.addEventListener('resize', updateScale);
 
       // Focus management: move focus to slide content on page load
-      if (scaler && !isPresenter && !isEmbedded) {
+      // Not while the dev editor is open: a live refresh must leave focus (and the
+      // caret) in the editor.
+      if (scaler && !isPresenter && !isEmbedded && !document.documentElement.hasAttribute('data-editor')) {
         scaler.focus({ preventScroll: true });
       }
 
@@ -539,6 +544,8 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       // knows whether → reveals more on this slide or moves on.
       const stepsLeftEl = document.getElementById('presenter-steps-left');
       function updateStepsLeft() {
+        // Exposed so the dev editor can keep the step across live refreshes.
+        window.__astlide_step = { slide: currentSlide, step: currentStep };
         if (!stepsLeftEl) return;
         const left = steps.length - 1 - currentStep;
         stepsLeftEl.hidden = left <= 0;

@@ -22,7 +22,7 @@ description: Keyboard shortcuts, the presenter window, overview, go-to-slide, pe
 | `s` | Share mode — hide all chrome for screen sharing |
 | `f` | Fullscreen |
 | `Esc` | Exit pen / laser, fullscreen, close overlays |
-| `e` | Edit the slide's source in the browser (`astro dev` only — see [Creating a Deck](/astlide/guides/decks/#editing-in-the-browser)) |
+| `e` | Live-edit the slide's source in the browser (`astro dev` only — see [Creating a Deck](/astlide/guides/decks/#editing-in-the-browser)) |
 
 On touch devices, swipe left / right to navigate.
 
