@@ -39,6 +39,10 @@ export interface AstlideOptions {
 	 * - `true` (default): inject a sensible default CSP meta tag
 	 * - `false`: disable CSP entirely
 	 * - `string`: use a custom CSP policy string
+	 *
+	 * During `astro dev`, `worker-src 'self' blob:` is added (unless the policy sets
+	 * `worker-src`) so Vite's client can reconnect after a server restart. Built
+	 * output gets the policy as is.
 	 */
 	csp?: boolean | string;
 	/**

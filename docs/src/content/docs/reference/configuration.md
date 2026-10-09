@@ -33,7 +33,7 @@ export default defineConfig({
 | `plugins` | `AstlidePlugin[]` | `[]` | Themes, layouts, transitions, Shiki langs / themes, decorators — see [Plugin API](/astlide/guides/themes-and-plugins/#plugin-api). |
 | `shikiTheme` | `string` | `"github-dark"` | Shiki theme for code fences. |
 | `font` | `false \| string \| { href?, preconnect? }` | Inter from Google Fonts | Web font stylesheet to inject, or `false` for none. |
-| `csp` | `boolean \| string` | `true` | Inject a default Content-Security-Policy meta tag, disable it, or provide your own policy. |
+| `csp` | `boolean \| string` | `true` | Inject a default Content-Security-Policy meta tag, disable it, or provide your own policy. In `astro dev`, `worker-src 'self' blob:` is added (unless set) for Vite's client; the build keeps the policy as is. |
 | `indexable` | `boolean` | `false` | When `false`, pages carry `noindex, nofollow`. |
 | `injectIndexRoute` | `boolean` | auto | Inject the deck index at `/`. Auto-skipped when you have your own `src/pages/index.*`. |
 | `drawings.persist` | `boolean` | `false` | Keep pen drawings in `localStorage` across reloads — see [Presenting](/astlide/guides/presenting/#keeping-drawings). |

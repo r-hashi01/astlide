@@ -43,12 +43,16 @@ const DEFAULT_CSP = [
 
 const cspOption: boolean | string =
   typeof __ASTLIDE_CSP__ !== 'undefined' ? __ASTLIDE_CSP__ : true;
+// Dev only: let Vite's client run its reconnect worker (see utils/csp).
 const cspContent =
   cspOption === false ? null
-  : typeof cspOption === 'string' && cspOption !== 'true' ? cspOption
-  : DEFAULT_CSP;
+  : withDevDirectives(
+      typeof cspOption === 'string' && cspOption !== 'true' ? cspOption : DEFAULT_CSP,
+      import.meta.env.DEV,
+    );
 
 import type { DeckContext } from '@astlide/core/context';
+import { withDevDirectives } from '@astlide/core/utils/csp';
 
 interface Props {
   title: string;
