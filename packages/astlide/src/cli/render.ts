@@ -117,7 +117,15 @@ export async function exportDeck(deck: string, options: RenderOptions): Promise<
 	console.log(`\nExporting: ${deck}`);
 
 	// Launch a single browser instance shared across slide-count detection and export
-	const browser = await chromium.launch();
+	const browser = await chromium.launch().catch((err: Error) => {
+		if (/Executable doesn't exist/.test(err.message)) {
+			throw new Error(
+				"PDF / PNG export needs Chromium. Install it once with: bunx playwright install chromium\n" +
+					"(PPTX needs no browser: --pptx)",
+			);
+		}
+		throw err;
+	});
 	try {
 		const slideCount = await getSlideCount(browser, options.baseUrl, deck);
 		console.log(`  ${slideCount} slides found`);
