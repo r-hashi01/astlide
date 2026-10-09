@@ -1,11 +1,12 @@
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import mdx from "@astrojs/mdx";
 import type { AstroIntegration } from "astro";
 import { astlideVirtualPlugin } from "./internal/virtual-plugins";
 import { type AstlidePlugin, BUILT_IN_PLUGIN, resolvePlugins } from "./plugin";
 import { astlideCodeHighlight } from "./utils/code-highlight";
+import { astlideMermaid } from "./utils/mermaid";
 
 // Re-export the typed deck/slide metadata API
 export type { DeckContext } from "./context";
@@ -237,6 +238,9 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 					if (l.componentEntrypoint) l.componentEntrypoint = resolveEntry(l.componentEntrypoint);
 				}
 
+				// Optional `mermaid` (```mermaid diagrams): exposed via virtual:astlide/mermaid.
+				const hasMermaid = isPackageInstalled("mermaid", fileURLToPath(config.root));
+
 				// Merge all config updates into a single call
 				updateConfig({
 					...(hasMdx ? {} : { integrations: [mdx()] }),
@@ -244,8 +248,9 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 						shikiConfig: {
 							theme: options.shikiTheme ?? "github-dark",
 							wrap: true,
-							// `{2,4-6}` / `{2|3-5|all}` line highlighting on code fences.
-							transformers: [astlideCodeHighlight()],
+							// `{2,4-6}` / `{2|3-5|all}` line highlighting on code fences, and
+							// ```mermaid fences handed to the client-side diagram renderer.
+							transformers: [astlideCodeHighlight(), astlideMermaid()],
 							// biome-ignore lint/suspicious/noExplicitAny: Shiki types live behind dynamic loading
 							langs: resolved.shiki.langs as any,
 							themes: Object.fromEntries(
@@ -262,7 +267,7 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 						// `as never`: astlide and Astro can resolve different copies of vite's
 						// types, so our `Plugin` isn't structurally identical to Astro's
 						// `PluginOption`. The value is correct at runtime (build passes).
-						plugins: [astlideVirtualPlugin(resolved) as never],
+						plugins: [astlideVirtualPlugin(resolved, { hasMermaid }) as never],
 						// @astlide/crispdf declares `pdfjs-dist` as an optional peer for its
 						// opt-in self-check feature. We never enable selfCheck from this
 						// integration, so stub it out so Rollup doesn't fail when the peer
@@ -282,6 +287,9 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 						// redirects any actual import to the no-op stub.
 						optimizeDeps: {
 							exclude: ["pdfjs-dist"],
+							// Pre-bundle mermaid so the first diagram in dev doesn't trigger a
+							// mid-session re-optimization (504 "Outdated Optimize Dep" + reload).
+							...(hasMermaid ? { include: ["mermaid"] } : {}),
 						},
 						define: {
 							// Expose options to injected pages via Vite define
@@ -352,4 +360,19 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 			},
 		},
 	};
+}
+
+/**
+ * Whether `name` is installed for the project at `fromDir`, looking up the
+ * `node_modules` chain the way Node resolution does. Used for optional
+ * dependencies (e.g. `mermaid`) whose `exports` may not allow `require.resolve`.
+ */
+function isPackageInstalled(name: string, fromDir: string): boolean {
+	let dir = fromDir;
+	while (true) {
+		if (existsSync(join(dir, "node_modules", name, "package.json"))) return true;
+		const parent = dirname(dir);
+		if (parent === dir) return false;
+		dir = parent;
+	}
 }

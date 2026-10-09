@@ -59,6 +59,8 @@ export async function exportDeckToPdf(opts: ExportToPdfOptions): Promise<ExportT
 
 		// Wait for fonts to settle so text metrics in crispdf's vector overlay are stable.
 		await doc.fonts?.ready?.catch(() => {});
+		// …and for client-side diagrams (```mermaid) to finish rendering.
+		await waitForDiagrams(doc);
 
 		const slides = Array.from(doc.querySelectorAll<HTMLElement>("body > .slide"));
 		if (slides.length === 0) {
@@ -87,6 +89,25 @@ export async function exportDeckToPdf(opts: ExportToPdfOptions): Promise<ExportT
 	} finally {
 		iframe.remove();
 	}
+}
+
+/** Resolve once `doc` marks `<html data-diagrams-ready>` (set by internal/diagrams.ts). */
+function waitForDiagrams(doc: Document, timeoutMs = 30_000): Promise<void> {
+	const root = doc.documentElement;
+	if (root.hasAttribute("data-diagrams-ready")) return Promise.resolve();
+	return new Promise((resolve) => {
+		const done = () => {
+			observer.disconnect();
+			clearTimeout(timer);
+			resolve();
+		};
+		const observer = new MutationObserver(() => {
+			if (root.hasAttribute("data-diagrams-ready")) done();
+		});
+		observer.observe(root, { attributes: true, attributeFilter: ["data-diagrams-ready"] });
+		// Don't hang the export if rendering never reports back.
+		const timer = setTimeout(done, timeoutMs);
+	});
 }
 
 /** Trigger a browser download for a Blob with the given filename. */

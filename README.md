@@ -16,6 +16,7 @@ An Astro-based slide presentation framework — like Slidev, but for the Astro e
 - **Slide decorators** — render a logo / footer / page number on every slide without editing each file
 - **Fragment reveals** — step-by-step content with `<Fragment>`
 - **Code line highlighting** — `{2,4-6}` highlights lines, `{1|3-5|all}` steps through them
+- **Mermaid diagrams** — ` ```mermaid ` fences render as diagrams (optional `mermaid` package, loaded on demand)
 - **Presenter mode** — next-slide preview, remaining steps, speaker notes (Markdown) + timer in a separate window, synced via BroadcastChannel
 - **Overview mode** — press `o` to see all slides in a grid
 - **Go to slide** — press `g` to jump by number or search slide titles
@@ -240,6 +241,26 @@ export const collections = { decks };
 ````
 
 Highlight steps and fragments share one sequence, in document order. Fragments with an explicit `index` come after unindexed steps (code steps count as index `0`). Works in `.mdx` and `.md` slides, including inside `<CodeBlock>`. The PDF / `/{deck}/all` view shows every step in its final state. Tweak the dim level with the `--code-dim-opacity` CSS variable (default `0.35`).
+
+## Diagrams
+
+Write [Mermaid](https://mermaid.js.org/) diagrams in a ` ```mermaid ` code fence. Rendering uses the optional `mermaid` package — install it to enable diagrams:
+
+```bash
+bun add mermaid
+```
+
+````mdx
+```mermaid
+flowchart LR
+  Write --> Present --> Export
+```
+````
+
+- Loaded on demand: only slides that contain a diagram fetch `mermaid`.
+- The diagram theme follows the deck theme (`dark` / `gradient` → dark, `forest` → forest, others → default), and labels are scaled to the slide's body text size.
+- Works in `.mdx` and `.md` slides, in the presenter preview, and in PDF export (the exporters wait for diagrams to finish rendering).
+- Without `mermaid` installed — or if a diagram has a syntax error — the source is shown as code and a message is logged to the browser console.
 
 ## Speaker Notes
 

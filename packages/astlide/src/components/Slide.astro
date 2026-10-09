@@ -244,6 +244,29 @@ const decoratorProps = { layout, transition, slideNumber, totalSlides };
     opacity: var(--code-dim-opacity, 0.35);
   }
 
+  /* ── Mermaid diagrams (```mermaid fences, rendered client-side) ── */
+  :global(pre.astlide-mermaid) {
+    margin: 0.5em 0;
+    background: transparent;
+    text-align: center;
+  }
+  /* Hide the raw source until rendering is attempted (avoids a flash of text). */
+  :global(html:not([data-diagrams-ready]) pre.astlide-mermaid:not([data-processed])) {
+    visibility: hidden;
+  }
+  /* Not rendered (mermaid not installed): show the source as plain code. */
+  :global(html[data-diagrams-ready] pre.astlide-mermaid:not([data-processed])) {
+    text-align: left;
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 0.8em;
+    white-space: pre-wrap;
+    opacity: 0.7;
+  }
+  :global(pre.astlide-mermaid svg) {
+    max-width: 100%;
+    height: auto;
+  }
+
   /* ── Reduced motion ── */
   @media (prefers-reduced-motion: reduce) {
     :global([data-fragment]) {
