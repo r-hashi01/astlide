@@ -90,7 +90,7 @@ export interface AstlideOptions {
 	 *
 	 * `download` (in-browser PDF export) is **experimental**: it depends on the
 	 * pre-1.0 optional `@astlide/crispdf` and its output may change. Prefer the
-	 * `astlide-export` CLI for stable output.
+	 * `astlide export` CLI for stable output.
 	 *
 	 * Default: `['prev', 'counter', 'next']` (original behavior).
 	 */
