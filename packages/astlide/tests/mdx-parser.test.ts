@@ -39,6 +39,13 @@ describe("parseMdxFile", () => {
 		rmSync(tmpDir, { recursive: true, force: true });
 	});
 
+	it("ignores a trailing HTML comment (speaker notes)", async () => {
+		const p = writeMdx(tmpDir, "# Title\n\nBody\n\n<!--\nSpeaker notes\n-->\n");
+		const result = await parseMdxFile(p);
+		expect(findElement(result.hast.children, "h1")).toBeDefined();
+		expect(JSON.stringify(result.hast)).not.toContain("Speaker notes");
+	});
+
 	// ── Frontmatter extraction ──
 
 	describe("frontmatter", () => {

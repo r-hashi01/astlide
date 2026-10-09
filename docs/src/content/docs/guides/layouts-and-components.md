@@ -135,6 +135,6 @@ A static, styled card — no external API calls:
 />
 ```
 
-### `<Fragment>`, `<Fragments>`, `<Notes>`
+### `<Fragment>`, `<Fragments>`, `<SpeakerNotes>`
 
 See [Fragments](/astlide/guides/fragments/) and [speaker notes](/astlide/guides/decks/#speaker-notes).

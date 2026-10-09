@@ -1,0 +1,29 @@
+---
+/**
+ * SpeakerNotes — speaker notes for the presenter window & notes overlay.
+ * Hidden on the slide itself.
+ *
+ * Usage in MDX:
+ *   <SpeakerNotes>
+ *     Shown in the presenter window and the notes overlay (press `n`).
+ *     You can use **markdown** here.
+ *   </SpeakerNotes>
+ *
+ * Alternatives: `notes` in frontmatter, or an HTML comment at the very end of
+ * the slide (`<!-- … -->`, as in Slidev / Marp).
+ * Priority: <SpeakerNotes> > frontmatter `notes` > trailing comment.
+ *
+ * `<Notes>` is an alias kept for compatibility.
+ */
+---
+
+<div class="slide-notes" data-slide-notes aria-hidden="true">
+  <slot />
+</div>
+
+<style>
+  /* Hidden from normal view — picked up by DeckLayout JS */
+  .slide-notes {
+    display: none !important;
+  }
+</style>

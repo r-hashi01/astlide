@@ -38,7 +38,7 @@ The slide number in the URL (`/my-talk/2`) follows the sorted file order.
 
 ## Slide formats
 
-- **`.mdx`** — Markdown plus components (`<Fragment>`, `<Columns>`, `<Notes>`, …). Astlide's components are available without imports.
+- **`.mdx`** — Markdown plus components (`<Fragment>`, `<Columns>`, `<SpeakerNotes>`, …). Astlide's components are available without imports.
 - **`.md`** — plain Markdown, including code highlighting and diagrams.
 - **`.html`** — a self-contained HTML slide. The body is rendered verbatim (inline `<style>` and markup preserved — the same trust level as MDX), which is handy for pasting hand-crafted or AI-generated markup.
 
@@ -73,21 +73,40 @@ See the [frontmatter reference](/astlide/reference/frontmatter/) for every field
 
 ## Speaker notes
 
-Short notes fit in frontmatter (`notes: "…"`). For rich notes, use the `<Notes>` component — it supports full Markdown:
+Notes are hidden from the audience and show in the presenter window (`p`) and the notes overlay (`n`). Write them in whichever way suits the slide:
 
-```mdx
-# My Slide
+- **`<SpeakerNotes>`** — full Markdown, in `.mdx` slides:
 
-Content here.
+  ```mdx
+  # My Slide
 
-<Notes>
-Key points to mention:
-- **First** important thing
-- Second point with `code`
-</Notes>
-```
+  Content here.
 
-Notes show in the presenter window (`p`) and the notes overlay (`n`). If both exist, `<Notes>` wins.
+  <SpeakerNotes>
+  Key points to mention:
+  - **First** important thing
+  - Second point with `code`
+  </SpeakerNotes>
+  ```
+
+- **A comment at the end of the slide** — like Slidev and Marp; works in `.md`, `.mdx` and `.html` slides, Markdown included:
+
+  ```md
+  # My Slide
+
+  Content here.
+
+  <!--
+  Key points to mention:
+  - **First** important thing
+  -->
+  ```
+
+  Only a comment that *ends* the slide becomes notes — comments elsewhere stay comments. (In `.mdx`, HTML comments are otherwise not allowed; use `{/* … */}` for those.)
+
+- **Frontmatter** — `notes: "…"` for a short line.
+
+If a slide has more than one, `<SpeakerNotes>` wins, then frontmatter `notes`, then the trailing comment. `<Notes>` still works as an alias of `<SpeakerNotes>`.
 
 ## Editing in the browser
 

@@ -7,6 +7,7 @@ import { astlideEditorPlugin } from "./internal/editor-server";
 import { astlideVirtualPlugin } from "./internal/virtual-plugins";
 import { type AstlidePlugin, BUILT_IN_PLUGIN, resolvePlugins } from "./plugin";
 import { astlideCodeHighlight } from "./utils/code-highlight";
+import { astlideCommentNotesPlugin } from "./utils/comment-notes";
 import { astlideMermaid } from "./utils/mermaid";
 
 // Re-export the typed deck/slide metadata API
@@ -305,6 +306,8 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 							astlideVirtualPlugin(resolved, { hasMermaid }) as never,
 							// Dev-only (apply: "serve"): read/write endpoint for the `e` slide editor.
 							astlideEditorPlugin(fileURLToPath(config.root)) as never,
+							// Speaker notes as a trailing `<!-- … -->`: MDX would reject the comment.
+							astlideCommentNotesPlugin() as never,
 						],
 						// @astlide/crispdf declares `pdfjs-dist` as an optional peer for its
 						// opt-in self-check feature. We never enable selfCheck from this

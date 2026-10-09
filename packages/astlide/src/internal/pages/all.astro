@@ -23,6 +23,7 @@ import TextPanel from '@astlide/core/components/TextPanel.astro';
 import SlideFragment from '@astlide/core/components/Fragment.astro';
 import Fragments from '@astlide/core/components/Fragments.astro';
 import Notes from '@astlide/core/components/Notes.astro';
+import SpeakerNotes from '@astlide/core/components/SpeakerNotes.astro';
 import Columns from '@astlide/core/components/Columns.astro';
 import CodeBlock from '@astlide/core/components/CodeBlock.astro';
 import Math from '@astlide/core/components/Math.astro';
@@ -92,7 +93,7 @@ const rendered = await Promise.all(
         slideNumber={i + 1}
         totalSlides={totalSlides}
       >
-        <Content components={{ Left, Right, ImageSide, TextPanel, Fragment: SlideFragment, Fragments, Notes, Columns, CodeBlock, Math, YouTube, Tweet }} />
+        <Content components={{ Left, Right, ImageSide, TextPanel, Fragment: SlideFragment, Fragments, Notes, SpeakerNotes, Columns, CodeBlock, Math, YouTube, Tweet }} />
       </Slide>
     ))}
   </body>

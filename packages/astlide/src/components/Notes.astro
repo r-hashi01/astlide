@@ -1,25 +1,12 @@
 ---
 /**
- * Notes — speaker notes for presenter mode & notes overlay.
+ * Notes — alias of {@link SpeakerNotes}, kept for compatibility.
  *
- * Usage in MDX:
- *   <Notes>
- *     These notes are shown in presenter mode and the notes overlay (press `n`).
- *     You can use **markdown** here.
- *   </Notes>
- *
- * Alternative: use `notes` in frontmatter for plain-text notes.
- * If both exist, the <Notes> component content takes priority.
+ * Prefer `<SpeakerNotes>`: "note" commonly means a *visible* callout
+ * (GitHub `> [!NOTE]`, Qiita `:::note`, Starlight `:::note`), while these notes
+ * are hidden from the audience.
  */
+import SpeakerNotes from '@astlide/core/components/SpeakerNotes.astro';
 ---
 
-<div class="slide-notes" data-slide-notes aria-hidden="true">
-  <slot />
-</div>
-
-<style>
-  /* Hidden from normal view — picked up by DeckLayout JS */
-  .slide-notes {
-    display: none !important;
-  }
-</style>
+<SpeakerNotes><slot /></SpeakerNotes>

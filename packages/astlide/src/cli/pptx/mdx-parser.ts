@@ -25,6 +25,7 @@ import remarkMdx from "remark-mdx";
 import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
 import { unified } from "unified";
+import { stripTrailingComment } from "../../utils/comment-notes";
 
 export interface ParsedSlide {
 	/** Parsed frontmatter key/value pairs. */
@@ -135,6 +136,9 @@ export async function parseMdxFile(filePath: string): Promise<ParsedSlide> {
 		frontmatter = (parseYaml(fmMatch[1]) as Record<string, unknown>) ?? {};
 		body = raw.slice(fmMatch[0].length);
 	}
+
+	// A trailing `<!-- … -->` holds speaker notes, which MDX can't parse; drop it.
+	body = stripTrailingComment(body) ?? body;
 
 	// Parse MDX → MDAST, then transform MDAST → HAST via remark-rehype
 	const mdast = processor.parse(body);
