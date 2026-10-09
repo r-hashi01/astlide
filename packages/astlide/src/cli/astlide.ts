@@ -10,8 +10,8 @@
  * stopped. PPTX is built straight from the slide sources.
  */
 
-import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, readdirSync } from "node:fs";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { getDecks } from "./pptx/export";
 
 type Format = "pdf" | "png" | "pptx";
@@ -27,6 +27,8 @@ interface Options {
 	width: number;
 	height: number;
 	cwd: string;
+	/** --cwd was given: don't infer the project from deck paths. */
+	cwdSet: boolean;
 }
 
 const HELP = `
@@ -34,6 +36,8 @@ astlide — slides that live in your Astro site
 
 Usage:
   astlide export <deck...> [formats] [options]
+    <deck> is a deck name, or a path to it (src/content/decks/my-talk,
+    dist/my-talk, …) — the project is then found from that path
   astlide export --all [formats] [options]
 
 Formats (combine as needed; default --pdf):
@@ -81,6 +85,7 @@ function parseExportArgs(args: string[]): Options {
 		width: 1920,
 		height: 1080,
 		cwd: process.cwd(),
+		cwdSet: false,
 	};
 	for (let i = 0; i < args.length; i++) {
 		const arg = args[i] as string;
@@ -115,6 +120,7 @@ function parseExportArgs(args: string[]): Options {
 				break;
 			case "--cwd":
 				options.cwd = resolve(args[++i] ?? fail("--cwd needs a directory"));
+				options.cwdSet = true;
 				break;
 			default:
 				if (arg.startsWith("-")) fail(`unknown option ${arg}`);
@@ -132,7 +138,61 @@ function outputFor(options: Options, deck: string, format: Format): string {
 	return format === "png" ? join(dir, `${deck}-slides`) : join(dir, `${deck}.${format}`);
 }
 
+/** The nearest directory at or above `from` with src/content/decks. */
+function findProjectRoot(from: string): string | null {
+	let dir = resolve(from);
+	for (;;) {
+		if (existsSync(join(dir, "src", "content", "decks"))) return dir;
+		const parent = dirname(dir);
+		if (parent === dir) return null;
+		dir = parent;
+	}
+}
+
+/** Subdirectories of `dir` that are Astlide projects (to suggest --cwd). */
+function nearbyProjects(dir: string): string[] {
+	try {
+		return readdirSync(dir, { withFileTypes: true })
+			.filter((e) => e.isDirectory() && !e.name.startsWith(".") && e.name !== "node_modules")
+			.filter((e) => existsSync(join(dir, e.name, "src", "content", "decks")))
+			.map((e) => e.name);
+	} catch {
+		return [];
+	}
+}
+
+/**
+ * Deck arguments may be names or paths. A path names the deck by its last
+ * segment and, unless --cwd was given, locates the project. Without paths,
+ * the project is the nearest one at or above the working directory.
+ */
+function resolveProject(options: Options): void {
+	options.decks = options.decks.map((arg) => {
+		if (!/[\\/]/.test(arg)) return arg;
+		const target = resolve(options.cwd, arg);
+		const root = options.cwdSet ? null : findProjectRoot(target);
+		if (root) options.cwd = root;
+		return basename(target);
+	});
+	if (options.cwdSet || existsSync(join(options.cwd, "src", "content", "decks"))) return;
+	const root = findProjectRoot(options.cwd);
+	if (root) {
+		options.cwd = root;
+		return;
+	}
+	const hints = nearbyProjects(options.cwd).map((d) => `--cwd ${d}`);
+	fail(
+		`no Astlide project here (no src/content/decks in ${options.cwd} or above).` +
+			(hints.length > 0
+				? ` Try: ${hints.join(" or ")}`
+				: " Run it in your project, or pass --cwd."),
+	);
+}
+
 async function runExport(options: Options): Promise<void> {
+	resolveProject(options);
+	if (options.cwd !== process.cwd())
+		console.log(`Project: ${relative(process.cwd(), options.cwd) || "."}`);
 	const known = await getDecks(options.cwd).catch(() => [] as string[]);
 	const decks = options.all ? known : options.decks;
 	if (decks.length === 0) {

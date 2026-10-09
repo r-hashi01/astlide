@@ -14,6 +14,8 @@ bunx astlide export --all --pdf --pptx      # every deck, both formats
 
 Projects created with `bun create astlide` also have it as a script: `bun run export my-talk --pptx`.
 
+A deck can also be given as a path (`src/content/decks/my-talk`, `dist/my-talk`, …); the project is found from it, as it is when you run the command in any folder inside the project.
+
 - **PDF / PNG** are rendered in a headless browser ([Playwright](https://playwright.dev); run `bunx playwright install chromium` once). `astlide export` builds your site and serves it on a free port for the export, so there's no server to start, and Astro's [`base`](/astlide/guides/deploy/) is picked up automatically. Every slide is shown in its final state (all fragment / code steps applied), and diagrams finish rendering first.
 - **PPTX** is built straight from the slide sources — no build or server needed.
 
