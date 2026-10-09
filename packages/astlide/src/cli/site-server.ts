@@ -17,6 +17,10 @@ export interface SiteServer {
 	stop(): Promise<void>;
 }
 
+/** ANSI color / style escape sequences. */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: matching terminal escapes is the point
+const ANSI = /\x1b\[[0-9;]*m/g;
+
 /** Ask the OS for a free TCP port. */
 function freePort(): Promise<number> {
 	return new Promise((resolve, reject) => {
@@ -41,7 +45,7 @@ function runAstro(root: string, args: string[]): ChildProcess {
 	return spawn("node", [astroBin(root), ...args, "--root", root], {
 		cwd: root,
 		stdio: ["ignore", "pipe", "pipe"],
-		env: { ...process.env, FORCE_COLOR: "0" },
+		env: { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1" },
 	});
 }
 
@@ -88,9 +92,11 @@ export async function startSite(options: { root: string; build: boolean }): Prom
 		}, 60_000);
 		const onData = (d: Buffer) => {
 			log += d;
-			// "Local    http://127.0.0.1:4322/my-repo/" — also inside JSON logs (quotes,
-			// escaped newlines), which Astro prints when it detects an agent / CI.
-			const match = log.match(/https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+\/[^\s"\\]*/);
+			// "Local    http://127.0.0.1:4322/my-repo/" — possibly colored (Astro may
+			// ignore FORCE_COLOR / NO_COLOR), or inside JSON logs (quotes, escaped
+			// newlines) when Astro detects an agent / CI.
+			const plain = log.replace(ANSI, "");
+			const match = plain.match(/https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+\/[^\s"\\]*/);
 			if (match) {
 				clearTimeout(timer);
 				resolve(match[0].replace(/\/+$/, ""));
