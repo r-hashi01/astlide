@@ -1,7 +1,7 @@
 {
 	"name": "@astlide/core",
 	"version": "2.4.0",
-	"description": "Astro-based slide presentation framework — like Slidev, but for the Astro ecosystem",
+	"description": "Slides that live in your Astro site — an Astro integration for MDX / Markdown / HTML presentations",
 	"type": "module",
 	"types": "./src/index.ts",
 	"exports": {

@@ -28,6 +28,7 @@ export default defineConfig({
 			editLink: { baseUrl: "https://github.com/r-hashi01/astlide/edit/main/docs/" },
 			lastUpdated: true,
 			sidebar: [
+				{ label: "Why Astlide?", slug: "why" },
 				{ label: "Getting Started", slug: "getting-started" },
 				{ slug: "tutorial/first-deck" },
 				{ slug: "gallery" },

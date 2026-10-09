@@ -5,27 +5,27 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Bun](https://img.shields.io/badge/runtime-Bun-fbf0df.svg)](https://bun.sh)
 
-An Astro-based slide presentation framework — like Slidev, but for the Astro ecosystem.
+**Slides that live in your Astro site.**
+
+Astlide is an [Astro](https://astro.build) integration for presentations. Write slides in MDX, Markdown or plain HTML, keep them next to your blog or docs, and ship every slide as a real static page.
 
 📖 **Documentation:** https://r-hashi01.github.io/astlide/ · 🎬 **Live demo:** https://r-hashi01.github.io/astlide/demo/tour/1/
 
-## Features
+## Why Astlide
 
-- **MDX / Markdown / HTML slides** — author each slide as `.mdx`, `.md`, or plain `.html`, mixed freely in one deck
-- **Viewport scaling** — slides auto-scale to any screen/window size (1920×1080)
-- **7 built-in themes** — default, dark, minimal, corporate, gradient, rose, forest
-- **Composable toolbar** — pick the navigation actions you want, including an always-reachable "back to index" link
-- **Slide decorators** — render a logo / footer / page number on every slide without editing each file
-- **Fragment reveals** — step-by-step content with `<Fragment>`
-- **Code line highlighting** — `{2,4-6}` highlights lines, `{1|3-5|all}` steps through them
-- **Mermaid diagrams** — ` ```mermaid ` fences render as diagrams (optional `mermaid` package, loaded on demand)
-- **Presenter mode** — next-slide preview, remaining steps, speaker notes (Markdown) + timer in a separate window, synced via BroadcastChannel
-- **Overview mode** — press `o` to see all slides in a grid
-- **Go to slide** — press `g` to jump by number or search slide titles
-- **Pen & laser pointer** — draw on slides (`d`) or point (`l`); mirrored on the audience screen when presenting
-- **PDF export** — one-click in-browser download + CLI, via `@astlide/crispdf`
-- **Type-safe** — Content Collections with Zod schema, plus a typed deck/slide metadata API
-- **Touch / swipe** — navigate on mobile
+- **It's just Astro.** Add `astlide()` to an existing site and your talks sit next to your blog and docs — same repo, same components, same deploy. Content Collections, Astro components and any static host work as usual.
+- **Every slide is a real page.** `/my-talk/7` is static HTML: link straight to a slide, load fast, deploy anywhere (including sub-paths like GitHub Pages).
+- **Write in whatever fits.** Mix `.mdx`, `.md` and plain `.html` slides in one deck — paste hand-made or AI-generated HTML and it renders as-is.
+- **Many decks, one project.** Every folder under `src/content/decks/` is a deck, with an index page out of the box.
+- **Type-safe.** Frontmatter is validated with Zod; slide metadata has a typed API.
+
+And everything you expect from a presentation tool:
+
+- **Presenting** — presenter window with next-slide preview, steps left, notes and timer; overview, go-to-slide, pen and laser pointer, all mirrored to the audience screen
+- **Reveals & code** — `<Fragment>` / `<Fragments>` (with `until` / `hide`), Shiki highlighting with `{1|3-5|all}` line steps
+- **Diagrams & math** — Mermaid (loaded on demand) and KaTeX
+- **Export** — PDF / PNG via Playwright, editable PowerPoint built from your MDX source, one-click in-browser PDF
+- **Make it yours** — 7 themes, a plugin API (themes, layouts, transitions), slide decorators, a composable toolbar
 
 ## Quick Start
 
@@ -499,7 +499,7 @@ export default defineConfig({
 });
 ```
 
-Your own absolute URLs in slides (e.g. `![](/photo.jpg)`) are not rewritten — use `import.meta.env.BASE_URL` or relative paths for them. For `astlide-export`, include the base in `--base-url` (e.g. `--base-url http://localhost:4321/<repo>`).
+Root-relative `<ImageSide src>` and image `background` paths are resolved against `base` too. Other absolute URLs you write yourself (e.g. Markdown `![](/photo.jpg)`) are not rewritten — use `import.meta.env.BASE_URL` or relative paths for them. For `astlide-export`, include the base in `--base-url` (e.g. `--base-url http://localhost:4321/<repo>`).
 
 ## Project Structure
 
