@@ -27,6 +27,8 @@
  * don't include it.
  */
 
+import { trailingSlash } from "@astlide/core/utils/base-path";
+
 const ENDPOINT = "/__astlide/source";
 const SOURCE_SAVED_EVENT = "astlide:source-saved";
 const DECK_CHANGED_EVENT = "astlide:deck-changed";
@@ -418,7 +420,7 @@ async function followDeck(): Promise<void> {
 	for (let attempt = 0; attempt < 5 && sources.length === 0; attempt++) {
 		if (attempt > 0) await new Promise((r) => setTimeout(r, 400));
 		try {
-			const res = await fetch(`${deckUrl}/1`, { cache: "no-store" });
+			const res = await fetch(`${deckUrl}/1${trailingSlash ? "/" : ""}`, { cache: "no-store" });
 			if (!res.ok) continue;
 			const doc = new DOMParser().parseFromString(await res.text(), "text/html");
 			sources = JSON.parse(doc.body.dataset.deckSources ?? "[]") as string[];
@@ -434,7 +436,9 @@ async function followDeck(): Promise<void> {
 	const n = index >= 0 ? index + 1 : Math.min(here, sources.length);
 	w.__astlide_pending_step =
 		index >= 0 && w.__astlide_step ? { slide: n, step: w.__astlide_step.step } : null;
-	w.__astlide_navigate(`${deckUrl}/${n}${location.search}`, { history: "replace" });
+	w.__astlide_navigate(`${deckUrl}/${n}${trailingSlash ? "/" : ""}${location.search}`, {
+		history: "replace",
+	});
 }
 
 export function toggleEditor(force?: boolean): void {

@@ -54,3 +54,28 @@ describe("withBaseIfRootRelative", () => {
 		expect(withBaseIfRootRelative("/photo.jpg")).toBe("/photo.jpg");
 	});
 });
+
+describe("pageUrl", () => {
+	it("adds the base and a trailing slash for directory-format sites", async () => {
+		const { pageUrl } = await load("/astlide/");
+		expect(pageUrl("/deck/3", true)).toBe("/astlide/deck/3/");
+		expect(pageUrl("/deck/all", true)).toBe("/astlide/deck/all/");
+	});
+
+	it("keeps a query string or hash after the slash", async () => {
+		const { pageUrl } = await load("/");
+		expect(pageUrl("/deck/3?presenter", true)).toBe("/deck/3/?presenter");
+		expect(pageUrl("/deck/3#top", true)).toBe("/deck/3/#top");
+	});
+
+	it("doesn't add a slash when the site doesn't use one", async () => {
+		const { pageUrl } = await load("/astlide/");
+		expect(pageUrl("/deck/3?presenter", false)).toBe("/astlide/deck/3?presenter");
+	});
+
+	it("never doubles a slash", async () => {
+		const { pageUrl } = await load("/");
+		expect(pageUrl("/", true)).toBe("/");
+		expect(pageUrl("/deck/3/", true)).toBe("/deck/3/");
+	});
+});

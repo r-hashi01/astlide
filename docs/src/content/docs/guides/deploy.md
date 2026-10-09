@@ -18,6 +18,8 @@ export default defineConfig({
 });
 ```
 
+Slide links also follow Astro's [`trailingSlash`](https://docs.astro.build/en/reference/configuration-reference/#trailingslash) and [`build.format`](https://docs.astro.build/en/reference/configuration-reference/#buildformat): with the default `directory` format they end in `/` (`/<repo>/my-deck/3/`), matching the `index.html` files static hosts serve, so moving between slides costs no redirect.
+
 Then deploy `dist/` with GitHub Actions — see Astro's [GitHub Pages guide](https://docs.astro.build/en/guides/deploy/github/).
 
 :::note
