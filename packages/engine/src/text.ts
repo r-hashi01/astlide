@@ -12,6 +12,8 @@ export interface FontFace {
 	weight: number;
 	italic: boolean;
 	font: fontkit.Font;
+	/** The font file (absent on fallback fonts, which are system fonts). */
+	file?: string;
 }
 
 export class FontRegistry {
@@ -53,7 +55,7 @@ export class FontRegistry {
 	/** Register a TTF / OTF file for a family name. */
 	add(family: string, weight: number, italic: boolean, path: string): void {
 		const font = fontkit.create(readFileSync(path)) as fontkit.Font;
-		this.faces.push({ family: family.toLowerCase(), weight, italic, font });
+		this.faces.push({ family: family.toLowerCase(), weight, italic, font, file: path });
 	}
 
 	/** First family in a CSS `font-family` list that we have, nearest weight. */

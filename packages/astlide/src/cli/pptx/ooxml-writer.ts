@@ -13,6 +13,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { deflateRawSync } from "node:zlib";
+import { toEot } from "./eot";
 import type { ThemeColors } from "./theme-map";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -499,6 +500,7 @@ function contentTypesXml(slideCount: number): string {
 <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
 <Default Extension="xml" ContentType="application/xml"/>
 <Default Extension="png" ContentType="image/png"/>
+<Default Extension="fntdata" ContentType="application/x-fontdata"/>
 <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
 <Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>
 <Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>
@@ -521,7 +523,7 @@ function rootRelsXml(): string {
 </Relationships>`;
 }
 
-function presentationRelsXml(slideCount: number): string {
+function presentationRelsXml(slideCount: number, fontParts: string[]): string {
 	const rels = [
 		`<Relationship Id="rIdSm1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>`,
 		`<Relationship Id="rIdTheme1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>`,
@@ -534,23 +536,42 @@ function presentationRelsXml(slideCount: number): string {
 			`<Relationship Id="rIdSlide${i}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${i}.xml"/>`,
 		);
 	}
+	for (const [i, target] of fontParts.entries()) {
+		rels.push(
+			`<Relationship Id="rIdFont${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="${target}"/>`,
+		);
+	}
 	return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 ${rels.join("\n")}
 </Relationships>`;
 }
 
-function presentationXml(slideCount: number): string {
+/** `<p:embeddedFontLst>` for {@link EmbeddedFont}s whose faces are numbered rIdFont1… in order. */
+function embeddedFontLstXml(fonts: EmbeddedFont[]): string {
+	if (fonts.length === 0) return "";
+	let n = 0;
+	const items = fonts.map((f) => {
+		const slots = FONT_SLOTS.filter((slot) => f[slot])
+			.map((slot) => `<p:${slot} r:id="rIdFont${++n}"/>`)
+			.join("");
+		return `<p:embeddedFont><p:font typeface="${esc(f.typeface)}"/>${slots}</p:embeddedFont>`;
+	});
+	return `<p:embeddedFontLst>${items.join("")}</p:embeddedFontLst>`;
+}
+
+function presentationXml(slideCount: number, fonts: EmbeddedFont[]): string {
 	const sldIds: string[] = [];
 	for (let i = 1; i <= slideCount; i++) {
 		sldIds.push(`<p:sldId id="${255 + i}" r:id="rIdSlide${i}"/>`);
 	}
 	return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<p:presentation xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}">
+<p:presentation xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}"${fonts.length ? ' embedTrueTypeFonts="1"' : ""}>
 <p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rIdSm1"/></p:sldMasterIdLst>
 <p:sldIdLst>${sldIds.join("")}</p:sldIdLst>
 <p:sldSz cx="9144000" cy="5143500" type="screen16x9"/>
 <p:notesSz cx="6858000" cy="9144000"/>
+${embeddedFontLstXml(fonts)}
 <p:defaultTextStyle>${levelStyles(9, { size: 1800, font: "mn" })}</p:defaultTextStyle>
 </p:presentation>`;
 }
@@ -793,10 +814,29 @@ export class ZipWriter {
 // PptxFile — public API
 // ═══════════════════════════════════════════════════════════════════════════
 
+/**
+ * A font family embedded in the file, so PowerPoint shows the slides in it
+ * without the font installed. Each face is a TrueType / OpenType file;
+ * PowerPoint has four faces per family, so other weights are families of
+ * their own (e.g. "Inter SemiBold" in its regular slot).
+ */
+export interface EmbeddedFont {
+	/** Family name as the font's name table has it (name ID 1) and text runs use it. */
+	typeface: string;
+	regular?: Buffer;
+	bold?: Buffer;
+	italic?: Buffer;
+	boldItalic?: Buffer;
+}
+
+const FONT_SLOTS = ["regular", "bold", "italic", "boldItalic"] as const;
+
 export interface PptxFileOptions {
 	title?: string;
 	author?: string;
 	theme?: ThemeColors;
+	/** Fonts to embed. */
+	fonts?: EmbeddedFont[];
 }
 
 const DEFAULT_THEME: ThemeColors = {
@@ -815,11 +855,13 @@ export class PptxFile {
 	private title: string;
 	private author: string;
 	private theme: ThemeColors;
+	private fonts: EmbeddedFont[];
 
 	constructor(opts: PptxFileOptions = {}) {
 		this.title = opts.title ?? "";
 		this.author = opts.author ?? "";
 		this.theme = opts.theme ?? DEFAULT_THEME;
+		this.fonts = opts.fonts ?? [];
 	}
 
 	addSlide(spec: SlideSpec): void {
@@ -833,8 +875,19 @@ export class PptxFile {
 		// Boilerplate
 		zip.add("[Content_Types].xml", contentTypesXml(count));
 		zip.add("_rels/.rels", rootRelsXml());
-		zip.add("ppt/presentation.xml", presentationXml(count));
-		zip.add("ppt/_rels/presentation.xml.rels", presentationRelsXml(count));
+		// Embedded fonts, numbered in embeddedFontLst order.
+		const fontParts: string[] = [];
+		for (const f of this.fonts) {
+			for (const slot of FONT_SLOTS) {
+				const face = f[slot];
+				if (!face) continue;
+				const target = `fonts/font${fontParts.length + 1}.fntdata`;
+				zip.add(`ppt/${target}`, toEot(face));
+				fontParts.push(target);
+			}
+		}
+		zip.add("ppt/presentation.xml", presentationXml(count, this.fonts));
+		zip.add("ppt/_rels/presentation.xml.rels", presentationRelsXml(count, fontParts));
 		zip.add("ppt/slideMasters/slideMaster1.xml", slideMasterXml());
 		zip.add("ppt/slideMasters/_rels/slideMaster1.xml.rels", slideMasterRelsXml());
 		zip.add("ppt/slideLayouts/slideLayout1.xml", slideLayoutXml());

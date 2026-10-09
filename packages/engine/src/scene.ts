@@ -36,7 +36,8 @@ export type SceneItem =
 			w: number;
 			h: number;
 			text: string;
-			font: { family: string; weight: number; italic: boolean; size: number };
+			/** `file`: the font file, when it may be embedded (not a system fallback). */
+			font: { family: string; weight: number; italic: boolean; size: number; file?: string };
 			color: Color;
 			letterSpacing: number;
 			/** Width of a space in this font and size (CSS px), to rebuild gaps between runs. */
@@ -185,6 +186,7 @@ function textItem(l: TextLine): SceneItem | null {
 			family: l.style.face.font.familyName,
 			weight: l.style.face.weight,
 			italic: l.style.face.italic,
+			file: l.style.face.file,
 			size: l.style.size,
 		},
 		color: { hex: color.hex, alpha: color.alpha * l.style.alpha },

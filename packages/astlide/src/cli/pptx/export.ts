@@ -11,9 +11,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { Scene, SceneItem } from "@astlide/engine";
+import { embeddingPermissions, withLegacyFamilyOnly } from "./eot";
 import {
+	type EmbeddedFont,
 	PptxFile,
 	type SlideElement,
+	type SlideSpec,
 	type TextBoxSpec,
 	type TextRun,
 	type TextRunOptions,
@@ -70,6 +73,37 @@ function fontFor(family: string, weight: number): { face: string; bold: boolean 
 const hex = (c: { hex: string }) => c.hex.toUpperCase();
 
 type TextItem = Extract<SceneItem, { kind: "text" }>;
+
+/**
+ * The font files behind the text, by the typeface and slot the runs use
+ * (see {@link fontFor}), so PowerPoint shows them without the fonts
+ * installed. Fonts whose license forbids embedding (`fsType` restricted)
+ * are left out.
+ */
+function embeddedFonts(items: TextItem[]): EmbeddedFont[] {
+	const byFace = new Map<string, EmbeddedFont>();
+	const skipped = new Set<string>();
+	for (const item of items) {
+		const { file, italic } = item.font;
+		if (!file) continue;
+		const f = fontFor(item.font.family, item.font.weight);
+		const slot = f.bold ? (italic ? "boldItalic" : "bold") : italic ? "italic" : "regular";
+		const font = byFace.get(f.face) ?? { typeface: f.face };
+		if (font[slot]) continue;
+		const data = readFileSync(file);
+		if (embeddingPermissions(data) & 0x0002) {
+			skipped.add(f.face);
+			continue;
+		}
+		// Weights PowerPoint has no slot for are families of their own.
+		const ownFamily = item.font.weight !== 400 && !f.bold;
+		font[slot] = ownFamily ? withLegacyFamilyOnly(data) : data;
+		byFace.set(f.face, font);
+	}
+	if (skipped.size)
+		console.warn(`  ⚠ not embedded (license restricts embedding): ${[...skipped].join(", ")}`);
+	return [...byFace.values()];
+}
 
 function runOptions(item: TextItem, k: number): TextRunOptions {
 	const f = fontFor(item.font.family, item.font.weight);
@@ -241,11 +275,8 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 	const layouts = engine.layoutPage(html, dist, fonts, vp);
 
 	const config = await readDeckConfig(options.root, deck);
-	const pptx = new PptxFile({
-		title: str(config.title) ?? deck,
-		author: str(config.author) ?? "",
-		theme: getTheme(str(config.theme)),
-	});
+	const slides: SlideSpec[] = [];
+	const used: TextItem[] = [];
 	layouts.forEach((layout, i) => {
 		process.stdout.write(`  Slide ${i + 1}/${layouts.length}\r`);
 		const scene = engine.toScene(layout, (eid) => layout.elements[eid]);
@@ -254,6 +285,7 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 		const blocks = new Map<number, TextItem[]>();
 		const flowing = inlineHighlights(scene);
 		for (const item of scene.items) {
+			if (item.kind === "text") used.push(item);
 			if (item.kind === "rect") {
 				if (flowing.has(item)) continue;
 				elements.push({
@@ -323,9 +355,16 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 				if (group) elements[n] = fillBlock(el, group, k);
 			}
 		}
-		pptx.addSlide({ background: hex(scene.background), elements });
+		slides.push({ background: hex(scene.background), elements });
 	});
 	console.log("");
+	const pptx = new PptxFile({
+		title: str(config.title) ?? deck,
+		author: str(config.author) ?? "",
+		theme: getTheme(str(config.theme)),
+		fonts: embeddedFonts(used),
+	});
+	for (const slide of slides) pptx.addSlide(slide);
 	await mkdir(dirname(options.output), { recursive: true });
 	await pptx.save(options.output);
 	console.log(`  ✓ Saved to ${options.output}`);
