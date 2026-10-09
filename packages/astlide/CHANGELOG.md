@@ -1,5 +1,39 @@
 # @astlide/core
 
+## 2.5.0
+
+### Minor Changes
+
+- [#82](https://github.com/r-hashi01/astlide/pull/82) [`77c1814`](https://github.com/r-hashi01/astlide/commit/77c181432bfe9f43a12bc2c1fb9edfb2733d3727) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Add a camera bubble and talk recording. `v` (or the `camera` toolbar action) shows your webcam in a draggable bubble that stays live across slides; `r` (`record`) records a screen / window / tab you pick plus the microphone and downloads a `.webm` when stopped, with a recording indicator while it runs.
+
+- [#83](https://github.com/r-hashi01/astlide/pull/83) [`8a24aa1`](https://github.com/r-hashi01/astlide/commit/8a24aa1462b8fc6a21df1c80267f6cfddff766d6) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Live-edit slides in the browser while developing: in `astro dev`, press `e` to open the current slide's source next to it and type — edits are saved automatically and only the changed parts of the slide are patched in place — no page reload or flicker (caret, current step, diagrams, camera and recording are kept). `Esc` saves and closes. Dev-only: the editor and its endpoint are not part of production builds, and they only read/write slide files under `src/` from the dev server's own origin.
+
+- [#100](https://github.com/r-hashi01/astlide/pull/100) [`e093a9c`](https://github.com/r-hashi01/astlide/commit/e093a9cd66f7c4ac4a7ab5b6e227be6bc3dc70df) Thanks [@r-hashi01](https://github.com/r-hashi01)! - New `favicon` option. Deck pages, the deck index and the print view now link a favicon: by default `favicon.svg` / `.ico` / `.png` from `public/`, with Astro's `base` applied. Without one, they use an empty icon, so browsers no longer request `/favicon.ico` at the domain root (a 404 under a sub-path such as GitHub Pages). Pass a path or URL to choose one, or `false` for no link.
+
+- [#81](https://github.com/r-hashi01/astlide/pull/81) [`9032586`](https://github.com/r-hashi01/astlide/commit/9032586c67bc0ea3edf567b35227b95d48c3d409) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Pen drawings can persist: `astlide({ drawings: { persist: true } })` keeps them in `localStorage` per deck, so they survive reloads and come back the next time the deck is opened in that browser (off by default). `Shift+C` (with the pen active) now clears the whole deck's drawings.
+
+- [#94](https://github.com/r-hashi01/astlide/pull/94) [`271b5c2`](https://github.com/r-hashi01/astlide/commit/271b5c24ff301c073ca4ca3a8c67d73f75adda5f) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Speaker notes: `<SpeakerNotes>` is the new name of the notes component — "note" usually means a _visible_ callout (GitHub `> [!NOTE]`, Qiita / Starlight `:::note`). `<Notes>` keeps working as an alias. Notes can now also be written as an HTML comment at the end of a slide, as in Slidev and Marp — in `.md`, `.mdx` and `.html` slides (priority: `<SpeakerNotes>` > frontmatter `notes` > trailing comment).
+
+### Patch Changes
+
+- [#97](https://github.com/r-hashi01/astlide/pull/97) [`2028fcd`](https://github.com/r-hashi01/astlide/commit/2028fcd203d27e42b3da1662ef99da20c65fd436) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Dev: the default (or custom) CSP now allows `blob:` workers during `astro dev` (`worker-src 'self' blob:`, unless the policy sets `worker-src`). Vite's client was blocked from starting its reconnect worker, which logged CSP errors and left background tabs, such as the presenter window, stuck after a dev server restart. Built output is unchanged.
+
+- [#101](https://github.com/r-hashi01/astlide/pull/101) [`dc9a69b`](https://github.com/r-hashi01/astlide/commit/dc9a69bce8c51dc435f69bd43356f3afff19eeca) Thanks [@r-hashi01](https://github.com/r-hashi01)! - A `<Fragment>` on its own line now hugs its content instead of stretching across the slide, so `effect="highlight"` highlights the text, not a full-width bar.
+
+- [#98](https://github.com/r-hashi01/astlide/pull/98) [`32b749d`](https://github.com/r-hashi01/astlide/commit/32b749d42256445395814dbe9f201ee69401c49d) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Built decks now navigate around hidden slides: ←/→, Home/End, the toolbar and presenter buttons, the next-slide preview and the overview skip `hidden: true` slides. Before, ← from the slide after a hidden one landed on its redirect and bounced back, so you couldn't go back past it.
+
+- [#90](https://github.com/r-hashi01/astlide/pull/90) [`3651ffc`](https://github.com/r-hashi01/astlide/commit/3651ffc1b4b559679cb2c37b4b080224bd41b29a) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Dev: adding, removing or renaming slide files now updates open slides live (slide count, outline, navigation) without a full page reload. Each window stays on the slide it was showing, at the same step, even if its number changed; if that slide's file was removed, it shows the slide now at that position. Other pages reload as before.
+
+- [#87](https://github.com/r-hashi01/astlide/pull/87) [`61c2174`](https://github.com/r-hashi01/astlide/commit/61c21745fd9ac87ef79e7c8b0525033f2f383b90) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Live edits now update speaker notes as well (frontmatter `notes` and `<Notes>`), in the notes overlay and in every window showing the edited slide, including the presenter window — still without a page reload.
+
+- [#99](https://github.com/r-hashi01/astlide/pull/99) [`afa7538`](https://github.com/r-hashi01/astlide/commit/afa7538d9ab1c72e341e840092561f8bc51ed1c8) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Inline `code` in speaker notes is readable again in the presenter window and the notes overlay: it used the theme's light chip, so it showed light text on a light background.
+
+- [#102](https://github.com/r-hashi01/astlide/pull/102) [`53a653f`](https://github.com/r-hashi01/astlide/commit/53a653fbe7004c5bb3cacaaf327340e41c8f78a6) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Overview thumbnails no longer use `sandbox="allow-same-origin allow-scripts"`. It gave no isolation for same-origin frames and logged a console warning per slide. Thumbnails render in embed mode, like the presenter's next-slide preview.
+
+- [#80](https://github.com/r-hashi01/astlide/pull/80) [`fe43b55`](https://github.com/r-hashi01/astlide/commit/fe43b55dca33b26f8cfaae4791694bd4523bc031) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Update the package descriptions: "Slides that live in your Astro site".
+
+- [#103](https://github.com/r-hashi01/astlide/pull/103) [`6f47fcc`](https://github.com/r-hashi01/astlide/commit/6f47fcc3d6e3d085874b4f25bd9ab04e5a96cdff) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Slide links follow Astro's `trailingSlash` / `build.format`: with the default `directory` format they end in `/`. Static hosts such as GitHub Pages no longer answer every navigation, prefetch, overview thumbnail and presenter preview with a 301 redirect.
+
 ## 2.4.0
 
 ### Minor Changes

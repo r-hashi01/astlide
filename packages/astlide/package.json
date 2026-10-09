@@ -1,6 +1,6 @@
 {
 	"name": "@astlide/core",
-	"version": "2.4.0",
+	"version": "2.5.0",
 	"description": "Slides that live in your Astro site — an Astro integration for MDX / Markdown / HTML presentations",
 	"type": "module",
 	"types": "./src/index.ts",
