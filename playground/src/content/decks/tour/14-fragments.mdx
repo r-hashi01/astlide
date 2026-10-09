@@ -1,0 +1,21 @@
+---
+slideLayout: default
+notes: "Press → to step through. <Fragments> reveals list items first, then indexed fragments in order. Steps sync to the audience window."
+---
+
+# Step-by-step reveals
+
+<Fragments effect="slide-up">
+
+- `<Fragments>` reveals list items one by one
+- …in document order
+
+</Fragments>
+
+<Fragment index={1}>✅ Fragments sharing an `index`…</Fragment> <Fragment index={1} effect="zoom">…appear together</Fragment>
+
+<Fragment index={2} until={3}>⏳ `until` — shown at step 2, hidden again at step 3</Fragment>
+
+<Fragment index={3} hide>👋 `hide` — visible from the start, gone at step 3</Fragment>
+
+<Fragment index={4} effect="highlight">✨ `effect="highlight"`</Fragment>

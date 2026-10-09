@@ -27,3 +27,22 @@ export const basePath: string = (import.meta.env.BASE_URL ?? "/").replace(/\/+$/
 export function withBase(path: string): string {
 	return basePath + (path.startsWith("/") ? path : `/${path}`);
 }
+
+/**
+ * Apply the `base` to a user-supplied asset URL when it is root-relative
+ * (`/photo.jpg`), leaving everything else alone: relative paths, absolute and
+ * protocol-relative URLs, `data:` URIs, and paths that already include the base.
+ *
+ * Used for `<ImageSide src>` and image `background`s, so decks keep working
+ * when deployed under a sub-path.
+ *
+ * @example
+ * // astro.config: base: "/astlide"
+ * withBaseIfRootRelative("/photo.jpg");          // → "/astlide/photo.jpg"
+ * withBaseIfRootRelative("https://x.dev/a.png"); // unchanged
+ */
+export function withBaseIfRootRelative(url: string): string {
+	if (!url.startsWith("/") || url.startsWith("//")) return url;
+	if (basePath && (url === basePath || url.startsWith(`${basePath}/`))) return url;
+	return withBase(url);
+}

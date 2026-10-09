@@ -1,0 +1,21 @@
+---
+slideLayout: code
+notes: "Press → to walk through the highlighted lines: {1|3-6|8|all}."
+---
+
+# Code with highlight steps
+
+<CodeBlock title="src/content.config.ts">
+```ts {1|3-6|8|all}
+import { defineCollection } from "astro:content";
+
+const decks = defineCollection({
+  loader: astlideDeckLoader(),
+  schema: slideSchema,
+});
+
+export const collections = { decks };
+```
+</CodeBlock>
+
+`{2,4-6}` highlights lines · `{1|3-6|all}` steps through them
