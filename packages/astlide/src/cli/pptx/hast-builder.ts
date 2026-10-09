@@ -450,6 +450,7 @@ function handleComponent(el: HastElement, opts: BlockOpts): TextRun[] {
 			// Handled at layout level
 			return [];
 		case "Notes":
+		case "SpeakerNotes":
 			return [];
 		case "Fragment":
 		case "Fragments": {
@@ -654,7 +655,7 @@ function extractContent(hast: HastRoot, theme: ThemeColors): ExtractedContent {
 				}
 				continue;
 			}
-			if (comp === "Notes") continue;
+			if (comp === "Notes" || comp === "SpeakerNotes") continue;
 
 			if (comp === "CodeBlock") {
 				const title = prop(node, "dataTitle") ?? "";

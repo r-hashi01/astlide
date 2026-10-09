@@ -285,7 +285,7 @@ flowchart LR
 
 ## Speaker Notes
 
-Use the `<Notes>` component for rich presenter notes with full Markdown support:
+Use the `<SpeakerNotes>` component for rich presenter notes with full Markdown support:
 
 ```mdx
 ---
@@ -295,14 +295,24 @@ slideLayout: default
 
 Content here.
 
-<Notes>
+<SpeakerNotes>
 Key points to mention:
 - **First** important thing
 - Second point with `code`
-</Notes>
+</SpeakerNotes>
 ```
 
-Notes are displayed in presenter mode (`p`) and the notes overlay (`n`). If both frontmatter `notes` and the `<Notes>` component exist, the component takes priority.
+Or, as in Slidev and Marp, end the slide with an HTML comment — in `.md`, `.mdx` and `.html` slides:
+
+```md
+# My Slide
+
+<!--
+Key points to mention
+-->
+```
+
+Notes are displayed in presenter mode (`p`) and the notes overlay (`n`). Priority: `<SpeakerNotes>`, then frontmatter `notes`, then the trailing comment. `<Notes>` remains as an alias of `<SpeakerNotes>`.
 
 ## Themes
 

@@ -1063,8 +1063,8 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         if (window.__astlide_tool) setTool(window.__astlide_tool);
       }
 
-      // ── 7. <Notes> component detection ──────────────────────────
-      // If the <Notes> component is used in MDX, its HTML content takes priority
+      // ── 7. <SpeakerNotes> (or <Notes>) detection ──────────────────────────
+      // If <SpeakerNotes> (alias <Notes>) is used in MDX, its HTML content takes priority
       // over frontmatter `notes`. We inject it into presenter notes & notes overlay.
 
       /**

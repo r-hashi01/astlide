@@ -18,11 +18,13 @@ import TextPanel from '@astlide/core/components/TextPanel.astro';
 import SlideFragment from '@astlide/core/components/Fragment.astro';
 import Fragments from '@astlide/core/components/Fragments.astro';
 import Notes from '@astlide/core/components/Notes.astro';
+import SpeakerNotes from '@astlide/core/components/SpeakerNotes.astro';
 import Columns from '@astlide/core/components/Columns.astro';
 import CodeBlock from '@astlide/core/components/CodeBlock.astro';
 import Math from '@astlide/core/components/Math.astro';
 import YouTube from '@astlide/core/components/YouTube.astro';
 import Tweet from '@astlide/core/components/Tweet.astro';
+import { extractCommentNotes } from '@astlide/core/utils/comment-notes';
 
 export async function getStaticPaths() {
   const allSlides = await getCollection('decks');
@@ -122,9 +124,12 @@ const {
   transition = 'fade',
   background,
   class: className,
-  notes,
+  notes: frontmatterNotes,
   hidden,
 } = slide.data;
+// Speaker notes: frontmatter `notes`, else an HTML comment ending the slide.
+// (<SpeakerNotes> in the body overrides both, client-side in DeckLayout.)
+const notes = frontmatterNotes ?? extractCommentNotes(slide.body ?? '');
 
 // Skip hidden slides in production — redirect to next visible slide
 if (hidden && import.meta.env.PROD) {
@@ -199,7 +204,7 @@ if (import.meta.env.DEV) {
     slideNumber={slideNumber}
     totalSlides={totalSlides}
   >
-    <Content components={{ Left, Right, ImageSide, TextPanel, Fragment: SlideFragment, Fragments, Notes, Columns, CodeBlock, Math, YouTube, Tweet }} />
+    <Content components={{ Left, Right, ImageSide, TextPanel, Fragment: SlideFragment, Fragments, Notes, SpeakerNotes, Columns, CodeBlock, Math, YouTube, Tweet }} />
   </Slide>
   {import.meta.env.DEV && diagnostics.length > 0 && <ErrorOverlay diagnostics={diagnostics} />}
 </DeckLayout>

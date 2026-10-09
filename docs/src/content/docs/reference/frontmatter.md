@@ -24,7 +24,7 @@ hidden: false
 | `title` | `string` | first heading | Slide title for the go-to-slide dialog. |
 | `background` | `string` | — | CSS background (color, gradient or `url(…)`). Values containing script-like patterns are rejected. |
 | `class` | `string` | — | Extra classes on the slide — e.g. `text-light`, `text-dark`. |
-| `notes` | `string` | — | Speaker notes (Markdown). `<Notes>` in the body takes priority. |
+| `notes` | `string` | — | Speaker notes (Markdown). `<SpeakerNotes>` in the body takes priority; a trailing `<!-- … -->` comment is used when this is not set. |
 | `hidden` | `boolean` | `false` | Skip the slide in production builds. |
 
 :::caution
