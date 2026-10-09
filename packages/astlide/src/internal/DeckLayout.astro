@@ -62,9 +62,11 @@ interface Props {
   context?: DeckContext;
   /** Slide numbers and titles for the go-to-slide dialog (`g`). */
   outline?: Array<{ n: number; title: string }>;
+  /** Dev only: project-relative source file of this slide, for the `e` editor. */
+  sourcePath?: string;
 }
 
-const { title, theme = 'default', currentSlide, totalSlides, deck, notes, transition = 'fade', context, outline = [] } = Astro.props;
+const { title, theme = 'default', currentSlide, totalSlides, deck, notes, transition = 'fade', context, outline = [], sourcePath } = Astro.props;
 const sanitizedNotes = notes ? sanitizeHTML(await renderMarkdown(notes)) : undefined;
 // Internal links honour Astro's `base` (sub-path deployments).
 const deckHref = withBase(`/${deck}`);
@@ -121,7 +123,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       })();
     </script>
   </head>
-  <body data-total-slides={totalSlides} data-current-slide={currentSlide} data-deck={deck} data-slide-transition={transition}>
+  <body data-total-slides={totalSlides} data-current-slide={currentSlide} data-deck={deck} data-slide-transition={transition} data-source-path={sourcePath}>
 
     <!-- Skip link for keyboard navigation -->
     <a href="#slide-scaler" class="skip-link">Skip to slide content</a>
@@ -343,6 +345,17 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       document.addEventListener('astro:page-load', syncMediaUi);
     </script>
 
+    <!-- Module script: dev-only slide editor (e). Tree-shaken from production builds. -->
+    <script>
+      if (import.meta.env.DEV) {
+        import('@astlide/core/internal/editor').then(({ toggleEditor, initEditor }) => {
+          window.__astlide_editor = { toggle: () => toggleEditor() };
+          initEditor();
+          document.addEventListener('astro:page-load', initEditor);
+        });
+      }
+    </script>
+
     <!-- Module script: render ```mermaid diagrams (loads mermaid only when a slide has one). -->
     <script>
       import { renderDiagrams } from '@astlide/core/internal/diagrams';
@@ -420,7 +433,11 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
           availW = area ? area.clientWidth : window.innerWidth * 0.65;
           availH = area ? area.clientHeight : window.innerHeight;
         } else {
-          availW = window.innerWidth;
+          // The dev editor (e) docks on the right and reserves its width here.
+          const reserved = document.documentElement.hasAttribute('data-editor')
+            ? (document.querySelector('.astlide-editor')?.getBoundingClientRect().width || 0)
+            : 0;
+          availW = window.innerWidth - reserved;
           availH = window.innerHeight;
         }
 
@@ -1334,6 +1351,10 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
           case 'r':
             if (window.__astlide_media) window.__astlide_media.toggleRecording();
             break;
+          case 'e':
+            // Dev only: the editor module isn't loaded in production builds.
+            if (window.__astlide_editor && !isPresenter) window.__astlide_editor.toggle();
+            break;
           case 'c':
             if (tool === 'draw') clearDrawings(true);
             break;
@@ -1520,10 +1541,16 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
   .presentation {
     width: 100vw;
     height: 100vh;
+    box-sizing: border-box;
     display: flex;
     justify-content: center;
     align-items: center;
     background: #000;
+  }
+
+  /* Dev editor (e) docked on the right: center the slide in what's left. */
+  html[data-editor] .presentation {
+    padding-right: var(--astlide-reserved-right, 0px);
   }
 
   .slide-scaler {

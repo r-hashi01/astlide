@@ -89,6 +89,14 @@ Key points to mention:
 
 Notes show in the presenter window (`p`) and the notes overlay (`n`). If both exist, `<Notes>` wins.
 
+## Editing in the browser
+
+While `astro dev` is running, press <kbd>e</kbd> on a slide to open its source file in a panel next to it. Edit, then press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>S</kbd> (or **Save**) — the file is written and the slide reloads. The panel stays open as you move between slides, showing each slide's source; <kbd>e</kbd> or ✕ closes it.
+
+- Dev server only: the editor and its endpoint don't exist in production builds.
+- It edits slide files (`.mdx`, `.md`, `.html` under `src/`) and nothing else; writes must come from the dev server's own page.
+- Unsaved edits are flagged in the panel, and the browser warns before you reload or close the tab with unsaved changes.
+
 ## Hidden slides
 
 `hidden: true` keeps a slide in development but skips it in production builds (requests redirect to the next visible slide).
