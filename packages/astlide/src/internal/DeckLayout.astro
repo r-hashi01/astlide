@@ -750,7 +750,9 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
 
             const iframe = document.createElement('iframe');
             iframe.src = deckUrl + '/' + i;
-            iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts');
+            // No sandbox: same-origin frames with scripts can lift any sandbox, so it
+            // only added a console warning per slide. The page runs in embed mode
+            // (no navigation, keys or sync), like the presenter's next-slide preview.
             iframe.setAttribute('scrolling', 'no');
             iframe.tabIndex = -1;
             iframe.setAttribute('aria-hidden', 'true');
