@@ -4,6 +4,7 @@ import '@astlide/core/styles/base.css';
 // imports by the `virtual:astlide/themes` Vite virtual module.
 import 'virtual:astlide/themes';
 import { ClientRouter } from 'astro:transitions';
+import Favicon from '@astlide/core/internal/Favicon.astro';
 import { sanitizeHTML } from '@astlide/core/utils/sanitize';
 import { renderMarkdown } from '@astlide/core/utils/markdown';
 import { basePath, withBase } from '@astlide/core/utils/base-path';
@@ -101,6 +102,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     {cspContent && <meta http-equiv="Content-Security-Policy" content={cspContent} />}
     <title>{title}</title>
+    <Favicon />
     <meta name="description" content={`${title} — slide ${currentSlide} of ${totalSlides}`} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={`Slide deck: ${title}`} />

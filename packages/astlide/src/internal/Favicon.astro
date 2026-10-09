@@ -1,0 +1,16 @@
+---
+/**
+ * `<link rel="icon">` for Astlide's pages, from the `favicon` option (see
+ * utils/favicon.ts). Root-relative paths get Astro's `base`; with no icon
+ * found, an empty `data:,` icon stops browsers requesting `/favicon.ico` at the
+ * domain root (a 404 under a sub-path deploy).
+ */
+import { withBaseIfRootRelative } from '@astlide/core/utils/base-path';
+
+declare const __ASTLIDE_FAVICON__: string | false | null;
+
+const favicon = typeof __ASTLIDE_FAVICON__ !== 'undefined' ? __ASTLIDE_FAVICON__ : null;
+const href = favicon === null ? 'data:,' : favicon ? withBaseIfRootRelative(favicon) : null;
+---
+
+{href && <link rel="icon" href={href} />}
