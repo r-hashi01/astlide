@@ -68,7 +68,7 @@ jobs:
       # link must carry the base.
       - name: Build under a base path
         run: ASTLIDE_BASE=/astlide bun run build
-      - run: node scripts/check-base-links.mjs playground/dist /astlide
+      - run: node scripts/check-base-links.mjs playground/dist /astlide --trailing-slash
       - name: Build docs site
         run: bun run docs:build
 

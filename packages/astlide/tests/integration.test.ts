@@ -10,7 +10,12 @@ import astlide from "../src/index";
 type HookFn = (args: Record<string, unknown>) => void;
 
 function createMockHookArgs(
-	overrides: { srcDir?: string; integrations?: Array<{ name: string }> } = {},
+	overrides: {
+		srcDir?: string;
+		integrations?: Array<{ name: string }>;
+		trailingSlash?: "always" | "never" | "ignore";
+		build?: { format?: "directory" | "file" | "preserve" };
+	} = {},
 ) {
 	const injectRoute = vi.fn();
 	const updateConfig = vi.fn();
@@ -28,6 +33,8 @@ function createMockHookArgs(
 		publicDir: pathToFileURL(`${process.cwd()}/public/`),
 		integrations: overrides.integrations ?? [],
 		srcDir: overrides.srcDir ? { pathname: overrides.srcDir } : undefined,
+		trailingSlash: overrides.trailingSlash ?? "ignore",
+		build: { format: overrides.build?.format ?? "directory" },
 	};
 
 	return { config, injectRoute, updateConfig, logger };
@@ -286,6 +293,32 @@ describe("astlide integration", () => {
 			const { args } = runSetup({ favicon: false });
 			const configCall = args.updateConfig.mock.calls[0][0];
 			expect(configCall.vite.define.__ASTLIDE_FAVICON__).toBe("false");
+		});
+	});
+
+	describe("trailing slash", () => {
+		it("uses a trailing slash for the default directory build format", () => {
+			const { args } = runSetup();
+			const configCall = args.updateConfig.mock.calls[0][0];
+			expect(configCall.vite.define.__ASTLIDE_TRAILING_SLASH__).toBe("true");
+		});
+
+		it("follows trailingSlash: 'always' / 'never'", () => {
+			const always = runSetup(undefined, { trailingSlash: "always", build: { format: "file" } });
+			expect(always.args.updateConfig.mock.calls[0][0].vite.define.__ASTLIDE_TRAILING_SLASH__).toBe(
+				"true",
+			);
+			const never = runSetup(undefined, { trailingSlash: "never" });
+			expect(never.args.updateConfig.mock.calls[0][0].vite.define.__ASTLIDE_TRAILING_SLASH__).toBe(
+				"false",
+			);
+		});
+
+		it("uses no slash for file-format builds", () => {
+			const { args } = runSetup(undefined, { build: { format: "file" } });
+			expect(args.updateConfig.mock.calls[0][0].vite.define.__ASTLIDE_TRAILING_SLASH__).toBe(
+				"false",
+			);
 		});
 	});
 

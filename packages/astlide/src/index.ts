@@ -377,6 +377,12 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 							__ASTLIDE_TOOLBAR__: JSON.stringify(options.toolbar ?? ["prev", "counter", "next"]),
 							__ASTLIDE_FONT__: JSON.stringify(resolveFontOption(options.font)),
 							__ASTLIDE_FAVICON__: JSON.stringify(favicon),
+							// Page URLs end in "/" when that's how the site is served (see utils/base-path).
+							__ASTLIDE_TRAILING_SLASH__: JSON.stringify(
+								config.trailingSlash === "always" ||
+									(config.trailingSlash !== "never" &&
+										(config.build?.format ?? "directory") === "directory"),
+							),
 							__ASTLIDE_DRAWINGS_PERSIST__: JSON.stringify(options.drawings?.persist ?? false),
 						},
 					},

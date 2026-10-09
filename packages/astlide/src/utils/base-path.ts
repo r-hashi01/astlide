@@ -16,6 +16,17 @@
  */
 export const basePath: string = (import.meta.env.BASE_URL ?? "/").replace(/\/+$/, "");
 
+declare const __ASTLIDE_TRAILING_SLASH__: boolean | undefined;
+
+/**
+ * Whether page URLs end in `/`: Astro's `trailingSlash: "always"`, or the
+ * default `build.format: "directory"` (pages are `<path>/index.html`, which
+ * static hosts redirect to from the slash-less URL) unless `trailingSlash` is
+ * `"never"`. Set by the integration.
+ */
+export const trailingSlash: boolean =
+	typeof __ASTLIDE_TRAILING_SLASH__ !== "undefined" ? __ASTLIDE_TRAILING_SLASH__ : false;
+
 /**
  * Prefix a root-relative path with the configured `base`.
  *
@@ -26,6 +37,26 @@ export const basePath: string = (import.meta.env.BASE_URL ?? "/").replace(/\/+$/
  */
 export function withBase(path: string): string {
 	return basePath + (path.startsWith("/") ? path : `/${path}`);
+}
+
+/**
+ * URL of an Astlide page (`/my-deck/3`, `/my-deck/all`): {@link withBase} plus
+ * the project's trailing-slash convention, so static hosts don't answer with a
+ * redirect. A query string or hash is kept after the slash.
+ *
+ * @param path - Root-relative page path, optionally with `?query` / `#hash`.
+ * @param slash - Override {@link trailingSlash} (for tests).
+ *
+ * @example
+ * // base: "/astlide", build.format: "directory"
+ * pageUrl("/my-deck/3?presenter"); // → "/astlide/my-deck/3/?presenter"
+ */
+export function pageUrl(path: string, slash: boolean = trailingSlash): string {
+	const href = withBase(path);
+	const cut = href.search(/[?#]/);
+	const pathname = cut === -1 ? href : href.slice(0, cut);
+	const rest = cut === -1 ? "" : href.slice(cut);
+	return slash && !pathname.endsWith("/") ? `${pathname}/${rest}` : pathname + rest;
 }
 
 /**

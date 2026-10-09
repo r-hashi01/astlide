@@ -7,7 +7,7 @@ import { ClientRouter } from 'astro:transitions';
 import Favicon from '@astlide/core/internal/Favicon.astro';
 import { sanitizeHTML } from '@astlide/core/utils/sanitize';
 import { renderMarkdown } from '@astlide/core/utils/markdown';
-import { basePath, withBase } from '@astlide/core/utils/base-path';
+import { basePath, pageUrl, trailingSlash, withBase } from '@astlide/core/utils/base-path';
 
 // Vite defines injected by the astlide() integration
 declare const __ASTLIDE_CSP__: boolean | string;
@@ -90,7 +90,7 @@ const {
 } = Astro.props;
 const sanitizedNotes = notes ? sanitizeHTML(await renderMarkdown(notes)) : undefined;
 // Internal links honour Astro's `base` (sub-path deployments).
-const deckHref = withBase(`/${deck}`);
+const slideHref = (n: number, query = '') => pageUrl(`/${deck}/${n}${query}`);
 const progress = (currentSlide / totalSlides) * 100;
 const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEXABLE__ : false;
 ---
@@ -108,7 +108,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     <meta property="og:description" content={`Slide deck: ${title}`} />
     <meta property="og:type" content="website" />
     {!indexable && <meta name="robots" content="noindex, nofollow" />}
-    {nextSlide && <link rel="prefetch" href={`${deckHref}/${nextSlide}`} />}
+    {nextSlide && <link rel="prefetch" href={slideHref(nextSlide)} />}
     {fontConfig?.preconnect?.map((origin) => (
       <link rel="preconnect" href={origin} crossorigin={origin.includes('gstatic') ? '' : undefined} />
     ))}
@@ -180,7 +180,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
             <span class="presenter-steps-left" id="presenter-steps-left" hidden></span>
           </div>
           {nextSlide
-            ? <div class="presenter-next-frame" data-next-src={`${deckHref}/${nextSlide}`}></div>
+            ? <div class="presenter-next-frame" data-next-src={slideHref(nextSlide)}></div>
             : <p class="presenter-next-end">End of deck</p>
           }
         </section>
@@ -199,11 +199,11 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
           }
         </div>
         <div class="presenter-nav">
-          <a href={prevSlide ? `${deckHref}/${prevSlide}?presenter` : undefined}
+          <a href={prevSlide ? slideHref(prevSlide, '?presenter') : undefined}
              class:list={['pnav-btn', { disabled: !prevSlide }]}
              aria-disabled={!prevSlide ? 'true' : undefined}
              tabindex={!prevSlide ? -1 : undefined}>← Prev</a>
-          <a href={nextSlide ? `${deckHref}/${nextSlide}?presenter` : undefined}
+          <a href={nextSlide ? slideHref(nextSlide, '?presenter') : undefined}
              class:list={['pnav-btn', { disabled: !nextSlide }]}
              aria-disabled={!nextSlide ? 'true' : undefined}
              tabindex={!nextSlide ? -1 : undefined}>Next →</a>
@@ -245,14 +245,14 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
              title="Back to deck index">⌂</a>
         );
         if (item === 'prev') return (
-          <a href={prevSlide ? `${deckHref}/${prevSlide}` : undefined}
+          <a href={prevSlide ? slideHref(prevSlide) : undefined}
              class:list={['nav-btn', { disabled: !prevSlide }]}
              aria-label="Previous slide"
              aria-disabled={!prevSlide ? 'true' : undefined}
              tabindex={!prevSlide ? -1 : undefined}>←</a>
         );
         if (item === 'next') return (
-          <a href={nextSlide ? `${deckHref}/${nextSlide}` : undefined}
+          <a href={nextSlide ? slideHref(nextSlide) : undefined}
              class:list={['nav-btn', { disabled: !nextSlide }]}
              aria-label="Next slide"
              aria-disabled={!nextSlide ? 'true' : undefined}
@@ -402,7 +402,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
          This script embeds per-slide values, so without it, returning to a
          previously visited slide would keep the last slide's state (e.g. →
          from a revisited slide 2 after visiting 3 jumped to 4). -->
-    <script data-astro-rerun define:vars={{ currentSlide, totalSlides, prevSlide, nextSlide, firstSlide, lastSlide, deck, deckContext: context ?? null, outline, basePath, persistDrawings }}>
+    <script data-astro-rerun define:vars={{ trailingSlash, currentSlide, totalSlides, prevSlide, nextSlide, firstSlide, lastSlide, deck, deckContext: context ?? null, outline, basePath, persistDrawings }}>
       // ── 0. Publish typed deck/slide metadata for client scripts ──
       // Replaces parsing document.title / body.dataset. See @astlide/core/context.
       if (deckContext) window.__astlide = deckContext;
@@ -419,6 +419,11 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       const deckPath = encodeURIComponent(deck);
       // URL prefix for this deck's slides, including Astro's `base` (sub-path deploys).
       const deckUrl = basePath + '/' + deckPath;
+      // A slide's URL, following the site's trailing-slash convention (static
+      // hosts redirect /deck/3 to /deck/3/ for directory-format builds).
+      function slideUrl(n, query) {
+        return deckUrl + '/' + n + (trailingSlash ? '/' : '') + (query || '');
+      }
 
       // ── 1. Cleanup from previous page (ClientRouter) ─────────
       if (window.__astlide_cleanup) {
@@ -647,7 +652,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
           syncChannel.onmessage = function(e) {
             const data = e.data;
             if (data && data.type === 'navigate' && data.slide !== currentSlide) {
-              navTo(deckUrl + '/' + data.slide + (isPresenter ? '?presenter' : ''));
+              navTo(slideUrl(data.slide, isPresenter ? '?presenter' : ''));
             } else if (data && data.type === 'step') {
               // Mirror fragment / code-step progress. A step for another slide
               // usually means we are still navigating there: keep it for the next
@@ -699,7 +704,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         if (!a || a.classList.contains('disabled')) return;
         const href = a.getAttribute('href');
         if (!href) return;
-        const m = href.match(/\/([^/?#]+)\/(\d+)(?:[?#]|$)/);
+        const m = href.match(/\/([^/?#]+)\/(\d+)\/?(?:[?#]|$)/);
         if (!m) return;
         const targetDeck = decodeURIComponent(m[1]);
         const targetSlide = parseInt(m[2], 10);
@@ -714,7 +719,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         // nextSlide / prevSlide skip hidden slides in production.
         if (nextSlide) {
           broadcastSlide(nextSlide);
-          navTo(deckUrl + '/' + nextSlide + (isPresenter ? '?presenter' : ''));
+          navTo(slideUrl(nextSlide, isPresenter ? '?presenter' : ''));
         }
       }
 
@@ -722,7 +727,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         if (showPrevStep()) { broadcastStep(); return; }
         if (prevSlide) {
           broadcastSlide(prevSlide);
-          navTo(deckUrl + '/' + prevSlide + (isPresenter ? '?presenter' : ''));
+          navTo(slideUrl(prevSlide, isPresenter ? '?presenter' : ''));
         }
       }
 
@@ -743,13 +748,13 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
             : Array.from({ length: totalSlides }, (_, k) => k + 1);
           for (const i of numbers) {
             const item = document.createElement('a');
-            item.href = deckUrl + '/' + i;
+            item.href = slideUrl(i);
             item.className = 'overview-item' + (i === currentSlide ? ' current' : '');
             item.setAttribute('role', 'listitem');
             item.setAttribute('aria-label', 'Slide ' + i + ' of ' + totalSlides + (i === currentSlide ? ' (current)' : ''));
 
             const iframe = document.createElement('iframe');
-            iframe.src = deckUrl + '/' + i;
+            iframe.src = slideUrl(i);
             // No sandbox: same-origin frames with scripts can lift any sandbox, so it
             // only added a console warning per slide. The page runs in embed mode
             // (no navigation, keys or sync), like the presenter's next-slide preview.
@@ -844,7 +849,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         closeGoto();
         if (n === currentSlide) return;
         broadcastSlide(n);
-        navTo(deckUrl + '/' + n + (isPresenter ? '?presenter' : ''));
+        navTo(slideUrl(n, isPresenter ? '?presenter' : ''));
       }
 
       function handleGotoKeydown(e) {
@@ -1376,13 +1381,13 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
           case 'Home':
             e.preventDefault();
             broadcastSlide(firstSlide);
-            navTo(deckUrl + '/' + firstSlide + (isPresenter ? '?presenter' : ''));
+            navTo(slideUrl(firstSlide, isPresenter ? '?presenter' : ''));
             break;
           case 'ArrowDown':
           case 'End':
             e.preventDefault();
             broadcastSlide(lastSlide);
-            navTo(deckUrl + '/' + lastSlide + (isPresenter ? '?presenter' : ''));
+            navTo(slideUrl(lastSlide, isPresenter ? '?presenter' : ''));
             break;
           case 'f':
             if (!isPresenter) document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
