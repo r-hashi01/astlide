@@ -6,6 +6,7 @@ bun workspaces モノレポ。パッケージマネージャーは **bun**。
 packages/astlide/          — @astlide/core (Astro Integration)
 packages/create-astlide/   — create-astlide (CLI scaffolder)
 playground/                — 開発用 Astro プロジェクト
+docs/                      — ドキュメントサイト (Starlight) → https://r-hashi01.github.io/astlide/
 tools/ts6/                 — TypeScript 6 ブリッジ（下記）
 ```
 
@@ -19,7 +20,9 @@ bun run lint:fix     # Biome lint 自動修正
 bun run format       # Biome format
 bun run test         # vitest unit tests
 bun run test:e2e     # Playwright e2e tests
-bun run docs         # TypeDoc API リファレンス生成 (→ docs/api/)
+bun run docs:dev     # ドキュメントサイト dev server
+bun run docs:build   # TypeDoc (→ docs/public/api/) + ドキュメントサイトのビルド
+bun run docs:api     # TypeDoc API リファレンスのみ生成
 bun run changeset    # changeset 作成
 ```
 
@@ -36,7 +39,7 @@ bun run changeset    # changeset 作成
 ## TypeScript
 
 - リポジトリは **TypeScript 7**（ネイティブ `tsc`）。JS コンパイラ API を必要とするツール（`astro check` の language server、TypeDoc）だけ `tools/ts6` の TS6 を使う
-- `bun run typecheck` / `bun run docs` は `node --import scripts/use-typescript6.mjs` で `typescript` の解決先を TS6 に差し替えて実行
+- `bun run typecheck` / `bun run docs:api` は `node --import scripts/use-typescript6.mjs` で `typescript` の解決先を TS6 に差し替えて実行
 - `tools/ts6` は TS7 とバージョン衝突させてネスト配置するためのワークスペース（ルートに TS6 を入れると `.bin/tsc` が TS6 にすり替わる）
 - Astro が TS 7.1+ の `@astrojs/ts-content-mapper` に対応したら、ブリッジを外して `tsc --noEmit --runExternalCode` に移行する
 
@@ -55,8 +58,9 @@ bun run changeset    # changeset 作成
 ## ドキュメント運用
 
 - **公開APIを変更したら TSDoc コメントも同時に更新する**（コメントがソースの真実）
-- `bun run docs` で `docs/api/` に HTML リファレンスを生成（生成物は git 管理外）
-- 将来 Starlight サイトを作る際は `docs/` をそのままルートにできる構成
+- ドキュメントサイトは `docs/`（Starlight）。**機能を追加・変更したら `docs/src/content/docs/` の該当ページも更新する**
+- `.github/workflows/pages.yml` が main への push で GitHub Pages に公開: `/astlide/`（docs）、`/astlide/api/`（TypeDoc、生成物は git 管理外）、`/astlide/demo/`（playground を base `/astlide/demo` でビルド）
+- 内部リンクを手で組み立てるときは `withBase()`（`@astlide/core/utils/base-path`）を通す。CI が base 付きビルドで検査する
 
 ### リリースフロー
 

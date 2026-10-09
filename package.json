@@ -4,6 +4,7 @@
 	"workspaces": [
 		"packages/*",
 		"playground",
+		"docs",
 		"tools/*"
 	],
 	"scripts": {
@@ -17,7 +18,9 @@
 		"lint": "biome check .",
 		"lint:fix": "biome check --fix .",
 		"format": "biome format --write .",
-		"docs": "bun run --cwd packages/astlide docs",
+		"docs:api": "bun run --cwd packages/astlide docs",
+		"docs:dev": "bun run --filter astlide-docs dev",
+		"docs:build": "bun run docs:api && bun run --filter astlide-docs build",
 		"changeset": "changeset",
 		"version": "changeset version && bun install",
 		"release": "changeset publish"
@@ -37,5 +40,8 @@
 		"typescript": "^7.0.2",
 		"vitest": "^5.0.3",
 		"zod": "^4.6.5"
+	},
+	"dependencies": {
+		"astro": "^7.3.8"
 	}
 }
