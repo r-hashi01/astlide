@@ -3,7 +3,7 @@
 # always run before Claude finishes a turn. Blocks the stop with the failure
 # output so it gets fixed instead of shipped.
 #
-# Runs at turn-end (not per-edit) because `astro check` + the full test suite are
+# Runs at turn-end (not per-edit) because type checking + the full test suite are
 # too heavy to run on every file write. Skips instantly when there are no source
 # changes to verify.
 set -uo pipefail
@@ -27,9 +27,10 @@ fi
 
 report=""
 
-# Type Check — mirrors CI: `bunx astro check` (working-directory: playground)
-if ! tc_out="$(cd "$PROJECT_DIR/playground" && bunx astro check 2>&1)"; then
-  report+=$'\n\n## Type Check (astro check) failed\n'"$(printf '%s' "$tc_out" | tail -40)"
+# Type Check — mirrors CI: `bun run typecheck` (astro sync + AstroCheck on the
+# TypeScript 6 bridge; plain `astro check` refuses TypeScript 7)
+if ! tc_out="$(bun run typecheck 2>&1)"; then
+  report+=$'\n\n## Type Check (bun run typecheck) failed\n'"$(printf '%s' "$tc_out" | tail -40)"
 fi
 
 # Tests (TDD) — mirrors CI: `bun run test`
