@@ -46,6 +46,7 @@ export async function getStaticPaths() {
       totalSlides: number;
       deckConfig: DeckConfig;
       nextVisibleSlide: number;
+      nav: { prevSlide: number | null; nextSlide: number | null; firstSlide: number; lastSlide: number };
       configIssue: string | null;
       outline: Array<{ n: number; title: string }>;
       sources: string[] | undefined;
@@ -87,7 +88,21 @@ export async function getStaticPaths() {
     // slide's new number after files are added or removed.
     const sources = import.meta.env.DEV ? sortedSlides.map((s) => s.filePath ?? '') : undefined;
 
+    // Slides navigation can land on: in production hidden slides only redirect,
+    // so ←/→, Home/End and the previews skip them.
+    const visitable = sortedSlides
+      .map((s, i) => ({ n: i + 1, hidden: s.data.hidden }))
+      .filter((s) => !(s.hidden && import.meta.env.PROD))
+      .map((s) => s.n);
+
     for (let i = 0; i < sortedSlides.length; i++) {
+      const n = i + 1;
+      const nav = {
+        prevSlide: visitable.filter((v) => v < n).at(-1) ?? null,
+        nextSlide: visitable.find((v) => v > n) ?? null,
+        firstSlide: visitable[0] ?? 1,
+        lastSlide: visitable.at(-1) ?? sortedSlides.length,
+      };
       // Find the next non-hidden slide; fall back to first visible or slide 1
       const nextVisible = sortedSlides.slice(i + 1).find((s) => !s.data.hidden);
       const nextVisibleSlide = nextVisible
@@ -105,6 +120,7 @@ export async function getStaticPaths() {
           totalSlides: sortedSlides.length,
           deckConfig,    // typed as DeckConfig
           nextVisibleSlide,
+          nav,
           configIssue,
           outline,
           sources,
@@ -116,7 +132,7 @@ export async function getStaticPaths() {
   return paths;
 }
 
-const { slide, deckName, slideNumber, totalSlides, deckConfig, nextVisibleSlide, configIssue, outline, sources } = Astro.props;
+const { slide, deckName, slideNumber, totalSlides, deckConfig, nextVisibleSlide, configIssue, outline, sources, nav } = Astro.props;
 const { Content } = await render(slide);
 
 const {
@@ -195,6 +211,7 @@ if (import.meta.env.DEV) {
   outline={outline}
   sourcePath={import.meta.env.DEV ? slide.filePath : undefined}
   deckSources={sources}
+  {...nav}
 >
   <Slide
     layout={layout}
