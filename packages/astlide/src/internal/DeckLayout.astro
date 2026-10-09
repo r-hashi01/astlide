@@ -1914,6 +1914,14 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     color: #cbd5e1;
   }
 
+  /* Notes are rendered HTML (set:html, or <SpeakerNotes> injected client-side),
+     so the theme's light inline-code chip would put light text on light. */
+  .notes-content :global(code),
+  .notes-body :global(code) {
+    background: rgba(255, 255, 255, 0.12);
+    color: #e2e8f0;
+  }
+
   .no-notes {
     color: #475569;
     font-style: italic;
