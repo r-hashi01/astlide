@@ -84,9 +84,11 @@ type HotPayload = { type?: string; event?: string; data?: unknown };
 type Sender = (payload: HotPayload, ...rest: unknown[]) => void;
 
 /**
- * Wrap a hot channel's `send` so that, shortly after an editor write, a
- * `full-reload` becomes one `astlide:source-saved` event (further reloads in
- * the same window are dropped — Astro may send one per changed module).
+ * Wrap a hot channel's `send` so that, shortly after an editor write, every
+ * `full-reload` becomes an `astlide:source-saved` event instead. Astro may send
+ * several per write (one per changed module, and a later one once the content
+ * store has synced the frontmatter); the client coalesces them, and only the
+ * last refresh is guaranteed to see the settled page.
  */
 export function interceptReloads(
 	channel: { send: Sender } | undefined,
@@ -97,10 +99,7 @@ export function interceptReloads(
 	const wrapped: Sender & { __astlide?: true } = (payload, ...rest) => {
 		const write = pending();
 		if (write && payload && typeof payload === "object" && payload.type === "full-reload") {
-			if (!written.has(write)) {
-				written.add(write);
-				original({ type: "custom", event: SOURCE_SAVED_EVENT, data: { path: write.path } });
-			}
+			original({ type: "custom", event: SOURCE_SAVED_EVENT, data: { path: write.path } });
 			return;
 		}
 		original(payload, ...rest);
@@ -108,7 +107,6 @@ export function interceptReloads(
 	wrapped.__astlide = true;
 	channel.send = wrapped;
 }
-const written = new WeakSet<object>();
 
 export function astlideEditorPlugin(root: string): Plugin {
 	// The last editor write, while its reload echo can still arrive.
@@ -121,8 +119,8 @@ export function astlideEditorPlugin(root: string): Plugin {
 		apply: "serve",
 		configureServer(server) {
 			// Astro reloads through both the ws server and the client environment's hot
-			// channel; intercept both. Several reloads may follow one write — the first
-			// becomes the event, the rest are dropped until the echo window expires.
+			// channel; intercept both. Every reload within the echo window of a write
+			// becomes an event.
 			interceptReloads(server.ws as unknown as { send: Sender }, pending);
 			interceptReloads(
 				server.environments?.client?.hot as unknown as { send: Sender } | undefined,

@@ -59,15 +59,18 @@ describe("interceptReloads", () => {
 		return { sent, send: (payload: unknown) => sent.push(payload) };
 	}
 
-	it("turns the reload after an editor write into one source-saved event", () => {
+	it("turns each reload after an editor write into a source-saved event", () => {
 		const ch = channel();
 		const write = { path: "src/content/decks/t/01.mdx" };
 		interceptReloads(ch, () => write);
 		ch.send({ type: "full-reload", path: "*" });
 		ch.send({ type: "full-reload" });
-		expect(ch.sent).toEqual([
-			{ type: "custom", event: SOURCE_SAVED_EVENT, data: { path: "src/content/decks/t/01.mdx" } },
-		]);
+		const event = {
+			type: "custom",
+			event: SOURCE_SAVED_EVENT,
+			data: { path: "src/content/decks/t/01.mdx" },
+		};
+		expect(ch.sent).toEqual([event, event]);
 	});
 
 	it("passes reloads through when no editor write is pending", () => {
