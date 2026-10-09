@@ -1,5 +1,11 @@
 # create-astlide
 
+## 0.2.2
+
+### Patch Changes
+
+- [#80](https://github.com/r-hashi01/astlide/pull/80) [`fe43b55`](https://github.com/r-hashi01/astlide/commit/fe43b55dca33b26f8cfaae4791694bd4523bc031) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Update the package descriptions: "Slides that live in your Astro site".
+
 ## 0.2.1
 
 ### Patch Changes
