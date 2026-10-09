@@ -1,0 +1,41 @@
+---
+title: Astlide
+description: An Astro-based slide presentation framework — like Slidev, for the Astro ecosystem.
+template: splash
+hero:
+  tagline: Write slides in MDX, Markdown or HTML. Present them with the whole Astro ecosystem behind you.
+  actions:
+    - text: Get started
+      link: /astlide/getting-started/
+      icon: right-arrow
+    - text: Live demo
+      link: https://r-hashi01.github.io/astlide/demo/
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+<CardGrid>
+	<Card title="Author in what you like" icon="document">
+		Mix `.mdx`, `.md` and plain `.html` slides in one deck. Content Collections and a Zod
+		schema keep frontmatter type-safe.
+	</Card>
+	<Card title="Built for presenting" icon="rocket">
+		Presenter window with next-slide preview, notes and timer; overview, go-to-slide, pen and
+		laser pointer — all mirrored to the audience screen.
+	</Card>
+	<Card title="Code & diagrams" icon="seti:typescript">
+		Shiki highlighting with `{2|3-5|all}` line steps, Mermaid diagrams, KaTeX math.
+	</Card>
+	<Card title="Fragments" icon="list-format">
+		Step-by-step reveals with `<Fragment>` and `<Fragments>`, including `until` and `hide`.
+	</Card>
+	<Card title="Export" icon="download">
+		PDF and PNG via Playwright, editable PowerPoint, or one-click in-browser PDF.
+	</Card>
+	<Card title="Make it yours" icon="puzzle">
+		7 built-in themes, a plugin API for themes, layouts and transitions, slide decorators and a
+		composable toolbar.
+	</Card>
+</CardGrid>

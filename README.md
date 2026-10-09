@@ -7,6 +7,8 @@
 
 An Astro-based slide presentation framework — like Slidev, but for the Astro ecosystem.
 
+📖 **Documentation:** https://r-hashi01.github.io/astlide/ · 🎬 **Live demo:** https://r-hashi01.github.io/astlide/demo/
+
 ## Features
 
 - **MDX / Markdown / HTML slides** — author each slide as `.mdx`, `.md`, or plain `.html`, mixed freely in one deck
