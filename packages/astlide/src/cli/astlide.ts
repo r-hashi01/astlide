@@ -14,7 +14,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { getDecks } from "./pptx/export";
 
-type Format = "pdf" | "png" | "pptx" | "pptx-render";
+type Format = "pdf" | "png" | "pptx" | "pptx-render" | "pptx-engine";
 
 interface Options {
 	decks: string[];
@@ -44,6 +44,8 @@ Formats (combine as needed; default --pdf):
   --pdf                 One multi-page PDF per deck
   --pptx                Editable PowerPoint, built from the slide sources
   --png                 One PNG per slide
+  --pptx-engine         Experimental: PPTX laid out without a browser
+                        (native shapes + editable text)
   --pptx-render         Experimental: PPTX matching the rendered slides
                         (picture background + editable text boxes)
 
@@ -96,6 +98,7 @@ function parseExportArgs(args: string[]): Options {
 			case "--png":
 			case "--pptx":
 			case "--pptx-render":
+			case "--pptx-engine":
 				options.formats.add(arg.slice(2) as Format);
 				break;
 			case "-a":
@@ -140,6 +143,7 @@ function outputFor(options: Options, deck: string, format: Format): string {
 	const dir = resolve(options.cwd, options.outDir);
 	if (format === "png") return join(dir, `${deck}-slides`);
 	if (format === "pptx-render") return join(dir, `${deck}-render.pptx`);
+	if (format === "pptx-engine") return join(dir, `${deck}-engine.pptx`);
 	return join(dir, `${deck}.${format}`);
 }
 
@@ -208,6 +212,21 @@ async function runExport(options: Options): Promise<void> {
 	}
 	if (options.output && (decks.length > 1 || options.formats.size > 1)) {
 		fail("--output works with one deck and one format; use --out-dir otherwise");
+	}
+
+	// Engine PPTX: build only, no browser or server.
+	if (options.formats.has("pptx-engine")) {
+		const { exportEnginePptx } = await import("./pptx/engine/export");
+		for (const [n, deck] of decks.entries()) {
+			console.log(`\nPPTX (engine): ${deck}`);
+			await exportEnginePptx(deck, {
+				root: options.cwd,
+				output: outputFor(options, deck, "pptx-engine"),
+				// Build once; later decks (and PDF / PNG) reuse dist/.
+				build: options.build && n === 0,
+			});
+		}
+		options.build = false;
 	}
 
 	// PPTX first: it needs no server.

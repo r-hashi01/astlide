@@ -150,12 +150,25 @@ export interface InlineStyle {
 	letterSpacing: number;
 	whiteSpace: string;
 	color: string;
+	/** Effective opacity (element and ancestors). */
+	alpha: number;
 }
 
 /** A piece of inline content: text from one text node, or spacing from an inline box edge. */
 export type InlineItem =
 	| { kind: "text"; text: string; style: InlineStyle; nodeIndex: number }
-	| { kind: "space"; width: number };
+	| { kind: "space"; width: number }
+	/** Start / end of an inline element's box (background, border, padding). */
+	| { kind: "open" | "close"; id: number };
+
+/** The part of an inline element's box on one line, relative to the block's content box. */
+export interface PlacedInlineBox {
+	id: number;
+	x: number;
+	w: number;
+	/** Baseline of the line, from the top of the content box. */
+	baseline: number;
+}
 
 export interface PlacedFragment {
 	nodeIndex: number;
@@ -172,6 +185,7 @@ export interface LineBreakResult {
 	width: number;
 	height: number;
 	fragments: PlacedFragment[];
+	inlineBoxes: PlacedInlineBox[];
 }
 
 interface Word {
@@ -186,6 +200,8 @@ interface Word {
 	/** A break opportunity right before this word (e.g. after a hyphen). */
 	breakBefore?: boolean;
 	forcedBreak?: boolean;
+	/** Zero-width marker for an inline box edge. */
+	edge?: { kind: "open" | "close"; id: number };
 }
 
 /**
@@ -205,6 +221,17 @@ export function layoutLines(
 	for (const item of items) {
 		if (item.kind === "space") {
 			words.push({ text: "", style: null, nodeIndex: -1, width: item.width, space: false });
+			continue;
+		}
+		if (item.kind !== "text") {
+			words.push({
+				text: "",
+				style: null,
+				nodeIndex: -1,
+				width: 0,
+				space: false,
+				edge: { kind: item.kind, id: item.id },
+			});
 			continue;
 		}
 		const pre = /^(pre|pre-wrap|break-spaces)$/.test(item.style.whiteSpace);
@@ -276,6 +303,9 @@ export function layoutLines(
 
 	// 3. Vertical layout per line: baseline alignment with half-leading.
 	const fragments: PlacedFragment[] = [];
+	const inlineBoxes: PlacedInlineBox[] = [];
+	/** Inline boxes still open at the end of the previous line (continue on the next). */
+	let carried: number[] = [];
 	let y = 0;
 	let maxW = 0;
 	for (const l of lines) {
@@ -304,8 +334,19 @@ export function layoutLines(
 		let x = offset;
 		let frag: PlacedFragment | null = null;
 		const trailing = l.words.length - [...l.words].reverse().findIndex((w) => !w.space);
+		const openAt = new Map<number, number>(carried.map((id) => [id, offset]));
 		l.words.forEach((w, i) => {
 			const hanging = i >= trailing;
+			if (w.edge) {
+				if (w.edge.kind === "open") openAt.set(w.edge.id, x);
+				else {
+					const start = openAt.get(w.edge.id) ?? offset;
+					openAt.delete(w.edge.id);
+					inlineBoxes.push({ id: w.edge.id, x: start, w: x - start, baseline });
+				}
+				frag = null;
+				return;
+			}
 			if (!w.style || w.nodeIndex < 0) {
 				frag = null;
 				x += w.width;
@@ -332,8 +373,12 @@ export function layoutLines(
 			}
 			x += w.width;
 		});
+		// Boxes that continue onto the next line end at this line's content end.
+		carried = [...openAt.keys()];
+		for (const [id, start] of openAt)
+			inlineBoxes.push({ id, x: start, w: offset + lw - start, baseline });
 		y += lineHeight;
 	}
 	for (const f of fragments) f.text = f.text.trimEnd();
-	return { width: maxW, height: y, fragments };
+	return { width: maxW, height: y, fragments, inlineBoxes };
 }

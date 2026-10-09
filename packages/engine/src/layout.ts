@@ -35,6 +35,20 @@ export interface Box {
 	w: number;
 	h: number;
 	style: Computed;
+	/** Effective opacity (element × ancestors). */
+	alpha: number;
+}
+
+/** The part of an inline element's box (background / border) on one line. */
+export interface InlineBox {
+	eid: number;
+	tag: string;
+	x: number;
+	y: number;
+	w: number;
+	h: number;
+	style: Computed;
+	alpha: number;
 }
 
 export interface TextLine {
@@ -49,8 +63,15 @@ export interface TextLine {
 export interface SlideLayout {
 	width: number;
 	height: number;
+	/** The slide element's own computed style (background …). */
+	style: Computed;
 	boxes: Box[];
+	inlineBoxes: InlineBox[];
 	lines: TextLine[];
+	/** List item markers (•, 1. …), positioned like Chromium's outside markers. */
+	markers: TextLine[];
+	/** Slide descendants by element id (document order). */
+	elements: Element[];
 }
 
 const isElement = (n: ChildNode): n is Element =>
@@ -89,6 +110,8 @@ class Builder {
 	readonly config = Yoga.Config.create();
 	/** Parent of each node we created (Yoga's getParent/getChild return fresh wrappers). */
 	readonly parents = new Map<YogaNode, YogaNode>();
+	/** Inline elements by inline-box id (backgrounds / borders across lines). */
+	readonly inlineEls: { el: Element; style: Computed }[] = [];
 	/** Resolved vertical margins of block boxes (px), for margin collapsing. */
 	readonly margins = new Map<YogaNode, { top: number; bottom: number }>();
 
@@ -125,6 +148,12 @@ class Builder {
 			rootFontSize: this.rootFontSize,
 			vp: this.vp,
 		});
+		// Effective opacity: not inherited, but multiplies down the tree.
+		const opacity = Number.parseFloat(s.get("opacity") ?? "1");
+		s.set(
+			"__alpha",
+			String(Number(parent?.get("__alpha") ?? 1) * (Number.isNaN(opacity) ? 1 : opacity)),
+		);
 		this.styles.set(el, s);
 		return s;
 	}
@@ -136,6 +165,8 @@ class Builder {
 	}
 
 	inlineStyle(style: Computed): InlineStyle {
+		const alpha =
+			(style.get("visibility") ?? "visible") === "hidden" ? 0 : Number(style.get("__alpha") ?? 1);
 		const size = Number.parseFloat(style.get("font-size") ?? "16");
 		const weight = Number.parseInt(style.get("font-weight") ?? "400", 10) || 400;
 		const italic = /italic|oblique/.test(style.get("font-style") ?? "");
@@ -155,6 +186,7 @@ class Builder {
 			letterSpacing: ls === "normal" ? 0 : Number.parseFloat(ls) || 0,
 			whiteSpace: style.get("white-space") ?? "normal",
 			color: style.get("color") ?? "#000",
+			alpha,
 		};
 	}
 
@@ -230,16 +262,25 @@ class Builder {
 					});
 					continue;
 				}
-				const edge = (side: string) =>
-					[`margin-${side}`, `border-${side}-width`, `padding-${side}`].reduce((sum, p) => {
+				const sum = (...props: string[]) =>
+					props.reduce((acc, p) => {
 						const v = this.px(s, p);
-						return sum + (Number.isNaN(v) ? 0 : v);
+						return acc + (Number.isNaN(v) ? 0 : v);
 					}, 0);
-				const left = edge("left");
-				if (left) items.push({ kind: "space", width: left });
+				const id = this.inlineEls.length;
+				this.inlineEls.push({ el: n, style: s });
+				// margin | open … border + padding | content | border + padding … close | margin
+				const ml = sum("margin-left");
+				if (ml) items.push({ kind: "space", width: ml });
+				items.push({ kind: "open", id });
+				const il = sum("border-left-width", "padding-left");
+				if (il) items.push({ kind: "space", width: il });
 				this.collectInline(n.children, s, items);
-				const right = edge("right");
-				if (right) items.push({ kind: "space", width: right });
+				const ir = sum("border-right-width", "padding-right");
+				if (ir) items.push({ kind: "space", width: ir });
+				items.push({ kind: "close", id });
+				const mr = sum("margin-right");
+				if (mr) items.push({ kind: "space", width: mr });
 			}
 		}
 	}
@@ -501,7 +542,17 @@ export function layoutSlide(
 
 	const slideStyle = b.styleOf(slide, parent);
 	const root = b.build(slide, slideStyle);
-	if (!root) return { width: 0, height: 0, boxes: [], lines: [] };
+	if (!root)
+		return {
+			width: 0,
+			height: 0,
+			style: slideStyle,
+			boxes: [],
+			inlineBoxes: [],
+			lines: [],
+			markers: [],
+			elements: [],
+		};
 	if ((slideStyle.get("width") ?? "auto") === "auto") root.setWidth(vp.width);
 	if ((slideStyle.get("height") ?? "auto") === "auto") root.setHeight(vp.height);
 
@@ -534,14 +585,93 @@ export function layoutSlide(
 			w: bn.node.getComputedWidth(),
 			h: bn.node.getComputedHeight(),
 			style: bn.style,
+			alpha: Number(bn.style.get("__alpha") ?? 1),
 		});
 	}
 	const lines: TextLine[] = [];
+	const inlineBoxes: InlineBox[] = [];
 	for (const leaf of b.leaves) {
 		const p = b.absolute(leaf.node);
 		const r = layoutLines(leaf.items, leaf.node.getComputedWidth(), leaf.strut, leaf.align, fonts);
 		for (const f of r.fragments)
 			lines.push({ text: f.text, x: p.x + f.x, y: p.y + f.y, w: f.w, h: f.h, style: f.style });
+		for (const ib of r.inlineBoxes) {
+			const entry = b.inlineEls[ib.id];
+			if (!entry) continue;
+			const is = b.inlineStyle(entry.style);
+			const m = verticalMetrics(is.face, is.size);
+			const v = (prop: string) => {
+				const n = b.px(entry.style, prop);
+				return Number.isNaN(n) ? 0 : n;
+			};
+			const top = v("padding-top") + v("border-top-width");
+			const bottom = v("padding-bottom") + v("border-bottom-width");
+			inlineBoxes.push({
+				eid: b.eids.get(entry.el) ?? -1,
+				tag: entry.el.name,
+				x: p.x + ib.x,
+				y: p.y + ib.baseline - m.ascent - top,
+				w: ib.w,
+				h: m.ascent + m.descent + top + bottom,
+				style: entry.style,
+				alpha: is.alpha,
+			});
+		}
 	}
-	return { width: root.getComputedWidth(), height: root.getComputedHeight(), boxes, lines };
+	const markers = listMarkers(b, boxes, lines, sheets, fonts);
+	return {
+		width: root.getComputedWidth(),
+		height: root.getComputedHeight(),
+		style: slideStyle,
+		boxes,
+		inlineBoxes,
+		lines,
+		markers,
+		elements: [...b.eids.keys()],
+	};
+}
+
+const MARKERS: Record<string, string> = { disc: "•", circle: "◦", square: "▪" };
+
+/** Outside list markers: text ends at the item's border-box start, on its first baseline. */
+function listMarkers(
+	b: Builder,
+	boxes: Box[],
+	lines: TextLine[],
+	sheets: StyleSheets,
+	fonts: FontRegistry,
+): TextLine[] {
+	const out: TextLine[] = [];
+	const counters = new Map<Element | null, number>();
+	for (const box of boxes) {
+		if ((box.style.get("display") ?? "") !== "list-item") continue;
+		const type = box.style.get("list-style-type") ?? "disc";
+		if (type === "none") continue;
+		const el = [...b.eids].find(([, id]) => id === box.eid)?.[0];
+		if (!el) continue;
+		const n = (counters.get(el.parent as Element | null) ?? 0) + 1;
+		counters.set(el.parent as Element | null, n);
+		const text = MARKERS[type] ?? (type === "decimal" ? `${n}.` : "•");
+		const ms = computeStyle(sheets.declared(el, "marker"), {
+			parent: box.style,
+			rootFontSize: b.rootFontSize,
+			vp: b.vp,
+		});
+		ms.set("__alpha", box.style.get("__alpha") ?? "1");
+		const style = b.inlineStyle(ms);
+		const first = lines.find((l) => l.y >= box.y - 1 && l.y < box.y + box.h);
+		if (!first) continue;
+		const baseline = first.y + verticalMetrics(first.style.face, first.style.size).ascent;
+		const m = verticalMetrics(style.face, style.size);
+		const w = fonts.width(style.face, style.size, `${text} `, style.letterSpacing);
+		out.push({
+			text,
+			x: box.x - w,
+			y: baseline - m.ascent,
+			w: fonts.width(style.face, style.size, text),
+			h: m.ascent + m.descent,
+			style,
+		});
+	}
+	return out;
 }

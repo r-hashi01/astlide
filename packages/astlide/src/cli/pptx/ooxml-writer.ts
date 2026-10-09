@@ -63,7 +63,11 @@ export interface RectSpec {
 	h: number;
 	fill: string;
 	fillTransparency?: number;
-	line?: { color: string; transparency?: number };
+	line?: { color: string; transparency?: number /** points */; width?: number };
+	/** Corner radius in inches (rounded rectangle). */
+	radius?: number;
+	/** No fill (border only). */
+	noFill?: boolean;
 }
 
 /** A PNG placed on the slide (e.g. a rendered background). */
@@ -203,17 +207,27 @@ function buildRectXml(r: RectSpec, id: number): string {
 		fillXml += "/>";
 	}
 	fillXml += "</a:solidFill>";
+	if (r.noFill) fillXml = "<a:noFill/>";
 
 	let lineXml = "<a:ln><a:noFill/></a:ln>";
 	if (r.line) {
-		lineXml = `<a:ln><a:solidFill><a:srgbClr val="${r.line.color}"/></a:solidFill></a:ln>`;
+		const w = r.line.width ? ` w="${Math.round(r.line.width * 12700)}"` : "";
+		const a =
+			r.line.transparency && r.line.transparency > 0
+				? `<a:alpha val="${Math.round((100 - r.line.transparency) * 1000)}"/>`
+				: "";
+		lineXml = `<a:ln${w}><a:solidFill><a:srgbClr val="${r.line.color}">${a}</a:srgbClr></a:solidFill></a:ln>`;
 	}
+	// Rounded corners: adj is the radius as a fraction of the shorter side (max 50 000).
+	const geom = r.radius
+		? `<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val ${Math.min(50000, Math.round((r.radius / Math.max(0.0001, Math.min(r.w, r.h))) * 100000))}"/></a:avLst></a:prstGeom>`
+		: `<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>`;
 
 	return `<p:sp>
 <p:nvSpPr><p:cNvPr id="${id}" name="Rect ${id}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
 <p:spPr>
 <a:xfrm><a:off x="${emu(r.x)}" y="${emu(r.y)}"/><a:ext cx="${emu(r.w)}" cy="${emu(r.h)}"/></a:xfrm>
-<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+${geom}
 ${fillXml}${lineXml}
 </p:spPr>
 </p:sp>`;

@@ -72,6 +72,7 @@
 	],
 	"license": "MIT",
 	"devDependencies": {
+		"@astlide/engine": "workspace:*",
 		"typedoc": "^0.28.20"
 	}
 }

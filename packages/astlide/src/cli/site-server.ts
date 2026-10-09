@@ -54,23 +54,26 @@ function runAstro(root: string, args: string[]): ChildProcess {
  * `astro preview` on a free port. The URL — including Astro's `base` — is
  * read from the preview server's own output.
  */
-export async function startSite(options: { root: string; build: boolean }): Promise<SiteServer> {
-	if (options.build) {
-		await new Promise<void>((resolve, reject) => {
-			const child = runAstro(options.root, ["build"]);
-			let log = "";
-			child.stdout?.on("data", (d) => {
-				log += d;
-			});
-			child.stderr?.on("data", (d) => {
-				log += d;
-			});
-			child.on("error", reject);
-			child.on("exit", (code) =>
-				code === 0 ? resolve() : reject(new Error(`astro build failed (exit ${code}):\n${log}`)),
-			);
+/** Run `astro build` for the project (in a child Node process). */
+export async function buildSite(root: string): Promise<void> {
+	await new Promise<void>((resolve, reject) => {
+		const child = runAstro(root, ["build"]);
+		let log = "";
+		child.stdout?.on("data", (d) => {
+			log += d;
 		});
-	}
+		child.stderr?.on("data", (d) => {
+			log += d;
+		});
+		child.on("error", reject);
+		child.on("exit", (code) =>
+			code === 0 ? resolve() : reject(new Error(`astro build failed (exit ${code}):\n${log}`)),
+		);
+	});
+}
+
+export async function startSite(options: { root: string; build: boolean }): Promise<SiteServer> {
+	if (options.build) await buildSite(options.root);
 
 	const port = await freePort();
 	// --ignore-lock: a one-off foreground server. Without it Astro may start the

@@ -35,6 +35,11 @@
     "packages/astlide": {
       "name": "@astlide/core",
       "version": "2.4.0",
+      "bin": {
+        "astlide": "./src/cli/astlide.ts",
+        "astlide-export": "./src/cli/export-pdf.ts",
+        "astlide-export-pptx": "./src/cli/export-pptx.ts",
+      },
       "dependencies": {
         "@astrojs/mdx": "^8.0.2",
         "js-yaml": "^5.2.1",
@@ -46,6 +51,7 @@
         "unified": "^11.0.0",
       },
       "devDependencies": {
+        "@astlide/engine": "workspace:*",
         "typedoc": "^0.28.20",
       },
       "optionalDependencies": {

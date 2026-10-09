@@ -14,7 +14,9 @@ import { StyleSheets, UA_CSS, type Viewport } from "./cascade";
 import { layoutSlide, type SlideLayout } from "./layout";
 import type { FontRegistry } from "./text";
 
+export { familiesIn, loadGoogleFonts } from "./fonts";
 export type { Box, SlideLayout, TextLine } from "./layout";
+export { type Color, parseColor, type Scene, type SceneItem, toScene } from "./scene";
 export { FontRegistry } from "./text";
 
 function* elements(node: { children?: unknown[] }): Generator<Element> {
@@ -24,6 +26,20 @@ function* elements(node: { children?: unknown[] }): Generator<Element> {
 			yield* elements(c);
 		}
 	}
+}
+
+/** All CSS a built page uses (linked sheets + <style> blocks), in order. */
+export function pageCss(htmlPath: string, distDir: string): string {
+	const doc = parseDocument(readFileSync(htmlPath, "utf-8"));
+	const parts: string[] = [];
+	for (const el of elements(doc)) {
+		if (el.name === "link" && el.attribs.rel === "stylesheet" && el.attribs.href?.startsWith("/")) {
+			parts.push(readFileSync(join(distDir, el.attribs.href), "utf-8"));
+		} else if (el.name === "style") {
+			parts.push(el.children.map((c) => ("data" in c ? c.data : "")).join(""));
+		}
+	}
+	return parts.join("\n");
 }
 
 /** Lay out every `body > .slide` of a built page (e.g. dist/<deck>/all/index.html). */
