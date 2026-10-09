@@ -35,6 +35,8 @@ export interface TextRunOptions {
 	lineSpacing?: number;
 	/** Extra space between characters, in points (CSS letter-spacing). */
 	letterSpacing?: number;
+	/** Highlight (text background) color, `RRGGBB`. */
+	highlight?: string;
 }
 
 export interface TextRun {
@@ -382,6 +384,9 @@ function buildParagraphXml(
 		let rPrInner = "";
 		if (o.color) {
 			rPrInner += `<a:solidFill><a:srgbClr val="${o.color}"/></a:solidFill>`;
+		}
+		if (o.highlight) {
+			rPrInner += `<a:highlight><a:srgbClr val="${o.highlight}"/></a:highlight>`;
 		}
 		if (o.fontFace) {
 			rPrInner += `<a:latin typeface="${esc(o.fontFace)}"/><a:cs typeface="${esc(o.fontFace)}"/>`;

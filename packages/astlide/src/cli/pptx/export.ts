@@ -10,7 +10,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { SceneItem } from "@astlide/engine";
+import type { Scene, SceneItem } from "@astlide/engine";
 import {
 	PptxFile,
 	type SlideElement,
@@ -80,7 +80,57 @@ function runOptions(item: TextItem, k: number): TextRunOptions {
 		bold: f.bold,
 		italic: item.font.italic,
 		letterSpacing: item.letterSpacing ? item.letterSpacing * k * 72 : undefined,
+		highlight: highlightOf.get(item),
 	};
+}
+
+type Rgb = [number, number, number];
+const rgb = (h: string): Rgb => [0, 2, 4].map((i) => Number.parseInt(h.slice(i, i + 2), 16)) as Rgb;
+const toHex = (c: Rgb) =>
+	c
+		.map((v) => Math.round(v).toString(16).padStart(2, "0"))
+		.join("")
+		.toUpperCase();
+
+/** Highlight color of text inside an inline background (inline code …). */
+const highlightOf = new WeakMap<TextItem, string>();
+
+/**
+ * Inline backgrounds (inline code chips …) become the highlight of the text
+ * they hold, so they move with it — PowerPoint flows the text with its own
+ * metrics, and a separate shape would drift. Returns the rects replaced.
+ * The highlight is opaque: translucent fills are composited over what lies
+ * beneath them.
+ */
+function inlineHighlights(scene: Scene): Set<SceneItem> {
+	const replaced = new Set<SceneItem>();
+	const texts = scene.items.filter((t): t is TextItem => t.kind === "text");
+	scene.items.forEach((r, index) => {
+		if (r.kind !== "rect" || !r.inline || !r.fill || r.fill.alpha <= 0) return;
+		const inside = texts.filter((t) => {
+			const cx = t.x + t.w / 2;
+			const cy = t.y + t.h / 2;
+			return cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h;
+		});
+		if (inside.length === 0) return;
+		// What the chip is painted over: the slide, then every box below it.
+		let under = rgb(scene.background.hex);
+		const cx = r.x + r.w / 2;
+		const cy = r.y + r.h / 2;
+		for (const b of scene.items.slice(0, index)) {
+			if (b.kind !== "rect" || b.inline || !b.fill) continue;
+			if (cx < b.x || cx > b.x + b.w || cy < b.y || cy > b.y + b.h) continue;
+			under = blend(rgb(b.fill.hex), b.fill.alpha, under);
+		}
+		const color = toHex(blend(rgb(r.fill.hex), r.fill.alpha, under));
+		for (const t of inside) highlightOf.set(t, color);
+		replaced.add(r);
+	});
+	return replaced;
+}
+
+function blend(top: Rgb, alpha: number, bottom: Rgb): Rgb {
+	return top.map((v, i) => v * alpha + (bottom[i] ?? 0) * (1 - alpha)) as Rgb;
 }
 
 /** Placeholder text box of a block, filled by {@link fillBlock} once all its lines are in. */
@@ -202,8 +252,10 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 		const k = SLIDE_W_IN / scene.width;
 		const elements: SlideElement[] = [];
 		const blocks = new Map<number, TextItem[]>();
+		const flowing = inlineHighlights(scene);
 		for (const item of scene.items) {
 			if (item.kind === "rect") {
+				if (flowing.has(item)) continue;
 				elements.push({
 					type: "rect",
 					x: item.x * k,

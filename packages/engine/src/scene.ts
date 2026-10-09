@@ -26,6 +26,8 @@ export type SceneItem =
 			fill?: Color;
 			border?: { width: number; color: Color };
 			radius?: number;
+			/** Background of an inline element (inline code …): it flows with its text. */
+			inline?: boolean;
 	  }
 	| {
 			kind: "text";
@@ -213,7 +215,8 @@ export function toScene(
 	}
 	for (const ib of layout.inlineBoxes) {
 		if (ib.alpha < 0.01) continue;
-		items.push(...boxRects(ib.x, ib.y, ib.w, ib.h, ib.style, ib.alpha));
+		for (const r of boxRects(ib.x, ib.y, ib.w, ib.h, ib.style, ib.alpha))
+			items.push(r.kind === "rect" ? { ...r, inline: true } : r);
 	}
 	for (const l of [...layout.markers, ...layout.lines]) {
 		const t = textItem(l);
