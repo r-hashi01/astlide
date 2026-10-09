@@ -21,7 +21,7 @@ export default defineConfig({
 Then deploy `dist/` with GitHub Actions — see Astro's [GitHub Pages guide](https://docs.astro.build/en/guides/deploy/github/).
 
 :::note
-Your own absolute URLs in slides (e.g. `![](/photo.jpg)`) are not rewritten. Use relative paths or `import.meta.env.BASE_URL` for them.
+Root-relative paths in `<ImageSide src>` and image `background`s (e.g. `/photo.jpg`) are resolved against `base` for you. Other absolute URLs you write yourself — Markdown images like `![](/photo.jpg)`, raw `<img>` or links — are not rewritten; use relative paths or `import.meta.env.BASE_URL` for those.
 :::
 
 ## Search engines

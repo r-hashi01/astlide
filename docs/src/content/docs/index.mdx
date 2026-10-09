@@ -1,9 +1,10 @@
 ---
 title: Astlide
-description: An Astro-based slide presentation framework — like Slidev, for the Astro ecosystem.
+description: Slides that live in your Astro site — write in MDX, Markdown or HTML, ship every slide as a real static page.
 template: splash
 hero:
-  tagline: Write slides in MDX, Markdown or HTML. Present them with the whole Astro ecosystem behind you.
+  title: Slides that live in your Astro site
+  tagline: Write in MDX, Markdown or plain HTML. Keep talks next to your blog and docs. Ship every slide as a real static page.
   actions:
     - text: Get started
       link: /astlide/getting-started/
@@ -17,28 +18,45 @@ hero:
       variant: minimal
 ---
 
-import { Card, CardGrid } from "@astrojs/starlight/components";
+import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
+
+## Why Astlide
 
 <CardGrid>
-	<Card title="Author in what you like" icon="document">
-		Mix `.mdx`, `.md` and plain `.html` slides in one deck. Content Collections and a Zod
-		schema keep frontmatter type-safe.
+	<Card title="It's just Astro" icon="astro">
+		An integration, not a separate app: add `astlide()` to an existing site and your talks share its
+		repo, components, content collections and deploy.
 	</Card>
-	<Card title="Built for presenting" icon="rocket">
-		Presenter window with next-slide preview, notes and timer; overview, go-to-slide, pen and
-		laser pointer — all mirrored to the audience screen.
+	<Card title="Every slide is a real page" icon="document">
+		`/my-talk/7` is static HTML — link straight to a slide, load fast, host anywhere, including
+		sub-paths like GitHub Pages.
 	</Card>
-	<Card title="Code & diagrams" icon="seti:typescript">
-		Shiki highlighting with `{2|3-5|all}` line steps, Mermaid diagrams, KaTeX math.
+	<Card title="Write in whatever fits" icon="pencil">
+		Mix `.mdx`, `.md` and plain `.html` slides in one deck. Paste hand-made or AI-generated HTML and
+		it renders as-is.
 	</Card>
-	<Card title="Fragments" icon="list-format">
-		Step-by-step reveals with `<Fragment>` and `<Fragments>`, including `until` and `hide`.
-	</Card>
-	<Card title="Export" icon="download">
-		PDF and PNG via Playwright, editable PowerPoint, or one-click in-browser PDF.
-	</Card>
-	<Card title="Make it yours" icon="puzzle">
-		7 built-in themes, a plugin API for themes, layouts and transitions, slide decorators and a
-		composable toolbar.
+	<Card title="Many decks, one project" icon="list-format">
+		Every folder under `src/content/decks/` is a deck, with an index page out of the box. Frontmatter
+		is type-checked with Zod.
 	</Card>
 </CardGrid>
+
+## Everything you expect when presenting
+
+<CardGrid>
+	<Card title="Presenter window" icon="rocket">
+		Next-slide preview, steps left, notes and timer. Overview, go-to-slide, pen and laser — mirrored
+		to the audience screen.
+	</Card>
+	<Card title="Reveals & code" icon="seti:typescript">
+		`<Fragment>` / `<Fragments>` with `until` and `hide`; Shiki code with `{1|3-5|all}` line steps.
+	</Card>
+	<Card title="Diagrams & math" icon="random">
+		Mermaid diagrams loaded on demand, KaTeX rendered at build time.
+	</Card>
+	<Card title="Export" icon="download">
+		PDF and PNG, editable PowerPoint built from your source, or one-click PDF in the browser.
+	</Card>
+</CardGrid>
+
+<LinkCard title="Is Astlide right for you?" description="How it compares to Slidev, Marp and reveal.js — and when to pick something else." href="/astlide/why/" />
