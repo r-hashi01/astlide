@@ -1,6 +1,6 @@
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { type Browser, chromium } from "playwright";
+import { type Browser, chromium, type Page } from "playwright";
 
 interface ExportOptions {
 	deck?: string;
@@ -150,6 +150,7 @@ async function exportToPDF(
 	await page.goto(`${baseUrl}/${deck}/all`);
 	await page.waitForLoadState("networkidle");
 	await page.waitForFunction(() => document.fonts.ready);
+	await waitForDiagrams(page);
 
 	const pdfBytes = await page.pdf({
 		width: `${width}px`,
@@ -186,6 +187,7 @@ async function exportToPNG(
 		await page.goto(`${baseUrl}/${deck}/${i}`);
 		await page.waitForLoadState("networkidle");
 		await page.waitForFunction(() => document.fonts.ready);
+		await waitForDiagrams(page);
 
 		await page.addStyleTag({ content: EXPORT_STYLE });
 
@@ -268,3 +270,17 @@ main().catch((err) => {
 	console.error("Export failed:", err);
 	process.exit(1);
 });
+
+/**
+ * Wait until client-side diagrams (```mermaid) are rendered: the page sets
+ * `<html data-diagrams-ready>` once done, or right away when it has none.
+ */
+async function waitForDiagrams(page: Page): Promise<void> {
+	await page.waitForFunction(
+		() => document.documentElement.hasAttribute("data-diagrams-ready"),
+		null,
+		{
+			timeout: 30_000,
+		},
+	);
+}

@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import astlide from "../src/index";
 
@@ -22,6 +23,8 @@ function createMockHookArgs(
 	};
 
 	const config = {
+		// Astro always provides `root`; the integration resolves optional deps from it.
+		root: pathToFileURL(`${process.cwd()}/`),
 		integrations: overrides.integrations ?? [],
 		srcDir: overrides.srcDir ? { pathname: overrides.srcDir } : undefined,
 	};
@@ -162,13 +165,13 @@ describe("astlide integration", () => {
 			expect(configCall.markdown.shikiConfig.theme).toBe("one-dark-pro");
 		});
 
-		it("registers the code highlight transformer", () => {
+		it("registers the code highlight and mermaid transformers", () => {
 			const { args } = runSetup();
 
 			const configCall = args.updateConfig.mock.calls[0][0];
 			expect(
 				configCall.markdown.shikiConfig.transformers.map((t: { name: string }) => t.name),
-			).toEqual(["astlide:code-highlight"]);
+			).toEqual(["astlide:code-highlight", "astlide:mermaid"]);
 		});
 	});
 

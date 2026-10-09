@@ -98,6 +98,12 @@ const rendered = await Promise.all(
   </body>
 </html>
 
+<script>
+  // Render ```mermaid diagrams; sets <html data-diagrams-ready> for the PDF exporters.
+  import { renderDiagrams } from '@astlide/core/internal/diagrams';
+  renderDiagrams();
+</script>
+
 <style is:global>
   html, body {
     margin: 0;

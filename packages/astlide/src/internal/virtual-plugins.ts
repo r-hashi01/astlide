@@ -10,19 +10,27 @@ import type { ResolvedPlugins } from "../plugin";
  *     populated by static imports of each plugin-contributed layout component.
  *   - `virtual:astlide/decorators` — `{ decorators: AstroComponent[] }`, the
  *     components rendered on every slide (logo / footer / home link).
+ *   - `virtual:astlide/mermaid`    — `{ loadMermaid }`: `() => import("mermaid")`
+ *     when the optional `mermaid` package is installed, otherwise `null` (so the
+ *     bundler never sees an unresolvable import).
  *
  * The static-import shape matters: Astro components can only be dispatched
  * dynamically (`<LayoutComponent />`) when they are already in the module graph,
  * so we resolve every `componentEntrypoint` at build time rather than via
  * runtime `import()`.
  */
-export function astlideVirtualPlugin(resolved: ResolvedPlugins): Plugin {
+export function astlideVirtualPlugin(
+	resolved: ResolvedPlugins,
+	options: { hasMermaid: boolean } = { hasMermaid: false },
+): Plugin {
 	const VIRTUAL_THEMES_ID = "virtual:astlide/themes";
 	const RESOLVED_THEMES_ID = "\0virtual:astlide/themes";
 	const VIRTUAL_LAYOUTS_ID = "virtual:astlide/layouts";
 	const RESOLVED_LAYOUTS_ID = "\0virtual:astlide/layouts";
 	const VIRTUAL_DECORATORS_ID = "virtual:astlide/decorators";
 	const RESOLVED_DECORATORS_ID = "\0virtual:astlide/decorators";
+	const VIRTUAL_MERMAID_ID = "virtual:astlide/mermaid";
+	const RESOLVED_MERMAID_ID = "\0virtual:astlide/mermaid";
 
 	return {
 		name: "astlide:virtual",
@@ -30,6 +38,7 @@ export function astlideVirtualPlugin(resolved: ResolvedPlugins): Plugin {
 			if (id === VIRTUAL_THEMES_ID) return RESOLVED_THEMES_ID;
 			if (id === VIRTUAL_LAYOUTS_ID) return RESOLVED_LAYOUTS_ID;
 			if (id === VIRTUAL_DECORATORS_ID) return RESOLVED_DECORATORS_ID;
+			if (id === VIRTUAL_MERMAID_ID) return RESOLVED_MERMAID_ID;
 			return null;
 		},
 		load(id) {
@@ -55,6 +64,11 @@ export function astlideVirtualPlugin(resolved: ResolvedPlugins): Plugin {
 				);
 				const list = resolved.decorators.map((_d, i) => `__astlideDecorator${i}`);
 				return `${imports.join("\n")}\nexport const decorators = [${list.join(", ")}];\n`;
+			}
+			if (id === RESOLVED_MERMAID_ID) {
+				return options.hasMermaid
+					? 'export const loadMermaid = () => import("mermaid");\n'
+					: "export const loadMermaid = null;\n";
 			}
 			return null;
 		},

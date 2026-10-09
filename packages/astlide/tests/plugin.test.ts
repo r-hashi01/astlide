@@ -211,6 +211,16 @@ describe("astlideVirtualPlugin", () => {
 		expect(code).toContain("export const decorators = [__astlideDecorator0, __astlideDecorator1];");
 	});
 
+	it("exposes a mermaid loader only when mermaid is installed", () => {
+		const resolved = resolvePlugins([BUILT_IN_PLUGIN]);
+		expect(
+			load(astlideVirtualPlugin(resolved, { hasMermaid: true }), "virtual:astlide/mermaid"),
+		).toBe('export const loadMermaid = () => import("mermaid");\n');
+		// Without mermaid the module must not reference it at all (no unresolvable import).
+		const absent = load(astlideVirtualPlugin(resolved), "virtual:astlide/mermaid");
+		expect(absent).toBe("export const loadMermaid = null;\n");
+	});
+
 	it("returns null for non-virtual module ids", () => {
 		const plugin = astlideVirtualPlugin(resolvePlugins([BUILT_IN_PLUGIN]));
 		const resolveIdFn =
