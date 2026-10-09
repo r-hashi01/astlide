@@ -1,0 +1,91 @@
+---
+title: Gallery
+description: Every built-in layout and theme, rendered from the feature tour deck.
+---
+
+import { Image } from "astro:assets";
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+import cover from "../../assets/gallery/tour-1.png";
+import section from "../../assets/gallery/tour-2.png";
+import defaultLayout from "../../assets/gallery/tour-3.png";
+import twoColumn from "../../assets/gallery/tour-6.png";
+import imageLeft from "../../assets/gallery/tour-8.png";
+import imageRight from "../../assets/gallery/tour-9.png";
+import imageFull from "../../assets/gallery/tour-10.png";
+import quote from "../../assets/gallery/tour-11.png";
+import statement from "../../assets/gallery/tour-12.png";
+import code from "../../assets/gallery/tour-15.png";
+
+import themeDefault from "../../assets/gallery/theme-default.png";
+import themeDark from "../../assets/gallery/theme-dark.png";
+import themeMinimal from "../../assets/gallery/theme-minimal.png";
+import themeCorporate from "../../assets/gallery/theme-corporate.png";
+import themeGradient from "../../assets/gallery/theme-gradient.png";
+import themeRose from "../../assets/gallery/theme-rose.png";
+import themeForest from "../../assets/gallery/theme-forest.png";
+
+Screenshots come from the [feature tour deck](https://r-hashi01.github.io/astlide/demo/tour/1/) — open it to see each slide live, then press <kbd>o</kbd> for the overview.
+
+## Layouts
+
+Set with `slideLayout` in a slide's frontmatter. See [Layouts & Components](/astlide/guides/layouts-and-components/) for the markup each one expects.
+
+<CardGrid>
+	<Card title="cover">
+		<Image class="slide-shot" src={cover} alt="cover layout: centred title, subtitle and hint" />
+		Centred title — opening and closing slides.
+	</Card>
+	<Card title="section">
+		<Image class="slide-shot" src={section} alt="section layout: a chapter divider" />
+		Chapter divider.
+	</Card>
+	<Card title="default">
+		<Image class="slide-shot" src={defaultLayout} alt="default layout: heading, text and a table" />
+		Standard content slide.
+	</Card>
+	<Card title="two-column">
+		<Image class="slide-shot" src={twoColumn} alt="two-column layout with a full-width title above Left and Right columns" />
+		`<Left>` / `<Right>` under a full-width title.
+	</Card>
+	<Card title="image-left">
+		<Image class="slide-shot" src={imageLeft} alt="image-left layout: illustration on the left, text on the right" />
+		`<ImageSide>` + `<TextPanel>`.
+	</Card>
+	<Card title="image-right">
+		<Image class="slide-shot" src={imageRight} alt="image-right layout: text on the left, illustration on the right" />
+		The same, mirrored.
+	</Card>
+	<Card title="image-full">
+		<Image class="slide-shot" src={imageFull} alt="image-full layout: full-bleed background image with white text" />
+		Full-bleed `background` image.
+	</Card>
+	<Card title="code">
+		<Image class="slide-shot" src={code} alt="code layout: a CodeBlock with highlighted lines" />
+		Tighter padding for code.
+	</Card>
+	<Card title="quote">
+		<Image class="slide-shot" src={quote} alt="quote layout: a centred blockquote" />
+		Centred blockquote.
+	</Card>
+	<Card title="statement">
+		<Image class="slide-shot" src={statement} alt="statement layout: one large sentence" />
+		One large sentence.
+	</Card>
+</CardGrid>
+
+## Themes
+
+Set per deck with `"theme"` in `_config.json`. The same slide in each built-in theme:
+
+<CardGrid>
+	<Card title="default"><Image class="slide-shot" src={themeDefault} alt="Slide in the default theme" /></Card>
+	<Card title="dark"><Image class="slide-shot" src={themeDark} alt="Slide in the dark theme" /></Card>
+	<Card title="minimal"><Image class="slide-shot" src={themeMinimal} alt="Slide in the minimal theme" /></Card>
+	<Card title="corporate"><Image class="slide-shot" src={themeCorporate} alt="Slide in the corporate theme" /></Card>
+	<Card title="gradient"><Image class="slide-shot" src={themeGradient} alt="Slide in the gradient theme" /></Card>
+	<Card title="rose"><Image class="slide-shot" src={themeRose} alt="Slide in the rose theme" /></Card>
+	<Card title="forest"><Image class="slide-shot" src={themeForest} alt="Slide in the forest theme" /></Card>
+</CardGrid>
+
+Want your own? See [custom themes](/astlide/guides/themes-and-plugins/#custom-theme).

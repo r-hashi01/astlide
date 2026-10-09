@@ -7,7 +7,7 @@
 
 An Astro-based slide presentation framework — like Slidev, but for the Astro ecosystem.
 
-📖 **Documentation:** https://r-hashi01.github.io/astlide/ · 🎬 **Live demo:** https://r-hashi01.github.io/astlide/demo/
+📖 **Documentation:** https://r-hashi01.github.io/astlide/ · 🎬 **Live demo:** https://r-hashi01.github.io/astlide/demo/tour/1/
 
 ## Features
 
