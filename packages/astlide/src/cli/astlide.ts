@@ -265,6 +265,7 @@ async function main(): Promise<void> {
 main()
 	.then(() => process.exit(0))
 	.catch((err) => {
-		console.error("Export failed:", err);
+		// The message only: Bun would print the Error with a source excerpt.
+		console.error(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
 		process.exit(1);
 	});
