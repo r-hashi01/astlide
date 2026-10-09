@@ -1,6 +1,6 @@
 {
 	"name": "@astlide/core",
-	"version": "2.2.0",
+	"version": "2.3.0",
 	"description": "Astro-based slide presentation framework — like Slidev, but for the Astro ecosystem",
 	"type": "module",
 	"types": "./src/index.ts",
