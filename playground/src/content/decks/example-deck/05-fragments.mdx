@@ -1,16 +1,21 @@
 ---
 slideLayout: default
-notes: "Demonstrate Fragment component. Press → / Space to reveal each item."
+notes: "Fragments: <Fragments> reveals list items one by one; Fragments sharing an index appear together; until={n} hides again at step n; hide starts visible and disappears. Press → / Space."
 ---
 
 # Fragments — Step-by-Step Reveals
 
-Press **→** or **Space** to reveal each item:
+<Fragments>
 
-<Fragment index={1}>✅ First item appears</Fragment>
+- `<Fragments>` reveals each list item on its own step
+- …in document order, before indexed fragments
 
-<Fragment index={2}>✅ Second item appears</Fragment>
+</Fragments>
 
-<Fragment index={3} effect="zoom">✅ Third item zooms in</Fragment>
+<Fragment index={1}>✅ Fragments sharing an index…</Fragment> <Fragment index={1} effect="zoom">…appear together</Fragment>
+
+<Fragment index={2} until={3}>⏳ index={2} until={3}: shown at 2, hidden again at 3</Fragment>
+
+<Fragment index={3} hide>👋 index={3} hide: visible from the start, gone at 3</Fragment>
 
 <Fragment index={4} effect="highlight">✅ This one gets highlighted</Fragment>

@@ -5,23 +5,35 @@
  * Usage in MDX:
  *   <Fragment>First item</Fragment>
  *   <Fragment index={2}>Second item — appears after first</Fragment>
+ *   <Fragment index={2}>Appears together with the one above</Fragment>
+ *   <Fragment index={1} until={3}>Shown for steps 1–2, hidden again at step 3</Fragment>
+ *   <Fragment index={4} hide>Visible from the start, disappears at step 4</Fragment>
  *
  * Props:
- *   index   — explicit step order (auto-increments within page if omitted)
+ *   index   — explicit step number. Fragments sharing an index reveal together.
+ *             Without one, fragments reveal one per step in document order,
+ *             before any indexed steps.
+ *   until   — step number at which the fragment is hidden again (use with index)
+ *   hide    — start visible and disappear at this fragment's step instead
  *   effect  — animation variant: "fade" | "slide-up" | "zoom" | "highlight"
  */
 interface Props {
   index?: number;
+  until?: number;
+  hide?: boolean;
   effect?: 'fade' | 'slide-up' | 'zoom' | 'highlight';
   class?: string;
 }
 
-const { index, effect = 'fade', class: className } = Astro.props;
+const { index, until, hide = false, effect = 'fade', class: className } = Astro.props;
 ---
 
 <span
   data-fragment
   data-fragment-index={index ?? ''}
+  data-fragment-until={until}
+  data-fragment-hide={hide ? '' : undefined}
+  data-fragment-visible={hide ? 'true' : undefined}
   data-fragment-effect={effect}
   class:list={['fragment', className]}
 >

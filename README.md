@@ -209,11 +209,29 @@ Use `<Fragment>` for step-by-step reveals:
 ```mdx
 <Fragment index={1}>First point</Fragment>
 <Fragment index={2}>Second point</Fragment>
-<Fragment index={3} effect="zoom">Third — zoom effect</Fragment>
-<Fragment index={4} effect="highlight">Fourth — highlighted</Fragment>
+<Fragment index={2} effect="zoom">Appears together with the second</Fragment>
+<Fragment index={3} effect="highlight">Third — highlighted</Fragment>
 ```
 
 Effects: `fade` (default) | `slide-up` | `zoom` | `highlight`
+
+- **`index`** — step number. Fragments sharing an index reveal together. Unindexed fragments reveal one per step in document order, before indexed ones.
+- **`until={n}`** — hide the fragment again when step `n` is reached (`<Fragment index={1} until={3}>`).
+- **`hide`** — start visible and disappear at the fragment's step.
+
+Reveal a list one item at a time with `<Fragments>` (each first-level list item, or each child element, becomes a step):
+
+```mdx
+<Fragments effect="slide-up">
+
+- Problem
+- Approach
+- Result
+
+</Fragments>
+```
+
+Steps stay in sync between the presenter and audience windows. The PDF / `/{deck}/all` view shows each slide's final state.
 
 ## Code Highlighting
 

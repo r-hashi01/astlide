@@ -221,6 +221,13 @@ const decoratorProps = { layout, transition, slideNumber, totalSlides };
     pointer-events: auto;
   }
 
+  /* <Fragments>: hide items until DeckLayout has turned them into fragments,
+     so they don't flash visible on load. */
+  :global([data-fragment-group]:not([data-fragment-group-ready]) > :is(ul, ol) > li),
+  :global([data-fragment-group]:not([data-fragment-group-ready]) > :not(ul, ol)) {
+    opacity: 0;
+  }
+
   /* Visible state for all fragments */
   :global([data-fragment][data-fragment-visible]) {
     opacity: 1;
