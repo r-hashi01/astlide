@@ -8,6 +8,7 @@ import { astlideVirtualPlugin } from "./internal/virtual-plugins";
 import { type AstlidePlugin, BUILT_IN_PLUGIN, resolvePlugins } from "./plugin";
 import { astlideCodeHighlight } from "./utils/code-highlight";
 import { astlideCommentNotesPlugin } from "./utils/comment-notes";
+import { resolveFavicon } from "./utils/favicon";
 import { astlideMermaid } from "./utils/mermaid";
 
 // Re-export the typed deck/slide metadata API
@@ -124,6 +125,21 @@ export interface AstlideOptions {
 	 * ```
 	 */
 	font?: FontOption;
+	/**
+	 * Favicon for deck pages and the deck index.
+	 *
+	 * - omitted: `favicon.svg`, `favicon.ico` or `favicon.png` from `public/`, if
+	 *   present; otherwise an empty icon, so browsers don't request
+	 *   `/favicon.ico` at the domain root (a 404 when deployed under a sub-path).
+	 * - `string`: a root-relative path (Astro's `base` is added) or a URL.
+	 * - `false`: no favicon link.
+	 *
+	 * @example
+	 * ```ts
+	 * astlide({ favicon: '/logo.png' })
+	 * ```
+	 */
+	favicon?: string | false;
 	/**
 	 * Pen drawings (`d`).
 	 *
@@ -290,6 +306,11 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 				// Optional `mermaid` (```mermaid diagrams): exposed via virtual:astlide/mermaid.
 				const hasMermaid = isPackageInstalled("mermaid", fileURLToPath(config.root));
 
+				const favicon = resolveFavicon(
+					options.favicon,
+					fileURLToPath(config.publicDir ?? new URL("public/", config.root)),
+				);
+
 				// Merge all config updates into a single call
 				updateConfig({
 					...(hasMdx ? {} : { integrations: [mdx()] }),
@@ -355,6 +376,7 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 							__ASTLIDE_TRANSITION_NAMES__: JSON.stringify([...resolved.transitionNames]),
 							__ASTLIDE_TOOLBAR__: JSON.stringify(options.toolbar ?? ["prev", "counter", "next"]),
 							__ASTLIDE_FONT__: JSON.stringify(resolveFontOption(options.font)),
+							__ASTLIDE_FAVICON__: JSON.stringify(favicon),
 							__ASTLIDE_DRAWINGS_PERSIST__: JSON.stringify(options.drawings?.persist ?? false),
 						},
 					},

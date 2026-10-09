@@ -25,6 +25,7 @@ function createMockHookArgs(
 	const config = {
 		// Astro always provides `root`; the integration resolves optional deps from it.
 		root: pathToFileURL(`${process.cwd()}/`),
+		publicDir: pathToFileURL(`${process.cwd()}/public/`),
 		integrations: overrides.integrations ?? [],
 		srcDir: overrides.srcDir ? { pathname: overrides.srcDir } : undefined,
 	};
@@ -267,6 +268,26 @@ describe("astlide integration", () => {
 	});
 
 	// ── CSP option ──
+
+	describe("favicon option", () => {
+		it("injects an empty icon when public/ has no favicon", () => {
+			const { args } = runSetup();
+			const configCall = args.updateConfig.mock.calls[0][0];
+			expect(configCall.vite.define.__ASTLIDE_FAVICON__).toBe("null");
+		});
+
+		it("injects an explicit favicon path", () => {
+			const { args } = runSetup({ favicon: "/logo.png" });
+			const configCall = args.updateConfig.mock.calls[0][0];
+			expect(configCall.vite.define.__ASTLIDE_FAVICON__).toBe('"/logo.png"');
+		});
+
+		it("injects false when disabled", () => {
+			const { args } = runSetup({ favicon: false });
+			const configCall = args.updateConfig.mock.calls[0][0];
+			expect(configCall.vite.define.__ASTLIDE_FAVICON__).toBe("false");
+		});
+	});
 
 	describe("CSP option", () => {
 		it("injects __ASTLIDE_CSP__ = true by default", () => {
