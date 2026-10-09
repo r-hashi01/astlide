@@ -24,6 +24,7 @@ import SlideFragment from '@astlide/core/components/Fragment.astro';
 import Fragments from '@astlide/core/components/Fragments.astro';
 import Notes from '@astlide/core/components/Notes.astro';
 import Favicon from '@astlide/core/internal/Favicon.astro';
+import FontLinks from '@astlide/core/internal/FontLinks.astro';
 import SpeakerNotes from '@astlide/core/components/SpeakerNotes.astro';
 import Columns from '@astlide/core/components/Columns.astro';
 import CodeBlock from '@astlide/core/components/CodeBlock.astro';
@@ -83,6 +84,7 @@ const rendered = await Promise.all(
     <meta charset="UTF-8" />
     <title>{deckConfig.title ?? deckName} — all slides</title>
     <Favicon />
+    <FontLinks />
     <meta name="robots" content="noindex, nofollow" />
   </head>
   <body>

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { deckConfigSchema } from '@astlide/core/schema';
 import { pageUrl } from '@astlide/core/utils/base-path';
 import Favicon from '@astlide/core/internal/Favicon.astro';
+import FontLinks from '@astlide/core/internal/FontLinks.astro';
 import { withDevDirectives } from '@astlide/core/utils/csp';
 
 declare const __ASTLIDE_CSP__: boolean | string;
@@ -87,9 +88,7 @@ const decks = await Promise.all(
     {cspContent && <meta http-equiv="Content-Security-Policy" content={cspContent} />}
     <title>Slide Decks</title>
     <Favicon />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <FontLinks />
   </head>
   <body>
     <main>
