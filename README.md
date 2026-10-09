@@ -487,17 +487,16 @@ bun add -D @astlide/crispdf
 
 Each deck also exposes a print-friendly `/{deck}/all` route that stacks every slide with hard page breaks.
 
-**CLI:** requires `playwright` (and [Bun](https://bun.sh) — the CLIs run from TypeScript source). Start the dev server, then:
+**CLI:** one command for every format (PDF / PNG need `playwright`; run `bunx playwright install chromium` once):
 
 ```bash
-bunx astlide-export --deck my-talk            # → my-talk.pdf (single multi-page PDF)
-bunx astlide-export --all                     # every deck
-bunx astlide-export --deck my-talk --format png
-bunx astlide-export --deck my-talk --width 1280 --height 720
-bunx astlide-export --deck my-talk --base-url http://localhost:3000
+bunx astlide export my-talk                 # → exports/my-talk.pdf
+bunx astlide export my-talk --pptx          # → editable PowerPoint (no browser needed)
+bunx astlide export my-talk --png           # → one PNG per slide
+bunx astlide export --all --pdf --pptx      # every deck
 ```
 
-**PowerPoint:** `bunx astlide-export-pptx --deck my-talk` writes an editable `.pptx` from the MDX source (no dev server needed; `--all` for every deck).
+PDF / PNG: the site is built and served on a free port for the export (no dev server to start; Astro's `base` is detected). Use `--base-url` to export from a server you already run. PPTX is laid out from the built slides without a browser: native shapes and editable text.
 
 ## Deploying under a sub-path
 
@@ -512,7 +511,7 @@ export default defineConfig({
 });
 ```
 
-Root-relative `<ImageSide src>` and image `background` paths are resolved against `base` too. Other absolute URLs you write yourself (e.g. Markdown `![](/photo.jpg)`) are not rewritten — use `import.meta.env.BASE_URL` or relative paths for them. For `astlide-export`, include the base in `--base-url` (e.g. `--base-url http://localhost:4321/<repo>`).
+Root-relative `<ImageSide src>` and image `background` paths are resolved against `base` too. Other absolute URLs you write yourself (e.g. Markdown `![](/photo.jpg)`) are not rewritten — use `import.meta.env.BASE_URL` or relative paths for them. `astlide export` detects the base; with `--base-url`, include it (e.g. `--base-url http://localhost:4321/<repo>`).
 
 ## Project Structure
 
@@ -528,7 +527,7 @@ packages/
 │   │   ├── components/   # Slide, Fragment, Notes, Columns, Left, Right, ImageSide, TextPanel
 │   │   ├── internal/     # DeckLayout, virtual modules, injected pages (incl. /[deck]/all)
 │   │   ├── styles/       # base.css + themes/
-│   │   └── cli/          # export-pdf.ts
+│   │   └── cli/          # astlide export
 │   └── package.json
 └── create-astlide/       # CLI scaffolder (bun create astlide)
     ├── src/index.ts

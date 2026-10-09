@@ -1,0 +1,470 @@
+/**
+ * PPTX export: the built print view (`/<deck>/all`) is laid out by
+ * @astlide/engine — CSS cascade, flexbox and font-metric line breaking, no
+ * browser — and each slide's paint items become native PowerPoint shapes,
+ * text boxes and pictures.
+ *
+ * @module
+ */
+
+import { existsSync, readFileSync } from "node:fs";
+import { mkdir, readdir, readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { mermaidThemeFor } from "@astlide/core/utils/mermaid.ts";
+import type { Scene, SceneItem } from "@astlide/engine";
+import { embeddingPermissions, withLegacyFamilyOnly } from "./eot";
+import {
+	type EmbeddedFont,
+	PptxFile,
+	type SlideElement,
+	type SlideSpec,
+	type TextBoxSpec,
+	type TextRun,
+	type TextRunOptions,
+} from "./ooxml-writer";
+import { getTheme } from "./theme-map";
+
+export interface PptxOptions {
+	/** Project root (built into <root>/dist). */
+	root: string;
+	output: string;
+	/** Skip `astro build` and use the existing dist/. */
+	build?: boolean;
+}
+
+/** Deck names: the directories in src/content/decks. */
+export async function getDecks(root: string): Promise<string[]> {
+	const entries = await readdir(join(root, "src", "content", "decks"), { withFileTypes: true });
+	return entries.filter((e) => e.isDirectory()).map((e) => e.name);
+}
+
+/** The deck's `_config.json` (title, author, theme), or `{}`. */
+async function readDeckConfig(root: string, deck: string): Promise<Record<string, unknown>> {
+	try {
+		const path = join(root, "src", "content", "decks", deck, "_config.json");
+		return JSON.parse(await readFile(path, "utf-8")) as Record<string, unknown>;
+	} catch {
+		return {};
+	}
+}
+
+const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+
+const SLIDE_W_IN = 10;
+const WEIGHT_NAMES: Record<number, string> = {
+	100: "Thin",
+	200: "ExtraLight",
+	300: "Light",
+	500: "Medium",
+	600: "SemiBold",
+	800: "ExtraBold",
+	900: "Black",
+};
+
+/** PowerPoint only knows regular / bold: other weights go by their own face name. */
+function fontFor(family: string, weight: number): { face: string; bold: boolean } {
+	if (weight >= 700 && weight < 800) return { face: family, bold: true };
+	if (weight === 400) return { face: family, bold: false };
+	const name = WEIGHT_NAMES[Math.round(weight / 100) * 100];
+	// Static faces already carry the weight in their family name ("Inter SemiBold").
+	if (!name || family.endsWith(` ${name}`)) return { face: family, bold: false };
+	return { face: `${family} ${name}`, bold: false };
+}
+
+const hex = (c: { hex: string }) => c.hex.toUpperCase();
+
+type TextItem = Extract<SceneItem, { kind: "text" }>;
+type Engine = typeof import("@astlide/engine");
+
+/** Pixels per CSS px when rasterizing vector images (sharp at full-screen size). */
+const RASTER_SCALE = 2;
+
+/** An image as PNG: PNG files as they are, SVG (files or data: URLs) rasterized. */
+function imagePng(
+	engine: Engine,
+	src: string,
+	dist: string,
+	width: number,
+	fontFiles: string[],
+): Buffer | null {
+	let svg: string | null = null;
+	const data = src.match(/^data:image\/svg\+xml(;base64)?,(.*)$/s);
+	if (data) {
+		const body = data[2] ?? "";
+		svg = data[1] ? Buffer.from(body, "base64").toString("utf-8") : decodeURIComponent(body);
+	} else {
+		const path = [join(dist, src), join(dist, src.replace(/^\/[^/]+/, ""))].find((p) =>
+			existsSync(p),
+		);
+		if (path?.endsWith(".png")) return readFileSync(path);
+		if (path?.endsWith(".svg")) svg = readFileSync(path, "utf-8");
+	}
+	return svg ? engine.svgToPng(svg, width * RASTER_SCALE, fontFiles) : null;
+}
+
+const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+const decodeEntities = (s: string) =>
+	s.replace(/&(#x[\da-f]+|#\d+|\w+);/gi, (m, e: string) =>
+		e[0] === "#"
+			? String.fromCodePoint(Number.parseInt(e.slice(e[1] === "x" ? 2 : 1), e[1] === "x" ? 16 : 10))
+			: (ENTITIES[e] ?? m),
+	);
+
+/**
+ * Mermaid diagrams are rendered by the browser on the slides; here they are
+ * rendered ahead of layout (without a browser) and put in the page as SVG
+ * images sized like the slides size them (Mermaid's natural size scaled
+ * from its 16px text to the slide's font size, at most the content width).
+ * Without `mermaid` installed the page is left as it is.
+ */
+async function withDiagrams(
+	engine: Engine,
+	html: string,
+	options: {
+		root: string;
+		font: () => { family: string; font: { familyName: string }; file?: string };
+	},
+): Promise<string> {
+	const blocks = [...html.matchAll(/<pre class="astlide-mermaid"[^>]*>([\s\S]*?)<\/pre>/g)];
+	if (blocks.length === 0) return html;
+	const mermaidPath = engine.resolveEsm("mermaid", options.root);
+	if (!mermaidPath) {
+		console.warn("  ⚠ diagrams skipped: install `mermaid` in the project to export them");
+		return html;
+	}
+	const face = options.font();
+	if (!face.file) {
+		console.warn("  ⚠ diagrams skipped: no font file for their labels");
+		return html;
+	}
+	const theme = mermaidThemeFor(html.match(/<html[^>]*\sdata-theme="([^"]*)"/)?.[1]);
+	const rendered = await engine.renderMermaid(
+		blocks.map((m) => decodeEntities(m[1] ?? "")),
+		{ mermaidPath, theme, fontFamily: face.font.familyName, fontFile: face.file },
+	);
+	let out = "";
+	let at = 0;
+	blocks.forEach((m, i) => {
+		const d = rendered[i];
+		const start = m.index ?? 0;
+		out += html.slice(at, start);
+		at = start + m[0].length;
+		if (!d) {
+			out += m[0];
+			return;
+		}
+		const src = `data:image/svg+xml;base64,${Buffer.from(d.svg).toString("base64")}`;
+		out +=
+			`<div style="display:flex;justify-content:center;margin:0.5em 0">` +
+			`<img src="${src}" width="${d.width}" height="${d.height}" alt="" ` +
+			`style="display:block;width:${d.width / 16}em;max-width:100%"></div>`;
+	});
+	return out + html.slice(at);
+}
+
+/**
+ * The font files behind the text, by the typeface and slot the runs use
+ * (see {@link fontFor}), so PowerPoint shows them without the fonts
+ * installed. Fonts whose license forbids embedding (`fsType` restricted)
+ * are left out.
+ */
+function embeddedFonts(items: TextItem[]): EmbeddedFont[] {
+	const byFace = new Map<string, EmbeddedFont>();
+	const skipped = new Set<string>();
+	for (const item of items) {
+		const { file, italic } = item.font;
+		if (!file) continue;
+		const f = fontFor(item.font.family, item.font.weight);
+		const slot = f.bold ? (italic ? "boldItalic" : "bold") : italic ? "italic" : "regular";
+		const font = byFace.get(f.face) ?? { typeface: f.face };
+		if (font[slot]) continue;
+		const data = readFileSync(file);
+		if (embeddingPermissions(data) & 0x0002) {
+			skipped.add(f.face);
+			continue;
+		}
+		// Weights PowerPoint has no slot for are families of their own.
+		const ownFamily = item.font.weight !== 400 && !f.bold;
+		font[slot] = ownFamily ? withLegacyFamilyOnly(data) : data;
+		byFace.set(f.face, font);
+	}
+	if (skipped.size)
+		console.warn(`  ⚠ not embedded (license restricts embedding): ${[...skipped].join(", ")}`);
+	return [...byFace.values()];
+}
+
+function runOptions(item: TextItem, k: number): TextRunOptions {
+	const f = fontFor(item.font.family, item.font.weight);
+	return {
+		fontSize: item.font.size * k * 72,
+		color: hex(item.color),
+		fontFace: f.face,
+		bold: f.bold,
+		italic: item.font.italic,
+		letterSpacing: item.letterSpacing ? item.letterSpacing * k * 72 : undefined,
+		highlight: highlightOf.get(item),
+	};
+}
+
+type Rgb = [number, number, number];
+const rgb = (h: string): Rgb => [0, 2, 4].map((i) => Number.parseInt(h.slice(i, i + 2), 16)) as Rgb;
+const toHex = (c: Rgb) =>
+	c
+		.map((v) => Math.round(v).toString(16).padStart(2, "0"))
+		.join("")
+		.toUpperCase();
+
+/** Highlight color of text inside an inline background (inline code …). */
+const highlightOf = new WeakMap<TextItem, string>();
+
+/**
+ * Inline backgrounds (inline code chips …) become the highlight of the text
+ * they hold, so they move with it — PowerPoint flows the text with its own
+ * metrics, and a separate shape would drift. Returns the rects replaced.
+ * The highlight is opaque: translucent fills are composited over what lies
+ * beneath them.
+ */
+function inlineHighlights(scene: Scene): Set<SceneItem> {
+	const replaced = new Set<SceneItem>();
+	const texts = scene.items.filter((t): t is TextItem => t.kind === "text");
+	scene.items.forEach((r, index) => {
+		if (r.kind !== "rect" || !r.inline || !r.fill || r.fill.alpha <= 0) return;
+		const inside = texts.filter((t) => {
+			const cx = t.x + t.w / 2;
+			const cy = t.y + t.h / 2;
+			return cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h;
+		});
+		if (inside.length === 0) return;
+		// What the chip is painted over: the slide, then every box below it.
+		let under = rgb(scene.background.hex);
+		const cx = r.x + r.w / 2;
+		const cy = r.y + r.h / 2;
+		for (const b of scene.items.slice(0, index)) {
+			if (b.kind !== "rect" || b.inline || !b.fill) continue;
+			if (cx < b.x || cx > b.x + b.w || cy < b.y || cy > b.y + b.h) continue;
+			under = blend(rgb(b.fill.hex), b.fill.alpha, under);
+		}
+		const color = toHex(blend(rgb(r.fill.hex), r.fill.alpha, under));
+		for (const t of inside) highlightOf.set(t, color);
+		replaced.add(r);
+	});
+	return replaced;
+}
+
+function blend(top: Rgb, alpha: number, bottom: Rgb): Rgb {
+	return top.map((v, i) => v * alpha + (bottom[i] ?? 0) * (1 - alpha)) as Rgb;
+}
+
+/** Placeholder text box of a block, filled by {@link fillBlock} once all its lines are in. */
+const boxOf = new WeakMap<TextItem[], TextBoxSpec>();
+function blockBox(group: TextItem[]): TextBoxSpec {
+	const box: TextBoxSpec = { type: "textbox", runs: [], x: 0, y: 0, w: 0, h: 0 };
+	boxOf.set(group, box);
+	return box;
+}
+
+/**
+ * One text box per block of text, one paragraph per line box at its exact
+ * line height, so the text keeps the slide's line breaks and stays editable
+ * as a whole. Gaps between runs (spaces trimmed by layout, code indentation)
+ * become spaces again.
+ */
+function fillBlock(box: TextBoxSpec, group: TextItem[], k: number): TextBoxSpec {
+	const block = group[0]?.block;
+	if (!block) return box;
+	const byLine = new Map<number, TextItem[]>();
+	for (const it of group) {
+		const line = byLine.get(it.line ?? 0) ?? [];
+		line.push(it);
+		byLine.set(it.line ?? 0, line);
+	}
+	const indices = [...byLine.keys()].sort((a, b) => a - b);
+	const align = /center/.test(block.align)
+		? "center"
+		: /right|end/.test(block.align)
+			? "right"
+			: "left";
+	const runs: TextRun[] = [];
+	let top = 0;
+	let bottom = 0;
+	let right = block.x;
+	let prev: { index: number; bottom: number } | null = null;
+	for (const index of indices) {
+		const items = (byLine.get(index) ?? []).sort((a, b) => a.x - b.x);
+		const first = items[0];
+		if (!first) continue;
+		const lineTop = first.lineTop ?? first.y;
+		const lineHeight = first.lineHeight ?? first.h;
+		if (prev === null) top = lineTop;
+		else if (index > prev.index + 1) {
+			// Empty line boxes (blank lines in code) in between.
+			const count = index - prev.index - 1;
+			const each = (lineTop - prev.bottom) / count;
+			for (let i = 0; i < count; i++)
+				runs.push({ text: "", options: { breakLine: true, lineSpacing: each * k * 72 } });
+		}
+		// Left-aligned lines keep their indentation as spaces; centered / right ones are aligned by PowerPoint.
+		let x = align === "left" ? block.x : first.x;
+		const lineRuns: TextRun[] = [];
+		for (const it of items) {
+			const gap = it.x - x;
+			const spaces = Math.round(gap / it.space) || (gap > it.space * 0.3 ? 1 : 0);
+			if (spaces > 0) lineRuns.push({ text: " ".repeat(spaces), options: runOptions(it, k) });
+			lineRuns.push({ text: it.text, options: runOptions(it, k) });
+			x = it.x + it.w;
+			right = Math.max(right, x);
+		}
+		const last = lineRuns[lineRuns.length - 1];
+		if (last)
+			last.options = { ...last.options, breakLine: true, align, lineSpacing: lineHeight * k * 72 };
+		runs.push(...lineRuns);
+		bottom = lineTop + lineHeight;
+		prev = { index, bottom };
+	}
+	// The last paragraph ends the text: no trailing empty paragraph.
+	return {
+		...box,
+		runs,
+		x: block.x * k,
+		y: top * k,
+		// Centered / right text needs the block's width; left text gets slack
+		// because PowerPoint's glyph widths differ slightly (lines never wrap).
+		w: align === "left" ? Math.max(block.w, (right - block.x) * 1.05) * k + 0.05 : block.w * k,
+		h: (bottom - top) * k,
+		align,
+		valign: "top",
+		wrap: false,
+		inset: 0,
+	};
+}
+
+export async function exportPptx(deck: string, options: PptxOptions): Promise<void> {
+	const engine = await import("@astlide/engine");
+	if (options.build !== false) {
+		const { buildSite } = await import("../site-server");
+		await buildSite(options.root);
+	}
+	const dist = join(options.root, "dist");
+	const html = join(dist, deck, "all", "index.html");
+	if (!existsSync(html)) throw new Error(`no print view at ${html}`);
+
+	const fonts = new engine.FontRegistry();
+	const css = engine.pageCss(html, dist);
+	// The site's own fonts (KaTeX …) first; the rest from Google Fonts.
+	const local = engine.loadFontFaces(fonts, css, dist);
+	const missing = await engine.loadGoogleFonts(
+		fonts,
+		engine.familiesIn(css).filter((f) => !local.has(f)),
+		join(options.root, "node_modules", ".cache", "astlide-fonts"),
+	);
+	if (missing.length) console.warn(`  ⚠ fonts not found on Google Fonts: ${missing.join(", ")}`);
+	const emoji = "/System/Library/Fonts/Apple Color Emoji.ttc";
+	if (existsSync(emoji)) fonts.addFallback(emoji);
+
+	const vp = { width: 1920, height: 1080, media: "screen" as const };
+	const source = await withDiagrams(engine, readFileSync(html, "utf-8"), {
+		root: options.root,
+		// Labels in the slides' body font (the first slide's).
+		font: () => {
+			const [first] = engine.layoutPage(html, dist, fonts, vp);
+			return fonts.pick(first?.style.get("font-family") ?? "sans-serif", 400, false);
+		},
+	});
+	const layouts = engine.layoutPage(html, dist, fonts, vp, source);
+
+	const config = await readDeckConfig(options.root, deck);
+	const slides: SlideSpec[] = [];
+	const used: TextItem[] = [];
+	layouts.forEach((layout, i) => {
+		// Progress on one line: only where \r rewrites it (a terminal, not a log).
+		if (process.stdout.isTTY) process.stdout.write(`  Slide ${i + 1}/${layouts.length}\r`);
+		const scene = engine.toScene(layout, (eid) => layout.elements[eid]);
+		const k = SLIDE_W_IN / scene.width;
+		const elements: SlideElement[] = [];
+		const blocks = new Map<number, TextItem[]>();
+		const flowing = inlineHighlights(scene);
+		for (const item of scene.items) {
+			if (item.kind === "text") used.push(item);
+			if (item.kind === "rect") {
+				if (flowing.has(item)) continue;
+				elements.push({
+					type: "rect",
+					x: item.x * k,
+					y: item.y * k,
+					w: item.w * k,
+					h: item.h * k,
+					fill: item.fill ? hex(item.fill) : "FFFFFF",
+					noFill: !item.fill,
+					fillTransparency: item.fill ? Math.round((1 - item.fill.alpha) * 100) : undefined,
+					line: item.border
+						? {
+								color: hex(item.border.color),
+								width: item.border.width * k * 72,
+								transparency: Math.round((1 - item.border.color.alpha) * 100),
+							}
+						: undefined,
+					radius: item.radius ? item.radius * k : undefined,
+				});
+			} else if (item.kind === "text") {
+				// Text in a block goes in one text box (below); markers stand alone.
+				if (item.block) {
+					const group = blocks.get(item.block.id) ?? [];
+					if (group.length === 0) {
+						blocks.set(item.block.id, group);
+						// Keep the paint position of the block's first text.
+						elements.push(blockBox(group));
+					}
+					group.push(item);
+					continue;
+				}
+				elements.push({
+					type: "textbox",
+					runs: [{ text: item.text, options: runOptions(item, k) }],
+					x: item.x * k,
+					y: item.y * k,
+					// PowerPoint's glyph widths differ slightly; the text never wraps.
+					w: item.w * k * 1.1 + 0.05,
+					h: item.h * k,
+					valign: "middle",
+					wrap: false,
+					inset: 0,
+				});
+			} else if (item.kind === "image") {
+				const png = imagePng(engine, item.src, dist, item.w, fonts.files());
+				if (png) {
+					elements.push({
+						type: "image",
+						x: item.x * k,
+						y: item.y * k,
+						w: item.w * k,
+						h: item.h * k,
+						png,
+					});
+				} else {
+					const name = item.src.startsWith("data:") ? item.src.slice(0, 30) : item.src;
+					console.warn(`\n  ⚠ slide ${i + 1}: image ${name} skipped (PNG / SVG only for now)`);
+				}
+			}
+		}
+		// Fill in the block text boxes now that every line is known.
+		for (const [n, el] of elements.entries()) {
+			if (el.type === "textbox" && el.runs.length === 0) {
+				const group = [...blocks.values()].find((g) => g.length && boxOf.get(g) === el);
+				if (group) elements[n] = fillBlock(el, group, k);
+			}
+		}
+		slides.push({ background: hex(scene.background), elements });
+	});
+	if (process.stdout.isTTY) console.log("");
+	console.log(`  ${layouts.length} slides`);
+	const pptx = new PptxFile({
+		title: str(config.title) ?? deck,
+		author: str(config.author) ?? "",
+		theme: getTheme(str(config.theme)),
+		fonts: embeddedFonts(used),
+	});
+	for (const slide of slides) pptx.addSlide(slide);
+	await mkdir(dirname(options.output), { recursive: true });
+	await pptx.save(options.output);
+	console.log(`  ✓ Saved to ${options.output}`);
+}

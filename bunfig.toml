@@ -1,0 +1,3 @@
+# `bun run <script>` without echoing the script's command line first.
+[run]
+silent = true

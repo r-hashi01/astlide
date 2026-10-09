@@ -1,0 +1,34 @@
+{
+	"name": "@astlide/engine",
+	"version": "0.0.0",
+	"type": "module",
+	"description": "Lay out HTML + CSS slides without a browser",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/r-hashi01/astlide.git",
+		"directory": "packages/engine"
+	},
+	"files": [
+		"src"
+	],
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@resvg/resvg-js": "^2.6.2",
+		"css-select": "^7.0.0",
+		"css-what": "^8.0.0",
+		"domhandler": "^6.0.1",
+		"fontkit": "^2.0.4",
+		"htmlparser2": "^12.0.0",
+		"jsdom": "^30.1.2",
+		"postcss": "^8.5.29",
+		"svgdom": "^0.1.29",
+		"yoga-layout": "^3.2.1"
+	},
+	"devDependencies": {
+		"@types/fontkit": "^2.0.9",
+		"@types/jsdom": "^30.0.0"
+	}
+}

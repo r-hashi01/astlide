@@ -24,6 +24,7 @@ import SlideFragment from '@astlide/core/components/Fragment.astro';
 import Fragments from '@astlide/core/components/Fragments.astro';
 import Notes from '@astlide/core/components/Notes.astro';
 import Favicon from '@astlide/core/internal/Favicon.astro';
+import FontLinks from '@astlide/core/internal/FontLinks.astro';
 import SpeakerNotes from '@astlide/core/components/SpeakerNotes.astro';
 import Columns from '@astlide/core/components/Columns.astro';
 import CodeBlock from '@astlide/core/components/CodeBlock.astro';
@@ -83,6 +84,7 @@ const rendered = await Promise.all(
     <meta charset="UTF-8" />
     <title>{deckConfig.title ?? deckName} — all slides</title>
     <Favicon />
+    <FontLinks />
     <meta name="robots" content="noindex, nofollow" />
   </head>
   <body>
@@ -124,9 +126,16 @@ const rendered = await Promise.all(
     page-break-after: always;
     break-after: page;
   }
-  body > .slide:last-child {
+  /* The last slide: not :last-child, since Astro may append scripts to <body>,
+     which left a trailing page break (a blank last page in exported PDFs). */
+  body > .slide:not(:has(~ .slide)) {
     page-break-after: auto;
     break-after: auto;
+  }
+  /* Mermaid appends a hover tooltip <div> to <body>; its few pixels after the
+     last slide spilled onto an extra, blank PDF page. Nothing hovers here. */
+  body > .mermaidTooltip {
+    display: none !important;
   }
   /* No navigation runtime here, so render every step in its final state:
      all <Fragment>s revealed and code highlight steps on their last segment. */
