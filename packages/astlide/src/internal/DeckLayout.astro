@@ -64,9 +64,11 @@ interface Props {
   outline?: Array<{ n: number; title: string }>;
   /** Dev only: project-relative source file of this slide, for the `e` editor. */
   sourcePath?: string;
+  /** Dev only: the deck's source files in slide order (live updates on add/remove). */
+  deckSources?: string[];
 }
 
-const { title, theme = 'default', currentSlide, totalSlides, deck, notes, transition = 'fade', context, outline = [], sourcePath } = Astro.props;
+const { title, theme = 'default', currentSlide, totalSlides, deck, notes, transition = 'fade', context, outline = [], sourcePath, deckSources } = Astro.props;
 const sanitizedNotes = notes ? sanitizeHTML(await renderMarkdown(notes)) : undefined;
 // Internal links honour Astro's `base` (sub-path deployments).
 const deckHref = withBase(`/${deck}`);
@@ -123,7 +125,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       })();
     </script>
   </head>
-  <body data-total-slides={totalSlides} data-current-slide={currentSlide} data-deck={deck} data-slide-transition={transition} data-source-path={sourcePath}>
+  <body data-total-slides={totalSlides} data-current-slide={currentSlide} data-deck={deck} data-slide-transition={transition} data-source-path={sourcePath} data-deck-sources={deckSources && JSON.stringify(deckSources)}>
 
     <!-- Skip link for keyboard navigation -->
     <a href="#slide-scaler" class="skip-link">Skip to slide content</a>

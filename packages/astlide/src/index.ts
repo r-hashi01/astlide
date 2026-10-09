@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import mdx from "@astrojs/mdx";
 import type { AstroIntegration } from "astro";
-import { astlideEditorPlugin } from "./internal/editor-server";
+import { astlideEditorPlugin, DEV_RELOAD_SCRIPT } from "./internal/editor-server";
 import { astlideVirtualPlugin } from "./internal/virtual-plugins";
 import { type AstlidePlugin, BUILT_IN_PLUGIN, resolvePlugins } from "./plugin";
 import { astlideCodeHighlight } from "./utils/code-highlight";
@@ -254,7 +254,14 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 	return {
 		name: "astlide",
 		hooks: {
-			"astro:config:setup": ({ config, injectRoute, updateConfig, logger }) => {
+			"astro:config:setup": ({
+				command,
+				config,
+				injectRoute,
+				injectScript,
+				updateConfig,
+				logger,
+			}) => {
 				// Auto-add MDX support if not already present
 				const hasMdx = config.integrations.some((i) => i.name === "@astrojs/mdx");
 
@@ -271,6 +278,9 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 				for (const l of resolved.layouts) {
 					if (l.componentEntrypoint) l.componentEntrypoint = resolveEntry(l.componentEntrypoint);
 				}
+
+				// Dev: pages that don't live-update reload on the editor's HMR events.
+				if (command === "dev") injectScript("page", DEV_RELOAD_SCRIPT);
 
 				// Optional `mermaid` (```mermaid diagrams): exposed via virtual:astlide/mermaid.
 				const hasMermaid = isPackageInstalled("mermaid", fileURLToPath(config.root));
