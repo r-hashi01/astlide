@@ -1,5 +1,6 @@
 ---
 import { sanitizeBackground } from '@astlide/core/utils/sanitize';
+import { withBaseIfRootRelative } from '@astlide/core/utils/base-path';
 import { layouts as pluginLayouts } from 'virtual:astlide/layouts';
 import { decorators as slideDecorators } from 'virtual:astlide/decorators';
 
@@ -30,7 +31,11 @@ if (safeBackground) {
   if (safeBackground.startsWith('linear-gradient') || safeBackground.startsWith('radial-gradient')) {
     backgroundStyle = `background: ${safeBackground};`;
   } else if (safeBackground.startsWith('url(') || safeBackground.match(/\.(png|jpe?g|gif|webp|svg)(\?|$)/)) {
-    backgroundStyle = `background-image: url(${safeBackground.startsWith('url(') ? safeBackground.slice(4, -1) : safeBackground}); background-size: cover; background-position: center;`;
+    const raw = safeBackground.startsWith('url(') ? safeBackground.slice(4, -1).trim() : safeBackground;
+    // Keep any quotes, but resolve a root-relative path against Astro's `base`.
+    const quote = /^["']/.test(raw) ? raw[0] : '';
+    const imageUrl = withBaseIfRootRelative(quote ? raw.slice(1, -1) : raw);
+    backgroundStyle = `background-image: url(${quote}${imageUrl}${quote}); background-size: cover; background-position: center;`;
   } else {
     backgroundStyle = `background-color: ${safeBackground};`;
   }
@@ -123,7 +128,15 @@ const decoratorProps = { layout, transition, slideNumber, totalSlides };
   /* two-column: side-by-side columns */
   .slide-two-column .slide-content {
     flex-direction: row;
+    flex-wrap: wrap;
+    align-content: flex-start;
     align-items: flex-start;
+  }
+
+  /* Anything besides <Left> / <Right> (a title, a caption) spans the full width
+     instead of becoming a third column. */
+  .slide-two-column .slide-content > :global(:not(.column)) {
+    flex-basis: 100%;
   }
 
   /* code: optimised for code blocks */
@@ -292,8 +305,10 @@ const decoratorProps = { layout, transition, slideNumber, totalSlides };
   }
 
   /* ── Utility classes ── */
-  :global(.text-light) { color: #ffffff !important; }
-  :global(.text-dark) { color: #1a1a1a !important; }
+  /* Also override the theme's foreground variable: headings set their own color
+     from it, so a plain `color` wouldn't reach them. */
+  :global(.text-light) { --color-foreground: #ffffff; color: #ffffff !important; }
+  :global(.text-dark) { --color-foreground: #1a1a1a; color: #1a1a1a !important; }
   :global(.text-center) { text-align: center; }
   :global(.text-left) { text-align: left; }
   :global(.text-right) { text-align: right; }

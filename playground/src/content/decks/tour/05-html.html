@@ -1,0 +1,18 @@
+---
+slideLayout: default
+notes: "A self-contained .html slide: inline <style> and markup are rendered verbatim."
+---
+<style>
+  .tour-html { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-top: 2rem; }
+  .tour-html div { padding: 1.5rem; border-radius: 1rem; color: #fff; font-size: 1.1em; }
+  .tour-html div:nth-child(1) { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+  .tour-html div:nth-child(2) { background: linear-gradient(135deg, #0ea5e9, #22d3ee); }
+  .tour-html div:nth-child(3) { background: linear-gradient(135deg, #10b981, #84cc16); }
+</style>
+<h1>An HTML slide</h1>
+<p>Inline <code>&lt;style&gt;</code> and markup are rendered as-is.</p>
+<div class="tour-html">
+  <div><strong>Self-contained</strong><br />Bring your own markup and styles.</div>
+  <div><strong>Zero build DSL</strong><br />Paste HTML straight in.</div>
+  <div><strong>Same frontmatter</strong><br />Layouts, notes, backgrounds.</div>
+</div>

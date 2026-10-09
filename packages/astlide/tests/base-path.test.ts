@@ -32,3 +32,25 @@ describe("withBase", () => {
 		expect(withBase("deck/all")).toBe("/astlide/deck/all");
 	});
 });
+
+describe("withBaseIfRootRelative", () => {
+	it("prefixes root-relative asset paths only", async () => {
+		const { withBaseIfRootRelative } = await load("/astlide/");
+		expect(withBaseIfRootRelative("/photo.jpg")).toBe("/astlide/photo.jpg");
+		expect(withBaseIfRootRelative("photo.jpg")).toBe("photo.jpg");
+		expect(withBaseIfRootRelative("https://x.dev/a.png")).toBe("https://x.dev/a.png");
+		expect(withBaseIfRootRelative("//cdn.x.dev/a.png")).toBe("//cdn.x.dev/a.png");
+		expect(withBaseIfRootRelative("data:image/png;base64,AA")).toBe("data:image/png;base64,AA");
+	});
+
+	it("does not double-prefix", async () => {
+		const { withBaseIfRootRelative } = await load("/astlide/");
+		expect(withBaseIfRootRelative("/astlide/photo.jpg")).toBe("/astlide/photo.jpg");
+		expect(withBaseIfRootRelative("/astlide")).toBe("/astlide");
+	});
+
+	it("is a no-op at the root", async () => {
+		const { withBaseIfRootRelative } = await load("/");
+		expect(withBaseIfRootRelative("/photo.jpg")).toBe("/photo.jpg");
+	});
+});

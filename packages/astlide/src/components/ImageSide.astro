@@ -4,10 +4,13 @@
  *
  * Usage:
  *   <ImageSide src="/photo.jpg" alt="Photo" />
+ *   (root-relative `src` is resolved against Astro's `base`)
  *   Then put text content after it — Slide handles the flex layout.
  *
  * Or use <Left> / <Right> for full manual control.
  */
+import { withBaseIfRootRelative } from '@astlide/core/utils/base-path';
+
 interface Props {
   src: string;
   alt?: string;
@@ -15,7 +18,9 @@ interface Props {
   class?: string;
 }
 
-const { src, alt = '', width = '50%', class: className } = Astro.props;
+const { src: rawSrc, alt = '', width = '50%', class: className } = Astro.props;
+// Root-relative paths ("/photo.jpg") resolve against Astro's `base`.
+const src = withBaseIfRootRelative(rawSrc);
 ---
 
 <div class:list={['image-side', className]} style={`width: ${width}; flex-shrink: 0;`}>
