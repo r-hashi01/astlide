@@ -1108,26 +1108,32 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         return doc.body.innerHTML;
       }
 
-      const slideNotesEl = document.querySelector('[data-slide-notes]');
-      if (slideNotesEl && slideNotesEl.innerHTML.trim()) {
-        const notesHTML = sanitizeNotesHTML(slideNotesEl.innerHTML);
-        // Update presenter notes panel
-        const presenterNotesContent = document.querySelector('.presenter-notes .notes-content');
-        const presenterNoNotes = document.querySelector('.presenter-notes .no-notes');
-        if (presenterNotesContent) {
-          presenterNotesContent.innerHTML = notesHTML;
-        } else if (presenterNoNotes) {
-          const div = document.createElement('div');
-          div.className = 'notes-content';
-          div.innerHTML = notesHTML;
-          presenterNoNotes.replaceWith(div);
-        }
-        // Update notes overlay body
-        const notesBody = document.querySelector('.notes-body');
-        if (notesBody) {
-          notesBody.innerHTML = notesHTML;
+      // Also re-run by the dev editor after it patches the slide (and the
+      // server-rendered notes) in place.
+      function applyNotesComponent() {
+        const slideNotesEl = document.querySelector('[data-slide-notes]');
+        if (slideNotesEl && slideNotesEl.innerHTML.trim()) {
+          const notesHTML = sanitizeNotesHTML(slideNotesEl.innerHTML);
+          // Update presenter notes panel
+          const presenterNotesContent = document.querySelector('.presenter-notes .notes-content');
+          const presenterNoNotes = document.querySelector('.presenter-notes .no-notes');
+          if (presenterNotesContent) {
+            presenterNotesContent.innerHTML = notesHTML;
+          } else if (presenterNoNotes) {
+            const div = document.createElement('div');
+            div.className = 'notes-content';
+            div.innerHTML = notesHTML;
+            presenterNoNotes.replaceWith(div);
+          }
+          // Update notes overlay body
+          const notesBody = document.querySelector('.notes-body');
+          if (notesBody) {
+            notesBody.innerHTML = notesHTML;
+          }
         }
       }
+      applyNotesComponent();
+      window.__astlide_resync_notes = applyNotesComponent;
 
       // ── 8. Notes overlay ───────────────────────────────────────
       const notesOverlay = document.getElementById('notes-overlay');

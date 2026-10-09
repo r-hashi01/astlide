@@ -45,6 +45,7 @@ let saving: Promise<void> | null = null;
 
 type AstlideWindow = Window & {
 	__astlide_resync_steps?: () => void;
+	__astlide_resync_notes?: () => void;
 	__astlide_navigate?: (url: string, options?: { history?: "replace" }) => void;
 	__astlide_step?: { slide: number; step: number };
 	__astlide_pending_step?: { slide: number; step: number } | null;
@@ -290,6 +291,27 @@ function syncHeadStyles(doc: Document): void {
 }
 
 /**
+ * Refresh the notes shown in the presenter panel and the notes overlay: copy
+ * the server-rendered (frontmatter) notes from `doc`, then let DeckLayout apply
+ * a `<Notes>` component from the patched slide, which takes priority.
+ */
+function syncNotes(doc: Document): void {
+	const pairs: Array<[string, string]> = [
+		[
+			".presenter-notes .notes-content, .presenter-notes .no-notes",
+			".presenter-notes .notes-content, .presenter-notes .no-notes",
+		],
+		["#notes-overlay .notes-body", "#notes-overlay .notes-body"],
+	];
+	for (const [liveSelector, nextSelector] of pairs) {
+		const live = document.querySelector(liveSelector);
+		const next = doc.querySelector(nextSelector);
+		if (live && next) live.replaceWith(document.importNode(next, true));
+	}
+	(window as AstlideWindow).__astlide_resync_notes?.();
+}
+
+/**
  * Patch the live slide to match `doc`: sync the `.slide` element's attributes
  * (layout class, background…) and replace only the changed run of top-level
  * blocks. Returns false when the structure doesn't allow a patch.
@@ -350,6 +372,7 @@ async function refreshSlide(): Promise<void> {
 		syncHeadStyles(doc);
 		if (patchSlide(doc)) {
 			w.__astlide_resync_steps?.();
+			syncNotes(doc);
 			// New ```mermaid blocks need rendering; unchanged ones were left alone.
 			const { renderDiagrams } = await import("@astlide/core/internal/diagrams");
 			void renderDiagrams();
@@ -383,12 +406,21 @@ export function toggleEditor(force?: boolean): void {
 	host().append(state.panel);
 	reserveSpace(true);
 	sessionStorage.setItem(OPEN_KEY, "1");
-	void captureBaseline();
 	void loadSource().then(() => state?.textarea.focus({ preventScroll: true }));
 }
 
 /** Called on every page load: keep / retarget / reopen the panel. */
+function isEmbedded(): boolean {
+	return document.documentElement.hasAttribute("data-embed");
+}
+
 export function initEditor(): void {
+	// Overview thumbnails and the presenter preview are iframes of slide pages:
+	// they never edit or live-refresh.
+	if (isEmbedded()) return;
+	// Every window showing a slide (audience *and* presenter) keeps the server
+	// HTML it was rendered from, so it can patch itself when the slide is saved.
+	void captureBaseline();
 	// The panel survived the swap (persisted host): retarget it if the slide changed.
 	if (state && document.contains(state.panel)) {
 		const path = sourcePath();
@@ -403,7 +435,6 @@ export function initEditor(): void {
 			void loadSource();
 		}
 		reserveSpace(true);
-		void captureBaseline();
 		return;
 	}
 	state = null;
@@ -420,9 +451,20 @@ export function initEditor(): void {
 // The server sends this instead of a full reload after our own writes.
 // Refreshes run one after another so quick successive saves apply in order.
 let refreshQueue: Promise<void> = Promise.resolve();
+// One save can bring several events; keep at most one refresh waiting behind
+// the running one, so the last refresh always fetches the settled page.
+let refreshWaiting = false;
 if (import.meta.hot) {
-	import.meta.hot.on(SOURCE_SAVED_EVENT, () => {
-		refreshQueue = refreshQueue.then(refreshSlide);
+	import.meta.hot.on(SOURCE_SAVED_EVENT, (data: { path?: string }) => {
+		// Only windows showing the saved slide refresh (e.g. the audience window
+		// and the presenter window on the same slide); others ignore it.
+		if (isEmbedded() || !data?.path || data.path !== sourcePath()) return;
+		if (refreshWaiting) return;
+		refreshWaiting = true;
+		refreshQueue = refreshQueue.then(() => {
+			refreshWaiting = false;
+			return refreshSlide();
+		});
 	});
 }
 
