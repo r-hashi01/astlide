@@ -14,7 +14,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { getDecks } from "./pptx/export";
 
-type Format = "pdf" | "png" | "pptx";
+type Format = "pdf" | "png" | "pptx" | "pptx-render";
 
 interface Options {
 	decks: string[];
@@ -44,6 +44,8 @@ Formats (combine as needed; default --pdf):
   --pdf                 One multi-page PDF per deck
   --pptx                Editable PowerPoint, built from the slide sources
   --png                 One PNG per slide
+  --pptx-render         Experimental: PPTX matching the rendered slides
+                        (picture background + editable text boxes)
 
 Options:
   -a, --all             Export every deck
@@ -93,6 +95,7 @@ function parseExportArgs(args: string[]): Options {
 			case "--pdf":
 			case "--png":
 			case "--pptx":
+			case "--pptx-render":
 				options.formats.add(arg.slice(2) as Format);
 				break;
 			case "-a":
@@ -135,7 +138,9 @@ function parseExportArgs(args: string[]): Options {
 function outputFor(options: Options, deck: string, format: Format): string {
 	if (options.output) return resolve(options.cwd, options.output);
 	const dir = resolve(options.cwd, options.outDir);
-	return format === "png" ? join(dir, `${deck}-slides`) : join(dir, `${deck}.${format}`);
+	if (format === "png") return join(dir, `${deck}-slides`);
+	if (format === "pptx-render") return join(dir, `${deck}-render.pptx`);
+	return join(dir, `${deck}.${format}`);
 }
 
 /** The nearest directory at or above `from` with src/content/decks. */
@@ -214,7 +219,7 @@ async function runExport(options: Options): Promise<void> {
 		}
 	}
 
-	const rendered = (["pdf", "png"] as const).filter((f) => options.formats.has(f));
+	const rendered = (["pdf", "png", "pptx-render"] as const).filter((f) => options.formats.has(f));
 	if (rendered.length === 0) return;
 
 	// Imported only now so PPTX-only exports work without Playwright installed.
@@ -233,6 +238,13 @@ async function runExport(options: Options): Promise<void> {
 	try {
 		for (const deck of decks) {
 			for (const format of rendered) {
+				if (format === "pptx-render") {
+					// Experimental: PPTX from the rendered slides (see cli/pptx/render).
+					const { exportRenderedPptx } = await import("./pptx/render/export");
+					console.log(`\nPPTX (rendered): ${deck}`);
+					await exportRenderedPptx(deck, { baseUrl, output: outputFor(options, deck, format) });
+					continue;
+				}
 				await exportDeck(deck, {
 					format,
 					baseUrl,
