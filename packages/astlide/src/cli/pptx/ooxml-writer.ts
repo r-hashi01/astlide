@@ -154,6 +154,7 @@ function buildSlideXml(
 ${shapes.join("\n")}
 </p:spTree>
 </p:cSld>
+<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>
 </p:sld>`;
 
 	return { xml, hyperlinks };
@@ -373,6 +374,46 @@ const NS_P = "http://schemas.openxmlformats.org/presentationml/2006/main";
 const NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main";
 const NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 
+// PowerPoint (unlike the schema) expects these parts and default text styles:
+// without them it asks to "repair" the file. Modeled on what PowerPoint itself
+// writes for a blank presentation.
+
+/** `<a:lvlNpPr>` for levels 1..count: size in 1/100 pt, theme major / minor font. */
+function levelStyles(
+	count: number,
+	opts: { size: number; font: "mj" | "mn"; spcBef?: boolean },
+): string {
+	const out: string[] = [];
+	for (let level = 1; level <= count; level++) {
+		const marL = (level - 1) * 457200;
+		const spcBef = opts.spcBef ? '<a:spcBef><a:spcPct val="0"/></a:spcBef>' : "";
+		out.push(
+			`<a:lvl${level}pPr marL="${marL}" algn="l" defTabSz="914400" rtl="0" eaLnBrk="1" latinLnBrk="0" hangingPunct="1">` +
+				`${spcBef}<a:buNone/>` +
+				`<a:defRPr sz="${opts.size}" kern="1200"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill>` +
+				`<a:latin typeface="+${opts.font}-lt"/><a:ea typeface="+${opts.font}-ea"/><a:cs typeface="+${opts.font}-cs"/></a:defRPr>` +
+				`</a:lvl${level}pPr>`,
+		);
+	}
+	return out.join("");
+}
+
+function presPropsXml(): string {
+	return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentationPr xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}"/>`;
+}
+
+function viewPropsXml(): string {
+	return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:viewPr xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}"><p:normalViewPr><p:restoredLeft sz="15620"/><p:restoredTop sz="94660"/></p:normalViewPr><p:gridSpacing cx="76200" cy="76200"/></p:viewPr>`;
+}
+
+function tableStylesXml(): string {
+	// def: PowerPoint's built-in "Medium Style 2 - Accent 1".
+	return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<a:tblStyleLst xmlns:a="${NS_A}" def="{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}"/>`;
+}
+
 function contentTypesXml(slideCount: number): string {
 	const overrides: string[] = [];
 	for (let i = 1; i <= slideCount; i++) {
@@ -388,6 +429,9 @@ function contentTypesXml(slideCount: number): string {
 <Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>
 <Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>
 <Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
+<Override PartName="/ppt/presProps.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presProps+xml"/>
+<Override PartName="/ppt/viewProps.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.viewProps+xml"/>
+<Override PartName="/ppt/tableStyles.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.tableStyles+xml"/>
 <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
 <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
 ${overrides.join("\n")}
@@ -407,6 +451,9 @@ function presentationRelsXml(slideCount: number): string {
 	const rels = [
 		`<Relationship Id="rIdSm1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>`,
 		`<Relationship Id="rIdTheme1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>`,
+		`<Relationship Id="rIdPresProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/presProps" Target="presProps.xml"/>`,
+		`<Relationship Id="rIdViewProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/viewProps" Target="viewProps.xml"/>`,
+		`<Relationship Id="rIdTableStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles" Target="tableStyles.xml"/>`,
 	];
 	for (let i = 1; i <= slideCount; i++) {
 		rels.push(
@@ -430,6 +477,7 @@ function presentationXml(slideCount: number): string {
 <p:sldIdLst>${sldIds.join("")}</p:sldIdLst>
 <p:sldSz cx="9144000" cy="5143500" type="screen16x9"/>
 <p:notesSz cx="6858000" cy="9144000"/>
+<p:defaultTextStyle>${levelStyles(9, { size: 1800, font: "mn" })}</p:defaultTextStyle>
 </p:presentation>`;
 }
 
@@ -442,6 +490,11 @@ function slideMasterXml(): string {
 </p:spTree></p:cSld>
 <p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>
 <p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rIdLo1"/></p:sldLayoutIdLst>
+<p:txStyles>
+<p:titleStyle>${levelStyles(1, { size: 4400, font: "mj", spcBef: true })}</p:titleStyle>
+<p:bodyStyle>${levelStyles(9, { size: 2800, font: "mn", spcBef: true })}</p:bodyStyle>
+<p:otherStyle>${levelStyles(9, { size: 1800, font: "mn" })}</p:otherStyle>
+</p:txStyles>
 </p:sldMaster>`;
 }
 
@@ -460,6 +513,7 @@ function slideLayoutXml(): string {
 <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
 <p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>
 </p:spTree></p:cSld>
+<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>
 </p:sldLayout>`;
 }
 
@@ -499,11 +553,15 @@ function themeXml(theme: ThemeColors): string {
 <a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst>
 </a:fmtScheme>
 </a:themeElements>
+<a:objectDefaults/>
+<a:extraClrSchemeLst/>
 </a:theme>`;
 }
 
 function corePropsXml(title: string, author: string): string {
-	const now = new Date().toISOString();
+	// W3CDTF without fractional seconds: Office treats "…:45.652Z" as corrupt
+	// content and asks to repair the file.
+	const now = new Date().toISOString().replace(/\.\d+Z$/, "Z");
 	return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 <dc:title>${esc(title)}</dc:title>
@@ -556,9 +614,27 @@ interface ZipEntry {
 }
 
 /** @internal */
+/**
+ * General purpose flags: bit 11 = UTF-8 names. Not bit 3 ("sizes and CRC
+ * follow in a data descriptor"): they're known up front and written in the
+ * local headers, and PowerPoint rejects (asks to repair) entries that claim a
+ * data descriptor they don't have.
+ */
+const ZIP_FLAGS = 0x0800;
+
+/** MS-DOS time / date for entry headers; month and day are 1-based (0 is invalid). */
+export function dosDateTime(date: Date): { time: number; date: number } {
+	const year = Math.max(date.getFullYear(), 1980);
+	return {
+		time: (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2),
+		date: ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate(),
+	};
+}
+
 export class ZipWriter {
 	private entries: ZipEntry[] = [];
 	private offset = 0;
+	private readonly stamp = dosDateTime(new Date());
 
 	add(path: string, data: string | Buffer): void {
 		const raw = typeof data === "string" ? Buffer.from(data, "utf-8") : data;
@@ -583,10 +659,10 @@ export class ZipWriter {
 			const header = Buffer.alloc(30);
 			header.writeUInt32LE(0x04034b50, 0);
 			header.writeUInt16LE(20, 4);
-			header.writeUInt16LE(0x0808, 6);
+			header.writeUInt16LE(ZIP_FLAGS, 6);
 			header.writeUInt16LE(8, 8);
-			header.writeUInt16LE(0, 10);
-			header.writeUInt16LE(0, 12);
+			header.writeUInt16LE(this.stamp.time, 10);
+			header.writeUInt16LE(this.stamp.date, 12);
 			header.writeUInt32LE(e.crc, 14);
 			header.writeUInt32LE(e.compressed.length, 18);
 			header.writeUInt32LE(e.raw.length, 22);
@@ -605,10 +681,10 @@ export class ZipWriter {
 			cd.writeUInt32LE(0x02014b50, 0);
 			cd.writeUInt16LE(20, 4);
 			cd.writeUInt16LE(20, 6);
-			cd.writeUInt16LE(0x0808, 8);
+			cd.writeUInt16LE(ZIP_FLAGS, 8);
 			cd.writeUInt16LE(8, 10);
-			cd.writeUInt16LE(0, 12);
-			cd.writeUInt16LE(0, 14);
+			cd.writeUInt16LE(this.stamp.time, 12);
+			cd.writeUInt16LE(this.stamp.date, 14);
 			cd.writeUInt32LE(e.crc, 16);
 			cd.writeUInt32LE(e.compressed.length, 20);
 			cd.writeUInt32LE(e.raw.length, 24);
@@ -690,6 +766,9 @@ export class PptxFile {
 		zip.add("ppt/slideLayouts/slideLayout1.xml", slideLayoutXml());
 		zip.add("ppt/slideLayouts/_rels/slideLayout1.xml.rels", slideLayoutRelsXml());
 		zip.add("ppt/theme/theme1.xml", themeXml(this.theme));
+		zip.add("ppt/presProps.xml", presPropsXml());
+		zip.add("ppt/viewProps.xml", viewPropsXml());
+		zip.add("ppt/tableStyles.xml", tableStylesXml());
 		zip.add("docProps/core.xml", corePropsXml(this.title, this.author));
 		zip.add("docProps/app.xml", appPropsXml(count));
 
