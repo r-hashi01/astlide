@@ -3,6 +3,7 @@ import { getCollection } from 'astro:content';
 import fs from 'node:fs';
 import path from 'node:path';
 import { deckConfigSchema } from '@astlide/core/schema';
+import { withBase } from '@astlide/core/utils/base-path';
 
 declare const __ASTLIDE_CSP__: boolean | string;
 
@@ -90,7 +91,7 @@ const decks = await Promise.all(
 
       <div class="deck-grid">
         {decks.map((deck) => (
-          <a href={`/${deck.name}/1`} class="deck-card">
+          <a href={withBase(`/${deck.name}/1`)} class="deck-card">
             <h2>{deck.title}</h2>
             {deck.author && <p class="author">{deck.author}</p>}
             {deck.formattedDate && <p class="date">{deck.formattedDate}</p>}

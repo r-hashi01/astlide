@@ -64,6 +64,11 @@ jobs:
           node-version: 22
       - run: bun install --frozen-lockfile
       - run: bun run build
+      # Sub-path deployments (Astro `base`, e.g. GitHub Pages): every internal
+      # link must carry the base.
+      - name: Build under a base path
+        run: ASTLIDE_BASE=/astlide bun run build
+      - run: node scripts/check-base-links.mjs playground/dist /astlide
 
   build-cli:
     name: Build CLI

@@ -7,6 +7,8 @@
  * stays out of the main page bundle.
  */
 
+import { withBase } from "@astlide/core/utils/base-path";
+
 export interface ExportToPdfOptions {
 	/** Deck name (URL segment). */
 	deck: string;
@@ -43,7 +45,7 @@ export async function exportDeckToPdf(opts: ExportToPdfOptions): Promise<ExportT
 	iframe.style.cssText = "position:fixed; left:-99999px; top:0; border:0; visibility:hidden;";
 	iframe.width = String(width);
 	iframe.height = String(height);
-	iframe.src = `/${encodeURIComponent(deck)}/all`;
+	iframe.src = withBase(`/${encodeURIComponent(deck)}/all`);
 	document.body.appendChild(iframe);
 
 	try {
