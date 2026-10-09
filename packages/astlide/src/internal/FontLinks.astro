@@ -1,6 +1,6 @@
 ---
 /**
- * The web font from the `font` option (Inter from Google Fonts by default):
+ * The web font from the `font` option (Inter + JetBrains Mono from Google Fonts by default):
  * preconnects plus the stylesheet. Shared by deck pages, the print view (which
  * the PDF exporters render — without it, exported PDFs fell back to whatever
  * font the machine had) and the deck index.
@@ -11,7 +11,7 @@ const fontConfig: { href: string; preconnect: string[] } | null =
   typeof __ASTLIDE_FONT__ !== 'undefined'
     ? __ASTLIDE_FONT__
     : {
-        href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
+        href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap',
         preconnect: ['https://fonts.googleapis.com', 'https://fonts.gstatic.com'],
       };
 ---

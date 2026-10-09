@@ -102,7 +102,7 @@ In the browser, `getClientDeckContext()` returns the same shape.
 
 ## Fonts
 
-Astlide injects the Inter web font by default:
+Astlide injects Inter (text) and JetBrains Mono (code) from Google Fonts by default, so slides and exported PDFs use the same fonts on every machine:
 
 ```js
 astlide({ font: false }); // use whatever your CSS specifies
