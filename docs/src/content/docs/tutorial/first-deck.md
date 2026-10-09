@@ -164,14 +164,12 @@ The full list is in [Presenting](/astlide/guides/presenting/).
 
 ## 8. Export a PDF
 
-With the dev server running:
-
 ```bash
 bunx playwright install chromium   # once — Playwright comes with @astlide/core
-bunx astlide-export --deck hello-astro
+bun run export hello-astro         # or: bunx astlide export hello-astro
 ```
 
-You get `hello-astro.pdf` with every slide in its final state (all steps revealed). See [Export](/astlide/guides/export/) for PNG and PowerPoint.
+Astlide builds the site, renders it and writes `exports/hello-astro.pdf`, with every slide in its final state (all steps revealed). Add `--pptx` for an editable PowerPoint, or `--png` for images; see [Export](/astlide/guides/export/).
 
 ## 9. Publish on GitHub Pages
 

@@ -16,6 +16,7 @@
 		"./utils/*": "./src/utils/*"
 	},
 	"bin": {
+		"astlide": "./src/cli/astlide.ts",
 		"astlide-export": "./src/cli/export-pdf.ts",
 		"astlide-export-pptx": "./src/cli/export-pptx.ts"
 	},
