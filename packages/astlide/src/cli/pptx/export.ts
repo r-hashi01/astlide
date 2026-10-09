@@ -261,10 +261,12 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 	if (!existsSync(html)) throw new Error(`no print view at ${html}`);
 
 	const fonts = new engine.FontRegistry();
-	const families = engine.familiesIn(engine.pageCss(html, dist));
+	const css = engine.pageCss(html, dist);
+	// The site's own fonts (KaTeX …) first; the rest from Google Fonts.
+	const local = engine.loadFontFaces(fonts, css, dist);
 	const missing = await engine.loadGoogleFonts(
 		fonts,
-		families,
+		engine.familiesIn(css).filter((f) => !local.has(f)),
 		join(options.root, "node_modules", ".cache", "astlide-fonts"),
 	);
 	if (missing.length) console.warn(`  ⚠ fonts not found on Google Fonts: ${missing.join(", ")}`);
@@ -278,7 +280,8 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 	const slides: SlideSpec[] = [];
 	const used: TextItem[] = [];
 	layouts.forEach((layout, i) => {
-		process.stdout.write(`  Slide ${i + 1}/${layouts.length}\r`);
+		// Progress on one line: only where \r rewrites it (a terminal, not a log).
+		if (process.stdout.isTTY) process.stdout.write(`  Slide ${i + 1}/${layouts.length}\r`);
 		const scene = engine.toScene(layout, (eid) => layout.elements[eid]);
 		const k = SLIDE_W_IN / scene.width;
 		const elements: SlideElement[] = [];
@@ -357,7 +360,8 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 		}
 		slides.push({ background: hex(scene.background), elements });
 	});
-	console.log("");
+	if (process.stdout.isTTY) console.log("");
+	console.log(`  ${layouts.length} slides`);
 	const pptx = new PptxFile({
 		title: str(config.title) ?? deck,
 		author: str(config.author) ?? "",

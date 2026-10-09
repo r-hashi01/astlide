@@ -14,7 +14,7 @@ import { StyleSheets, UA_CSS, type Viewport } from "./cascade";
 import { layoutSlide, type SlideLayout } from "./layout";
 import type { FontRegistry } from "./text";
 
-export { familiesIn, loadGoogleFonts } from "./fonts";
+export { familiesIn, loadFontFaces, loadGoogleFonts } from "./fonts";
 export type { Box, SlideLayout, TextLine } from "./layout";
 export { type Color, parseColor, type Scene, type SceneItem, toScene } from "./scene";
 export { FontRegistry } from "./text";

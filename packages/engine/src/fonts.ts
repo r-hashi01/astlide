@@ -1,6 +1,7 @@
 /**
  * Font files for the families a page asks for: collected from its CSS
- * (`font-family` values and `--font-*` custom properties), fetched as
+ * (`font-family` values and `--font-*` custom properties). Fonts the site
+ * ships itself come from its `@font-face` rules; the rest are fetched as
  * TrueType from Google Fonts (which serves .ttf to non-browser clients) and
  * cached on disk.
  */
@@ -45,6 +46,38 @@ export function familiesIn(css: string): string[] {
 		}
 	}
 	return [...out];
+}
+
+/**
+ * Register the site's own `@font-face` fonts that have a TrueType / OpenType
+ * source in `dist` (woff / woff2 can't be read). Returns the families
+ * registered.
+ */
+export function loadFontFaces(fonts: FontRegistry, css: string, dist: string): Set<string> {
+	const loaded = new Set<string>();
+	for (const [, body = ""] of css.matchAll(/@font-face\s*\{([^}]*)\}/g)) {
+		const prop = (name: string) =>
+			body.match(new RegExp(`(?:^|;)\\s*${name}\\s*:\\s*([^;]+)`, "i"))?.[1]?.trim();
+		const family = prop("font-family")?.replace(/^["']|["']$/g, "");
+		// Not prop(): data: URLs inside src contain ";".
+		const src = body.match(/(?:^|;)\s*src\s*:\s*((?:url\([^)]*\)|[^;])+)/i)?.[1];
+		if (!family || !src) continue;
+		const url = [
+			...src.matchAll(/url\(\s*["']?([^"')]+)["']?\s*\)\s*format\(\s*["']?(truetype|opentype)/gi),
+		][0]?.[1];
+		if (!url || /^(https?:|data:)/.test(url)) continue;
+		const path = url.split(/[?#]/)[0] ?? "";
+		// Root-relative, possibly under Astro's `base`.
+		const file = [join(dist, path), join(dist, path.replace(/^\/[^/]+/, ""))].find((p) =>
+			existsSync(p),
+		);
+		if (!file) continue;
+		const weight = prop("font-weight") ?? "400";
+		const w = /bold/i.test(weight) ? 700 : Number.parseInt(weight, 10) || 400;
+		fonts.add(family, w, /italic|oblique/i.test(prop("font-style") ?? ""), file);
+		loaded.add(family);
+	}
+	return loaded;
 }
 
 /**
