@@ -482,6 +482,21 @@ bun run astlide-export --deck my-talk --width 1280 --height 720
 bun run astlide-export --deck my-talk --base-url http://localhost:3000
 ```
 
+## Deploying under a sub-path
+
+Astlide honours Astro's [`base`](https://docs.astro.build/en/reference/configuration-reference/#base) option — every internal link, the presenter preview, overview thumbnails and PDF export resolve against it. For example, a GitHub Pages project site:
+
+```js
+// astro.config.mjs
+export default defineConfig({
+  site: 'https://<user>.github.io',
+  base: '/<repo>',
+  integrations: [astlide()],
+});
+```
+
+Your own absolute URLs in slides (e.g. `![](/photo.jpg)`) are not rewritten — use `import.meta.env.BASE_URL` or relative paths for them. For `astlide-export`, include the base in `--base-url` (e.g. `--base-url http://localhost:4321/<repo>`).
+
 ## Project Structure
 
 ```

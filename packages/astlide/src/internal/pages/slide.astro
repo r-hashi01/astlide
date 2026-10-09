@@ -6,6 +6,7 @@ import { deckConfigSchema } from '@astlide/core/schema';
 import type { DeckConfig } from '@astlide/core/schema';
 import { setDeckContext } from '@astlide/core/context';
 import { slideTitle } from '@astlide/core/utils/slide-title';
+import { withBase } from '@astlide/core/utils/base-path';
 import DeckLayout from '@astlide/core/internal/DeckLayout.astro';
 import ErrorOverlay, { type Diagnostic } from '@astlide/core/internal/ErrorOverlay.astro';
 import Slide from '@astlide/core/components/Slide.astro';
@@ -121,7 +122,7 @@ const {
 
 // Skip hidden slides in production — redirect to next visible slide
 if (hidden && import.meta.env.PROD) {
-  return Astro.redirect(`/${deckName}/${nextVisibleSlide}`);
+  return Astro.redirect(withBase(`/${deckName}/${nextVisibleSlide}`));
 }
 
 // Publish typed deck/slide metadata for components rendered inside this slide

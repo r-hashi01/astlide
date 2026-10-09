@@ -6,6 +6,7 @@ import 'virtual:astlide/themes';
 import { ClientRouter } from 'astro:transitions';
 import { sanitizeHTML } from '@astlide/core/utils/sanitize';
 import { renderMarkdown } from '@astlide/core/utils/markdown';
+import { basePath, withBase } from '@astlide/core/utils/base-path';
 
 // Vite defines injected by the astlide() integration
 declare const __ASTLIDE_CSP__: boolean | string;
@@ -62,6 +63,8 @@ interface Props {
 
 const { title, theme = 'default', currentSlide, totalSlides, deck, notes, transition = 'fade', context, outline = [] } = Astro.props;
 const sanitizedNotes = notes ? sanitizeHTML(await renderMarkdown(notes)) : undefined;
+// Internal links honour Astro's `base` (sub-path deployments).
+const deckHref = withBase(`/${deck}`);
 const progress = (currentSlide / totalSlides) * 100;
 const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEXABLE__ : false;
 ---
@@ -78,7 +81,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     <meta property="og:description" content={`Slide deck: ${title}`} />
     <meta property="og:type" content="website" />
     {!indexable && <meta name="robots" content="noindex, nofollow" />}
-    {currentSlide < totalSlides && <link rel="prefetch" href={`/${deck}/${currentSlide + 1}`} />}
+    {currentSlide < totalSlides && <link rel="prefetch" href={`${deckHref}/${currentSlide + 1}`} />}
     {fontConfig?.preconnect?.map((origin) => (
       <link rel="preconnect" href={origin} crossorigin={origin.includes('gstatic') ? '' : undefined} />
     ))}
@@ -150,7 +153,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
             <span class="presenter-steps-left" id="presenter-steps-left" hidden></span>
           </div>
           {currentSlide < totalSlides
-            ? <div class="presenter-next-frame" data-next-src={`/${deck}/${currentSlide + 1}`}></div>
+            ? <div class="presenter-next-frame" data-next-src={`${deckHref}/${currentSlide + 1}`}></div>
             : <p class="presenter-next-end">End of deck</p>
           }
         </section>
@@ -169,11 +172,11 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
           }
         </div>
         <div class="presenter-nav">
-          <a href={currentSlide > 1 ? `/${deck}/${currentSlide - 1}?presenter` : undefined}
+          <a href={currentSlide > 1 ? `${deckHref}/${currentSlide - 1}?presenter` : undefined}
              class:list={['pnav-btn', { disabled: currentSlide <= 1 }]}
              aria-disabled={currentSlide <= 1 ? 'true' : undefined}
              tabindex={currentSlide <= 1 ? -1 : undefined}>← Prev</a>
-          <a href={currentSlide < totalSlides ? `/${deck}/${currentSlide + 1}?presenter` : undefined}
+          <a href={currentSlide < totalSlides ? `${deckHref}/${currentSlide + 1}?presenter` : undefined}
              class:list={['pnav-btn', { disabled: currentSlide >= totalSlides }]}
              aria-disabled={currentSlide >= totalSlides ? 'true' : undefined}
              tabindex={currentSlide >= totalSlides ? -1 : undefined}>Next →</a>
@@ -195,20 +198,20 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     <nav class="slide-nav" aria-label="Slide navigation">
       {toolbarItems.map((item) => {
         if (item === 'home') return (
-          <a href="/"
+          <a href={withBase('/')}
              class="nav-btn nav-action"
              aria-label="Back to deck index"
              title="Back to deck index">⌂</a>
         );
         if (item === 'prev') return (
-          <a href={currentSlide > 1 ? `/${deck}/${currentSlide - 1}` : undefined}
+          <a href={currentSlide > 1 ? `${deckHref}/${currentSlide - 1}` : undefined}
              class:list={['nav-btn', { disabled: currentSlide <= 1 }]}
              aria-label="Previous slide"
              aria-disabled={currentSlide <= 1 ? 'true' : undefined}
              tabindex={currentSlide <= 1 ? -1 : undefined}>←</a>
         );
         if (item === 'next') return (
-          <a href={currentSlide < totalSlides ? `/${deck}/${currentSlide + 1}` : undefined}
+          <a href={currentSlide < totalSlides ? `${deckHref}/${currentSlide + 1}` : undefined}
              class:list={['nav-btn', { disabled: currentSlide >= totalSlides }]}
              aria-label="Next slide"
              aria-disabled={currentSlide >= totalSlides ? 'true' : undefined}
@@ -331,7 +334,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
          This script embeds per-slide values, so without it, returning to a
          previously visited slide would keep the last slide's state (e.g. →
          from a revisited slide 2 after visiting 3 jumped to 4). -->
-    <script data-astro-rerun define:vars={{ currentSlide, totalSlides, deck, deckContext: context ?? null, outline }}>
+    <script data-astro-rerun define:vars={{ currentSlide, totalSlides, deck, deckContext: context ?? null, outline, basePath }}>
       // ── 0. Publish typed deck/slide metadata for client scripts ──
       // Replaces parsing document.title / body.dataset. See @astlide/core/context.
       if (deckContext) window.__astlide = deckContext;
@@ -346,6 +349,8 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       // Encode deck name for safe URL construction (SSG value, but encode defensively
       // to prevent open-redirect if the deck directory name contains special characters).
       const deckPath = encodeURIComponent(deck);
+      // URL prefix for this deck's slides, including Astro's `base` (sub-path deploys).
+      const deckUrl = basePath + '/' + deckPath;
 
       // ── 1. Cleanup from previous page (ClientRouter) ─────────
       if (window.__astlide_cleanup) {
@@ -546,7 +551,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
           syncChannel.onmessage = function(e) {
             const data = e.data;
             if (data && data.type === 'navigate' && data.slide !== currentSlide) {
-              navTo('/' + deckPath + '/' + data.slide + (isPresenter ? '?presenter' : ''));
+              navTo(deckUrl + '/' + data.slide + (isPresenter ? '?presenter' : ''));
             } else if (data && data.type === 'step') {
               // Mirror fragment / code-step progress. A step for another slide
               // usually means we are still navigating there: keep it for the next
@@ -613,7 +618,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         if (currentSlide < totalSlides) {
           const next = currentSlide + 1;
           broadcastSlide(next);
-          navTo('/' + deckPath + '/' + next + (isPresenter ? '?presenter' : ''));
+          navTo(deckUrl + '/' + next + (isPresenter ? '?presenter' : ''));
         }
       }
 
@@ -622,7 +627,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         if (currentSlide > 1) {
           const prev = currentSlide - 1;
           broadcastSlide(prev);
-          navTo('/' + deckPath + '/' + prev + (isPresenter ? '?presenter' : ''));
+          navTo(deckUrl + '/' + prev + (isPresenter ? '?presenter' : ''));
         }
       }
 
@@ -639,13 +644,13 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         if (overviewGrid && overviewGrid.children.length === 0) {
           for (let i = 1; i <= totalSlides; i++) {
             const item = document.createElement('a');
-            item.href = '/' + deckPath + '/' + i;
+            item.href = deckUrl + '/' + i;
             item.className = 'overview-item' + (i === currentSlide ? ' current' : '');
             item.setAttribute('role', 'listitem');
             item.setAttribute('aria-label', 'Slide ' + i + ' of ' + totalSlides + (i === currentSlide ? ' (current)' : ''));
 
             const iframe = document.createElement('iframe');
-            iframe.src = '/' + deckPath + '/' + i;
+            iframe.src = deckUrl + '/' + i;
             iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts');
             iframe.setAttribute('scrolling', 'no');
             iframe.tabIndex = -1;
@@ -738,7 +743,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         closeGoto();
         if (n === currentSlide) return;
         broadcastSlide(n);
-        navTo('/' + deckPath + '/' + n + (isPresenter ? '?presenter' : ''));
+        navTo(deckUrl + '/' + n + (isPresenter ? '?presenter' : ''));
       }
 
       function handleGotoKeydown(e) {
@@ -1218,13 +1223,13 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
           case 'Home':
             e.preventDefault();
             broadcastSlide(1);
-            navTo('/' + deckPath + '/1' + (isPresenter ? '?presenter' : ''));
+            navTo(deckUrl + '/1' + (isPresenter ? '?presenter' : ''));
             break;
           case 'ArrowDown':
           case 'End':
             e.preventDefault();
             broadcastSlide(totalSlides);
-            navTo('/' + deckPath + '/' + totalSlides + (isPresenter ? '?presenter' : ''));
+            navTo(deckUrl + '/' + totalSlides + (isPresenter ? '?presenter' : ''));
             break;
           case 'f':
             if (!isPresenter) document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
