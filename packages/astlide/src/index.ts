@@ -118,6 +118,27 @@ export interface AstlideOptions {
 	 * ```
 	 */
 	font?: FontOption;
+	/**
+	 * Pen drawings (`d`).
+	 *
+	 * - `persist` (default `false`): keep drawings in the browser's
+	 *   `localStorage`, so they survive reloads and come back the next time the
+	 *   deck is opened in the same browser. Off by default so annotations from one
+	 *   talk don't reappear in the next. `c` clears the current slide, `Shift+C`
+	 *   the whole deck.
+	 *
+	 * @example
+	 * ```ts
+	 * astlide({ drawings: { persist: true } })
+	 * ```
+	 */
+	drawings?: DrawingsOption;
+}
+
+/** Options for pen drawings. */
+export interface DrawingsOption {
+	/** Keep drawings in `localStorage` across reloads. Default: `false`. */
+	persist?: boolean;
 }
 
 /** Web font injection options for the deck layout. */
@@ -312,6 +333,7 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 							__ASTLIDE_TRANSITION_NAMES__: JSON.stringify([...resolved.transitionNames]),
 							__ASTLIDE_TOOLBAR__: JSON.stringify(options.toolbar ?? ["prev", "counter", "next"]),
 							__ASTLIDE_FONT__: JSON.stringify(resolveFontOption(options.font)),
+							__ASTLIDE_DRAWINGS_PERSIST__: JSON.stringify(options.drawings?.persist ?? false),
 						},
 					},
 				});

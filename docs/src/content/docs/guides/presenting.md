@@ -13,7 +13,7 @@ description: Keyboard shortcuts, the presenter window, overview, go-to-slide, pe
 | `End` / `↓` | Last slide |
 | `o` | Overview — all slides in a grid |
 | `g` | Go to slide — type a number or part of a title, `↑`/`↓` to pick, `Enter` to jump |
-| `d` | Pen — draw on the slide; `c` clears the current slide's drawing |
+| `d` | Pen — draw on the slide; `c` clears the current slide, `Shift+C` the whole deck |
 | `l` | Laser pointer |
 | `v` | Camera bubble |
 | `r` | Start / stop recording |
@@ -41,7 +41,7 @@ The two windows stay in sync over `BroadcastChannel`: slide changes, [fragment a
 
 ## Pen & laser pointer
 
-- `d` toggles the **pen**. Strokes are kept per slide while you navigate and come back when you return; `c` clears the current slide.
+- `d` toggles the **pen**. Strokes are kept per slide while you navigate and come back when you return; `c` clears the current slide, `Shift+C` the whole deck.
 - `l` toggles the **laser pointer**.
 - Both are drawn in slide coordinates, so they line up in every window even when the slides render at different sizes — annotate in the presenter window and it shows on the audience screen.
 - Colors: `--astlide-pen-color`, `--astlide-laser-color`.
@@ -52,6 +52,16 @@ The two windows stay in sync over `BroadcastChannel`: slide changes, [fragment a
 - `r` **records the talk**: the browser asks which screen, window or tab to capture (it suggests the current tab), the microphone is mixed in, and a red indicator with the elapsed time appears. Press `r` again — or stop sharing from the browser — to download `<deck>-<date>.webm`. Recording continues while you move through the deck.
 
 Turn the camera on first if you want it in the recording. Both need a secure context (`https://` or `localhost`) and your permission; recording relies on the browser's screen-capture support (Chromium-based browsers and Firefox; Safari's support is more limited).
+
+### Keeping drawings
+
+By default drawings last for the browser session. To keep them across reloads — and the next time the deck is opened in the same browser — enable persistence:
+
+```js
+astlide({ drawings: { persist: true } });
+```
+
+Drawings are stored per deck in `localStorage`. `Shift+C` (with the pen active) clears them.
 
 ## Toolbar
 

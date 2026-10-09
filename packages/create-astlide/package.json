@@ -1,7 +1,7 @@
 {
 	"name": "create-astlide",
 	"version": "0.2.1",
-	"description": "Scaffold a new Astlide slide project",
+	"description": "Scaffold an Astlide project — slides that live in your Astro site",
 	"type": "module",
 	"bin": {
 		"create-astlide": "./dist/index.js"

@@ -13,7 +13,10 @@ declare const __ASTLIDE_CSP__: boolean | string;
 declare const __ASTLIDE_INDEXABLE__: boolean;
 declare const __ASTLIDE_TOOLBAR__: string[];
 declare const __ASTLIDE_FONT__: { href: string; preconnect: string[] } | null;
+declare const __ASTLIDE_DRAWINGS_PERSIST__: boolean;
 
+const persistDrawings: boolean =
+  typeof __ASTLIDE_DRAWINGS_PERSIST__ !== 'undefined' ? __ASTLIDE_DRAWINGS_PERSIST__ : false;
 const toolbarItems: string[] =
   typeof __ASTLIDE_TOOLBAR__ !== 'undefined' && Array.isArray(__ASTLIDE_TOOLBAR__)
     ? __ASTLIDE_TOOLBAR__
@@ -361,7 +364,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
          This script embeds per-slide values, so without it, returning to a
          previously visited slide would keep the last slide's state (e.g. →
          from a revisited slide 2 after visiting 3 jumped to 4). -->
-    <script data-astro-rerun define:vars={{ currentSlide, totalSlides, deck, deckContext: context ?? null, outline, basePath }}>
+    <script data-astro-rerun define:vars={{ currentSlide, totalSlides, deck, deckContext: context ?? null, outline, basePath, persistDrawings }}>
       // ── 0. Publish typed deck/slide metadata for client scripts ──
       // Replaces parsing document.title / body.dataset. See @astlide/core/context.
       if (deckContext) window.__astlide = deckContext;
@@ -585,7 +588,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
               // page to apply once its steps exist.
               if (data.slide === currentSlide) goToStep(data.step);
               else window.__astlide_pending_step = data;
-            } else if (data && (data.type === 'draw' || data.type === 'draw-clear' || data.type === 'laser' || data.type === 'laser-off')) {
+            } else if (data && (data.type === 'draw' || data.type === 'draw-clear' || data.type === 'draw-clear-all' || data.type === 'laser' || data.type === 'laser-off')) {
               receiveDrawing(data);
             }
           };
@@ -824,6 +827,36 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       const drawCtx = drawLayer && drawLayer.getContext ? drawLayer.getContext('2d') : null;
       const drawings = (window.__astlide_drawings = window.__astlide_drawings || {});
       const drawingKey = deck + '/' + currentSlide;
+
+      // drawings.persist: keep this deck's strokes in localStorage. The key
+      // includes the base path because several sites can share one origin
+      // (e.g. user.github.io/<repo>). Loaded once per deck per window.
+      const drawingsStorageKey = 'astlide:drawings:' + basePath + '/' + deck;
+      const loadedDecks = (window.__astlide_drawings_loaded = window.__astlide_drawings_loaded || {});
+      if (persistDrawings && !loadedDecks[drawingsStorageKey]) {
+        loadedDecks[drawingsStorageKey] = true;
+        try {
+          const saved = JSON.parse(localStorage.getItem(drawingsStorageKey) || '{}');
+          for (const key of Object.keys(saved)) if (!drawings[key]) drawings[key] = saved[key];
+        } catch (_) { /* unavailable or corrupt storage: start empty */ }
+      }
+      let saveTimer = 0;
+      function saveDrawings() {
+        if (!persistDrawings) return;
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+          const deckDrawings = {};
+          for (const key of Object.keys(drawings)) {
+            if (key.startsWith(deck + '/') && drawings[key].length > 0) deckDrawings[key] = drawings[key];
+          }
+          try {
+            if (Object.keys(deckDrawings).length > 0) localStorage.setItem(drawingsStorageKey, JSON.stringify(deckDrawings));
+            else localStorage.removeItem(drawingsStorageKey);
+          } catch (error) {
+            console.warn('[astlide] Could not save drawings', error);
+          }
+        }, 300);
+      }
       let tool = null; // 'draw' | 'laser' | null
       let activeStroke = null;
       let laserTimer = 0;
@@ -890,7 +923,18 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       function clearDrawings(broadcast) {
         drawings[drawingKey] = [];
         redrawStrokes();
+        saveDrawings();
         if (broadcast) postSync({ type: 'draw-clear', slide: currentSlide });
+      }
+
+      // Shift+C: every slide of this deck.
+      function clearDeckDrawings(broadcast) {
+        for (const key of Object.keys(drawings)) {
+          if (key.startsWith(deck + '/')) drawings[key] = [];
+        }
+        redrawStrokes();
+        saveDrawings();
+        if (broadcast) postSync({ type: 'draw-clear-all', slide: currentSlide });
       }
 
       function showLaser(point, broadcast) {
@@ -930,6 +974,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       }
 
       function handleDrawPointerUp() {
+        if (activeStroke) saveDrawings();
         activeStroke = null;
       }
 
@@ -939,6 +984,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
 
       // Incoming pen / laser messages from the other window.
       function receiveDrawing(data) {
+        if (data.type === 'draw-clear-all') { clearDeckDrawings(false); return; }
         if (data.slide !== currentSlide) return;
         if (data.type === 'laser') showLaser([data.x, data.y], false);
         else if (data.type === 'laser-off') hideLaser(false);
@@ -956,6 +1002,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
             drawSegment(stroke, last, point);
             stroke.points.push(point);
           }
+          saveDrawings();
         }
       }
 
@@ -1289,6 +1336,9 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
             break;
           case 'c':
             if (tool === 'draw') clearDrawings(true);
+            break;
+          case 'C':
+            if (tool === 'draw') clearDeckDrawings(true);
             break;
           case 'p':
             if (!isPresenter) {
