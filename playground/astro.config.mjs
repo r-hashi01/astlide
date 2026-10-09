@@ -18,6 +18,8 @@ export default defineConfig({
 				"goto",
 				"draw",
 				"laser",
+				"camera",
+				"record",
 				"presenter",
 				"fullscreen",
 				"download",

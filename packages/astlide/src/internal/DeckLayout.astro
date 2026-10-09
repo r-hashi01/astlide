@@ -197,6 +197,17 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       </div>
     </div>
 
+    <!-- Camera bubble (v). transition:persist keeps the live stream across slides. -->
+    <div id="astlide-camera" class="camera-bubble" transition:persist="astlide-camera" aria-label="Camera" hidden>
+      <video autoplay muted playsinline></video>
+    </div>
+
+    <!-- Recording indicator (r) -->
+    <div class="recording-indicator" role="status" aria-label="Recording">
+      <span class="recording-dot" aria-hidden="true"></span>
+      <span id="astlide-recording-time">0:00</span>
+    </div>
+
     <!-- Navigation (hidden until hover; hidden in presenter mode via CSS) -->
     <nav class="slide-nav" aria-label="Slide navigation">
       {toolbarItems.map((item) => {
@@ -234,6 +245,12 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         );
         if (item === 'laser') return (
           <button type="button" class="nav-btn nav-action" data-action="laser" aria-label="Toggle laser pointer" aria-pressed="false" title="Laser pointer (l)">◉</button>
+        );
+        if (item === 'camera') return (
+          <button type="button" class="nav-btn nav-action" data-action="camera" aria-label="Toggle camera" aria-pressed="false" title="Camera (v)">◎</button>
+        );
+        if (item === 'record') return (
+          <button type="button" class="nav-btn nav-action" data-action="record" aria-label="Record the talk" aria-pressed="false" title="Record (r)">⏺</button>
         );
         if (item === 'overview') return (
           <button type="button" class="nav-btn nav-action" data-action="overview" aria-label="Open slide overview" title="Slide overview (o)">▦</button>
@@ -314,6 +331,16 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     <script>
       import { navigate } from 'astro:transitions/client';
       window.__astlide_navigate = navigate;
+    </script>
+
+    <!-- Module script: camera bubble + recording (state survives navigations). -->
+    <script>
+      import { toggleCamera, toggleRecording, syncMediaUi } from '@astlide/core/internal/recording';
+      window.__astlide_media = {
+        toggleCamera,
+        toggleRecording: () => toggleRecording((window.__astlide && window.__astlide.deck) || 'astlide'),
+      };
+      document.addEventListener('astro:page-load', syncMediaUi);
     </script>
 
     <!-- Module script: render ```mermaid diagrams (loads mermaid only when a slide has one). -->
@@ -1116,6 +1143,8 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
           case 'notes': toggleNotes(); break;
           case 'overview': openOverview(); break;
           case 'goto': openGoto(); break;
+          case 'camera': window.__astlide_media && window.__astlide_media.toggleCamera(); break;
+          case 'record': window.__astlide_media && window.__astlide_media.toggleRecording(); break;
           case 'draw': setTool('draw'); break;
           case 'laser': setTool('laser'); break;
           case 'presenter': {
@@ -1298,6 +1327,12 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
             break;
           case 'l':
             setTool('laser');
+            break;
+          case 'v':
+            if (window.__astlide_media) window.__astlide_media.toggleCamera();
+            break;
+          case 'r':
+            if (window.__astlide_media) window.__astlide_media.toggleRecording();
             break;
           case 'c':
             if (tool === 'draw') clearDrawings(true);
@@ -1495,6 +1530,71 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     position: relative;
     transform-origin: center center;
     flex-shrink: 0;
+  }
+
+  /* ── Camera bubble & recording indicator ── */
+  .camera-bubble {
+    position: fixed;
+    right: 2rem;
+    bottom: 5rem;
+    width: var(--astlide-camera-size, 220px);
+    height: var(--astlide-camera-size, 220px);
+    border-radius: 50%;
+    overflow: hidden;
+    z-index: 900;
+    cursor: grab;
+    touch-action: none;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+    border: 3px solid rgba(255, 255, 255, 0.85);
+    background: #000;
+  }
+
+  .camera-bubble[data-dragging] { cursor: grabbing; }
+
+  .camera-bubble video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1); /* mirror, like a selfie view */
+  }
+
+  .recording-indicator {
+    display: none;
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 950;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    font: 600 0.85rem/1 system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+
+  html[data-recording] .recording-indicator { display: flex; }
+
+  .recording-dot {
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 50%;
+    background: #ef4444;
+    animation: astlide-rec-blink 1s steps(2, start) infinite;
+  }
+
+  @keyframes astlide-rec-blink { to { visibility: hidden; } }
+
+  html[data-print] .camera-bubble,
+  html[data-print] .recording-indicator,
+  html[data-embed] .camera-bubble,
+  html[data-embed] .recording-indicator {
+    display: none !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .recording-dot { animation: none; }
   }
 
   /* ── Pen & laser overlays (cover the slide, in slide coordinates) ── */
