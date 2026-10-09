@@ -23,6 +23,7 @@ export default defineConfig({
 				"download",
 			],
 			slideDecorators: ["./src/components/DeckFooter.astro"],
+			drawings: { persist: true },
 		}),
 	],
 });

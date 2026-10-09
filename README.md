@@ -453,7 +453,7 @@ astlide({ injectIndexRoute: true })   // always inject, even with your own index
 | `End` / `↓` | Last slide |
 | `o` | Overview mode |
 | `g` | Go to slide — type a number or part of a title, `↑`/`↓` to pick, `Enter` to jump |
-| `d` | Toggle the pen — draw on the slide; `c` clears the current slide's drawing |
+| `d` | Toggle the pen — draw on the slide; `c` clears the current slide, `Shift+C` the whole deck |
 | `l` | Toggle the laser pointer |
 | `p` | Open presenter window |
 | `n` | Toggle notes overlay |
