@@ -1,5 +1,28 @@
 # @astlide/core
 
+## 2.3.0
+
+### Minor Changes
+
+- [#69](https://github.com/r-hashi01/astlide/pull/69) [`7434035`](https://github.com/r-hashi01/astlide/commit/7434035d63c42bf646bfa34c03f1b9bf80e72044) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Support Astro's `base` option for sub-path deployments (e.g. GitHub Pages project sites). Navigation, toolbar and presenter links, the deck index, hidden-slide redirects, overview thumbnails, the presenter preview and in-browser PDF export now resolve against `base` instead of the site root.
+
+- [#65](https://github.com/r-hashi01/astlide/pull/65) [`d06ebcd`](https://github.com/r-hashi01/astlide/commit/d06ebcdbef4994eb7a70ead6282cea35f4cdca6b) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Finer-grained reveals:
+
+  - `<Fragment until={n}>` hides a fragment again at step `n`; `<Fragment hide>` starts visible and disappears at its step.
+  - Fragments sharing an `index` now reveal together (previously each took its own step).
+  - New `<Fragments>` component reveals each list item (or child element) one step at a time.
+  - Fragment and code highlight steps are now synced between the presenter and audience windows — previously only slide changes were, so reveals made from the presenter window never reached the audience.
+
+- [#64](https://github.com/r-hashi01/astlide/pull/64) [`01b823a`](https://github.com/r-hashi01/astlide/commit/01b823ac274314ccd90ea9aa4136e3d0ed7c9974) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Render Mermaid diagrams from ```mermaid code fences. `mermaid` is an optional dependency (`bun add mermaid`) loaded only on slides that contain a diagram. Diagrams follow the deck theme, scale labels to the slide's text size, and are awaited by the PDF exporters. Without `mermaid` — or on a syntax error — the source is shown as code.
+
+- [#67](https://github.com/r-hashi01/astlide/pull/67) [`e7b3ce4`](https://github.com/r-hashi01/astlide/commit/e7b3ce4d54b6b38df9050833735337889dc4f533) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Add a pen and a laser pointer. Press `d` (or the `draw` toolbar action) to draw on the slide — `c` clears the current slide's drawing — and `l` (or `laser`) for a laser pointer; `Esc` exits. Drawings are kept per slide while you navigate, and both strokes and the pointer are mirrored between the presenter and audience windows, so you can annotate from the presenter screen. Colors follow `--astlide-pen-color` / `--astlide-laser-color`.
+
+### Patch Changes
+
+- [#70](https://github.com/r-hashi01/astlide/pull/70) [`da42b66`](https://github.com/r-hashi01/astlide/commit/da42b66bca4014e85c0d7b880d158cb6e3270b10) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Expose the exporters as commands: `bunx astlide-export` (PDF / PNG) and `bunx astlide-export-pptx` (PowerPoint). They were documented but not registered as package `bin`s, so they couldn't be run from a project. Both run with Bun.
+
+- [#66](https://github.com/r-hashi01/astlide/pull/66) [`aca4822`](https://github.com/r-hashi01/astlide/commit/aca482248b2dccecfb76454e086aa21f994b4b7f) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Fix navigation after returning to a previously visited slide. Astro's ClientRouter skips inline scripts whose text already ran, so the deck runtime of a revisited slide never re-ran and kept the last slide's state — e.g. pressing → on slide 2 after visiting slide 3 jumped to slide 4, and scaling/fragments/notes were stale. The script is now marked `data-astro-rerun`.
+
 ## 2.2.0
 
 ### Minor Changes
