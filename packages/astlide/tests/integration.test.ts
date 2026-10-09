@@ -147,6 +147,22 @@ describe("astlide integration", () => {
 		});
 	});
 
+	// ── Drawings ──
+
+	describe("drawings option", () => {
+		it("does not persist drawings by default", () => {
+			const { args } = runSetup();
+			const configCall = args.updateConfig.mock.calls[0][0];
+			expect(configCall.vite.define.__ASTLIDE_DRAWINGS_PERSIST__).toBe("false");
+		});
+
+		it("persists drawings when drawings.persist is set", () => {
+			const { args } = runSetup({ drawings: { persist: true } });
+			const configCall = args.updateConfig.mock.calls[0][0];
+			expect(configCall.vite.define.__ASTLIDE_DRAWINGS_PERSIST__).toBe("true");
+		});
+	});
+
 	// ── Shiki theme ──
 
 	describe("Shiki theme configuration", () => {

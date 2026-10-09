@@ -13,7 +13,7 @@ description: Keyboard shortcuts, the presenter window, overview, go-to-slide, pe
 | `End` / `↓` | Last slide |
 | `o` | Overview — all slides in a grid |
 | `g` | Go to slide — type a number or part of a title, `↑`/`↓` to pick, `Enter` to jump |
-| `d` | Pen — draw on the slide; `c` clears the current slide's drawing |
+| `d` | Pen — draw on the slide; `c` clears the current slide, `Shift+C` the whole deck |
 | `l` | Laser pointer |
 | `p` | Open the presenter window |
 | `n` | Notes overlay |
@@ -39,10 +39,20 @@ The two windows stay in sync over `BroadcastChannel`: slide changes, [fragment a
 
 ## Pen & laser pointer
 
-- `d` toggles the **pen**. Strokes are kept per slide while you navigate and come back when you return; `c` clears the current slide.
+- `d` toggles the **pen**. Strokes are kept per slide while you navigate and come back when you return; `c` clears the current slide, `Shift+C` the whole deck.
 - `l` toggles the **laser pointer**.
 - Both are drawn in slide coordinates, so they line up in every window even when the slides render at different sizes — annotate in the presenter window and it shows on the audience screen.
 - Colors: `--astlide-pen-color`, `--astlide-laser-color`.
+
+### Keeping drawings
+
+By default drawings last for the browser session. To keep them across reloads — and the next time the deck is opened in the same browser — enable persistence:
+
+```js
+astlide({ drawings: { persist: true } });
+```
+
+Drawings are stored per deck in `localStorage`. `Shift+C` (with the pen active) clears them.
 
 ## Toolbar
 

@@ -20,6 +20,7 @@ export default defineConfig({
       csp: true,
       indexable: false,
       injectIndexRoute: undefined,
+      drawings: { persist: false },
     }),
   ],
 });
@@ -35,6 +36,7 @@ export default defineConfig({
 | `csp` | `boolean \| string` | `true` | Inject a default Content-Security-Policy meta tag, disable it, or provide your own policy. |
 | `indexable` | `boolean` | `false` | When `false`, pages carry `noindex, nofollow`. |
 | `injectIndexRoute` | `boolean` | auto | Inject the deck index at `/`. Auto-skipped when you have your own `src/pages/index.*`. |
+| `drawings.persist` | `boolean` | `false` | Keep pen drawings in `localStorage` across reloads — see [Presenting](/astlide/guides/presenting/#keeping-drawings). |
 
 Astro's own [`base`](/astlide/guides/deploy/) option is honoured as well.
 
