@@ -65,7 +65,7 @@ export interface AstlideOptions {
 	 *
 	 * Provide an ordered list of action IDs to render in the floating `.slide-nav`.
 	 * Built-in actions:
-	 *   `home` `prev` `counter` `next` `notes` `overview` `goto` `draw` `laser` `presenter` `fullscreen` `print` `share`
+	 *   `home` `prev` `counter` `next` `notes` `overview` `goto` `draw` `laser` `camera` `record` `presenter` `fullscreen` `print` `share`
 	 *
 	 * `goto` opens the go-to-slide dialog (also bound to `g`): jump by slide number
 	 * or search slide titles.
@@ -73,6 +73,10 @@ export interface AstlideOptions {
 	 * `draw` (`d`) toggles a pen over the slide (`c` clears the current slide's
 	 * drawing) and `laser` (`l`) a laser pointer. Both are mirrored between the
 	 * presenter and audience windows.
+	 *
+	 * `camera` (`v`) shows your webcam in a draggable bubble; `record` (`r`)
+	 * records a screen / tab of your choice plus the microphone and downloads a
+	 * `.webm` when stopped. Both need https or localhost.
 	 *
 	 * `home` links back to the deck index (`/`) and is always reachable — the
 	 * toolbar reveals on hover, keyboard focus, and stays visible on touch devices.
@@ -138,6 +142,8 @@ export type ToolbarItem =
 	| "goto"
 	| "draw"
 	| "laser"
+	| "camera"
+	| "record"
 	| "presenter"
 	| "fullscreen"
 	| "print"

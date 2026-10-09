@@ -394,7 +394,7 @@ astlide({
 })
 ```
 
-Actions: `home` (back to deck index) · `prev` · `counter` · `next` · `notes` · `overview` · `goto` (go-to-slide dialog) · `draw` (pen) · `laser` · `presenter` · `fullscreen` · `print` · `share` · `download` (PDF) · `spacer`. Default: `['prev', 'counter', 'next']`.
+Actions: `home` (back to deck index) · `prev` · `counter` · `next` · `notes` · `overview` · `goto` (go-to-slide dialog) · `draw` (pen) · `laser` · `camera` · `record` · `presenter` · `fullscreen` · `print` · `share` · `download` (PDF) · `spacer`. Default: `['prev', 'counter', 'next']`.
 
 The toolbar, progress bar, and presenter panel read CSS custom properties (`--astlide-nav-bg`, `--astlide-nav-fg`, `--astlide-nav-btn-bg`, `--astlide-progress-color`, `--astlide-presenter-bg`, `--astlide-presenter-fg`, `--astlide-presenter-accent`, `--astlide-pen-color`, `--astlide-laser-color`, …) so themes can restyle them without `!important`.
 
@@ -455,6 +455,8 @@ astlide({ injectIndexRoute: true })   // always inject, even with your own index
 | `g` | Go to slide — type a number or part of a title, `↑`/`↓` to pick, `Enter` to jump |
 | `d` | Toggle the pen — draw on the slide; `c` clears the current slide's drawing |
 | `l` | Toggle the laser pointer |
+| `v` | Toggle the camera bubble |
+| `r` | Start / stop recording (downloads a `.webm`) |
 | `p` | Open presenter window |
 | `n` | Toggle notes overlay |
 | `f` | Toggle fullscreen |
