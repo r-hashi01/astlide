@@ -91,11 +91,13 @@ Notes show in the presenter window (`p`) and the notes overlay (`n`). If both ex
 
 ## Editing in the browser
 
-While `astro dev` is running, press <kbd>e</kbd> on a slide to open its source file in a panel next to it. Edit, then press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>S</kbd> (or **Save**) — the file is written and the slide reloads. The panel stays open as you move between slides, showing each slide's source; <kbd>e</kbd> or ✕ closes it.
+While `astro dev` is running, press <kbd>e</kbd> on a slide to open its source file in a panel next to it, and just type: changes are saved a moment after you stop typing (or right away with <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>S</kbd>) and the slide updates **live, without a page reload** — your caret, the current fragment step and things like the camera or a running recording stay as they are. <kbd>Esc</kbd> (or ✕) saves and closes the panel.
+
+The panel stays open as you move between slides and switches to each slide's source.
 
 - Dev server only: the editor and its endpoint don't exist in production builds.
 - It edits slide files (`.mdx`, `.md`, `.html` under `src/`) and nothing else; writes must come from the dev server's own page.
-- Unsaved edits are flagged in the panel, and the browser warns before you reload or close the tab with unsaved changes.
+- Edits are written to disk as you type — use undo in the panel or your version control to roll back.
 
 ## Hidden slides
 

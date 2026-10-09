@@ -4,8 +4,13 @@
  *   GET  /__astlide/source?path=src/content/decks/talk/01-cover.mdx → { path, content }
  *   POST /__astlide/source  { path, content }                        → { ok: true }
  *
- * Writing the file lets Astro's dev server pick up the change and reload the
- * slide. Only slide sources can be read or written: the path must resolve
+ * Writing the file lets Astro's dev server rebuild the slide. Astro would then
+ * tell the browser to do a full page reload; for writes made by the editor we
+ * swap that for a custom `astlide:source-saved` HMR event instead, and the
+ * editor refreshes just the page content (ClientRouter soft navigation) while
+ * keeping the editor, scripts and media state alive.
+ *
+ * Only slide sources can be read or written: the path must resolve
  * inside the project's `src/` and end in `.mdx`, `.md` or `.html`, and POSTs
  * must come from the dev server's own origin. Registered with `apply: "serve"`,
  * so it never exists in a production build.
@@ -17,6 +22,10 @@ import { relative, resolve, sep } from "node:path";
 import type { Plugin } from "vite";
 
 export const EDITOR_ENDPOINT = "/__astlide/source";
+/** HMR event sent instead of a full reload after an editor write. */
+export const SOURCE_SAVED_EVENT = "astlide:source-saved";
+/** How long after an editor write a full reload is considered its echo. */
+const RELOAD_ECHO_MS = 3000;
 const SLIDE_SOURCE = /\.(mdx|md|html)$/i;
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
@@ -71,11 +80,55 @@ async function readBody(req: IncomingMessage): Promise<string> {
 	return Buffer.concat(chunks).toString("utf-8");
 }
 
+type HotPayload = { type?: string; event?: string; data?: unknown };
+type Sender = (payload: HotPayload, ...rest: unknown[]) => void;
+
+/**
+ * Wrap a hot channel's `send` so that, shortly after an editor write, a
+ * `full-reload` becomes one `astlide:source-saved` event (further reloads in
+ * the same window are dropped — Astro may send one per changed module).
+ */
+export function interceptReloads(
+	channel: { send: Sender } | undefined,
+	pending: () => { path: string } | null,
+): void {
+	if (!channel || (channel.send as Sender & { __astlide?: true }).__astlide) return;
+	const original = channel.send.bind(channel) as Sender;
+	const wrapped: Sender & { __astlide?: true } = (payload, ...rest) => {
+		const write = pending();
+		if (write && payload && typeof payload === "object" && payload.type === "full-reload") {
+			if (!written.has(write)) {
+				written.add(write);
+				original({ type: "custom", event: SOURCE_SAVED_EVENT, data: { path: write.path } });
+			}
+			return;
+		}
+		original(payload, ...rest);
+	};
+	wrapped.__astlide = true;
+	channel.send = wrapped;
+}
+const written = new WeakSet<object>();
+
 export function astlideEditorPlugin(root: string): Plugin {
+	// The last editor write, while its reload echo can still arrive.
+	let lastWrite: { path: string; at: number } | null = null;
+	const pending = () =>
+		lastWrite && Date.now() - lastWrite.at < RELOAD_ECHO_MS ? lastWrite : null;
+
 	return {
 		name: "astlide:editor",
 		apply: "serve",
 		configureServer(server) {
+			// Astro reloads through both the ws server and the client environment's hot
+			// channel; intercept both. Several reloads may follow one write — the first
+			// becomes the event, the rest are dropped until the echo window expires.
+			interceptReloads(server.ws as unknown as { send: Sender }, pending);
+			interceptReloads(
+				server.environments?.client?.hot as unknown as { send: Sender } | undefined,
+				pending,
+			);
+
 			server.middlewares.use(EDITOR_ENDPOINT, async (req, res) => {
 				try {
 					if (req.method === "GET") {
@@ -92,6 +145,7 @@ export function astlideEditorPlugin(root: string): Plugin {
 						if (!file || typeof body.content !== "string") {
 							return send(res, 400, { error: "Not an editable slide source" });
 						}
+						lastWrite = { path: String(body.path), at: Date.now() };
 						await writeFile(file, body.content, "utf-8");
 						return send(res, 200, { ok: true });
 					}
