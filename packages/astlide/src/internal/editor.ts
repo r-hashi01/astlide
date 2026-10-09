@@ -16,6 +16,10 @@
  * navigation. The panel lives in a `transition:persist` host, so typing
  * (focus, caret, undo) is never interrupted.
  *
+ * Adding or removing a slide file sends `astlide:deck-changed` instead: we
+ * soft-navigate to the new deck, staying on the same source file (now maybe at
+ * a different number), or on the same position if that file was removed.
+ *
  * The panel stays open across slide navigation (sessionStorage) and reserves
  * room on the right so the slide scales into the remaining space.
  *
@@ -25,6 +29,11 @@
 
 const ENDPOINT = "/__astlide/source";
 const SOURCE_SAVED_EVENT = "astlide:source-saved";
+const DECK_CHANGED_EVENT = "astlide:deck-changed";
+/** Coalesce the burst of events after the content store committed a change… */
+const DECK_SETTLE_MS = 100;
+/** …or, if no event says so, give it this long. */
+const DECK_FALLBACK_MS = 1500;
 const AUTOSAVE_MS = 400;
 const OPEN_KEY = "astlide:editor-open";
 const PANEL_WIDTH = "min(42vw, 720px)";
@@ -389,6 +398,45 @@ async function refreshSlide(): Promise<void> {
 	w.__astlide_navigate(location.pathname + location.search, { history: "replace" });
 }
 
+function dirOf(path: string): string {
+	return path.slice(0, path.lastIndexOf("/"));
+}
+
+/**
+ * After slide files were added or removed: navigate to the current source file's
+ * new number (keeping the step), or to the same position if it was removed.
+ * Every page of the deck now has new totals and outline, so this is a soft
+ * navigation rather than a patch.
+ */
+async function followDeck(): Promise<void> {
+	const w = window as AstlideWindow;
+	const current = sourcePath();
+	const deckUrl = location.pathname.replace(/\/\d+\/?$/, "");
+	const here = Number(document.body.dataset.currentSlide) || 1;
+	let sources: string[] = [];
+	// The dev server may still be settling (error page while modules reload).
+	for (let attempt = 0; attempt < 5 && sources.length === 0; attempt++) {
+		if (attempt > 0) await new Promise((r) => setTimeout(r, 400));
+		try {
+			const res = await fetch(`${deckUrl}/1`, { cache: "no-store" });
+			if (!res.ok) continue;
+			const doc = new DOMParser().parseFromString(await res.text(), "text/html");
+			sources = JSON.parse(doc.body.dataset.deckSources ?? "[]") as string[];
+		} catch {
+			// Try again.
+		}
+	}
+	if (!w.__astlide_navigate || sources.length === 0) {
+		location.reload();
+		return;
+	}
+	const index = current ? sources.indexOf(current) : -1;
+	const n = index >= 0 ? index + 1 : Math.min(here, sources.length);
+	w.__astlide_pending_step =
+		index >= 0 && w.__astlide_step ? { slide: n, step: w.__astlide_step.step } : null;
+	w.__astlide_navigate(`${deckUrl}/${n}${location.search}`, { history: "replace" });
+}
+
 export function toggleEditor(force?: boolean): void {
 	const open = force ?? !state;
 	if (!open) {
@@ -465,6 +513,31 @@ if (import.meta.hot) {
 			refreshWaiting = false;
 			return refreshSlide();
 		});
+	});
+
+	let deckTimer = 0;
+	let deckCommitted = false;
+	type DeckChange = { path?: string; removed?: boolean; committed?: boolean };
+	import.meta.hot.on(DECK_CHANGED_EVENT, (data: DeckChange) => {
+		const current = sourcePath();
+		if (isEmbedded() || !data?.path || !current || dirOf(data.path) !== dirOf(current)) return;
+		// The open file was deleted: drop its pending autosave, which would
+		// otherwise write it back.
+		if (data.removed && state?.path === data.path) {
+			clearTimeout(autosaveTimer);
+			state.saved = state.textarea.value;
+		}
+		// Earlier reloads (e.g. for the deleted module) arrive before the content
+		// store has the change; follow once it has committed.
+		if (data.committed) deckCommitted = true;
+		clearTimeout(deckTimer);
+		deckTimer = window.setTimeout(
+			() => {
+				deckCommitted = false;
+				refreshQueue = refreshQueue.then(followDeck);
+			},
+			deckCommitted ? DECK_SETTLE_MS : DECK_FALLBACK_MS,
+		);
 	});
 }
 

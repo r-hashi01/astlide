@@ -7,8 +7,11 @@
  * Writing the file lets Astro's dev server rebuild the slide. Astro would then
  * tell the browser to do a full page reload; for writes made by the editor we
  * swap that for a custom `astlide:source-saved` HMR event instead, and the
- * editor refreshes just the page content (ClientRouter soft navigation) while
- * keeping the editor, scripts and media state alive.
+ * editor patches just the changed part of the slide while keeping the editor,
+ * scripts and media state alive. Likewise, when a slide file is added or
+ * removed, the reload becomes `astlide:deck-changed` and slide pages
+ * soft-navigate to the new deck instead. Pages that don't handle these events
+ * reload as before (see `DEV_RELOAD_SCRIPT`).
  *
  * Only slide sources can be read or written: the path must resolve
  * inside the project's `src/` and end in `.mdx`, `.md` or `.html`, and POSTs
@@ -24,7 +27,20 @@ import type { Plugin } from "vite";
 export const EDITOR_ENDPOINT = "/__astlide/source";
 /** HMR event sent instead of a full reload after an editor write. */
 export const SOURCE_SAVED_EVENT = "astlide:source-saved";
-/** How long after an editor write a full reload is considered its echo. */
+/** HMR event sent instead of a full reload after a slide file is added or removed. */
+export const DECK_CHANGED_EVENT = "astlide:deck-changed";
+/**
+ * Injected into every page in dev: pages that don't live-update (anything but
+ * a slide page — the deck index, `/all`, the site's own pages) reload on our
+ * events, as they would have on the full reload they replace.
+ */
+export const DEV_RELOAD_SCRIPT = `if (import.meta.hot) {
+	// Slide pages (data-deck-sources) update themselves through the editor module.
+	const reload = () => { if (!document.body.hasAttribute("data-deck-sources")) location.reload(); };
+	import.meta.hot.on(${JSON.stringify(SOURCE_SAVED_EVENT)}, reload);
+	import.meta.hot.on(${JSON.stringify(DECK_CHANGED_EVENT)}, reload);
+}`;
+/** How long after a write (or file add/remove) a full reload is considered its echo. */
 const RELOAD_ECHO_MS = 3000;
 const SLIDE_SOURCE = /\.(mdx|md|html)$/i;
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
@@ -80,26 +96,36 @@ async function readBody(req: IncomingMessage): Promise<string> {
 	return Buffer.concat(chunks).toString("utf-8");
 }
 
-type HotPayload = { type?: string; event?: string; data?: unknown };
+type HotPayload = { type?: string; event?: string; path?: string; data?: unknown };
 type Sender = (payload: HotPayload, ...rest: unknown[]) => void;
 
+/** A change whose reload echo should become `event` instead. */
+export interface PendingChange {
+	event: string;
+	path: string;
+	removed?: boolean;
+}
+
 /**
- * Wrap a hot channel's `send` so that, shortly after an editor write, every
- * `full-reload` becomes an `astlide:source-saved` event instead. Astro may send
- * several per write (one per changed module, and a later one once the content
- * store has synced the frontmatter); the client coalesces them, and only the
- * last refresh is guaranteed to see the settled page.
+ * Wrap a hot channel's `send` so that, shortly after an editor write or a slide
+ * file being added / removed, every `full-reload` becomes the pending change's
+ * event instead. Astro may send several per change (one per changed module, and
+ * a later one once the content store has synced); the client coalesces them, so
+ * the last refresh is guaranteed to see the settled page. The content store's
+ * reload (`path: "*"`) is flagged `committed`: the new content is in place.
  */
 export function interceptReloads(
 	channel: { send: Sender } | undefined,
-	pending: () => { path: string } | null,
+	pending: () => PendingChange | null,
 ): void {
 	if (!channel || (channel.send as Sender & { __astlide?: true }).__astlide) return;
 	const original = channel.send.bind(channel) as Sender;
 	const wrapped: Sender & { __astlide?: true } = (payload, ...rest) => {
-		const write = pending();
-		if (write && payload && typeof payload === "object" && payload.type === "full-reload") {
-			original({ type: "custom", event: SOURCE_SAVED_EVENT, data: { path: write.path } });
+		const change = pending();
+		if (change && payload && typeof payload === "object" && payload.type === "full-reload") {
+			const { event, ...data } = change;
+			const committed = payload.path === "*" ? { committed: true } : {};
+			original({ type: "custom", event, data: { ...data, ...committed } });
 			return;
 		}
 		original(payload, ...rest);
@@ -109,10 +135,13 @@ export function interceptReloads(
 }
 
 export function astlideEditorPlugin(root: string): Plugin {
-	// The last editor write, while its reload echo can still arrive.
-	let lastWrite: { path: string; at: number } | null = null;
-	const pending = () =>
-		lastWrite && Date.now() - lastWrite.at < RELOAD_ECHO_MS ? lastWrite : null;
+	// The last editor write or slide file add/remove, while its reload echo can
+	// still arrive.
+	let last: { change: PendingChange; at: number } | null = null;
+	const pending = () => (last && Date.now() - last.at < RELOAD_ECHO_MS ? last.change : null);
+	const track = (change: PendingChange) => {
+		last = { change, at: Date.now() };
+	};
 
 	return {
 		name: "astlide:editor",
@@ -126,6 +155,16 @@ export function astlideEditorPlugin(root: string): Plugin {
 				server.environments?.client?.hot as unknown as { send: Sender } | undefined,
 				pending,
 			);
+
+			// A slide file added or removed changes the deck's order and length.
+			const onDeckFile = (removed: boolean) => (file: string) => {
+				const path = relative(root, file).split(sep).join("/");
+				if (resolveSlideSource(root, path)) {
+					track({ event: DECK_CHANGED_EVENT, path, ...(removed ? { removed } : {}) });
+				}
+			};
+			server.watcher.on("add", onDeckFile(false));
+			server.watcher.on("unlink", onDeckFile(true));
 
 			server.middlewares.use(EDITOR_ENDPOINT, async (req, res) => {
 				try {
@@ -143,7 +182,7 @@ export function astlideEditorPlugin(root: string): Plugin {
 						if (!file || typeof body.content !== "string") {
 							return send(res, 400, { error: "Not an editable slide source" });
 						}
-						lastWrite = { path: String(body.path), at: Date.now() };
+						track({ event: SOURCE_SAVED_EVENT, path: String(body.path) });
 						await writeFile(file, body.content, "utf-8");
 						return send(res, 200, { ok: true });
 					}

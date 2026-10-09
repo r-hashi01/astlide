@@ -46,6 +46,7 @@ export async function getStaticPaths() {
       nextVisibleSlide: number;
       configIssue: string | null;
       outline: Array<{ n: number; title: string }>;
+      sources: string[] | undefined;
     };
   }> = [];
 
@@ -80,6 +81,10 @@ export async function getStaticPaths() {
       .filter((s) => !(s.hidden && import.meta.env.PROD))
       .map(({ n, title }) => ({ n, title }));
 
+    // Dev only: the deck's source files in order, so the live editor can find a
+    // slide's new number after files are added or removed.
+    const sources = import.meta.env.DEV ? sortedSlides.map((s) => s.filePath ?? '') : undefined;
+
     for (let i = 0; i < sortedSlides.length; i++) {
       // Find the next non-hidden slide; fall back to first visible or slide 1
       const nextVisible = sortedSlides.slice(i + 1).find((s) => !s.data.hidden);
@@ -100,6 +105,7 @@ export async function getStaticPaths() {
           nextVisibleSlide,
           configIssue,
           outline,
+          sources,
         },
       });
     }
@@ -108,7 +114,7 @@ export async function getStaticPaths() {
   return paths;
 }
 
-const { slide, deckName, slideNumber, totalSlides, deckConfig, nextVisibleSlide, configIssue, outline } = Astro.props;
+const { slide, deckName, slideNumber, totalSlides, deckConfig, nextVisibleSlide, configIssue, outline, sources } = Astro.props;
 const { Content } = await render(slide);
 
 const {
@@ -183,6 +189,7 @@ if (import.meta.env.DEV) {
   context={deckContext}
   outline={outline}
   sourcePath={import.meta.env.DEV ? slide.filePath : undefined}
+  deckSources={sources}
 >
   <Slide
     layout={layout}

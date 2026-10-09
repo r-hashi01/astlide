@@ -1,6 +1,7 @@
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+	DECK_CHANGED_EVENT,
 	interceptReloads,
 	isSameOrigin,
 	resolveSlideSource,
@@ -61,7 +62,7 @@ describe("interceptReloads", () => {
 
 	it("turns each reload after an editor write into a source-saved event", () => {
 		const ch = channel();
-		const write = { path: "src/content/decks/t/01.mdx" };
+		const write = { event: SOURCE_SAVED_EVENT, path: "src/content/decks/t/01.mdx" };
 		interceptReloads(ch, () => write);
 		ch.send({ type: "full-reload", path: "*" });
 		ch.send({ type: "full-reload" });
@@ -70,7 +71,24 @@ describe("interceptReloads", () => {
 			event: SOURCE_SAVED_EVENT,
 			data: { path: "src/content/decks/t/01.mdx" },
 		};
-		expect(ch.sent).toEqual([event, event]);
+		expect(ch.sent).toEqual([{ ...event, data: { ...event.data, committed: true } }, event]);
+	});
+
+	it("turns the reload after a slide file is removed into a deck-changed event", () => {
+		const ch = channel();
+		interceptReloads(ch, () => ({
+			event: DECK_CHANGED_EVENT,
+			path: "src/content/decks/t/02.mdx",
+			removed: true,
+		}));
+		ch.send({ type: "full-reload" });
+		ch.send({ type: "full-reload", path: "*" });
+		const data = { path: "src/content/decks/t/02.mdx", removed: true };
+		expect(ch.sent).toEqual([
+			{ type: "custom", event: DECK_CHANGED_EVENT, data },
+			// The content store's reload: the change is committed.
+			{ type: "custom", event: DECK_CHANGED_EVENT, data: { ...data, committed: true } },
+		]);
 	});
 
 	it("passes reloads through when no editor write is pending", () => {
@@ -83,7 +101,7 @@ describe("interceptReloads", () => {
 
 	it("never swallows non-reload messages", () => {
 		const ch = channel();
-		interceptReloads(ch, () => ({ path: "x.mdx" }));
+		interceptReloads(ch, () => ({ event: SOURCE_SAVED_EVENT, path: "x.mdx" }));
 		ch.send({ type: "update", updates: [] });
 		expect(ch.sent).toEqual([{ type: "update", updates: [] }]);
 	});

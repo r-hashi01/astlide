@@ -95,6 +95,8 @@ While `astro dev` is running, press <kbd>e</kbd> on a slide to open its source f
 
 Speaker notes follow along too — frontmatter `notes` and `<Notes>` alike: the notes overlay and every other window showing the same slide (such as the presenter window) update in place.
 
+Adding, removing or renaming slide files is picked up live too: every window on the deck updates its slide count and outline and stays on the slide it was showing (now perhaps at a different number), at the same step. If that slide's file was removed, it shows the slide now at that position.
+
 The panel stays open as you move between slides and switches to each slide's source.
 
 - Dev server only: the editor and its endpoint don't exist in production builds.
