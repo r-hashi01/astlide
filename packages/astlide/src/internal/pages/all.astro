@@ -21,6 +21,7 @@ import ImageSide from '@astlide/core/components/ImageSide.astro';
 import TextPanel from '@astlide/core/components/TextPanel.astro';
 // Aliased: Astro 7's compiler injects its own `Fragment` binding into every .astro file.
 import SlideFragment from '@astlide/core/components/Fragment.astro';
+import Fragments from '@astlide/core/components/Fragments.astro';
 import Notes from '@astlide/core/components/Notes.astro';
 import Columns from '@astlide/core/components/Columns.astro';
 import CodeBlock from '@astlide/core/components/CodeBlock.astro';
@@ -91,7 +92,7 @@ const rendered = await Promise.all(
         slideNumber={i + 1}
         totalSlides={totalSlides}
       >
-        <Content components={{ Left, Right, ImageSide, TextPanel, Fragment: SlideFragment, Notes, Columns, CodeBlock, Math, YouTube, Tweet }} />
+        <Content components={{ Left, Right, ImageSide, TextPanel, Fragment: SlideFragment, Fragments, Notes, Columns, CodeBlock, Math, YouTube, Tweet }} />
       </Slide>
     ))}
   </body>
@@ -123,6 +124,15 @@ const rendered = await Promise.all(
   body > .slide [data-fragment] {
     opacity: 1;
     transform: none;
+  }
+  /* …except fragments that end hidden: `hide`, or `until` a later step. */
+  body > .slide [data-fragment][data-fragment-hide],
+  body > .slide [data-fragment][data-fragment-until] {
+    opacity: 0;
+  }
+  body > .slide [data-fragment-group] > :is(ul, ol) > li,
+  body > .slide [data-fragment-group] > :not(ul, ol) {
+    opacity: 1;
   }
   body > .slide [data-fragment-effect="highlight"] {
     background: var(--color-accent, #f59e0b);

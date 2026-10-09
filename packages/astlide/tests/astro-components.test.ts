@@ -17,6 +17,7 @@ let container: AstroContainer;
 let CodeBlock: AstroComponentFactory;
 let Columns: AstroComponentFactory;
 let Fragment: AstroComponentFactory;
+let Fragments: AstroComponentFactory;
 let ImageSide: AstroComponentFactory;
 let Left: AstroComponentFactory;
 let MathComponent: AstroComponentFactory;
@@ -35,6 +36,7 @@ beforeAll(async () => {
 		{ default: CodeBlock },
 		{ default: Columns },
 		{ default: Fragment },
+		{ default: Fragments },
 		{ default: ImageSide },
 		{ default: Left },
 		{ default: MathComponent },
@@ -47,6 +49,7 @@ beforeAll(async () => {
 		import("../src/components/CodeBlock.astro"),
 		import("../src/components/Columns.astro"),
 		import("../src/components/Fragment.astro"),
+		import("../src/components/Fragments.astro"),
 		import("../src/components/ImageSide.astro"),
 		import("../src/components/Left.astro"),
 		import("../src/components/Math.astro"),
@@ -103,6 +106,43 @@ describe("Fragment", () => {
 		// accessible to screen readers when JavaScript is unavailable.
 		const html = await container.renderToString(Fragment, { props: {} });
 		expect(html).not.toContain("aria-hidden");
+	});
+
+	it("sets data-fragment-until when until is provided", async () => {
+		const html = await container.renderToString(Fragment, { props: { index: 1, until: 3 } });
+		expect(html).toContain('data-fragment-until="3"');
+		expect(html).not.toContain("data-fragment-hide");
+	});
+
+	it("renders hide fragments visible from the start", async () => {
+		const html = await container.renderToString(Fragment, { props: { index: 2, hide: true } });
+		expect(html).toContain("data-fragment-hide");
+		// Visible without JS too: the reveal state is server-rendered.
+		expect(html).toContain('data-fragment-visible="true"');
+	});
+
+	it("does not mark regular fragments visible", async () => {
+		const html = await container.renderToString(Fragment, { props: {} });
+		expect(html).not.toContain("data-fragment-visible");
+		expect(html).not.toContain("data-fragment-until");
+	});
+});
+
+describe("Fragments", () => {
+	it("renders a group carrying the effect", async () => {
+		const html = await container.renderToString(Fragments, {
+			props: { effect: "zoom" },
+			slots: { default: "<ul><li>a</li><li>b</li></ul>" },
+		});
+		expect(html).toContain('data-fragment-group="zoom"');
+		expect(html).toContain("<li>a</li>");
+		// The group itself is not an effect target (DeckLayout marks its items).
+		expect(html).not.toContain("data-fragment-effect");
+	});
+
+	it("defaults the effect to fade", async () => {
+		const html = await container.renderToString(Fragments, { props: {} });
+		expect(html).toContain('data-fragment-group="fade"');
 	});
 });
 

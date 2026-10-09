@@ -1,0 +1,31 @@
+---
+/**
+ * Fragments — reveals each item of a list (or each child element) one step at a time.
+ *
+ * Usage in MDX:
+ *   <Fragments>
+ *
+ *   - First point
+ *   - Second point
+ *   - Third point
+ *
+ *   </Fragments>
+ *
+ * Every item of the first-level list(s) becomes its own step, in order. Without a
+ * list, each direct child element does. Items behave like `<Fragment>`s without
+ * an index, so they interleave with other unindexed steps in document order.
+ *
+ * Props:
+ *   effect — animation for every item: "fade" | "slide-up" | "zoom" | "highlight"
+ */
+interface Props {
+  effect?: 'fade' | 'slide-up' | 'zoom' | 'highlight';
+  class?: string;
+}
+
+const { effect = 'fade', class: className } = Astro.props;
+---
+
+<div data-fragment-group={effect} class:list={['fragments', className]}>
+  <slot />
+</div>

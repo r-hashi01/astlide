@@ -451,7 +451,8 @@ function handleComponent(el: HastElement, opts: BlockOpts): TextRun[] {
 			return [];
 		case "Notes":
 			return [];
-		case "Fragment": {
+		case "Fragment":
+		case "Fragments": {
 			const runs: TextRun[] = [];
 			for (const child of el.children) {
 				runs.push(...renderHastNode(child as HastNode, opts));
