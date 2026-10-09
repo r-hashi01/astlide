@@ -1,0 +1,20 @@
+---
+slideLayout: default
+transition: zoom
+background: "linear-gradient(135deg, #eef2ff 0%, #fdf4ff 100%)"
+notes: "This slide zoomed in (transition: zoom) and has a gradient background — both set in its frontmatter."
+---
+
+# Frontmatter
+
+Every slide — `.mdx`, `.md` or `.html` — is configured the same way:
+
+| Field | |
+|---|---|
+| `slideLayout` | `default` · `cover` · `section` · `two-column` · `image-left` · `image-right` · `image-full` · `code` · `quote` · `statement` |
+| `transition` | `fade` · `slide-left` · `slide-right` · `slide-up` · `zoom` · `none` — this slide zooms in |
+| `background` | a color, gradient or image URL — like the gradient here |
+| `class` | extra classes, e.g. `text-light` |
+| `title` | the title in the outline and go-to-slide dialog |
+| `notes` | speaker notes |
+| `hidden` | shown in dev, skipped in the built deck |

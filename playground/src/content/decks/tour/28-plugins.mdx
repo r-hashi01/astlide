@@ -1,0 +1,30 @@
+---
+slideLayout: two-column
+notes: "The footer on this slide comes from a slide decorator (playground/src/components/DeckFooter.astro)."
+---
+
+# Plugins & options
+
+<Left>
+
+```js
+// astro.config.mjs
+astlide({
+  plugins: [myPlugin],
+  slideDecorators: ["./src/components/DeckFooter.astro"],
+  toolbar: ["prev", "counter", "next", "draw", "camera"],
+  font: "https://fonts.googleapis.com/css2?family=…",
+  drawings: { persist: true },
+});
+```
+
+</Left>
+<Right>
+
+- **Plugins** add themes, layouts, transitions, Shiki languages and decorators
+- **Slide decorators** render on every slide — the footer below is one, reading `getDeckContext(Astro)`
+- **Toolbar**: pick and order its buttons
+- **Fonts**: Inter by default, or your own
+- **Drawings** can be kept across reloads
+
+</Right>

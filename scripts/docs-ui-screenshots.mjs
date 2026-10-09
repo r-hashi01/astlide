@@ -19,7 +19,7 @@ const wait = (ms) => page.waitForTimeout(ms);
 const key = (k) => page.keyboard.press(k);
 
 // Presenter window on the fragments slide, two steps in.
-await page.goto(`${base}/tour/14?presenter`, { waitUntil: "networkidle" });
+await page.goto(`${base}/tour/16?presenter`, { waitUntil: "networkidle" });
 await wait(1500);
 await key("ArrowRight");
 await key("ArrowRight");
@@ -35,7 +35,7 @@ await page.screenshot({ path: `${out}/overview.png` });
 await key("Escape");
 
 // Go-to dialog.
-await page.goto(`${base}/tour/6`, { waitUntil: "networkidle" });
+await page.goto(`${base}/tour/7`, { waitUntil: "networkidle" });
 await wait(1200);
 await key("g");
 await page.keyboard.type("code");
@@ -44,7 +44,7 @@ await page.screenshot({ path: `${out}/goto.png` });
 await key("Escape");
 
 // Pen: draw a circle around the diagram.
-await page.goto(`${base}/tour/17`, { waitUntil: "networkidle" });
+await page.goto(`${base}/tour/19`, { waitUntil: "networkidle" });
 await page.waitForFunction(() => document.querySelector("pre.astlide-mermaid svg"));
 await wait(800);
 await key("d");
