@@ -21,6 +21,7 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			title: "Astlide",
+			customCss: ["./src/styles/custom.css"],
 			description:
 				"An Astro-based slide presentation framework — like Slidev, for the Astro ecosystem.",
 			social: [{ icon: "github", label: "GitHub", href: "https://github.com/r-hashi01/astlide" }],
@@ -28,6 +29,8 @@ export default defineConfig({
 			lastUpdated: true,
 			sidebar: [
 				{ label: "Getting Started", slug: "getting-started" },
+				{ slug: "tutorial/first-deck" },
+				{ slug: "gallery" },
 				{
 					label: "Guides",
 					items: [
@@ -50,7 +53,7 @@ export default defineConfig({
 						{ label: "API (TypeDoc)", link: `${site}${base}/api/`, attrs: { target: "_blank" } },
 					],
 				},
-				{ label: "Live demo ↗", link: `${site}${base}/demo/`, attrs: { target: "_blank" } },
+				{ label: "Live demo ↗", link: `${site}${base}/demo/tour/1/`, attrs: { target: "_blank" } },
 			],
 		}),
 	],

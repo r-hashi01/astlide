@@ -60,6 +60,7 @@ bun run changeset    # changeset 作成
 - **公開APIを変更したら TSDoc コメントも同時に更新する**（コメントがソースの真実）
 - ドキュメントサイトは `docs/`（Starlight）。**機能を追加・変更したら `docs/src/content/docs/` の該当ページも更新する**
 - `.github/workflows/pages.yml` が main への push で GitHub Pages に公開: `/astlide/`（docs）、`/astlide/api/`（TypeDoc、生成物は git 管理外）、`/astlide/demo/`（playground を base `/astlide/demo` でビルド）
+- ドキュメントの画像は playground の `tour` デッキから生成: `node scripts/docs-screenshots.mjs`（ギャラリー: レイアウト/テーマ）と `node scripts/docs-ui-screenshots.mjs`（チュートリアル: プレゼンター等）。レイアウトや UI を変えたら撮り直す
 - 内部リンクを手で組み立てるときは `withBase()`（`@astlide/core/utils/base-path`）を通す。CI が base 付きビルドで検査する
 
 ### リリースフロー

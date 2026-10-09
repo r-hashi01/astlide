@@ -72,6 +72,7 @@ Every directory under `src/content/decks/` is a deck, served at `/<deck>/<slide-
 
 ## Next steps
 
+- Follow the [tutorial](/astlide/tutorial/first-deck/) to build, present and publish a talk
 - [Create your first deck](/astlide/guides/decks/)
 - [Present it](/astlide/guides/presenting/) — keyboard shortcuts, presenter window, pen and laser
-- [Try the live demo](https://r-hashi01.github.io/astlide/demo/)
+- See every layout and theme in the [Gallery](/astlide/gallery/), or [try the live demo](https://r-hashi01.github.io/astlide/demo/tour/1/)
