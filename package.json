@@ -32,7 +32,7 @@
 		"@changesets/cli": "^3.0.3",
 		"@types/pixelmatch": "^7.1.0",
 		"@types/pngjs": "^6.0.5",
-		"agent-browser": "^0.38.2",
+		"agent-browser": "^0.39.0",
 		"jszip": "3.10.2",
 		"pixelmatch": "^7.2.0",
 		"pngjs": "^7.0.0",
