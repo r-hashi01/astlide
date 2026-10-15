@@ -1,6 +1,6 @@
 {
 	"name": "create-astlide",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"description": "Scaffold an Astlide project — slides that live in your Astro site",
 	"type": "module",
 	"bin": {
