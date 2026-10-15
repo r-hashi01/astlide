@@ -1,6 +1,6 @@
 {
 	"name": "@astlide/core",
-	"version": "2.4.0",
+	"version": "2.5.0",
 	"description": "Slides that live in your Astro site — an Astro integration for MDX / Markdown / HTML presentations",
 	"type": "module",
 	"types": "./src/index.ts",
@@ -47,7 +47,7 @@
 		"astro": "^7.2.10"
 	},
 	"dependencies": {
-		"@astlide/engine": "^0.0.0",
+		"@astlide/engine": "^0.1.0",
 		"@astrojs/mdx": "^8.0.2",
 		"katex": "^0.19.0",
 		"js-yaml": "^5.2.1",
