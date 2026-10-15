@@ -90,7 +90,7 @@ export interface AstlideOptions {
 	 *
 	 * `download` (in-browser PDF export) is **experimental**: it depends on the
 	 * pre-1.0 optional `@astlide/crispdf` and its output may change. Prefer the
-	 * `astlide-export` CLI for stable output.
+	 * `astlide export` CLI for stable output.
 	 *
 	 * Default: `['prev', 'counter', 'next']` (original behavior).
 	 */
@@ -111,7 +111,7 @@ export interface AstlideOptions {
 	 */
 	slideDecorators?: string[];
 	/**
-	 * Web font injection. Astlide injects a `<link>` to Google Fonts' Inter family
+	 * Web font injection. Astlide injects a `<link>` to Google Fonts' Inter (text) and JetBrains Mono (code)
 	 * by default so the built-in themes have a sane fallback. Override or disable:
 	 *
 	 * - `false`: do not inject any font stylesheet (use what your CSS specifies).
@@ -201,7 +201,7 @@ interface ResolvedFont {
 }
 
 const DEFAULT_FONT: ResolvedFont = {
-	href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+	href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap",
 	preconnect: ["https://fonts.googleapis.com", "https://fonts.gstatic.com"],
 };
 

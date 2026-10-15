@@ -17,6 +17,7 @@ import { join, resolve } from "node:path";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
 const CORE_DIR = join(REPO_ROOT, "packages/astlide");
+const ENGINE_DIR = join(REPO_ROOT, "packages/engine");
 const TEMPLATE_DIR = join(REPO_ROOT, "packages/create-astlide/template");
 
 function run(cmd, args, cwd) {
@@ -37,6 +38,10 @@ try {
 	const corePkg = JSON.parse(readFileSync(join(CORE_DIR, "package.json"), "utf-8"));
 	const tarballName = `astlide-core-${corePkg.version}.tgz`;
 	const tarballPath = join(work, tarballName);
+	// @astlide/engine, which core depends on, is published from this repo too.
+	run("npm", ["pack", "--pack-destination", work], ENGINE_DIR);
+	const enginePkg = JSON.parse(readFileSync(join(ENGINE_DIR, "package.json"), "utf-8"));
+	const engineTarball = join(work, `astlide-engine-${enginePkg.version}.tgz`);
 
 	// 2. Copy template into a fresh project dir.
 	const projectDir = join(work, "my-slides");
@@ -46,6 +51,7 @@ try {
 	const projPkgPath = join(projectDir, "package.json");
 	const projPkg = JSON.parse(readFileSync(projPkgPath, "utf-8"));
 	projPkg.dependencies["@astlide/core"] = `file:${tarballPath}`;
+	projPkg.overrides = { ...projPkg.overrides, "@astlide/engine": `file:${engineTarball}` };
 	writeFileSync(projPkgPath, JSON.stringify(projPkg, null, 2));
 
 	// 4. Install with bun. --no-save to avoid lockfile drift in tests.

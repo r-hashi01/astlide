@@ -5,6 +5,7 @@ import '@astlide/core/styles/base.css';
 import 'virtual:astlide/themes';
 import { ClientRouter } from 'astro:transitions';
 import Favicon from '@astlide/core/internal/Favicon.astro';
+import FontLinks from '@astlide/core/internal/FontLinks.astro';
 import { sanitizeHTML } from '@astlide/core/utils/sanitize';
 import { renderMarkdown } from '@astlide/core/utils/markdown';
 import { basePath, pageUrl, trailingSlash, withBase } from '@astlide/core/utils/base-path';
@@ -13,7 +14,6 @@ import { basePath, pageUrl, trailingSlash, withBase } from '@astlide/core/utils/
 declare const __ASTLIDE_CSP__: boolean | string;
 declare const __ASTLIDE_INDEXABLE__: boolean;
 declare const __ASTLIDE_TOOLBAR__: string[];
-declare const __ASTLIDE_FONT__: { href: string; preconnect: string[] } | null;
 declare const __ASTLIDE_DRAWINGS_PERSIST__: boolean;
 
 const persistDrawings: boolean =
@@ -22,13 +22,6 @@ const toolbarItems: string[] =
   typeof __ASTLIDE_TOOLBAR__ !== 'undefined' && Array.isArray(__ASTLIDE_TOOLBAR__)
     ? __ASTLIDE_TOOLBAR__
     : ['prev', 'counter', 'next'];
-const fontConfig: { href: string; preconnect: string[] } | null =
-  typeof __ASTLIDE_FONT__ !== 'undefined'
-    ? __ASTLIDE_FONT__
-    : {
-        href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
-        preconnect: ['https://fonts.googleapis.com', 'https://fonts.gstatic.com'],
-      };
 
 const DEFAULT_CSP = [
   "default-src 'self'",
@@ -109,10 +102,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     <meta property="og:type" content="website" />
     {!indexable && <meta name="robots" content="noindex, nofollow" />}
     {nextSlide && <link rel="prefetch" href={slideHref(nextSlide)} />}
-    {fontConfig?.preconnect?.map((origin) => (
-      <link rel="preconnect" href={origin} crossorigin={origin.includes('gstatic') ? '' : undefined} />
-    ))}
-    {fontConfig?.href && <link href={fontConfig.href} rel="stylesheet" />}
+    <FontLinks />
     <ClientRouter />
     <script is:inline>
       (function () {
