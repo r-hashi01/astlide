@@ -121,6 +121,23 @@ Privacy-enhanced embed; accepts an ID or a full URL:
 <YouTube id="dQw4w9WgXcQ" start={42} />
 ```
 
+Exported slides (PDF / PPTX) can't run the player: they show the video's thumbnail with a play button instead, linked to the video.
+
+#### Static stand-ins for your own embeds
+
+Mark an element with `data-astlide-static` to show it in place of a live embed when slides are printed or exported. It is hidden everywhere else; give it its own `display` and position it over the embed:
+
+```html
+<div class="map" style="position: relative">
+  <iframe src="https://maps.example.com/…"></iframe>
+  <a href="https://maps.example.com/…" data-astlide-static style="position: absolute; inset: 0; display: block">
+    <img src="/images/map.png" alt="" style="width: 100%; height: 100%; object-fit: cover" />
+  </a>
+</div>
+```
+
+An `<iframe>` without one is exported as a card naming the page, linked to it.
+
 ### `<Tweet>`
 
 A static, styled card — no external API calls:

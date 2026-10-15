@@ -244,6 +244,12 @@ class Builder {
 			rootFontSize: this.rootFontSize,
 			vp: this.vp,
 		});
+		// Underline / line-through propagate to everything inside (text-decoration isn't inherited, but paints through).
+		const deco = `${s.get("text-decoration-line") ?? ""} ${s.get("text-decoration") ?? ""}`;
+		const lines = new Set((parent?.get("__decoration") ?? "").split(" ").filter(Boolean));
+		if (/\bunderline\b/.test(deco)) lines.add("underline");
+		if (/\bline-through\b/.test(deco)) lines.add("line-through");
+		s.set("__decoration", [...lines].join(" "));
 		// Effective opacity: not inherited, but multiplies down the tree.
 		const opacity = Number.parseFloat(s.get("opacity") ?? "1");
 		s.set(
@@ -283,12 +289,20 @@ class Builder {
 			whiteSpace: style.get("white-space") ?? "normal",
 			color: style.get("color") ?? "#000",
 			alpha,
+			underline: /underline/.test(style.get("__decoration") ?? ""),
+			strike: /line-through/.test(style.get("__decoration") ?? ""),
 		};
 	}
 
 	private setLength(style: Computed, prop: string, set: (v: number | `${number}%`) => void): void {
 		const raw = (style.get(prop) ?? "auto").trim();
-		if (raw === "auto" || raw === "none" || raw === "" || raw === "normal" || /content/.test(raw))
+		if (
+			raw === "auto" ||
+			raw === "none" ||
+			raw === "" ||
+			raw === "normal" ||
+			/^(fit|min|max)-content$|^fit-content\(/.test(raw)
+		)
 			return;
 		const pct = raw.match(/^(-?[\d.]+)%$/);
 		if (pct) {
@@ -322,6 +336,9 @@ class Builder {
 			if (bw > 0) node.setBorder(edge, bw);
 		}
 		this.margins.set(node, vertical);
+		const ar = (style.get("aspect-ratio") ?? "auto").match(/([\d.]+)\s*(?:\/\s*([\d.]+))?/);
+		const ratio = ar && Number(ar[1]) > 0 ? Number(ar[1]) / Number(ar[2] ?? 1) : 0;
+		if (ratio) node.setAspectRatio(ratio);
 		if (style.get("position") === "absolute") {
 			node.setPositionType(PositionType.Absolute);
 			for (const [side, edge] of EDGES)
@@ -331,6 +348,9 @@ class Builder {
 		const shrink = Number(style.get("flex-shrink") ?? 1);
 		node.setFlexGrow(Number.isNaN(grow) ? 0 : grow);
 		node.setFlexShrink(Number.isNaN(shrink) ? 1 : shrink);
+		// With aspect-ratio, the automatic minimum size (min-height: auto) keeps
+		// the ratio: the box overflows rather than shrinks.
+		if (ratio && (style.get("min-height") ?? "auto") === "auto") node.setFlexShrink(0);
 		this.setLength(style, "flex-basis", (v) => node.setFlexBasis(v));
 		const alignSelf = style.get("align-self");
 		if (alignSelf && alignSelf !== "auto") node.setAlignSelf(alignOf(alignSelf));
@@ -447,7 +467,7 @@ class Builder {
 		if (isText(n)) return true;
 		if (!isElement(n)) return false;
 		// Replaced elements aren't laid out inline (no atomic inlines yet): their own box.
-		if (n.name === "img" || n.name === "svg") return false;
+		if (n.name === "img" || n.name === "svg" || n.name === "iframe") return false;
 		return INLINE.has(this.styleOf(n, parentStyle).get("display") ?? "inline") || n.name === "br";
 	}
 
@@ -498,6 +518,7 @@ class Builder {
 				const cs = this.styleOf(c, rs);
 				if ((cs.get("display") ?? "") !== "table-cell") continue;
 				const before = this.leaves.length;
+				const at = this.boxNodes.length;
 				const cn = this.build(c, cs, true);
 				if (!cn) continue;
 				cn.setFlexGrow(0);
@@ -508,7 +529,7 @@ class Builder {
 				);
 				this.add(rowNode, cn);
 				const eid = this.eids.get(c) ?? -1;
-				this.boxNodes.push({ node: cn, el: c, style: cs, eid });
+				this.boxNodes.splice(at, 0, { node: cn, el: c, style: cs, eid });
 				const leaves = this.leaves.slice(before);
 				const edges = ["padding-left", "padding-right", "border-left-width", "border-right-width"]
 					.map((p) => len(cs, p))
@@ -618,7 +639,7 @@ class Builder {
 					? (view[2] ?? 1) / (view[3] ?? 1)
 					: Number.NaN;
 		if (auto("width") && w > 0) node.setWidth(w);
-		else if (auto("width") && el.name === "svg" && !(ratio > 0)) node.setWidth(300);
+		else if (auto("width") && el.name !== "img" && !(ratio > 0)) node.setWidth(300);
 		if (auto("height") && !(ratio > 0)) node.setHeight(h > 0 ? h : 150);
 		if (ratio > 0) node.setAspectRatio(ratio);
 	}
@@ -634,7 +655,7 @@ class Builder {
 		this.applyBox(node, style);
 		if (el.name === "img") this.replacedSize(el, node, style);
 		// Inline SVG: a picture of its own size; its content is drawn as a whole (see toScene).
-		if (el.name === "svg") {
+		if (el.name === "svg" || el.name === "iframe") {
 			this.replacedSize(el, node, style);
 			return node;
 		}
@@ -653,7 +674,7 @@ class Builder {
 							? FlexDirection.RowReverse
 							: FlexDirection.Row,
 			);
-			node.setFlexWrap(/wrap/.test(style.get("flex-wrap") ?? "") ? Wrap.Wrap : Wrap.NoWrap);
+			node.setFlexWrap(/^wrap(-reverse)?$/.test((style.get("flex-wrap") ?? "").trim()) ? Wrap.Wrap : Wrap.NoWrap);
 			node.setJustifyContent(justifyOf(style.get("justify-content") ?? "flex-start"));
 			const ai = style.get("align-items") ?? "stretch";
 			node.setAlignItems(ai === "normal" ? Align.Stretch : alignOf(ai));
@@ -693,7 +714,9 @@ class Builder {
 		const flushInline = () => {
 			const pre = /pre/.test(style.get("white-space") ?? "");
 			if (run.some((n) => !isText(n) || pre || n.data.trim() !== "")) {
-				this.add(node, this.inlineLeaf(run, style));
+				const leaf = this.inlineLeaf(run, style);
+				leaf.setFlexShrink(0); // lines of text don't shrink in block flow
+				this.add(node, leaf);
 			}
 			run = [];
 		};
@@ -720,6 +743,8 @@ class Builder {
 					childDisplay,
 				) ||
 				cs.get("position") === "absolute";
+			// Paint order is tree order: the child's box goes before its descendants'.
+			const at = this.boxNodes.length;
 			const yn = this.build(child, cs, childBfc);
 			if (!yn) continue;
 			// width: fit-content / max-content in a column: size to content instead of stretching.
@@ -727,6 +752,9 @@ class Builder {
 			const stretches =
 				!container || (style.get("align-items") ?? "stretch").match(/^(stretch|normal)$/);
 			const column = !container || /column/.test(style.get("flex-direction") ?? "row");
+			// Block flow never shrinks its children; a column flex item with
+			// min-height: auto doesn't shrink below its content (it overflows).
+			if (!container || (column && (cs.get("min-height") ?? "auto") === "auto")) yn.setFlexShrink(0);
 			if (
 				/^(fit-content|max-content|min-content)$/.test(w) &&
 				stretches &&
@@ -743,7 +771,7 @@ class Builder {
 				entry.gridGap = Number.isNaN(cg) ? 0 : cg;
 			}
 			this.add(node, yn);
-			this.boxNodes.push(entry);
+			this.boxNodes.splice(at, 0, entry);
 		}
 		flushInline();
 		if (!container) this.collapseMargins(node, style, bfcRoot);

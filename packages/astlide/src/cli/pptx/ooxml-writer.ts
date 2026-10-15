@@ -38,6 +38,8 @@ export interface TextRunOptions {
 	letterSpacing?: number;
 	/** Highlight (text background) color, `RRGGBB`. */
 	highlight?: string;
+	underline?: boolean;
+	strike?: boolean;
 }
 
 export interface TextRun {
@@ -84,8 +86,12 @@ export interface ImageSpec {
 	y: number;
 	w: number;
 	h: number;
-	png: Buffer;
+	/** PNG or JPEG bytes (see `format`). */
+	data: Buffer;
+	format?: "png" | "jpeg";
 	name?: string;
+	/** Opens this URL when the picture is clicked. */
+	link?: string;
 	/** Parts of the image cut off on each side, as fractions of its size (CSS background cover / position). */
 	crop?: { left: number; top: number; right: number; bottom: number };
 }
@@ -225,8 +231,14 @@ function buildSlideXml(
 			shapes.push(buildRectXml(el, shapeId++));
 		} else if (el.type === "image") {
 			const rId = `rIdImg${images.length + 1}`;
-			images.push({ rId, png: el.png });
-			shapes.push(buildPictureXml(el, shapeId++, rId));
+			images.push({ rId, data: el.data, ext: el.format === "jpeg" ? "jpeg" : "png" });
+			let linkRId: string | undefined;
+			if (el.link) {
+				linkCounter++;
+				linkRId = `rId${linkCounter}`;
+				hyperlinks.push({ rId: linkRId, url: el.link });
+			}
+			shapes.push(buildPictureXml(el, shapeId++, rId, linkRId));
 		} else if (el.type === "shape") {
 			shapes.push(buildShapeXml(el, shapeId++));
 		} else if (el.type === "table") {
@@ -268,7 +280,8 @@ ${shapes.join("\n")}
 
 interface SlideImage {
 	rId: string;
-	png: Buffer;
+	data: Buffer;
+	ext: "png" | "jpeg";
 }
 
 function srcRectXml(c: ImageSpec["crop"]): string {
@@ -292,10 +305,11 @@ function gradFillXml(g: GradientSpec): string {
 	return `<a:gradFill rotWithShape="1"><a:gsLst>${stops}</a:gsLst><a:lin ang="${Math.round(ang)}" scaled="0"/></a:gradFill>`;
 }
 
-function buildPictureXml(img: ImageSpec, id: number, rId: string): string {
+function buildPictureXml(img: ImageSpec, id: number, rId: string, linkRId?: string): string {
 	const name = esc(img.name ?? `Picture ${id}`);
+	const link = linkRId ? `<a:hlinkClick r:id="${linkRId}"/>` : "";
 	return `<p:pic>
-<p:nvPicPr><p:cNvPr id="${id}" name="${name}"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>
+<p:nvPicPr><p:cNvPr id="${id}" name="${name}">${link}</p:cNvPr><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>
 <p:blipFill><a:blip r:embed="${rId}"/>${srcRectXml(img.crop)}<a:stretch><a:fillRect/></a:stretch></p:blipFill>
 <p:spPr><a:xfrm><a:off x="${emu(img.x)}" y="${emu(img.y)}"/><a:ext cx="${emu(img.w)}" cy="${emu(img.h)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>
 </p:pic>`;
@@ -580,6 +594,8 @@ function buildParagraphXml(
 		if (o.fontSize) rPrParts.push(`sz="${Math.min(400000, Math.max(100, hpt(o.fontSize)))}"`);
 		if (o.bold) rPrParts.push('b="1"');
 		if (o.italic) rPrParts.push('i="1"');
+		if (o.underline) rPrParts.push('u="sng"');
+		if (o.strike) rPrParts.push('strike="sngStrike"');
 		if (o.letterSpacing) rPrParts.push(`spc="${hpt(o.letterSpacing)}"`);
 
 		let rPrInner = "";
@@ -700,6 +716,7 @@ function contentTypesXml(slideCount: number): string {
 <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
 <Default Extension="xml" ContentType="application/xml"/>
 <Default Extension="png" ContentType="image/png"/>
+<Default Extension="jpeg" ContentType="image/jpeg"/>
 <Default Extension="fntdata" ContentType="application/x-fontdata"/>
 <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
 <Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>
@@ -1105,8 +1122,8 @@ export class PptxFile {
 			const { xml, hyperlinks, images } = buildSlideXml(this.slides[i], i + 1);
 			const media = images.map((img) => {
 				mediaCount++;
-				zip.add(`ppt/media/image${mediaCount}.png`, img.png);
-				return { rId: img.rId, target: `../media/image${mediaCount}.png` };
+				zip.add(`ppt/media/image${mediaCount}.${img.ext}`, img.data);
+				return { rId: img.rId, target: `../media/image${mediaCount}.${img.ext}` };
 			});
 			zip.add(`ppt/slides/slide${i + 1}.xml`, xml);
 			zip.add(`ppt/slides/_rels/slide${i + 1}.xml.rels`, buildSlideRels(hyperlinks, media));

@@ -121,6 +121,16 @@ img {
 	border-radius: 0.5rem;
 }
 
+/*
+ * Static stand-ins for live embeds: an element with data-astlide-static is
+ * shown instead of (over) an embed where slides are printed or exported
+ * (the print view, html[data-print]) and hidden everywhere else. Components
+ * give it their own display.
+ */
+html:not([data-print]) [data-astlide-static] {
+	display: none;
+}
+
 /* Tables */
 table {
 	width: 100%;

@@ -159,6 +159,9 @@ export interface InlineStyle {
 	color: string;
 	/** Effective opacity (element and ancestors). */
 	alpha: number;
+	/** Text decorations in effect (the element's or an ancestor's). */
+	underline?: boolean;
+	strike?: boolean;
 }
 
 /** A piece of inline content: text from one text node, or spacing from an inline box edge. */

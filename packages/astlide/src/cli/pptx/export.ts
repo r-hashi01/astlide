@@ -8,7 +8,7 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { mkdir, readdir, readFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { mermaidThemeFor } from "@astlide/core/utils/mermaid.ts";
 import type { Box, Scene, SceneItem, TableBox } from "@astlide/engine";
@@ -83,30 +83,53 @@ type Engine = typeof import("@astlide/engine");
 /** Pixels per CSS px when rasterizing vector images (sharp at full-screen size). */
 const RASTER_SCALE = 2;
 
-/** An image as PNG: PNG files as they are, SVG (files or data: URLs) rasterized. */
-/** An image's data (PNG as is, SVG as text) and natural size in CSS px, or null when unsupported. */
+/**
+ * An image's data and natural size in CSS px: PNG and JPEG as they are, SVG
+ * as text (rasterized when placed). Null when it can't be read.
+ */
 type ImageSource =
-	| { png: Buffer; size: { w: number; h: number } }
+	| { bitmap: Buffer; format: "png" | "jpeg"; size: { w: number; h: number } }
 	| { svg: string; size: { w: number; h: number } };
 
+/** Bytes of a fetched remote image (see {@link fetchImages}). */
+const remoteImages = new Map<string, Buffer | null>();
+
+/** Natural size of a PNG (IHDR) or JPEG (first SOF marker). */
+function bitmapSize(b: Buffer): { format: "png" | "jpeg"; size: { w: number; h: number } } | null {
+	if (b.length > 24 && b.readUInt32BE(0) === 0x89504e47)
+		return { format: "png", size: { w: b.readUInt32BE(16), h: b.readUInt32BE(20) } };
+	if (b.length > 4 && b[0] === 0xff && b[1] === 0xd8) {
+		for (let i = 2; i + 9 < b.length; ) {
+			if (b[i] !== 0xff) return null;
+			const marker = b[i + 1] ?? 0;
+			const len = b.readUInt16BE(i + 2);
+			if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker))
+				return { format: "jpeg", size: { w: b.readUInt16BE(i + 7), h: b.readUInt16BE(i + 5) } };
+			i += 2 + len;
+		}
+	}
+	return null;
+}
+
 function imageSource(src: string, dist: string): ImageSource | null {
-	let svg: string | null = null;
-	const data = src.match(/^data:image\/svg\+xml(;base64)?,(.*)$/s);
+	let bytes: Buffer | null = null;
+	const data = src.match(/^data:([^;,]+)(;base64)?,(.*)$/s);
 	if (data) {
-		const body = data[2] ?? "";
-		svg = data[1] ? Buffer.from(body, "base64").toString("utf-8") : decodeURIComponent(body);
+		const body = data[3] ?? "";
+		bytes = data[2] ? Buffer.from(body, "base64") : Buffer.from(decodeURIComponent(body));
+	} else if (/^https?:\/\//.test(src)) {
+		bytes = remoteImages.get(src) ?? null;
 	} else {
 		const path = [join(dist, src), join(dist, src.replace(/^\/[^/]+/, ""))].find((p) =>
 			existsSync(p),
 		);
-		if (path?.endsWith(".png")) {
-			const png = readFileSync(path);
-			// IHDR: width and height right after the signature and chunk header.
-			return { png, size: { w: png.readUInt32BE(16), h: png.readUInt32BE(20) } };
-		}
-		if (path?.endsWith(".svg")) svg = readFileSync(path, "utf-8");
+		if (path) bytes = readFileSync(path);
 	}
-	if (!svg) return null;
+	if (!bytes) return null;
+	const bitmap = bitmapSize(bytes);
+	if (bitmap) return { bitmap: bytes, ...bitmap };
+	const svg = bytes.toString("utf-8");
+	if (!/<svg[\s>]/.test(svg)) return null;
 	const root = svg.match(/<svg\b[^>]*>/)?.[0] ?? "";
 	const attr = (name: string) =>
 		Number.parseFloat(root.match(new RegExp(`\\s${name}="([\\d.]+)(px)?"`))?.[1] ?? "");
@@ -122,9 +145,104 @@ function rasterize(
 	width: number,
 	fontFiles: string[],
 ): Buffer {
-	return "png" in source
-		? source.png
+	return "bitmap" in source
+		? source.bitmap
 		: engine.svgToPng(source.svg, width * RASTER_SCALE, fontFiles);
+}
+
+/**
+ * Fetch remote images (e.g. video thumbnails) ahead of the export, cached on
+ * disk. Offline or failing ones are left out with a warning: their stand-in
+ * (background, play button, link) still shows.
+ */
+async function fetchImages(urls: string[], cacheDir: string): Promise<void> {
+	await mkdir(cacheDir, { recursive: true });
+	const failed: string[] = [];
+	await Promise.all(
+		urls.map(async (url) => {
+			const file = join(cacheDir, Buffer.from(url).toString("base64url").slice(0, 200));
+			if (existsSync(file)) {
+				remoteImages.set(url, readFileSync(file));
+				return;
+			}
+			try {
+				const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+				if (!res.ok) throw new Error(String(res.status));
+				const bytes = Buffer.from(await res.arrayBuffer());
+				await writeFile(file, bytes);
+				remoteImages.set(url, bytes);
+			} catch {
+				remoteImages.set(url, null);
+				failed.push(url);
+			}
+		}),
+	);
+	if (failed.length) console.warn(`  ⚠ images not downloaded (offline?): ${failed.join(", ")}`);
+}
+
+/**
+ * An embed with no static stand-in (an `<iframe>` of another site): a card
+ * in its place naming what it shows, linked to it — its content can only be
+ * drawn by a browser.
+ */
+function embedCard(
+	item: { x: number; y: number; w: number; h: number; src: string; title: string },
+	fontFace: string,
+	k: number,
+): SlideElement[] {
+	let host = item.src;
+	try {
+		host = new URL(item.src).host;
+	} catch {}
+	const label = item.title || host || "Embedded content";
+	const link = /^https?:/.test(item.src) ? item.src : undefined;
+	const size = Math.max(12, Math.min(28, item.h / 8));
+	return [
+		{
+			type: "rect",
+			x: item.x * k,
+			y: item.y * k,
+			w: item.w * k,
+			h: item.h * k,
+			fill: "F1F5F9",
+			line: { color: "CBD5E1", width: 1 },
+			radius: 8 * k,
+		},
+		{
+			type: "textbox",
+			runs: [
+				{
+					text: `▶ ${label}`,
+					options: {
+						fontSize: size * k * 72,
+						color: "334155",
+						fontFace,
+						bold: true,
+						breakLine: true,
+						align: "center",
+					},
+				},
+				{
+					text: link ?? "",
+					options: {
+						fontSize: size * 0.7 * k * 72,
+						color: "2563EB",
+						fontFace,
+						underline: !!link,
+						hyperlink: link ? { url: link } : undefined,
+						align: "center",
+					},
+				},
+			],
+			x: item.x * k,
+			y: item.y * k,
+			w: item.w * k,
+			h: item.h * k,
+			align: "center",
+			valign: "middle",
+			wrap: true,
+		},
+	];
 }
 
 /** One `background-position` component as an offset into `free` px of room. */
@@ -326,6 +444,8 @@ function runOptions(item: TextItem, k: number): TextRunOptions {
 		italic: item.font.italic,
 		letterSpacing: item.letterSpacing ? item.letterSpacing * k * 72 : undefined,
 		highlight: highlightOf.get(item),
+		underline: item.underline,
+		strike: item.strike,
 	};
 }
 
@@ -597,6 +717,14 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 	const config = await readDeckConfig(options.root, deck);
 	const slides: SlideSpec[] = [];
 	const used: TextItem[] = [];
+	// Remote images (video thumbnails …) are fetched up front.
+	const remote = new Set<string>();
+	for (const layout of layouts)
+		for (const it of engine.toScene(layout, (eid) => layout.elements[eid]).items)
+			if (it.kind === "image" && /^https?:\/\//.test(it.src)) remote.add(it.src);
+	if (remote.size)
+		await fetchImages([...remote], join(options.root, "node_modules", ".cache", "astlide-images"));
+	const bodyFace = fonts.pick(layouts[0]?.style.get("font-family") ?? "sans-serif", 400, false);
 	layouts.forEach((layout, i) => {
 		// Progress on one line: only where \r rewrites it (a terminal, not a log).
 		if (process.stdout.isTTY) process.stdout.write(`  Slide ${i + 1}/${layouts.length}\r`);
@@ -714,39 +842,44 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 						y: item.y * k,
 						w: item.w * k,
 						h: item.h * k,
-						png: engine.svgToPng(svg, item.w * RASTER_SCALE, fonts.files()),
+						data: engine.svgToPng(svg, item.w * RASTER_SCALE, fonts.files()),
 					});
 				}
+			} else if (item.kind === "embed") {
+				elements.push(...embedCard(item, fontFor(bodyFace.font.familyName, 400).face, k));
 			} else if (item.kind === "image") {
 				const source = imageSource(item.src, dist);
-				// A background image is placed by background-size / -position and clipped to its box.
-				const place =
-					source && item.background ? placeBackground(item, item.background, source.size) : null;
+				// Background images and object-fit: placed by size / position and clipped to the box.
+				const place = source && item.fit ? placeBackground(item, item.fit, source.size) : null;
 				const drawn = place?.drawn ?? item;
-				const png =
-					source && (!item.background || place)
-						? rasterize(engine, source, drawn.w, fonts.files())
-						: null;
-				if (png && place) {
+				const bytes =
+					source && (!item.fit || place) ? rasterize(engine, source, drawn.w, fonts.files()) : null;
+				const format = source && "bitmap" in source ? source.format : "png";
+				const link = item.href && /^https?:/.test(item.href) ? item.href : undefined;
+				if (bytes && place) {
 					elements.push({
 						type: "image",
 						x: place.visible.x * k,
 						y: place.visible.y * k,
 						w: place.visible.w * k,
 						h: place.visible.h * k,
-						png,
+						data: bytes,
+						format,
 						crop: place.crop,
+						link,
 					});
-				} else if (png) {
+				} else if (bytes) {
 					elements.push({
 						type: "image",
 						x: item.x * k,
 						y: item.y * k,
 						w: item.w * k,
 						h: item.h * k,
-						png,
+						data: bytes,
+						format,
+						link,
 					});
-				} else if (!source) {
+				} else if (!source && !/^https?:/.test(item.src)) {
 					const name = item.src.startsWith("data:") ? item.src.slice(0, 30) : item.src;
 					console.warn(`\n  ⚠ slide ${i + 1}: image ${name} skipped (PNG / SVG only for now)`);
 				}

@@ -9,5 +9,6 @@ One export command, one option per format: `astlide export <deck> --pdf | --png 
 - The fonts the slides use are embedded in the `.pptx`, so PowerPoint shows them without the fonts installed.
 - Tables become native PowerPoint tables; simple inline SVG drawings (boxes, lines and arrows, paths, text) become editable shapes; `::before` / `::after` content is included.
 - Background images (`background-size` / `-position`, cropped to their box) and linear-gradient backgrounds are included.
+- Embeds: `<YouTube>` exports as its thumbnail with a play button, linked to the video (in PDFs too); mark your own stand-in for any embed with `data-astlide-static`. Other iframes become a linked card. Remote and JPEG images are included.
 - Mermaid diagrams and SVG images are included (rendered without a browser).
 - The older `astlide-export` and `astlide-export-pptx` commands are removed; use `astlide export`.

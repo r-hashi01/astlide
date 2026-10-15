@@ -7,6 +7,10 @@
  *   <YouTube id="https://www.youtube.com/watch?v=dQw4w9WgXcQ" title="Rick Astley" />
  *   <YouTube id="dQw4w9WgXcQ" start={42} />
  *
+ * In the print view (PDF / PPTX export) the player is covered by a static
+ * stand-in (data-astlide-static): the video's thumbnail and a play button,
+ * linked to the video — exports can't run the player.
+ *
  * Props:
  *   id     — YouTube 動画 ID または URL（フルURL から自動抽出）
  *   title  — iframe のアクセシビリティタイトル（default: 'YouTube video'）
@@ -32,6 +36,8 @@ const params = new URLSearchParams();
 if (start !== undefined) params.set('start', String(start));
 const query = params.toString() ? `?${params}` : '';
 const src = `https://www.youtube-nocookie.com/embed/${videoId}${query}`;
+const watchUrl = `https://www.youtube.com/watch?v=${videoId}${start !== undefined ? `&t=${start}s` : ''}`;
+const thumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 ---
 
 <div class:list={['youtube-embed', className]}>
@@ -42,6 +48,13 @@ const src = `https://www.youtube-nocookie.com/embed/${videoId}${query}`;
     allowfullscreen
     loading="lazy"
   ></iframe>
+  <a class="youtube-static" href={watchUrl} data-astlide-static aria-hidden="true" tabindex="-1">
+    <img src={thumbnail} alt="" />
+    <svg class="youtube-play" viewBox="0 0 68 48" width="68" height="48" aria-hidden="true">
+      <rect width="68" height="48" rx="12" fill="#ff0033" />
+      <polygon points="27,14 27,34 45,24" fill="#ffffff" />
+    </svg>
+  </a>
 </div>
 
 <style>
@@ -52,6 +65,29 @@ const src = `https://www.youtube-nocookie.com/embed/${videoId}${query}`;
     border-radius: var(--radius, 8px);
     overflow: hidden;
     background: #000;
+  }
+
+  .youtube-static {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .youtube-static img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    /* hqdefault is 4:3 with letterbox bars: cover crops them away. */
+    object-fit: cover;
+  }
+
+  .youtube-play {
+    position: relative;
+    width: 4.25em;
+    height: 3em;
   }
 
   .youtube-embed iframe {

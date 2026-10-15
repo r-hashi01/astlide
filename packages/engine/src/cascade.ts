@@ -494,6 +494,18 @@ export function toPx(
 	if (!m) {
 		const calc = v.match(/^calc\((.+)\)$/);
 		if (calc) return evalCalc(calc[1] ?? "", fontSize, rootFontSize, vp, basis);
+		const fn = v.match(/^(min|max|clamp)\((.+)\)$/);
+		if (fn) {
+			// Arguments that can't be resolved here (a % without its basis) are left out.
+			const args = splitArgs(fn[2] ?? "").map((a) => toPx(a, fontSize, rootFontSize, vp, basis));
+			const known = args.filter((n) => !Number.isNaN(n));
+			if (known.length === 0) return Number.NaN;
+			if (fn[1] === "min") return Math.min(...known);
+			if (fn[1] === "max") return Math.max(...known);
+			const [lo = Number.NaN, val = Number.NaN, hi = Number.NaN] = args;
+			if (Number.isNaN(val)) return Number.isNaN(hi) ? lo : hi;
+			return Math.min(Number.isNaN(hi) ? val : hi, Math.max(Number.isNaN(lo) ? val : lo, val));
+		}
 		return Number.NaN;
 	}
 	const n = Number(m[1]);
@@ -513,6 +525,23 @@ export function toPx(
 		default:
 			return n;
 	}
+}
+
+/** Split function arguments on commas outside parentheses. */
+function splitArgs(s: string): string[] {
+	const out: string[] = [];
+	let depth = 0;
+	let start = 0;
+	for (let i = 0; i < s.length; i++) {
+		if (s[i] === "(") depth++;
+		else if (s[i] === ")") depth--;
+		else if (s[i] === "," && depth === 0) {
+			out.push(s.slice(start, i).trim());
+			start = i + 1;
+		}
+	}
+	out.push(s.slice(start).trim());
+	return out;
 }
 
 function evalCalc(expr: string, fs: number, rfs: number, vp: Viewport, basis: number): number {

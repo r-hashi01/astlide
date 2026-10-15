@@ -45,6 +45,8 @@ export type SceneItem =
 			letterSpacing: number;
 			/** Width of a space in this font and size (CSS px), to rebuild gaps between runs. */
 			space: number;
+			underline?: boolean;
+			strike?: boolean;
 			/** Block and line box the text sits in, to rebuild paragraphs (absent on list markers). */
 			block?: TextBlock;
 			line?: number;
@@ -58,8 +60,23 @@ export type SceneItem =
 			w: number;
 			h: number;
 			src: string;
-			/** A CSS background image: placed in the box by these, and clipped to it. */
-			background?: { size: string; position: string };
+			/**
+			 * Placed in the box by these (a CSS background image, or `object-fit`)
+			 * and clipped to it; without it the image fills the box.
+			 */
+			fit?: { size: string; position: string };
+			/** Link of the image (an enclosing `<a href>`). */
+			href?: string;
+	  }
+	| {
+			/** An `<iframe>`: its content can't be drawn here (see the exporter's fallback). */
+			kind: "embed";
+			x: number;
+			y: number;
+			w: number;
+			h: number;
+			src: string;
+			title: string;
 	  }
 	| {
 			kind: "svg";
@@ -170,7 +187,7 @@ function backgroundLayers(
 	if (image === "none") return [];
 	if (/text/.test(style.get("background-clip") ?? style.get("-webkit-background-clip") ?? ""))
 		return [];
-	const radius = px(style, "border-radius") || px(style, "border-top-left-radius");
+	const radius = radiusOf(style, w, h);
 	const out: SceneItem[] = [];
 	for (const layer of topLevel(image).reverse()) {
 		const url = layer.match(/^url\(\s*["']?([^"')]+)["']?\s*\)$/);
@@ -182,7 +199,7 @@ function backgroundLayers(
 				w,
 				h,
 				src: url[1],
-				background: {
+				fit: {
 					size: style.get("background-size") ?? "auto",
 					position: style.get("background-position") ?? "0% 0%",
 				},
@@ -272,6 +289,25 @@ function px(style: Computed, prop: string): number {
 	return Number.isNaN(n) ? 0 : n;
 }
 
+/** The `href` of the closest enclosing link. */
+function linkOf(el: Element): string | undefined {
+	for (let n: Element | null = el; n; n = n.parent as Element | null) {
+		if (n.type !== "tag") return undefined;
+		if (n.name === "a" && n.attribs.href) return n.attribs.href;
+	}
+	return undefined;
+}
+
+/** Corner radius in px (a % is of the box's shorter side; 50% makes a circle / pill). */
+function radiusOf(style: Computed, w: number, h: number): number {
+	const raw =
+		(style.get("border-radius") ?? style.get("border-top-left-radius") ?? "0")
+			.trim()
+			.split(/\s+/)[0] ?? "0";
+	if (raw.endsWith("%")) return (Number.parseFloat(raw) / 100) * Math.min(w, h);
+	return px(style, "border-radius") || px(style, "border-top-left-radius");
+}
+
 /** Fill + borders of a box as rect items (uniform border → one rect; otherwise per-side strips). */
 function boxRects(
 	x: number,
@@ -283,7 +319,7 @@ function boxRects(
 ): SceneItem[] {
 	const out: SceneItem[] = [];
 	const fill = parseColor(style.get("background-color"));
-	const radius = px(style, "border-radius") || px(style, "border-top-left-radius");
+	const radius = radiusOf(style, w, h);
 	const sides = (["top", "right", "bottom", "left"] as const).map((s) => ({
 		side: s,
 		width: px(style, `border-${s}-width`),
@@ -352,6 +388,8 @@ function textItem(l: TextLine): SceneItem | null {
 		color: { hex: color.hex, alpha: color.alpha * l.style.alpha },
 		letterSpacing: l.style.letterSpacing,
 		space: spaceWidth(l),
+		underline: l.style.underline,
+		strike: l.style.strike,
 		block: l.block,
 		line: l.line,
 		lineTop: l.lineTop,
@@ -374,8 +412,42 @@ export function toScene(
 		items.push(...boxRects(b.x, b.y, b.w, b.h, b.style, b.alpha));
 		items.push(...backgroundLayers(b.x, b.y, b.w, b.h, b.style, b.alpha));
 		const el = elementOf?.(b.eid);
-		if (b.tag === "img" && el?.attribs.src)
-			items.push({ kind: "image", x: b.x, y: b.y, w: b.w, h: b.h, src: el.attribs.src });
+		if (b.tag === "img" && el?.attribs.src) {
+			const fit = b.style.get("object-fit") ?? "fill";
+			items.push({
+				kind: "image",
+				x: b.x,
+				y: b.y,
+				w: b.w,
+				h: b.h,
+				src: el.attribs.src,
+				fit:
+					fit === "fill"
+						? undefined
+						: {
+								size: fit === "none" ? "auto" : fit === "scale-down" ? "contain" : fit,
+								position: b.style.get("object-position") ?? "50% 50%",
+							},
+				href: linkOf(el),
+			});
+		}
+		// An embed with a static stand-in (data-astlide-static) is drawn by that; others by the exporter.
+		if (
+			b.tag === "iframe" &&
+			el &&
+			!el.parent?.children.some(
+				(c) => c.type === "tag" && "data-astlide-static" in (c as Element).attribs,
+			)
+		)
+			items.push({
+				kind: "embed",
+				x: b.x,
+				y: b.y,
+				w: b.w,
+				h: b.h,
+				src: el.attribs.src ?? "",
+				title: el.attribs.title ?? "",
+			});
 		if (b.tag === "svg" && el)
 			items.push({
 				kind: "svg",
