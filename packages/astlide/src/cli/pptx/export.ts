@@ -12,6 +12,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { mermaidThemeFor } from "@astlide/core/utils/mermaid.ts";
 import type { Box, Scene, SceneItem, TableBox } from "@astlide/engine";
+import { type EmbedInfo, resolveEmbeds } from "./embeds";
 import { embeddingPermissions, withLegacyFamilyOnly } from "./eot";
 import {
 	type CellBorder,
@@ -185,18 +186,76 @@ async function fetchImages(urls: string[], cacheDir: string): Promise<void> {
  * in its place naming what it shows, linked to it — its content can only be
  * drawn by a browser.
  */
+/** `text` cut to about `chars` characters, with an ellipsis (captions don't wrap). */
+const fit = (text: string, chars: number) =>
+	text.length <= chars ? text : `${text.slice(0, Math.max(1, Math.floor(chars) - 1)).trimEnd()}…`;
+
 function embedCard(
 	item: { x: number; y: number; w: number; h: number; src: string; title: string },
 	fontFace: string,
 	k: number,
+	info?: EmbedInfo,
 ): SlideElement[] {
 	let host = item.src;
 	try {
 		host = new URL(item.src).host;
 	} catch {}
-	const label = item.title || host || "Embedded content";
-	const link = /^https?:/.test(item.src) ? item.src : undefined;
+	const label = info?.title || item.title || host || "Embedded content";
+	const link = info?.link ?? (/^https?:/.test(item.src) ? item.src : undefined);
 	const size = Math.max(12, Math.min(28, item.h / 8));
+	// With a thumbnail: the picture (cover), linked, with the title along the bottom.
+	const thumb = info?.thumbnail ? remoteImages.get(info.thumbnail) : null;
+	const bitmap = thumb ? bitmapSize(thumb) : null;
+	const place =
+		thumb && bitmap
+			? placeBackground(item, { size: "cover", position: "center" }, bitmap.size)
+			: null;
+	if (thumb && bitmap && place) {
+		const bar = Math.max(size * 2, item.h * 0.16);
+		return [
+			{
+				type: "image",
+				x: place.visible.x * k,
+				y: place.visible.y * k,
+				w: place.visible.w * k,
+				h: place.visible.h * k,
+				data: thumb,
+				format: bitmap.format,
+				crop: place.crop,
+				link,
+			},
+			{
+				type: "rect",
+				x: item.x * k,
+				y: (item.y + item.h - bar) * k,
+				w: item.w * k,
+				h: bar * k,
+				fill: "000000",
+				fillTransparency: 40,
+			},
+			{
+				type: "textbox",
+				runs: [
+					{
+						text: `▶ ${fit(label, (item.w - size * 1.2) / (size * 0.8 * 0.58))}`,
+						options: {
+							fontSize: size * 0.8 * k * 72,
+							color: "FFFFFF",
+							fontFace,
+							bold: true,
+						},
+					},
+				],
+				x: (item.x + size * 0.6) * k,
+				y: (item.y + item.h - bar) * k,
+				w: (item.w - size * 1.2) * k,
+				h: bar * k,
+				valign: "middle",
+				wrap: false,
+				inset: 0,
+			},
+		];
+	}
 	return [
 		{
 			type: "rect",
@@ -719,9 +778,20 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 	const used: TextItem[] = [];
 	// Remote images (video thumbnails …) are fetched up front.
 	const remote = new Set<string>();
+	const embedded = new Set<string>();
 	for (const layout of layouts)
-		for (const it of engine.toScene(layout, (eid) => layout.elements[eid]).items)
+		for (const it of engine.toScene(layout, (eid) => layout.elements[eid]).items) {
 			if (it.kind === "image" && /^https?:\/\//.test(it.src)) remote.add(it.src);
+			if (it.kind === "embed" && /^https?:\/\//.test(it.src)) embedded.add(it.src);
+		}
+	// Embedded pages of other sites: their title and thumbnail (oEmbed / Open Graph).
+	const embeds = embedded.size
+		? await resolveEmbeds(
+				[...embedded],
+				join(options.root, "node_modules", ".cache", "astlide-embeds"),
+			)
+		: new Map<string, EmbedInfo>();
+	for (const info of embeds.values()) if (info.thumbnail) remote.add(info.thumbnail);
 	if (remote.size)
 		await fetchImages([...remote], join(options.root, "node_modules", ".cache", "astlide-images"));
 	const bodyFace = fonts.pick(layouts[0]?.style.get("font-family") ?? "sans-serif", 400, false);
@@ -749,7 +819,20 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 			entry.frame = { type: "table", x: 0, y: 0, w: 0, h: 0, columns: [], rows: [] };
 			elements.push(entry.frame);
 		};
-		for (const item of scene.items) {
+		for (const raw of scene.items) {
+			// Clipping (ancestors' overflow): what's outside doesn't show.
+			const clip = raw.clip;
+			if (clip) {
+				const seen = engine.intersect(raw, clip);
+				if (seen.w <= 0.5 || seen.h <= 0.5) continue;
+				if (raw.kind === "text") {
+					const cx = raw.x + raw.w / 2;
+					const cy = raw.y + raw.h / 2;
+					if (cx < clip.x || cx > clip.x + clip.w || cy < clip.y || cy > clip.y + clip.h) continue;
+				}
+			}
+			// A clipped box is drawn as its visible part.
+			const item = raw.kind === "rect" && clip ? { ...raw, ...engine.intersect(raw, clip) } : raw;
 			if (item.kind === "text") used.push(item);
 			if (item.kind !== "image") {
 				const entry =
@@ -846,37 +929,45 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 					});
 				}
 			} else if (item.kind === "embed") {
-				elements.push(...embedCard(item, fontFor(bodyFace.font.familyName, 400).face, k));
+				elements.push(
+					...embedCard(item, fontFor(bodyFace.font.familyName, 400).face, k, embeds.get(item.src)),
+				);
 			} else if (item.kind === "image") {
 				const source = imageSource(item.src, dist);
 				// Background images and object-fit: placed by size / position and clipped to the box.
 				const place = source && item.fit ? placeBackground(item, item.fit, source.size) : null;
-				const drawn = place?.drawn ?? item;
+				const drawn = place?.drawn ?? { x: item.x, y: item.y, w: item.w, h: item.h };
+				// The part that shows: inside the box (fit) and the clip.
+				let visible = place?.visible ?? drawn;
+				if (clip) visible = engine.intersect(visible, clip);
 				const bytes =
-					source && (!item.fit || place) ? rasterize(engine, source, drawn.w, fonts.files()) : null;
+					source && (!item.fit || place) && visible.w > 0 && visible.h > 0
+						? rasterize(engine, source, drawn.w, fonts.files())
+						: null;
 				const format = source && "bitmap" in source ? source.format : "png";
 				const link = item.href && /^https?:/.test(item.href) ? item.href : undefined;
-				if (bytes && place) {
+				if (bytes) {
+					const cropped =
+						visible.x > drawn.x + 0.5 ||
+						visible.y > drawn.y + 0.5 ||
+						visible.w < drawn.w - 0.5 ||
+						visible.h < drawn.h - 0.5;
 					elements.push({
 						type: "image",
-						x: place.visible.x * k,
-						y: place.visible.y * k,
-						w: place.visible.w * k,
-						h: place.visible.h * k,
+						x: visible.x * k,
+						y: visible.y * k,
+						w: visible.w * k,
+						h: visible.h * k,
 						data: bytes,
 						format,
-						crop: place.crop,
-						link,
-					});
-				} else if (bytes) {
-					elements.push({
-						type: "image",
-						x: item.x * k,
-						y: item.y * k,
-						w: item.w * k,
-						h: item.h * k,
-						data: bytes,
-						format,
+						crop: cropped
+							? {
+									left: (visible.x - drawn.x) / drawn.w,
+									top: (visible.y - drawn.y) / drawn.h,
+									right: (drawn.x + drawn.w - visible.x - visible.w) / drawn.w,
+									bottom: (drawn.y + drawn.h - visible.y - visible.h) / drawn.h,
+								}
+							: undefined,
 						link,
 					});
 				} else if (!source && !/^https?:/.test(item.src)) {

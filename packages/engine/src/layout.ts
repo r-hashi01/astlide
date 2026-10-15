@@ -27,6 +27,14 @@ import {
 	verticalMetrics,
 } from "./text";
 
+/** A rectangle in slide coordinates. */
+export interface Rect {
+	x: number;
+	y: number;
+	w: number;
+	h: number;
+}
+
 export interface Box {
 	eid: number;
 	tag: string;
@@ -37,6 +45,8 @@ export interface Box {
 	style: Computed;
 	/** Effective opacity (element × ancestors). */
 	alpha: number;
+	/** Where ancestors with `overflow` other than visible let it show (absent: nowhere clipped). */
+	clip?: Rect;
 }
 
 /** The part of an inline element's box (background / border) on one line. */
@@ -49,6 +59,7 @@ export interface InlineBox {
 	h: number;
 	style: Computed;
 	alpha: number;
+	clip?: Rect;
 }
 
 /** A block's content box that text was laid out in (one per block of inline content). */
@@ -66,6 +77,8 @@ export interface TextLine {
 	w: number;
 	h: number;
 	style: InlineStyle;
+	/** See {@link Box.clip}. */
+	clip?: Rect;
 	/** The text block and the line box in it (absent on list markers). */
 	block?: TextBlock;
 	line?: number;
@@ -87,6 +100,18 @@ export interface SlideLayout {
 	tables: TableBox[];
 	/** Slide descendants by element id (document order). */
 	elements: Element[];
+}
+
+/** The overlap of two rectangles (zero-sized when they don't meet). */
+export function intersect(a: Rect, b: Rect): Rect {
+	const x = Math.max(a.x, b.x);
+	const y = Math.max(a.y, b.y);
+	return {
+		x,
+		y,
+		w: Math.max(0, Math.min(a.x + a.w, b.x + b.w) - x),
+		h: Math.max(0, Math.min(a.y + a.h, b.y + b.h) - y),
+	};
 }
 
 /** Tag of the synthetic elements that stand for `::before` / `::after`. */
@@ -289,6 +314,10 @@ class Builder {
 			whiteSpace: style.get("white-space") ?? "normal",
 			color: style.get("color") ?? "#000",
 			alpha,
+			breakWord:
+				/break-word|anywhere/.test(
+					`${style.get("overflow-wrap") ?? ""} ${style.get("word-wrap") ?? ""}`,
+				) || style.get("word-break") === "break-all",
 			underline: /underline/.test(style.get("__decoration") ?? ""),
 			strike: /line-through/.test(style.get("__decoration") ?? ""),
 		};
@@ -927,10 +956,42 @@ export function layoutSlide(
 	// Tables: column widths from the table's width, then lay out again.
 	if (b.sizeTables()) root.calculateLayout(vp.width, vp.height, Direction.LTR);
 
+	// Clipping: ancestors with overflow ≠ visible clip descendants to their padding box.
+	const styleOf = new Map<YogaNode, Computed>(b.boxNodes.map((bn) => [bn.node, bn.style]));
+	styleOf.set(root, slideStyle);
+	const clips = new Map<YogaNode, Rect | undefined>();
+	const clipOf = (node: YogaNode): Rect | undefined => {
+		if (clips.has(node)) return clips.get(node);
+		const parent = b.parents.get(node);
+		let clip = parent ? clipOf(parent) : undefined;
+		const ps = parent ? styleOf.get(parent) : undefined;
+		if (parent && ps) {
+			const o = `${ps.get("overflow") ?? ""} ${ps.get("overflow-x") ?? ""} ${ps.get("overflow-y") ?? ""}`;
+			if (/hidden|clip|auto|scroll/.test(o)) {
+				const p = b.absolute(parent);
+				const own = {
+					x: p.x + parent.getComputedBorder(Edge.Left),
+					y: p.y + parent.getComputedBorder(Edge.Top),
+					w:
+						parent.getComputedWidth() -
+						parent.getComputedBorder(Edge.Left) -
+						parent.getComputedBorder(Edge.Right),
+					h:
+						parent.getComputedHeight() -
+						parent.getComputedBorder(Edge.Top) -
+						parent.getComputedBorder(Edge.Bottom),
+				};
+				clip = clip ? intersect(clip, own) : own;
+			}
+		}
+		clips.set(node, clip);
+		return clip;
+	};
 	const boxes: Box[] = [];
 	for (const bn of b.boxNodes) {
 		const p = b.absolute(bn.node);
 		boxes.push({
+			clip: clipOf(bn.node),
 			eid: bn.eid,
 			tag: bn.el.name,
 			x: p.x,
@@ -948,6 +1009,7 @@ export function layoutSlide(
 		const width = leaf.node.getComputedWidth();
 		const r = layoutLines(leaf.items, width, leaf.strut, leaf.align, fonts);
 		const block: TextBlock = { id, x: p.x, w: width, align: leaf.align };
+		const clip = clipOf(leaf.node);
 		for (const f of r.fragments)
 			lines.push({
 				text: f.text,
@@ -956,6 +1018,7 @@ export function layoutSlide(
 				w: f.w,
 				h: f.h,
 				style: f.style,
+				clip,
 				block,
 				line: f.line,
 				lineTop: p.y + f.lineTop,
@@ -981,6 +1044,7 @@ export function layoutSlide(
 				h: m.ascent + m.descent + top + bottom,
 				style: entry.style,
 				alpha: is.alpha,
+				clip,
 			});
 		}
 	}

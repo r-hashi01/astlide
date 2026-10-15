@@ -136,7 +136,10 @@ Mark an element with `data-astlide-static` to show it in place of a live embed w
 </div>
 ```
 
-An `<iframe>` without one is exported as a card naming the page, linked to it.
+An `<iframe>` without one is exported by what it shows:
+
+- a page of your own site (`srcdoc`, or a path in the build) is laid out inside the frame like the slides are;
+- another site (YouTube, Vimeo, Figma, CodePen, or any page with oEmbed / Open Graph data) becomes its thumbnail and title, linked to it. This is looked up when you export and cached; offline, it is a card naming the page.
 
 ### `<Tweet>`
 

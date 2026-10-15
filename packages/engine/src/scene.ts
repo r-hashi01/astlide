@@ -8,7 +8,7 @@
 import render from "dom-serializer";
 import type { Element } from "domhandler";
 import { type Computed, toPx } from "./cascade";
-import type { SlideLayout, TextBlock, TextLine } from "./layout";
+import type { Rect, SlideLayout, TextBlock, TextLine } from "./layout";
 
 export interface Color {
 	/** `rrggbb` */
@@ -17,7 +17,7 @@ export interface Color {
 	alpha: number;
 }
 
-export type SceneItem =
+export type SceneItem = (
 	| {
 			kind: "rect";
 			x: number;
@@ -91,7 +91,11 @@ export type SceneItem =
 			/** Its CSS `font-family` and `font-size` (px), inherited by SVG text. */
 			fontFamily: string;
 			fontSize: number;
-	  };
+	  }
+) & {
+	/** Only this part shows (ancestors' overflow); absent: not clipped. */
+	clip?: Rect;
+};
 
 /** CSS `linear-gradient()`: angle in degrees (0 = to top) and stops at 0–1. */
 export interface Gradient {
@@ -409,6 +413,7 @@ export function toScene(
 	const items: SceneItem[] = backgroundLayers(0, 0, layout.width, layout.height, layout.style, 1);
 	for (const b of layout.boxes) {
 		if (b.alpha < 0.01 || (b.style.get("visibility") ?? "visible") === "hidden") continue;
+		const first = items.length;
 		items.push(...boxRects(b.x, b.y, b.w, b.h, b.style, b.alpha));
 		items.push(...backgroundLayers(b.x, b.y, b.w, b.h, b.style, b.alpha));
 		const el = elementOf?.(b.eid);
@@ -435,6 +440,7 @@ export function toScene(
 		if (
 			b.tag === "iframe" &&
 			el &&
+			!("data-astlide-framed" in el.attribs) &&
 			!el.parent?.children.some(
 				(c) => c.type === "tag" && "data-astlide-static" in (c as Element).attribs,
 			)
@@ -460,15 +466,16 @@ export function toScene(
 				fontFamily: b.style.get("font-family") ?? "sans-serif",
 				fontSize: Number.parseFloat(b.style.get("font-size") ?? "16") || 16,
 			});
+		if (b.clip) for (let i = first; i < items.length; i++) (items[i] as SceneItem).clip = b.clip;
 	}
 	for (const ib of layout.inlineBoxes) {
 		if (ib.alpha < 0.01) continue;
 		for (const r of boxRects(ib.x, ib.y, ib.w, ib.h, ib.style, ib.alpha))
-			items.push(r.kind === "rect" ? { ...r, inline: true } : r);
+			items.push(r.kind === "rect" ? { ...r, inline: true, clip: ib.clip } : r);
 	}
 	for (const l of [...layout.markers, ...layout.lines]) {
 		const t = textItem(l);
-		if (t) items.push(t);
+		if (t) items.push(l.clip ? { ...t, clip: l.clip } : t);
 	}
 	return {
 		width: layout.width,

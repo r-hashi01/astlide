@@ -74,6 +74,9 @@ const INHERITED = new Set([
 	"visibility",
 	"list-style-type",
 	"text-transform",
+	"overflow-wrap",
+	"word-wrap",
+	"word-break",
 ]);
 
 const INITIAL: Record<string, string> = {

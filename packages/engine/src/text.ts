@@ -159,6 +159,8 @@ export interface InlineStyle {
 	color: string;
 	/** Effective opacity (element and ancestors). */
 	alpha: number;
+	/** Words too long for a line may break anywhere (overflow-wrap: break-word / anywhere, word-break: break-all). */
+	breakWord?: boolean;
 	/** Text decorations in effect (the element's or an ancestor's). */
 	underline?: boolean;
 	strike?: boolean;
@@ -270,7 +272,8 @@ export function layoutLines(
 			const isSpace = /^[ \t]+$/.test(part);
 			if (isSpace && !pre && prevSpace) continue;
 			// UAX #14: a line may break after a hyphen that follows a letter, before a letter.
-			const pieces = isSpace || pre ? [part] : part.split(/(?<=[^\s-]-)(?=[A-Za-z])/);
+			const wraps = !/^(pre|nowrap)$/.test(item.style.whiteSpace);
+			const pieces = isSpace || !wraps ? [part] : part.split(/(?<=[^\s-]-)(?=[A-Za-z])/);
 			pieces.forEach((piece, k) => {
 				const w = fonts.width(item.style.face, item.style.size, piece, item.style.letterSpacing);
 				words.push({
@@ -311,8 +314,51 @@ export function layoutLines(
 			}
 		}
 		if (word.space && !word.pre && line.words.length === 0) continue; // collapsible spaces at line start
-		line.words.push(word);
-		line.width += word.width;
+		// overflow-wrap: break-word — a word that still doesn't fit breaks between characters.
+		let rest = word;
+		while (
+			!rest.space &&
+			rest.style?.breakWord &&
+			line.width + rest.width > maxWidth + 0.01 &&
+			[...rest.text].length > 1
+		) {
+			const style = rest.style;
+			const chars = [...rest.text];
+			let n = 0;
+			while (
+				n < chars.length &&
+				line.width +
+					fonts.width(
+						style.face,
+						style.size,
+						chars.slice(0, n + 1).join(""),
+						style.letterSpacing,
+					) <=
+					maxWidth + 0.01
+			)
+				n++;
+			if (n === 0 && line.words.length > 0) {
+				lines.push(line);
+				line = { words: [], width: 0 };
+				continue;
+			}
+			n = Math.max(1, n);
+			const head = chars.slice(0, n).join("");
+			const tail = chars.slice(n).join("");
+			const hw = fonts.width(style.face, style.size, head, style.letterSpacing);
+			line.words.push({ ...rest, text: head, width: hw });
+			line.width += hw;
+			lines.push(line);
+			line = { words: [], width: 0 };
+			rest = {
+				...rest,
+				text: tail,
+				width: fonts.width(style.face, style.size, tail, style.letterSpacing),
+				breakBefore: true,
+			};
+		}
+		line.words.push(rest);
+		line.width += rest.width;
 	}
 	if (line.words.length) lines.push(line);
 
