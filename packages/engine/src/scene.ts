@@ -29,6 +29,8 @@ export type SceneItem =
 			radius?: number;
 			/** Background of an inline element (inline code …): it flows with its text. */
 			inline?: boolean;
+			/** A linear-gradient background (instead of `fill`). */
+			gradient?: Gradient;
 	  }
 	| {
 			kind: "text";
@@ -49,7 +51,16 @@ export type SceneItem =
 			lineTop?: number;
 			lineHeight?: number;
 	  }
-	| { kind: "image"; x: number; y: number; w: number; h: number; src: string }
+	| {
+			kind: "image";
+			x: number;
+			y: number;
+			w: number;
+			h: number;
+			src: string;
+			/** A CSS background image: placed in the box by these, and clipped to it. */
+			background?: { size: string; position: string };
+	  }
 	| {
 			kind: "svg";
 			x: number;
@@ -64,6 +75,140 @@ export type SceneItem =
 			fontFamily: string;
 			fontSize: number;
 	  };
+
+/** CSS `linear-gradient()`: angle in degrees (0 = to top) and stops at 0–1. */
+export interface Gradient {
+	angle: number;
+	stops: { color: Color; pos: number }[];
+}
+
+/** Split on commas outside parentheses. */
+function topLevel(value: string): string[] {
+	const out: string[] = [];
+	let depth = 0;
+	let start = 0;
+	for (let i = 0; i < value.length; i++) {
+		const c = value[i];
+		if (c === "(") depth++;
+		else if (c === ")") depth--;
+		else if (c === "," && depth === 0) {
+			out.push(value.slice(start, i).trim());
+			start = i + 1;
+		}
+	}
+	out.push(value.slice(start).trim());
+	return out.filter(Boolean);
+}
+
+const SIDES: Record<string, number> = {
+	"to top": 0,
+	"to right": 90,
+	"to bottom": 180,
+	"to left": 270,
+	"to top right": 45,
+	"to right top": 45,
+	"to bottom right": 135,
+	"to right bottom": 135,
+	"to bottom left": 225,
+	"to left bottom": 225,
+	"to top left": 315,
+	"to left top": 315,
+};
+
+/** Parse `linear-gradient(...)` (unknown colors → null). */
+export function parseLinearGradient(value: string): Gradient | null {
+	const m = value.trim().match(/^(?:-webkit-)?linear-gradient\((.*)\)$/s);
+	if (!m) return null;
+	const args = topLevel(m[1] ?? "");
+	let angle = 180;
+	const first = (args[0] ?? "").toLowerCase();
+	const deg = first.match(/^(-?[\d.]+)(deg|turn|rad)$/);
+	if (deg) {
+		const n = Number(deg[1]);
+		angle = deg[2] === "turn" ? n * 360 : deg[2] === "rad" ? (n * 180) / Math.PI : n;
+		args.shift();
+	} else if (first in SIDES) {
+		angle = SIDES[first] ?? 180;
+		args.shift();
+	}
+	const stops: { color: Color; pos: number | null }[] = [];
+	for (const a of args) {
+		const pos = a.match(/\s(-?[\d.]+)%$/);
+		const color = parseColor(pos ? a.slice(0, pos.index).trim() : a);
+		if (!color) return null;
+		stops.push({ color, pos: pos ? Number(pos[1]) / 100 : null });
+	}
+	if (stops.length < 2) return null;
+	// Missing positions: first 0, last 1, the rest evenly between their neighbours.
+	if (stops[0] && stops[0].pos === null) stops[0].pos = 0;
+	const last = stops[stops.length - 1];
+	if (last && last.pos === null) last.pos = 1;
+	for (let i = 1; i < stops.length - 1; i++) {
+		if (stops[i]?.pos !== null) continue;
+		let j = i;
+		while (stops[j]?.pos === null) j++;
+		const a = stops[i - 1]?.pos ?? 0;
+		const b = stops[j]?.pos ?? 1;
+		for (let q = i; q < j; q++) {
+			const s = stops[q];
+			if (s) s.pos = a + ((b - a) * (q - i + 1)) / (j - i + 1);
+		}
+	}
+	return { angle, stops: stops.map((s) => ({ color: s.color, pos: s.pos ?? 0 })) };
+}
+
+/** Background image layers (bottom first) as scene items; `background-clip: text` paints none. */
+function backgroundLayers(
+	x: number,
+	y: number,
+	w: number,
+	h: number,
+	style: Computed,
+	alpha: number,
+): SceneItem[] {
+	const image = style.get("background-image") ?? "none";
+	if (image === "none") return [];
+	if (/text/.test(style.get("background-clip") ?? style.get("-webkit-background-clip") ?? ""))
+		return [];
+	const radius = px(style, "border-radius") || px(style, "border-top-left-radius");
+	const out: SceneItem[] = [];
+	for (const layer of topLevel(image).reverse()) {
+		const url = layer.match(/^url\(\s*["']?([^"')]+)["']?\s*\)$/);
+		if (url?.[1]) {
+			out.push({
+				kind: "image",
+				x,
+				y,
+				w,
+				h,
+				src: url[1],
+				background: {
+					size: style.get("background-size") ?? "auto",
+					position: style.get("background-position") ?? "0% 0%",
+				},
+			});
+			continue;
+		}
+		const g = parseLinearGradient(layer);
+		if (g)
+			out.push({
+				kind: "rect",
+				x,
+				y,
+				w,
+				h,
+				radius: radius || undefined,
+				gradient: {
+					angle: g.angle,
+					stops: g.stops.map((s) => ({
+						...s,
+						color: { ...s.color, alpha: s.color.alpha * alpha },
+					})),
+				},
+			});
+	}
+	return out;
+}
 
 export interface Scene {
 	width: number;
@@ -222,10 +367,12 @@ export function toScene(
 	layout: SlideLayout,
 	elementOf?: (eid: number) => Element | undefined,
 ): Scene {
-	const items: SceneItem[] = [];
+	// The slide's own background image / gradient, under everything.
+	const items: SceneItem[] = backgroundLayers(0, 0, layout.width, layout.height, layout.style, 1);
 	for (const b of layout.boxes) {
 		if (b.alpha < 0.01 || (b.style.get("visibility") ?? "visible") === "hidden") continue;
 		items.push(...boxRects(b.x, b.y, b.w, b.h, b.style, b.alpha));
+		items.push(...backgroundLayers(b.x, b.y, b.w, b.h, b.style, b.alpha));
 		const el = elementOf?.(b.eid);
 		if (b.tag === "img" && el?.attribs.src)
 			items.push({ kind: "image", x: b.x, y: b.y, w: b.w, h: b.h, src: el.attribs.src });

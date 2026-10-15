@@ -73,6 +73,8 @@ export interface RectSpec {
 	radius?: number;
 	/** No fill (border only). */
 	noFill?: boolean;
+	/** Linear gradient instead of the solid fill. */
+	gradient?: GradientSpec;
 }
 
 /** A PNG placed on the slide (e.g. a rendered background). */
@@ -84,6 +86,14 @@ export interface ImageSpec {
 	h: number;
 	png: Buffer;
 	name?: string;
+	/** Parts of the image cut off on each side, as fractions of its size (CSS background cover / position). */
+	crop?: { left: number; top: number; right: number; bottom: number };
+}
+
+/** A linear gradient fill: CSS angle (0 = to top, 90 = to right) and stops at 0–1. */
+export interface GradientSpec {
+	angle: number;
+	stops: { color: string; transparency?: number; pos: number }[];
 }
 
 /** A table cell border: color `RRGGBB`, width in points. */
@@ -261,11 +271,32 @@ interface SlideImage {
 	png: Buffer;
 }
 
+function srcRectXml(c: ImageSpec["crop"]): string {
+	if (!c) return "";
+	const v = (f: number) => Math.round(f * 100000);
+	return `<a:srcRect l="${v(c.left)}" t="${v(c.top)}" r="${v(c.right)}" b="${v(c.bottom)}"/>`;
+}
+
+function gradFillXml(g: GradientSpec): string {
+	const stops = g.stops
+		.map((s) => {
+			const alpha =
+				s.transparency && s.transparency > 0
+					? `<a:alpha val="${Math.round((100 - s.transparency) * 1000)}"/>`
+					: "";
+			return `<a:gs pos="${Math.round(Math.min(1, Math.max(0, s.pos)) * 100000)}"><a:srgbClr val="${s.color}">${alpha}</a:srgbClr></a:gs>`;
+		})
+		.join("");
+	// DrawingML: 0 = left → right, clockwise; CSS: 0deg = to top.
+	const ang = ((((g.angle - 90) % 360) + 360) % 360) * 60000;
+	return `<a:gradFill rotWithShape="1"><a:gsLst>${stops}</a:gsLst><a:lin ang="${Math.round(ang)}" scaled="0"/></a:gradFill>`;
+}
+
 function buildPictureXml(img: ImageSpec, id: number, rId: string): string {
 	const name = esc(img.name ?? `Picture ${id}`);
 	return `<p:pic>
 <p:nvPicPr><p:cNvPr id="${id}" name="${name}"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>
-<p:blipFill><a:blip r:embed="${rId}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>
+<p:blipFill><a:blip r:embed="${rId}"/>${srcRectXml(img.crop)}<a:stretch><a:fillRect/></a:stretch></p:blipFill>
 <p:spPr><a:xfrm><a:off x="${emu(img.x)}" y="${emu(img.y)}"/><a:ext cx="${emu(img.w)}" cy="${emu(img.h)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>
 </p:pic>`;
 }
@@ -280,6 +311,7 @@ function buildRectXml(r: RectSpec, id: number): string {
 	}
 	fillXml += "</a:solidFill>";
 	if (r.noFill) fillXml = "<a:noFill/>";
+	if (r.gradient) fillXml = gradFillXml(r.gradient);
 
 	let lineXml = "<a:ln><a:noFill/></a:ln>";
 	if (r.line) {

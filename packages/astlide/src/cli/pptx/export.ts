@@ -84,13 +84,12 @@ type Engine = typeof import("@astlide/engine");
 const RASTER_SCALE = 2;
 
 /** An image as PNG: PNG files as they are, SVG (files or data: URLs) rasterized. */
-function imagePng(
-	engine: Engine,
-	src: string,
-	dist: string,
-	width: number,
-	fontFiles: string[],
-): Buffer | null {
+/** An image's data (PNG as is, SVG as text) and natural size in CSS px, or null when unsupported. */
+type ImageSource =
+	| { png: Buffer; size: { w: number; h: number } }
+	| { svg: string; size: { w: number; h: number } };
+
+function imageSource(src: string, dist: string): ImageSource | null {
 	let svg: string | null = null;
 	const data = src.match(/^data:image\/svg\+xml(;base64)?,(.*)$/s);
 	if (data) {
@@ -100,10 +99,99 @@ function imagePng(
 		const path = [join(dist, src), join(dist, src.replace(/^\/[^/]+/, ""))].find((p) =>
 			existsSync(p),
 		);
-		if (path?.endsWith(".png")) return readFileSync(path);
+		if (path?.endsWith(".png")) {
+			const png = readFileSync(path);
+			// IHDR: width and height right after the signature and chunk header.
+			return { png, size: { w: png.readUInt32BE(16), h: png.readUInt32BE(20) } };
+		}
 		if (path?.endsWith(".svg")) svg = readFileSync(path, "utf-8");
 	}
-	return svg ? engine.svgToPng(svg, width * RASTER_SCALE, fontFiles) : null;
+	if (!svg) return null;
+	const root = svg.match(/<svg\b[^>]*>/)?.[0] ?? "";
+	const attr = (name: string) =>
+		Number.parseFloat(root.match(new RegExp(`\\s${name}="([\\d.]+)(px)?"`))?.[1] ?? "");
+	const view = root.match(/viewBox="[\d.-]+[\s,]+[\d.-]+[\s,]+([\d.]+)[\s,]+([\d.]+)"/);
+	const w = attr("width") || Number(view?.[1] ?? 300);
+	const h = attr("height") || Number(view?.[2] ?? 150);
+	return { svg, size: { w, h } };
+}
+
+function rasterize(
+	engine: Engine,
+	source: ImageSource,
+	width: number,
+	fontFiles: string[],
+): Buffer {
+	return "png" in source
+		? source.png
+		: engine.svgToPng(source.svg, width * RASTER_SCALE, fontFiles);
+}
+
+/** One `background-position` component as an offset into `free` px of room. */
+function positionOffset(token: string | undefined, free: number): number {
+	const t = (token ?? "center").trim();
+	if (t === "left" || t === "top") return 0;
+	if (t === "right" || t === "bottom") return free;
+	if (t === "center") return free / 2;
+	const n = Number.parseFloat(t);
+	if (Number.isNaN(n)) return free / 2;
+	return t.endsWith("%") ? (free * n) / 100 : n;
+}
+
+/**
+ * Where a CSS background image lands in its box (`background-size`:
+ * cover / contain / lengths / auto; `background-position`), and the part of
+ * it inside the box as a crop. Null when none of it is visible.
+ */
+function placeBackground(
+	box: { x: number; y: number; w: number; h: number },
+	bg: { size: string; position: string },
+	natural: { w: number; h: number },
+) {
+	const size = bg.size.trim().split(/\s+/);
+	let w = natural.w;
+	let h = natural.h;
+	if (size[0] === "cover" || size[0] === "contain") {
+		const s = (size[0] === "cover" ? Math.max : Math.min)(box.w / natural.w, box.h / natural.h);
+		w = natural.w * s;
+		h = natural.h * s;
+	} else {
+		const len = (t: string | undefined, basis: number) =>
+			!t || t === "auto"
+				? null
+				: t.endsWith("%")
+					? (basis * Number.parseFloat(t)) / 100
+					: Number.parseFloat(t);
+		const sw = len(size[0], box.w);
+		const sh = len(size[1], box.h);
+		if (sw !== null && sh !== null) [w, h] = [sw, sh];
+		else if (sw !== null) [w, h] = [sw, (sw * natural.h) / natural.w];
+		else if (sh !== null) [w, h] = [(sh * natural.w) / natural.h, sh];
+	}
+	// "center" alone means both; a single vertical keyword puts the horizontal at center.
+	let [px, py] = bg.position.trim().split(/\s+/);
+	if (py === undefined && (px === "top" || px === "bottom")) [px, py] = ["center", px];
+	const drawn = {
+		x: box.x + positionOffset(px, box.w - w),
+		y: box.y + positionOffset(py ?? "center", box.h - h),
+		w,
+		h,
+	};
+	const left = Math.max(box.x, drawn.x);
+	const top = Math.max(box.y, drawn.y);
+	const right = Math.min(box.x + box.w, drawn.x + w);
+	const bottom = Math.min(box.y + box.h, drawn.y + h);
+	if (right <= left || bottom <= top || w <= 0 || h <= 0) return null;
+	return {
+		drawn,
+		visible: { x: left, y: top, w: right - left, h: bottom - top },
+		crop: {
+			left: (left - drawn.x) / w,
+			top: (top - drawn.y) / h,
+			right: (drawn.x + w - right) / w,
+			bottom: (drawn.y + h - bottom) / h,
+		},
+	};
 }
 
 /** SVG names the HTML parser lowercased, restored for SVG renderers. */
@@ -565,6 +653,14 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 							}
 						: undefined,
 					radius: item.radius ? item.radius * k : undefined,
+					gradient: item.gradient && {
+						angle: item.gradient.angle,
+						stops: item.gradient.stops.map((s) => ({
+							color: hex(s.color),
+							transparency: Math.round((1 - s.color.alpha) * 100),
+							pos: s.pos,
+						})),
+					},
 				});
 			} else if (item.kind === "text") {
 				// Text in a block goes in one text box (below); markers stand alone.
@@ -622,8 +718,26 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 					});
 				}
 			} else if (item.kind === "image") {
-				const png = imagePng(engine, item.src, dist, item.w, fonts.files());
-				if (png) {
+				const source = imageSource(item.src, dist);
+				// A background image is placed by background-size / -position and clipped to its box.
+				const place =
+					source && item.background ? placeBackground(item, item.background, source.size) : null;
+				const drawn = place?.drawn ?? item;
+				const png =
+					source && (!item.background || place)
+						? rasterize(engine, source, drawn.w, fonts.files())
+						: null;
+				if (png && place) {
+					elements.push({
+						type: "image",
+						x: place.visible.x * k,
+						y: place.visible.y * k,
+						w: place.visible.w * k,
+						h: place.visible.h * k,
+						png,
+						crop: place.crop,
+					});
+				} else if (png) {
 					elements.push({
 						type: "image",
 						x: item.x * k,
@@ -632,7 +746,7 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 						h: item.h * k,
 						png,
 					});
-				} else {
+				} else if (!source) {
 					const name = item.src.startsWith("data:") ? item.src.slice(0, 30) : item.src;
 					console.warn(`\n  ⚠ slide ${i + 1}: image ${name} skipped (PNG / SVG only for now)`);
 				}

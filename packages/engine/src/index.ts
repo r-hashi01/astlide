@@ -23,7 +23,15 @@ export {
 } from "./diagrams";
 export { familiesIn, loadFontFaces, loadGoogleFonts } from "./fonts";
 export type { Box, SlideLayout, TableBox, TableCellBox, TextLine } from "./layout";
-export { type Color, parseColor, type Scene, type SceneItem, toScene } from "./scene";
+export {
+	type Color,
+	type Gradient,
+	parseColor,
+	parseLinearGradient,
+	type Scene,
+	type SceneItem,
+	toScene,
+} from "./scene";
 export { FontRegistry } from "./text";
 
 function* elements(node: { children?: unknown[] }): Generator<Element> {
