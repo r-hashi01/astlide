@@ -674,7 +674,9 @@ class Builder {
 							? FlexDirection.RowReverse
 							: FlexDirection.Row,
 			);
-			node.setFlexWrap(/^wrap(-reverse)?$/.test((style.get("flex-wrap") ?? "").trim()) ? Wrap.Wrap : Wrap.NoWrap);
+			node.setFlexWrap(
+				/^wrap(-reverse)?$/.test((style.get("flex-wrap") ?? "").trim()) ? Wrap.Wrap : Wrap.NoWrap,
+			);
 			node.setJustifyContent(justifyOf(style.get("justify-content") ?? "flex-start"));
 			const ai = style.get("align-items") ?? "stretch";
 			node.setAlignItems(ai === "normal" ? Align.Stretch : alignOf(ai));
@@ -754,7 +756,8 @@ class Builder {
 			const column = !container || /column/.test(style.get("flex-direction") ?? "row");
 			// Block flow never shrinks its children; a column flex item with
 			// min-height: auto doesn't shrink below its content (it overflows).
-			if (!container || (column && (cs.get("min-height") ?? "auto") === "auto")) yn.setFlexShrink(0);
+			if (!container || (column && (cs.get("min-height") ?? "auto") === "auto"))
+				yn.setFlexShrink(0);
 			if (
 				/^(fit-content|max-content|min-content)$/.test(w) &&
 				stretches &&
