@@ -72,6 +72,23 @@ jobs:
       - name: Build docs site
         run: bun run docs:build
 
+  e2e:
+    name: E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v4
+        with:
+          node-version: 22
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps chromium
+      - run: bun run build
+      # Layout properties and keyboard flows in Chromium, on the built playground.
+      - run: bun run test:e2e
+
   build-cli:
     name: Build CLI
     runs-on: ubuntu-latest

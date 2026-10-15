@@ -137,6 +137,12 @@ const rendered = await Promise.all(
   body > .mermaidTooltip {
     display: none !important;
   }
+  /* Slide transitions (e.g. `transition: zoom`) animate a slide as it appears:
+     here every slide is shown at once, already in place — an export could
+     otherwise capture one mid-animation (scaled down). */
+  body > .slide {
+    animation: none !important;
+  }
   /* No navigation runtime here, so render every step in its final state:
      all <Fragment>s revealed and code highlight steps on their last segment. */
   body > .slide [data-fragment] {

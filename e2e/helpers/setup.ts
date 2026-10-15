@@ -1,73 +1,69 @@
 /**
- * Vitest globalSetup: starts the dev server before all e2e tests
- * and shuts it down after. Set REUSE_SERVER=1 to skip if already running.
+ * Vitest globalSetup: serves the built playground (`playground/dist`) on a
+ * free port for the browser tests, and builds it first when it's missing
+ * (or when E2E_BUILD=1). A static server — not `astro dev` — so the suite
+ * never competes with a running dev server for its lock, and pages are the
+ * same HTML that gets deployed.
  */
 
-import { type ChildProcess, spawn } from "node:child_process";
-import { resolve } from "node:path";
-import type { GlobalSetupContext } from "vitest/node";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import { extname, join, normalize, resolve } from "node:path";
+import type { TestProject } from "vitest/node";
 
-// Port is configurable so the suite can run when the default 4321 is busy
-// (e.g. another dev server). Keep it in sync with helpers/browser.ts via E2E_PORT.
-const PORT = Number(process.env.E2E_PORT ?? 4321);
-const URL = `http://localhost:${PORT}`;
+const DIST = resolve(process.cwd(), "playground", "dist");
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const TYPES: Record<string, string> = {
+	".html": "text/html; charset=utf-8",
+	".css": "text/css",
+	".js": "text/javascript",
+	".mjs": "text/javascript",
+	".json": "application/json",
+	".svg": "image/svg+xml",
+	".png": "image/png",
+	".jpg": "image/jpeg",
+	".jpeg": "image/jpeg",
+	".webp": "image/webp",
+	".woff2": "font/woff2",
+	".woff": "font/woff",
+	".ttf": "font/ttf",
+	".ico": "image/x-icon",
+};
 
-export default async function setup(_ctx: GlobalSetupContext) {
-	if (process.env.REUSE_SERVER) {
-		try {
-			const res = await fetch(URL);
-			if (res.ok) return;
-		} catch {
-			// Not running, start it
+/** The file a URL path names in dist/ (directories → index.html), or null. */
+function fileFor(urlPath: string): string | null {
+	const path = normalize(join(DIST, decodeURIComponent(urlPath.split("?")[0] ?? "/")));
+	if (!path.startsWith(DIST)) return null;
+	for (const candidate of [path, join(path, "index.html"), `${path}.html`]) {
+		if (existsSync(candidate) && statSync(candidate).isFile()) return candidate;
+	}
+	return null;
+}
+
+export default async function setup(project: TestProject) {
+	if (process.env.E2E_BUILD || !existsSync(join(DIST, "index.html"))) {
+		execFileSync("bun", ["run", "build"], { stdio: "inherit" });
+	}
+	const server = createServer((req, res) => {
+		const file = fileFor(req.url ?? "/");
+		if (!file) {
+			res.writeHead(404, { "content-type": "text/plain" }).end("not found");
+			return;
 		}
+		res
+			.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" })
+			.end(readFileSync(file));
+	});
+	await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+	const { port } = server.address() as AddressInfo;
+	project.provide("baseUrl", `http://127.0.0.1:${port}`);
+	return () => new Promise<void>((done) => server.close(() => done()));
+}
+
+declare module "vitest" {
+	export interface ProvidedContext {
+		baseUrl: string;
 	}
-
-	// `--ignore-lock`: Astro 7 refuses to start when its dev-server lock file points at
-	// another running instance (e.g. a leftover from a previous run).
-	// `env`: Astro 7's dev server skips its request handler when `VITEST` is set
-	// (inherited from this globalSetup), which turns every page into a 404.
-	// `detached`: run in its own process group so teardown can kill the actual node
-	// process that `bunx` spawns, not just the `bunx` wrapper.
-	const proc: ChildProcess = spawn(
-		"bunx",
-		["astro", "dev", "--port", String(PORT), "--ignore-lock"],
-		{
-			cwd: resolve(process.cwd(), "playground"),
-			stdio: ["ignore", "ignore", "pipe"],
-			env: Object.fromEntries(
-				Object.entries(process.env).filter(([key]) => !key.startsWith("VITEST")),
-			),
-			detached: true,
-		},
-	);
-	const stop = () => {
-		if (proc.pid) process.kill(-proc.pid);
-	};
-
-	// Poll until server is ready
-	const deadline = Date.now() + 60_000;
-	let ready = false;
-	while (Date.now() < deadline) {
-		try {
-			const res = await fetch(URL);
-			if (res.ok) {
-				ready = true;
-				break;
-			}
-		} catch {
-			// Not ready yet
-		}
-		await sleep(500);
-	}
-
-	if (!ready) {
-		stop();
-		throw new Error(`Dev server did not start within 60s at ${URL}`);
-	}
-
-	return async () => {
-		stop();
-	};
 }

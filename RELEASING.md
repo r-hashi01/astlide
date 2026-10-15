@@ -12,7 +12,7 @@ bun run build
 node scripts/test-template.mjs   # template smoke
 ```
 
-All five must pass cleanly. CI runs the same plus astro-compat matrix and visual regression on macOS.
+All five must pass cleanly. CI runs the same plus the astro-compat matrix and the browser tests (`bun run test:e2e`).
 
 ## First publish (v0.1.0) — one-time manual
 

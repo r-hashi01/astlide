@@ -13,7 +13,7 @@ Thanks for your interest in improving Astlide!
 
 - [Bun](https://bun.sh) ≥ 1.2 — Astlide is bun-only. Do not use npm / pnpm / yarn for repo-local installs.
 - Node.js ≥ 22.12 (required by Astro 6 — Bun's Node-compat alone is not enough; `astro check` and `astro build` shell into the system `node`).
-- A Chromium-based browser for e2e tests (`agent-browser` downloads one automatically).
+- Chromium for the browser tests: `bunx playwright install chromium` once.
 
 ## Repository layout
 
@@ -21,7 +21,7 @@ Thanks for your interest in improving Astlide!
 packages/astlide/         @astlide/core — Astro Integration (source-only npm package)
 packages/create-astlide/  create-astlide — CLI scaffolder
 playground/               development Astro project (not published)
-e2e/                      Playwright-style e2e + visual regression tests
+e2e/                      browser tests (Playwright): layout properties and keyboard flows
 scripts/                  one-off measurement scripts (not published)
 ```
 
@@ -40,7 +40,7 @@ bun run lint:fix        # auto-fix lint issues
 bun run format          # format with Biome
 bun run test            # vitest unit tests (341 tests, ~500 ms)
 bun run test:watch      # watch mode
-bun run test:e2e        # e2e + visual regression (needs no running dev server — globalSetup starts one)
+bun run test:e2e        # browser tests on the built playground (builds it if dist/ is missing; E2E_BUILD=1 to rebuild)
 bun run build           # build playground
 bun run docs            # generate TypeDoc API reference under docs/api/
 ```
@@ -74,20 +74,12 @@ bun run docs            # generate TypeDoc API reference under docs/api/
 |---|---|---|
 | Unit | `packages/astlide/tests/*.test.ts` | New schema field, new utility, new plugin contribution shape, new component prop |
 | Astro components | `packages/astlide/tests/astro-components.test.ts` | New `.astro` component, new prop on existing component |
-| Visual regression | `e2e/visual.test.ts` + `e2e/__snapshots__/visual/` | New layout, new theme, anything that should be visually stable. macOS-only (font drift). |
+| Browser (layout) | `e2e/layout.test.ts` | New layout or theme: add the property it must keep (parts' placement, nothing spilling out of the slide) |
+| Browser (presenting) | `e2e/navigation.test.ts` | New keyboard shortcut, dialog or step behaviour in `DeckLayout.astro` |
 
 `astro-components.test.ts` runs in a dedicated vitest project (`vmThreads` pool) — `getViteConfig` plus a `forks` worker deadlocks when transforming `.astro` files, so this suite is isolated to keep the rest of the test pyramid fast.
 
-We deliberately do **not** run general-purpose browser e2e (keyboard nav, fragment toggles, UI mode flips). Those flows live in `DeckLayout.astro`'s inline `<script>`; until that is extracted into a separately-testable module, the cost of maintaining a real-browser harness for them outweighs the value at the current project size. Visual regression is kept because the only meaningful failure mode (CSS / theme drift) genuinely requires a real browser.
-
-### Running visual regression
-
-```bash
-bun run test:e2e                  # macOS only — runs the suite, fails if pixel diff > 0.1%
-UPDATE_SNAPSHOTS=1 bun run test:e2e   # regenerate baselines after intentional visual changes
-```
-
-A weekly `Visual Regression` workflow (`.github/workflows/visual-regression.yml`) runs the suite on `macos-latest` and uploads diff PNGs as artifacts when it fails. You can also run it on demand from the Actions tab.
+The browser tests check properties rather than pixels: every slide is 1920×1080 and nothing spills out of it, each layout places its parts (two columns side by side, equal `<Columns>`, the image beside the text …), every theme styles the slides, and the keyboard drives slides, steps, the overview, go-to and notes. Changing a deck's content or a font doesn't need new baselines, and a failure names the slide and the element. They run on the built playground (served statically, so a running `astro dev` doesn't get in the way) in the `E2E` CI job on every pull request.
 
 ## Conventions to follow
 

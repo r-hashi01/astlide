@@ -9,7 +9,8 @@ export default defineConfig({
 					include: ["e2e/**/*.test.ts"],
 					globalSetup: ["e2e/helpers/setup.ts"],
 					testTimeout: 30_000,
-					hookTimeout: 15_000,
+					// beforeAll launches Chromium.
+					hookTimeout: 30_000,
 					sequence: { concurrent: false },
 					fileParallelism: false,
 				},
