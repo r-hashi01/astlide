@@ -5,6 +5,7 @@
  * consume this without knowing about CSS.
  */
 
+import render from "dom-serializer";
 import type { Element } from "domhandler";
 import { type Computed, toPx } from "./cascade";
 import type { SlideLayout, TextBlock, TextLine } from "./layout";
@@ -48,7 +49,21 @@ export type SceneItem =
 			lineTop?: number;
 			lineHeight?: number;
 	  }
-	| { kind: "image"; x: number; y: number; w: number; h: number; src: string };
+	| { kind: "image"; x: number; y: number; w: number; h: number; src: string }
+	| {
+			kind: "svg";
+			x: number;
+			y: number;
+			w: number;
+			h: number;
+			/** The `<svg>` element's markup. */
+			markup: string;
+			/** Its CSS `color` (what `currentColor` means inside). */
+			color: Color;
+			/** Its CSS `font-family` and `font-size` (px), inherited by SVG text. */
+			fontFamily: string;
+			fontSize: number;
+	  };
 
 export interface Scene {
 	width: number;
@@ -214,6 +229,18 @@ export function toScene(
 		const el = elementOf?.(b.eid);
 		if (b.tag === "img" && el?.attribs.src)
 			items.push({ kind: "image", x: b.x, y: b.y, w: b.w, h: b.h, src: el.attribs.src });
+		if (b.tag === "svg" && el)
+			items.push({
+				kind: "svg",
+				x: b.x,
+				y: b.y,
+				w: b.w,
+				h: b.h,
+				markup: render(el, { xmlMode: true }),
+				color: parseColor(b.style.get("color")) ?? { hex: "000000", alpha: 1 },
+				fontFamily: b.style.get("font-family") ?? "sans-serif",
+				fontSize: Number.parseFloat(b.style.get("font-size") ?? "16") || 16,
+			});
 	}
 	for (const ib of layout.inlineBoxes) {
 		if (ib.alpha < 0.01) continue;

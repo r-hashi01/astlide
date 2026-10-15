@@ -86,7 +86,66 @@ export interface ImageSpec {
 	name?: string;
 }
 
-export type SlideElement = TextBoxSpec | RectSpec | ImageSpec;
+/** A table cell border: color `RRGGBB`, width in points. */
+export interface CellBorder {
+	color: string;
+	width: number;
+	transparency?: number;
+}
+
+export interface TableCellSpec {
+	runs: TextRun[];
+	fill?: string;
+	fillTransparency?: number;
+	borders?: { left?: CellBorder; right?: CellBorder; top?: CellBorder; bottom?: CellBorder };
+	/** Inner margins in inches. */
+	margins?: { left: number; right: number; top: number; bottom: number };
+	valign?: "top" | "middle" | "bottom";
+	/** Columns this cell spans (the cells it covers follow as `merged`). */
+	span?: number;
+	/** Covered by the previous cell's span. */
+	merged?: boolean;
+}
+
+/** A native PowerPoint table: editable cells on a column grid. Sizes in inches. */
+export interface TableSpec {
+	type: "table";
+	x: number;
+	y: number;
+	w: number;
+	h: number;
+	columns: number[];
+	rows: { h: number; cells: TableCellSpec[] }[];
+}
+
+/** Outline of a drawn shape. Width in points. */
+export interface StrokeSpec {
+	color: string;
+	width: number;
+	transparency?: number;
+	dashed?: boolean;
+	/** Arrowheads at the start / end of an open path. */
+	head?: boolean;
+	tail?: boolean;
+}
+
+/**
+ * A shape drawn from SVG: an ellipse, or a freeform of straight segments.
+ * Sizes in inches; path points relative to (x, y).
+ */
+export interface ShapeSpec {
+	type: "shape";
+	x: number;
+	y: number;
+	w: number;
+	h: number;
+	geom: "ellipse" | { paths: { points: [number, number][]; closed: boolean }[] };
+	fill?: string;
+	fillTransparency?: number;
+	stroke?: StrokeSpec;
+}
+
+export type SlideElement = TextBoxSpec | RectSpec | ImageSpec | TableSpec | ShapeSpec;
 
 export interface SlideSpec {
 	background: string;
@@ -158,6 +217,14 @@ function buildSlideXml(
 			const rId = `rIdImg${images.length + 1}`;
 			images.push({ rId, png: el.png });
 			shapes.push(buildPictureXml(el, shapeId++, rId));
+		} else if (el.type === "shape") {
+			shapes.push(buildShapeXml(el, shapeId++));
+		} else if (el.type === "table") {
+			const nextRId = () => {
+				linkCounter++;
+				return `rId${linkCounter}`;
+			};
+			shapes.push(buildTableXml(el, shapeId++, nextRId, hyperlinks));
 		} else {
 			shapes.push(
 				buildTextBoxXml(
@@ -236,6 +303,106 @@ ${geom}
 ${fillXml}${lineXml}
 </p:spPr>
 </p:sp>`;
+}
+
+function solidFillXml(color: string, transparency?: number): string {
+	const alpha =
+		transparency && transparency > 0
+			? `<a:alpha val="${Math.round((100 - transparency) * 1000)}"/>`
+			: "";
+	return `<a:solidFill><a:srgbClr val="${color}">${alpha}</a:srgbClr></a:solidFill>`;
+}
+
+function buildShapeXml(s: ShapeSpec, id: number): string {
+	const W = Math.max(1, emu(s.w));
+	const H = Math.max(1, emu(s.h));
+	let geom: string;
+	if (s.geom === "ellipse") geom = `<a:prstGeom prst="ellipse"><a:avLst/></a:prstGeom>`;
+	else {
+		const paths = s.geom.paths
+			.map((p) => {
+				const [first, ...rest] = p.points;
+				if (!first) return "";
+				const pt = ([x, y]: [number, number]) => `<a:pt x="${emu(x)}" y="${emu(y)}"/>`;
+				const body =
+					`<a:moveTo>${pt(first)}</a:moveTo>` +
+					rest.map((q) => `<a:lnTo>${pt(q)}</a:lnTo>`).join("") +
+					(p.closed ? "<a:close/>" : "");
+				return `<a:path w="${W}" h="${H}"${p.closed && s.fill ? "" : ' fill="none"'}>${body}</a:path>`;
+			})
+			.join("");
+		geom = `<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/><a:pathLst>${paths}</a:pathLst></a:custGeom>`;
+	}
+	const fill = s.fill ? solidFillXml(s.fill, s.fillTransparency) : "<a:noFill/>";
+	const st = s.stroke;
+	const line = st
+		? `<a:ln w="${Math.round(st.width * 12700)}" cap="rnd">${solidFillXml(st.color, st.transparency)}${
+				st.dashed ? '<a:prstDash val="dash"/>' : ""
+			}<a:round/>${st.head ? '<a:headEnd type="triangle" w="med" len="med"/>' : ""}${
+				st.tail ? '<a:tailEnd type="triangle" w="med" len="med"/>' : ""
+			}</a:ln>`
+		: "<a:ln><a:noFill/></a:ln>";
+	return `<p:sp>
+<p:nvSpPr><p:cNvPr id="${id}" name="Shape ${id}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+<p:spPr>
+<a:xfrm><a:off x="${emu(s.x)}" y="${emu(s.y)}"/><a:ext cx="${W}" cy="${H}"/></a:xfrm>
+${geom}
+${fill}${line}
+</p:spPr>
+</p:sp>`;
+}
+
+function cellLineXml(tag: string, b: CellBorder | undefined): string {
+	if (!b || b.width <= 0) return `<a:${tag} w="0"><a:noFill/></a:${tag}>`;
+	const alpha =
+		b.transparency !== undefined && b.transparency > 0
+			? `<a:alpha val="${Math.round((100 - b.transparency) * 1000)}"/>`
+			: "";
+	return `<a:${tag} w="${emu(b.width / 72)}" cmpd="sng"><a:solidFill><a:srgbClr val="${b.color}">${alpha}</a:srgbClr></a:solidFill><a:prstDash val="solid"/></a:${tag}>`;
+}
+
+/** A native table (`a:tbl` in a graphic frame). */
+function buildTableXml(
+	t: TableSpec,
+	id: number,
+	nextRId: () => string,
+	hyperlinks: HyperlinkEntry[],
+): string {
+	const grid = t.columns.map((w) => `<a:gridCol w="${emu(w)}"/>`).join("");
+	const rows = t.rows
+		.map((row) => {
+			const cells = row.cells
+				.map((c) => {
+					const paras = splitIntoParagraphs(c.runs).map((p) =>
+						buildParagraphXml(p, "l", nextRId, hyperlinks),
+					);
+					if (paras.length === 0) paras.push(`<a:p><a:endParaRPr lang="en-US"/></a:p>`);
+					const m = c.margins;
+					const marg = m
+						? ` marL="${emu(m.left)}" marR="${emu(m.right)}" marT="${emu(m.top)}" marB="${emu(m.bottom)}"`
+						: "";
+					const anchor = VALIGN_MAP[c.valign ?? "middle"] ?? "ctr";
+					const fill = c.fill
+						? `<a:solidFill><a:srgbClr val="${c.fill}">${
+								c.fillTransparency
+									? `<a:alpha val="${Math.round((100 - c.fillTransparency) * 1000)}"/>`
+									: ""
+							}</a:srgbClr></a:solidFill>`
+						: "<a:noFill/>";
+					const b = c.borders ?? {};
+					const tcPr = `<a:tcPr${marg} anchor="${anchor}">${cellLineXml("lnL", b.left)}${cellLineXml("lnR", b.right)}${cellLineXml("lnT", b.top)}${cellLineXml("lnB", b.bottom)}${fill}</a:tcPr>`;
+					const attrs = `${c.span && c.span > 1 ? ` gridSpan="${c.span}"` : ""}${c.merged ? ' hMerge="1"' : ""}`;
+					return `<a:tc${attrs}><a:txBody><a:bodyPr/><a:lstStyle/>${paras.join("")}</a:txBody>${tcPr}</a:tc>`;
+				})
+				.join("");
+			return `<a:tr h="${emu(row.h)}">${cells}</a:tr>`;
+		})
+		.join("");
+	return `<p:graphicFrame>
+<p:nvGraphicFramePr><p:cNvPr id="${id}" name="Table ${id}"/><p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>
+<p:xfrm><a:off x="${emu(t.x)}" y="${emu(t.y)}"/><a:ext cx="${emu(t.w)}" cy="${emu(t.h)}"/></p:xfrm>
+<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr/><a:tblGrid>${grid}</a:tblGrid>${rows}</a:tbl></a:graphicData></a:graphic>
+</p:graphicFrame>`;
 }
 
 function buildTextBoxXml(
@@ -377,7 +544,8 @@ function buildParagraphXml(
 		if (!text && !o.breakLine) continue;
 
 		const rPrParts: string[] = ['lang="en-US"', 'dirty="0"'];
-		if (o.fontSize) rPrParts.push(`sz="${hpt(o.fontSize)}"`);
+		// PowerPoint's range is 1–4000 pt (out of range: a repair prompt).
+		if (o.fontSize) rPrParts.push(`sz="${Math.min(400000, Math.max(100, hpt(o.fontSize)))}"`);
 		if (o.bold) rPrParts.push('b="1"');
 		if (o.italic) rPrParts.push('i="1"');
 		if (o.letterSpacing) rPrParts.push(`spc="${hpt(o.letterSpacing)}"`);

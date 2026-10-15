@@ -22,7 +22,7 @@ export {
 	svgToPng,
 } from "./diagrams";
 export { familiesIn, loadFontFaces, loadGoogleFonts } from "./fonts";
-export type { Box, SlideLayout, TextLine } from "./layout";
+export type { Box, SlideLayout, TableBox, TableCellBox, TextLine } from "./layout";
 export { type Color, parseColor, type Scene, type SceneItem, toScene } from "./scene";
 export { FontRegistry } from "./text";
 
@@ -47,6 +47,11 @@ export function pageCss(htmlPath: string, distDir: string): string {
 		}
 	}
 	return parts.join("\n");
+}
+
+/** Parse markup (e.g. a scene item's SVG) as XML into a DOM. */
+export function parseMarkup(markup: string) {
+	return parseDocument(markup, { xmlMode: true });
 }
 
 /** Lay out every `body > .slide` of a built page (e.g. dist/<deck>/all/index.html). */

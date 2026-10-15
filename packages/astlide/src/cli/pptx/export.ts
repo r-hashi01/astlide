@@ -11,17 +11,21 @@ import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { mermaidThemeFor } from "@astlide/core/utils/mermaid.ts";
-import type { Scene, SceneItem } from "@astlide/engine";
+import type { Box, Scene, SceneItem, TableBox } from "@astlide/engine";
 import { embeddingPermissions, withLegacyFamilyOnly } from "./eot";
 import {
+	type CellBorder,
 	type EmbeddedFont,
 	PptxFile,
 	type SlideElement,
 	type SlideSpec,
+	type TableCellSpec,
+	type TableSpec,
 	type TextBoxSpec,
 	type TextRun,
 	type TextRunOptions,
 } from "./ooxml-writer";
+import { type SvgNode, svgToShapes } from "./svg-shapes";
 import { getTheme } from "./theme-map";
 
 export interface PptxOptions {
@@ -100,6 +104,37 @@ function imagePng(
 		if (path?.endsWith(".svg")) svg = readFileSync(path, "utf-8");
 	}
 	return svg ? engine.svgToPng(svg, width * RASTER_SCALE, fontFiles) : null;
+}
+
+/** SVG names the HTML parser lowercased, restored for SVG renderers. */
+const SVG_CASE = [
+	"viewBox",
+	"preserveAspectRatio",
+	"markerWidth",
+	"markerHeight",
+	"markerUnits",
+	"refX",
+	"refY",
+	"gradientUnits",
+	"gradientTransform",
+	"patternUnits",
+	"stdDeviation",
+	"textLength",
+	"linearGradient",
+	"radialGradient",
+	"clipPath",
+	"textPath",
+	"foreignObject",
+];
+
+/** Inline SVG markup as a standalone SVG document (resvg): names, namespace, currentColor. */
+function rasterReady(markup: string, color: string): string {
+	let svg = markup;
+	for (const name of SVG_CASE)
+		svg = svg.replace(new RegExp(`\\b${name.toLowerCase()}\\b`, "g"), name);
+	if (!/\sxmlns=/.test(svg.slice(0, svg.indexOf(">"))))
+		svg = svg.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+	return svg.replace(/currentColor/gi, `#${color}`);
 }
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
@@ -270,8 +305,121 @@ function blockBox(group: TextItem[]): TextBoxSpec {
  * become spaces again.
  */
 function fillBlock(box: TextBoxSpec, group: TextItem[], k: number): TextBoxSpec {
+	const t = blockText(group, k);
+	if (!t) return box;
+	const { block, align, top, bottom, right } = t;
+	// The last paragraph ends the text: no trailing empty paragraph.
+	return {
+		...box,
+		runs: t.runs,
+		x: block.x * k,
+		y: top * k,
+		// Centered / right text needs the block's width; left text gets slack
+		// because PowerPoint's glyph widths differ slightly (lines never wrap).
+		w: align === "left" ? Math.max(block.w, (right - block.x) * 1.05) * k + 0.05 : block.w * k,
+		h: (bottom - top) * k,
+		align,
+		valign: "top",
+		wrap: false,
+		inset: 0,
+	};
+}
+
+/**
+ * A laid-out table as a native PowerPoint table: the column grid and row
+ * heights, each cell's background, borders, padding (as margins) and text.
+ */
+function tableSpec(
+	engine: Engine,
+	t: TableBox,
+	items: TextItem[],
+	boxes: Box[],
+	k: number,
+): Omit<TableSpec, "type"> {
+	const styleOf = (eid: number) => boxes.find((b) => b.eid === eid);
+	const pt = (px: number) => px * k * 72;
+	const color = (c: { hex: string; alpha: number } | null) =>
+		c && c.alpha > 0
+			? { color: c.hex.toUpperCase(), transparency: Math.round((1 - c.alpha) * 100) }
+			: null;
+	const n = Math.max(
+		t.columns.length,
+		...t.rows.flatMap((r) => r.cells.map((c) => c.col + c.span)),
+	);
+	const known = t.columns.filter((w) => w > 0);
+	const fallback = known.length
+		? (t.w - known.reduce((a, b) => a + b, 0)) / Math.max(1, n - known.length)
+		: t.w / n;
+	const columns = [...Array(n).keys()].map((i) => (t.columns[i] || fallback) * k);
+	const rows = t.rows.map((r) => {
+		const cells: TableCellSpec[] = [];
+		const rowBox = styleOf(r.eid);
+		for (const c of [...r.cells].sort((a, b) => a.col - b.col)) {
+			while (cells.length < c.col) cells.push({ runs: [] });
+			const inside = items.filter((it) => {
+				const cx = it.x + it.w / 2;
+				const cy = it.y + it.h / 2;
+				return cx >= c.x && cx <= c.x + c.w && cy >= c.y && cy <= c.y + c.h;
+			});
+			const byBlock = new Map<number, TextItem[]>();
+			for (const it of inside) {
+				const id = it.block?.id ?? -1;
+				byBlock.set(id, [...(byBlock.get(id) ?? []), it]);
+			}
+			const runs = [...byBlock.values()]
+				.map((g) => blockText(g, k))
+				.filter((b) => b !== null)
+				.sort((a, b) => a.top - b.top)
+				.flatMap((b) => b.runs);
+			const alpha = styleOf(c.eid)?.alpha ?? 1;
+			const bg =
+				color(engine.parseColor(c.style.get("background-color"))) ??
+				color(rowBox ? engine.parseColor(rowBox.style.get("background-color")) : null);
+			const side = (s: "top" | "right" | "bottom" | "left"): CellBorder | undefined => {
+				const c2 = color(
+					engine.parseColor(c.style.get(`border-${s}-color`) ?? c.style.get("color")),
+				);
+				return c.border[s] > 0 && c2 ? { ...c2, width: pt(c.border[s]) } : undefined;
+			};
+			const va = c.style.get("vertical-align") ?? "middle";
+			cells.push({
+				runs,
+				fill: bg?.color,
+				fillTransparency: bg ? Math.round(100 - (100 - bg.transparency) * alpha) : undefined,
+				borders: {
+					top: side("top"),
+					right: side("right"),
+					bottom: side("bottom"),
+					left: side("left"),
+				},
+				margins: {
+					top: c.padding.top * k,
+					right: c.padding.right * k,
+					bottom: c.padding.bottom * k,
+					left: c.padding.left * k,
+				},
+				valign: va === "top" ? "top" : va === "bottom" ? "bottom" : "middle",
+				span: c.span,
+			});
+			for (let i = 1; i < c.span; i++) cells.push({ runs: [], merged: true });
+		}
+		while (cells.length < n) cells.push({ runs: [] });
+		return { h: r.h * k, cells };
+	});
+	return {
+		x: t.x * k,
+		y: t.y * k,
+		w: columns.reduce((a, b) => a + b, 0),
+		h: t.h * k,
+		columns,
+		rows,
+	};
+}
+
+/** A block's text as paragraphs (one per line box), with the lines' extent. */
+function blockText(group: TextItem[], k: number) {
 	const block = group[0]?.block;
-	if (!block) return box;
+	if (!block) return null;
 	const byLine = new Map<number, TextItem[]>();
 	for (const it of group) {
 		const line = byLine.get(it.line ?? 0) ?? [];
@@ -321,21 +469,7 @@ function fillBlock(box: TextBoxSpec, group: TextItem[], k: number): TextBoxSpec 
 		bottom = lineTop + lineHeight;
 		prev = { index, bottom };
 	}
-	// The last paragraph ends the text: no trailing empty paragraph.
-	return {
-		...box,
-		runs,
-		x: block.x * k,
-		y: top * k,
-		// Centered / right text needs the block's width; left text gets slack
-		// because PowerPoint's glyph widths differ slightly (lines never wrap).
-		w: align === "left" ? Math.max(block.w, (right - block.x) * 1.05) * k + 0.05 : block.w * k,
-		h: (bottom - top) * k,
-		align,
-		valign: "top",
-		wrap: false,
-		inset: 0,
-	};
+	return { block, runs, align: align as "left" | "center" | "right", top, bottom, right };
 }
 
 export async function exportPptx(deck: string, options: PptxOptions): Promise<void> {
@@ -383,8 +517,35 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 		const elements: SlideElement[] = [];
 		const blocks = new Map<number, TextItem[]>();
 		const flowing = inlineHighlights(scene);
+		const tables = layout.tables.map((t) => ({
+			t,
+			items: [] as TextItem[],
+			frame: null as TableSpec | null,
+		}));
+		/** The table an item belongs to (its cells' boxes and text become the native table). */
+		const tableOf = (x: number, y: number, w: number, h: number) =>
+			tables.find(
+				({ t }) =>
+					x >= t.x - 0.5 && y >= t.y - 0.5 && x + w <= t.x + t.w + 0.5 && y + h <= t.y + t.h + 0.5,
+			);
+		const claim = (entry: (typeof tables)[number]) => {
+			if (entry.frame) return;
+			entry.frame = { type: "table", x: 0, y: 0, w: 0, h: 0, columns: [], rows: [] };
+			elements.push(entry.frame);
+		};
 		for (const item of scene.items) {
 			if (item.kind === "text") used.push(item);
+			if (item.kind !== "image") {
+				const entry =
+					item.kind === "text"
+						? tableOf(item.x + item.w / 2, item.y + item.h / 2, 0, 0)
+						: tableOf(item.x, item.y, item.w, item.h);
+				if (entry) {
+					claim(entry);
+					if (item.kind === "text") entry.items.push(item);
+					continue;
+				}
+			}
 			if (item.kind === "rect") {
 				if (flowing.has(item)) continue;
 				elements.push({
@@ -429,6 +590,37 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 					wrap: false,
 					inset: 0,
 				});
+			} else if (item.kind === "svg") {
+				const face = fonts.pick(item.fontFamily, 400, false);
+				const root = engine.parseMarkup(item.markup).children.find((c) => c.type === "tag");
+				const shapes = root
+					? svgToShapes(
+							root as SvgNode,
+							{
+								x: item.x,
+								y: item.y,
+								w: item.w,
+								h: item.h,
+								color: hex(item.color),
+								fontFace: fontFor(face.font.familyName, 400).face,
+								fontSize: item.fontSize,
+							},
+							k,
+						)
+					: null;
+				if (shapes) elements.push(...shapes);
+				else {
+					// Not expressible as shapes: a picture of it.
+					const svg = rasterReady(item.markup, hex(item.color));
+					elements.push({
+						type: "image",
+						x: item.x * k,
+						y: item.y * k,
+						w: item.w * k,
+						h: item.h * k,
+						png: engine.svgToPng(svg, item.w * RASTER_SCALE, fonts.files()),
+					});
+				}
 			} else if (item.kind === "image") {
 				const png = imagePng(engine, item.src, dist, item.w, fonts.files());
 				if (png) {
@@ -446,6 +638,8 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 				}
 			}
 		}
+		for (const { t, items, frame } of tables)
+			if (frame) Object.assign(frame, tableSpec(engine, t, items, layout.boxes, k));
 		// Fill in the block text boxes now that every line is known.
 		for (const [n, el] of elements.entries()) {
 			if (el.type === "textbox" && el.runs.length === 0) {
@@ -453,7 +647,9 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 				if (group) elements[n] = fillBlock(el, group, k);
 			}
 		}
-		slides.push({ background: hex(scene.background), elements });
+		// A transparent slide shows the (white) page behind it.
+		const background = scene.background.alpha > 0 ? hex(scene.background) : "FFFFFF";
+		slides.push({ background, elements });
 	});
 	if (process.stdout.isTTY) console.log("");
 	console.log(`  ${layouts.length} slides`);

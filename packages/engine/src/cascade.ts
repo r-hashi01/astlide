@@ -50,6 +50,14 @@ strong,b,th{font-weight:bold}
 em,i,cite{font-style:italic}
 code,kbd,pre,samp{font-family:monospace}
 pre{white-space:pre}
+table{display:table}
+thead{display:table-header-group}
+tbody{display:table-row-group}
+tfoot{display:table-footer-group}
+tr{display:table-row}
+td,th{display:table-cell;padding:1px}
+th{text-align:center}
+caption{display:table-caption;text-align:center}
 `;
 
 /** Properties inherited by default (the subset we compute). */

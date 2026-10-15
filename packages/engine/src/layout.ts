@@ -4,7 +4,7 @@
  * as measured leaves, then read back absolute boxes and text lines.
  */
 
-import type { ChildNode, Element, Text } from "domhandler";
+import { type ChildNode, Element, Text } from "domhandler";
 import Yoga, {
 	Align,
 	BoxSizing,
@@ -83,8 +83,32 @@ export interface SlideLayout {
 	lines: TextLine[];
 	/** List item markers (•, 1. …), positioned like Chromium's outside markers. */
 	markers: TextLine[];
+	/** Tables, with their grid (their cells are also in `boxes`). */
+	tables: TableBox[];
 	/** Slide descendants by element id (document order). */
 	elements: Element[];
+}
+
+/** Tag of the synthetic elements that stand for `::before` / `::after`. */
+const PSEUDO_TAG = "astlide-pseudo";
+
+/**
+ * The text a `content` value generates: strings (with CSS escapes) and
+ * `attr()`; counters and quotes give nothing. `none` / `normal` / unset: no box.
+ */
+function generatedContent(value: string | undefined, el: Element): string | null {
+	const v = value?.trim();
+	if (!v || v === "none" || v === "normal") return null;
+	let out = "";
+	for (const m of v.matchAll(/"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|attr\(\s*([\w-]+)\s*\)/g)) {
+		if (m[3]) out += el.attribs[m[3]] ?? "";
+		else
+			out += (m[1] ?? m[2] ?? "").replace(
+				/\\([0-9a-f]{1,6})\s?|\\(.)/gi,
+				(_, hex: string, ch: string) => (hex ? String.fromCodePoint(Number.parseInt(hex, 16)) : ch),
+			);
+	}
+	return out;
 }
 
 const isElement = (n: ChildNode): n is Element =>
@@ -114,11 +138,70 @@ interface BoxNode {
 	gridGap?: number;
 }
 
+/** A table cell while building: its grid position and content widths (border box). */
+interface CellNode {
+	node: YogaNode;
+	style: Computed;
+	eid: number;
+	col: number;
+	span: number;
+	min: number;
+	max: number;
+	/** Horizontal padding + border: subtracted again when the cell is content-box. */
+	edges: number;
+}
+
+interface TableNode {
+	node: YogaNode;
+	style: Computed;
+	eid: number;
+	rows: { node: YogaNode; eid: number; cells: CellNode[] }[];
+}
+
+/** A laid-out table: rows of cells on a column grid, in slide coordinates. */
+export interface TableBox {
+	eid: number;
+	x: number;
+	y: number;
+	w: number;
+	h: number;
+	/** Column widths (border boxes of single-column cells). */
+	columns: number[];
+	rows: {
+		eid: number;
+		y: number;
+		h: number;
+		cells: TableCellBox[];
+	}[];
+}
+
+export interface TableCellBox {
+	eid: number;
+	col: number;
+	span: number;
+	x: number;
+	y: number;
+	w: number;
+	h: number;
+	style: Computed;
+	/** Resolved padding and border widths (px), per side. */
+	padding: Sides;
+	border: Sides;
+}
+
+export interface Sides {
+	top: number;
+	right: number;
+	bottom: number;
+	left: number;
+}
+
 class Builder {
 	readonly styles = new Map<Element, Computed>();
 	readonly eids = new Map<Element, number>();
 	readonly leaves: Leaf[] = [];
 	readonly boxNodes: BoxNode[] = [];
+	readonly tables: TableNode[] = [];
 	rootFontSize = 16;
 	readonly config = Yoga.Config.create();
 	/** Parent of each node we created (Yoga's getParent/getChild return fresh wrappers). */
@@ -253,6 +336,48 @@ class Builder {
 		if (alignSelf && alignSelf !== "auto") node.setAlignSelf(alignOf(alignSelf));
 	}
 
+	private readonly pseudoKids = new Map<Element, ChildNode[]>();
+
+	/**
+	 * An element's children plus its `::before` / `::after` boxes, as
+	 * synthetic elements holding their generated text, when `content` makes
+	 * them exist.
+	 */
+	childrenOf(el: Element, style: Computed): ChildNode[] {
+		const hit = this.pseudoKids.get(el);
+		if (hit) return hit;
+		const out: ChildNode[] = [...el.children];
+		if (el.name !== PSEUDO_TAG) {
+			for (const which of ["before", "after"] as const) {
+				const declared = this.sheets.declared(el, which);
+				const text = generatedContent(declared.get("content"), el);
+				if (text === null) continue;
+				const p = new Element(PSEUDO_TAG, {});
+				if (text) {
+					const t = new Text(text);
+					t.parent = p;
+					p.children = [t];
+				}
+				p.parent = el;
+				const s = computeStyle(declared, {
+					parent: style,
+					rootFontSize: this.rootFontSize,
+					vp: this.vp,
+				});
+				const opacity = Number.parseFloat(s.get("opacity") ?? "1");
+				s.set(
+					"__alpha",
+					String(Number(style.get("__alpha") ?? 1) * (Number.isNaN(opacity) ? 1 : opacity)),
+				);
+				this.styles.set(p, s);
+				if (which === "before") out.unshift(p);
+				else out.push(p);
+			}
+		}
+		this.pseudoKids.set(el, out);
+		return out;
+	}
+
 	/** Collect inline content (text + inline element edges) under `nodes`. */
 	private collectInline(nodes: ChildNode[], parentStyle: Computed, items: InlineItem[]): void {
 		for (const n of nodes) {
@@ -288,7 +413,7 @@ class Builder {
 				items.push({ kind: "open", id });
 				const il = sum("border-left-width", "padding-left");
 				if (il) items.push({ kind: "space", width: il });
-				this.collectInline(n.children, s, items);
+				this.collectInline(this.childrenOf(n, s), s, items);
 				const ir = sum("border-right-width", "padding-right");
 				if (ir) items.push({ kind: "space", width: ir });
 				items.push({ kind: "close", id });
@@ -321,7 +446,155 @@ class Builder {
 	private isInlineLevel(n: ChildNode, parentStyle: Computed): boolean {
 		if (isText(n)) return true;
 		if (!isElement(n)) return false;
+		// Replaced elements aren't laid out inline (no atomic inlines yet): their own box.
+		if (n.name === "img" || n.name === "svg") return false;
 		return INLINE.has(this.styleOf(n, parentStyle).get("display") ?? "inline") || n.name === "br";
+	}
+
+	/**
+	 * A table as a column of rows of cells. Column widths need the table's
+	 * width, so they are set after a first layout ({@link sizeTables}); here
+	 * each cell records its min- / max-content width.
+	 */
+	private buildTable(el: Element, style: Computed, node: YogaNode): YogaNode {
+		node.setFlexDirection(FlexDirection.Column);
+		node.setAlignItems(Align.Stretch);
+		const rows: [Element, Computed][] = [];
+		const footers: [Element, Computed][] = [];
+		const visit = (parent: Element, ps: Computed, footer: boolean) => {
+			for (const c of parent.children) {
+				if (!isElement(c)) continue;
+				const cs = this.styleOf(c, ps);
+				const d = cs.get("display") ?? "inline";
+				if (d === "table-row") (footer ? footers : rows).push([c, cs]);
+				else if (d === "table-header-group") {
+					const head: [Element, Computed][] = [];
+					const before = rows.length;
+					visit(c, cs, false);
+					head.push(...rows.splice(before));
+					rows.unshift(...head);
+				} else if (d === "table-row-group") visit(c, cs, footer);
+				else if (d === "table-footer-group") visit(c, cs, true);
+			}
+		};
+		visit(el, style, false);
+		const table: TableNode = { node, style, eid: this.eids.get(el) ?? -1, rows: [] };
+		const len = (s: Computed, prop: string) => {
+			const v = this.px(s, prop);
+			return Number.isNaN(v) ? 0 : v;
+		};
+		for (const [r, rs] of [...rows, ...footers]) {
+			const rowNode = Yoga.Node.create(this.config);
+			this.applyBox(rowNode, rs);
+			rowNode.setFlexDirection(FlexDirection.Row);
+			rowNode.setAlignItems(Align.Stretch);
+			this.add(node, rowNode);
+			const rowEid = this.eids.get(r) ?? -1;
+			this.boxNodes.push({ node: rowNode, el: r, style: rs, eid: rowEid });
+			const cells: CellNode[] = [];
+			let col = 0;
+			for (const c of r.children) {
+				if (!isElement(c)) continue;
+				const cs = this.styleOf(c, rs);
+				if ((cs.get("display") ?? "") !== "table-cell") continue;
+				const before = this.leaves.length;
+				const cn = this.build(c, cs, true);
+				if (!cn) continue;
+				cn.setFlexGrow(0);
+				cn.setFlexShrink(0);
+				const va = cs.get("vertical-align") ?? "middle";
+				cn.setJustifyContent(
+					va === "top" ? Justify.FlexStart : va === "bottom" ? Justify.FlexEnd : Justify.Center,
+				);
+				this.add(rowNode, cn);
+				const eid = this.eids.get(c) ?? -1;
+				this.boxNodes.push({ node: cn, el: c, style: cs, eid });
+				const leaves = this.leaves.slice(before);
+				const edges = ["padding-left", "padding-right", "border-left-width", "border-right-width"]
+					.map((p) => len(cs, p))
+					.reduce((a, b) => a + b, 0);
+				const content = (w: number) =>
+					Math.max(
+						0,
+						...leaves.map((l) => layoutLines(l.items, w, l.strut, "left", this.fonts).width),
+					);
+				const span = Math.max(1, Number.parseInt(c.attribs.colspan ?? "1", 10) || 1);
+				cells.push({
+					node: cn,
+					style: cs,
+					eid,
+					col,
+					span,
+					min: content(0) + edges,
+					max: content(Number.POSITIVE_INFINITY) + edges,
+					edges: cs.get("box-sizing") === "border-box" ? 0 : edges,
+				});
+				col += span;
+			}
+			table.rows.push({ node: rowNode, eid: rowEid, cells });
+		}
+		this.tables.push(table);
+		return node;
+	}
+
+	/**
+	 * Column widths (CSS automatic table layout, simplified): every column gets
+	 * its max-content width when that fits, widened in proportion to fill a
+	 * table with a set width; otherwise between min- and max-content.
+	 * Returns whether anything changed (a relayout is needed).
+	 */
+	sizeTables(): boolean {
+		for (const t of this.tables) {
+			const n = Math.max(
+				0,
+				...t.rows.map((r) => r.cells.reduce((a, c) => Math.max(a, c.col + c.span), 0)),
+			);
+			if (n === 0) continue;
+			const min = Array<number>(n).fill(0);
+			const max = Array<number>(n).fill(0);
+			const cells = t.rows.flatMap((r) => r.cells);
+			for (const c of cells.filter((c) => c.span === 1)) {
+				min[c.col] = Math.max(min[c.col] ?? 0, c.min);
+				max[c.col] = Math.max(max[c.col] ?? 0, c.max);
+			}
+			for (const c of cells.filter((c) => c.span > 1)) {
+				const cols = [...Array(c.span).keys()].map((i) => c.col + i).filter((i) => i < n);
+				for (const [arr, need] of [
+					[min, c.min],
+					[max, c.max],
+				] as const) {
+					const have = cols.reduce((a, i) => a + (arr[i] ?? 0), 0);
+					if (need > have)
+						for (const i of cols) arr[i] = (arr[i] ?? 0) + (need - have) / cols.length;
+				}
+			}
+			const node = t.node;
+			const inner =
+				node.getComputedWidth() -
+				node.getComputedPadding(Edge.Left) -
+				node.getComputedPadding(Edge.Right) -
+				node.getComputedBorder(Edge.Left) -
+				node.getComputedBorder(Edge.Right);
+			const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
+			const sumMin = sum(min);
+			const sumMax = sum(max);
+			const auto = (t.style.get("width") ?? "auto").trim() === "auto";
+			let widths: number[];
+			if (sumMax <= inner) {
+				widths = auto ? max : max.map((m) => m + (inner - sumMax) * (sumMax ? m / sumMax : 1 / n));
+			} else if (sumMin < inner) {
+				widths = min.map(
+					(m, i) => m + (((max[i] ?? m) - m) * (inner - sumMin)) / (sumMax - sumMin),
+				);
+			} else widths = min;
+			if (auto && sumMax <= inner) {
+				const extra = node.getComputedWidth() - inner;
+				node.setWidth(sum(widths) + extra);
+			}
+			for (const c of cells)
+				c.node.setWidth(Math.max(0, sum(widths.slice(c.col, c.col + c.span)) - c.edges));
+		}
+		return this.tables.length > 0;
 	}
 
 	/**
@@ -329,12 +602,25 @@ class Builder {
 	 * it `auto`, and its aspect ratio, so a `max-width` scales the height too.
 	 */
 	private replacedSize(el: Element, node: YogaNode, style: Computed): void {
-		const w = Number.parseFloat(el.attribs.width ?? "");
-		const h = Number.parseFloat(el.attribs.height ?? "");
-		if (!(w > 0 && h > 0)) return;
 		const auto = (prop: string) => (style.get(prop) ?? "auto").trim() === "auto";
-		if (auto("width") && auto("height")) node.setWidth(w);
-		node.setAspectRatio(w / h);
+		const px = (v: string | undefined) =>
+			v && /^[\d.]+(px)?$/.test(v.trim()) ? Number.parseFloat(v) : Number.NaN;
+		const w = px(el.attribs.width);
+		const h = px(el.attribs.height);
+		const view = (el.attribs.viewBox ?? el.attribs.viewbox ?? "")
+			.trim()
+			.split(/[\s,]+/)
+			.map(Number);
+		const ratio =
+			w > 0 && h > 0
+				? w / h
+				: (view[2] ?? 0) > 0 && (view[3] ?? 0) > 0
+					? (view[2] ?? 1) / (view[3] ?? 1)
+					: Number.NaN;
+		if (auto("width") && w > 0) node.setWidth(w);
+		else if (auto("width") && el.name === "svg" && !(ratio > 0)) node.setWidth(300);
+		if (auto("height") && !(ratio > 0)) node.setHeight(h > 0 ? h : 150);
+		if (ratio > 0) node.setAspectRatio(ratio);
 	}
 
 	/**
@@ -347,6 +633,12 @@ class Builder {
 		const node = Yoga.Node.create(this.config);
 		this.applyBox(node, style);
 		if (el.name === "img") this.replacedSize(el, node, style);
+		// Inline SVG: a picture of its own size; its content is drawn as a whole (see toScene).
+		if (el.name === "svg") {
+			this.replacedSize(el, node, style);
+			return node;
+		}
+		if (display === "table" || display === "inline-table") return this.buildTable(el, style, node);
 
 		const isFlex = display === "flex" || display === "inline-flex";
 		const isGrid = display === "grid";
@@ -405,7 +697,7 @@ class Builder {
 			}
 			run = [];
 		};
-		for (const child of el.children) {
+		for (const child of this.childrenOf(el, style)) {
 			if (isText(child)) {
 				// In flex / grid containers each text run is its own anonymous item.
 				if (container) {
@@ -578,6 +870,7 @@ export function layoutSlide(
 			inlineBoxes: [],
 			lines: [],
 			markers: [],
+			tables: [],
 			elements: [],
 		};
 	if ((slideStyle.get("width") ?? "auto") === "auto") root.setWidth(vp.width);
@@ -600,6 +893,8 @@ export function layoutSlide(
 		changed = true;
 	}
 	if (changed) root.calculateLayout(vp.width, vp.height, Direction.LTR);
+	// Tables: column widths from the table's width, then lay out again.
+	if (b.sizeTables()) root.calculateLayout(vp.width, vp.height, Direction.LTR);
 
 	const boxes: Box[] = [];
 	for (const bn of b.boxNodes) {
@@ -659,6 +954,50 @@ export function layoutSlide(
 		}
 	}
 	const markers = listMarkers(b, boxes, lines, sheets, fonts);
+	const tables: TableBox[] = b.tables.map((t) => {
+		const p = b.absolute(t.node);
+		const columns: number[] = [];
+		const rows = t.rows.map((r) => {
+			const rp = b.absolute(r.node);
+			return {
+				eid: r.eid,
+				y: rp.y,
+				h: r.node.getComputedHeight(),
+				cells: r.cells.map((c) => {
+					const cp = b.absolute(c.node);
+					const w = c.node.getComputedWidth();
+					if (c.span === 1) columns[c.col] = w;
+					const sides = (get: (e: Edge) => number): Sides => ({
+						top: get(Edge.Top),
+						right: get(Edge.Right),
+						bottom: get(Edge.Bottom),
+						left: get(Edge.Left),
+					});
+					return {
+						eid: c.eid,
+						col: c.col,
+						span: c.span,
+						x: cp.x,
+						y: cp.y,
+						w,
+						h: c.node.getComputedHeight(),
+						style: c.style,
+						padding: sides((e) => c.node.getComputedPadding(e)),
+						border: sides((e) => c.node.getComputedBorder(e)),
+					};
+				}),
+			};
+		});
+		return {
+			eid: t.eid,
+			x: p.x,
+			y: p.y,
+			w: t.node.getComputedWidth(),
+			h: t.node.getComputedHeight(),
+			columns: [...columns].map((w) => w ?? 0),
+			rows,
+		};
+	});
 	return {
 		width: root.getComputedWidth(),
 		height: root.getComputedHeight(),
@@ -667,6 +1006,7 @@ export function layoutSlide(
 		inlineBoxes,
 		lines,
 		markers,
+		tables,
 		elements: [...b.eids.keys()],
 	};
 }
