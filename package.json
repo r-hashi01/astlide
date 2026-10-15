@@ -11,6 +11,7 @@
 		"dev": "bun run --filter astlide-playground dev",
 		"build": "bun run --filter astlide-playground build",
 		"preview": "bun run --filter astlide-playground preview",
+		"export": "bun packages/astlide/src/cli/astlide.ts export --cwd playground",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"typecheck": "cd playground && bunx astro sync && node --import ../scripts/use-typescript6.mjs ../scripts/typecheck.mjs",

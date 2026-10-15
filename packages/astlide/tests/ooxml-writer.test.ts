@@ -5,6 +5,7 @@ import { inflateRawSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	crc32,
+	dosDateTime,
 	emu,
 	esc,
 	hpt,
@@ -164,6 +165,38 @@ describe("ZipWriter", () => {
 		const eocdSig = Buffer.alloc(4);
 		eocdSig.writeUInt32LE(0x06054b50);
 		expect(buf.includes(eocdSig)).toBe(true);
+	});
+
+	// PowerPoint asks to repair packages whose entries claim a data descriptor
+	// (flag bit 3) without one, or carry an invalid DOS date (month / day 0).
+	it("writes headers PowerPoint accepts: no data-descriptor flag, a valid DOS date", () => {
+		const zip = new ZipWriter();
+		zip.add("a.xml", "<a/>");
+		const buf = zip.toBuffer();
+		const flags = buf.readUInt16LE(6);
+		expect(flags & 0x0008).toBe(0);
+		expect(flags & 0x0800).toBe(0x0800); // UTF-8 names
+		const date = buf.readUInt16LE(12);
+		const month = (date >> 5) & 0x0f;
+		const day = date & 0x1f;
+		expect(month).toBeGreaterThanOrEqual(1);
+		expect(month).toBeLessThanOrEqual(12);
+		expect(day).toBeGreaterThanOrEqual(1);
+		// Central directory entry carries the same flags.
+		const cd = buf.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+		expect(buf.readUInt16LE(cd + 8)).toBe(flags);
+	});
+});
+
+describe("dosDateTime", () => {
+	it("encodes 1-based months and days", () => {
+		const { date, time } = dosDateTime(new Date(2026, 9, 9, 21, 22, 24));
+		expect(date >> 9).toBe(2026 - 1980);
+		expect((date >> 5) & 0x0f).toBe(10);
+		expect(date & 0x1f).toBe(9);
+		expect(time >> 11).toBe(21);
+		expect((time >> 5) & 0x3f).toBe(22);
+		expect((time & 0x1f) * 2).toBe(24);
 	});
 });
 

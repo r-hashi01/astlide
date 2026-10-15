@@ -32,7 +32,7 @@ export default defineConfig({
 | `slideDecorators` | `string[]` | `[]` | Components rendered on every slide (module specifiers). |
 | `plugins` | `AstlidePlugin[]` | `[]` | Themes, layouts, transitions, Shiki langs / themes, decorators — see [Plugin API](/astlide/guides/themes-and-plugins/#plugin-api). |
 | `shikiTheme` | `string` | `"github-dark"` | Shiki theme for code fences. |
-| `font` | `false \| string \| { href?, preconnect? }` | Inter from Google Fonts | Web font stylesheet to inject, or `false` for none. |
+| `font` | `false \| string \| { href?, preconnect? }` | Inter + JetBrains Mono from Google Fonts | Web font stylesheet to inject, or `false` for none. |
 | `favicon` | `string \| false` | auto | Favicon for deck pages and the index. Default: `favicon.svg` / `.ico` / `.png` from `public/` if present, else an empty icon (no request to `/favicon.ico` at the domain root). A root-relative path gets Astro's `base`. `false`: no icon link. |
 | `csp` | `boolean \| string` | `true` | Inject a default Content-Security-Policy meta tag, disable it, or provide your own policy. In `astro dev`, `worker-src 'self' blob:` is added (unless set) for Vite's client; the build keeps the policy as is. |
 | `indexable` | `boolean` | `false` | When `false`, pages carry `noindex, nofollow`. |
