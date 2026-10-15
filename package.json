@@ -35,7 +35,7 @@
 		"@types/pngjs": "^6.0.5",
 		"agent-browser": "^0.38.2",
 		"jszip": "3.10.2",
-		"pixelmatch": "^7.2.0",
+		"pixelmatch": "^8.0.0",
 		"pngjs": "^7.0.0",
 		"pptxgenjs": "^4.0.1",
 		"typescript": "^7.0.2",
