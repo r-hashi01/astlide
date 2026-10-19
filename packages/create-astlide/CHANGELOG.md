@@ -1,5 +1,15 @@
 # create-astlide
 
+## 0.2.2
+
+### Patch Changes
+
+- [#105](https://github.com/r-hashi01/astlide/pull/105) [`2b68573`](https://github.com/r-hashi01/astlide/commit/2b685735ff81d6b306d7deb7b8eb619a59df148a) Thanks [@r-hashi01](https://github.com/r-hashi01)! - New `astlide export` command — one CLI for every format: `astlide export my-talk [--pdf] [--pptx] [--png]`, or `--all`. PDF / PNG no longer need a running server: the site is built and served on a free port for the export, and Astro's `base` is detected. `--base-url` still exports from a server you run. Exports go to `exports/`. New projects get a `bun run export` script.
+
+  Also fixed: exported PDFs ended with a blank page. A trailing page break and Mermaid's hover tooltip spilled past the last slide.
+
+- [#80](https://github.com/r-hashi01/astlide/pull/80) [`fe43b55`](https://github.com/r-hashi01/astlide/commit/fe43b55dca33b26f8cfaae4791694bd4523bc031) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Update the package descriptions: "Slides that live in your Astro site".
+
 ## 0.2.1
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
 	"name": "@astlide/engine",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"type": "module",
 	"description": "Lay out HTML + CSS slides without a browser",
 	"license": "MIT",
