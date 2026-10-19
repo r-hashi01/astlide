@@ -33,12 +33,14 @@
  * ```
  */
 
+import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Loader, LoaderContext } from "astro/loaders";
 import { glob } from "astro/loaders";
 import { load as parseYaml } from "js-yaml";
+import { pptxAssetDir, storePptxAsset } from "./utils/pptx-assets";
 
 /** Options for {@link astlideDeckLoader}. */
 export interface AstlideDeckLoaderOptions {
@@ -52,6 +54,7 @@ export interface AstlideDeckLoaderOptions {
 /** Extensions this loader treats as slides. */
 const SLIDE_EXTENSION = /\.(?:mdx|md|html?)$/i;
 const HTML_EXTENSION = /\.html?$/i;
+const PPTX_EXTENSION = /\.pptx$/i;
 
 /**
  * Derive a stable, extension-less entry ID from a path relative to the deck base.
@@ -97,6 +100,7 @@ export function astlideDeckLoader(options: AstlideDeckLoaderOptions = {}): Loade
 			await markdownLoader.load(context);
 			const baseUrl = new URL(`${base.replace(/\/?$/, "/")}`, context.config.root);
 			await syncHtmlSlides(context, baseUrl);
+			await syncPptxSlides(context, baseUrl);
 
 			// Astro's glob delegate only watches its own `.md`/`.mdx` pattern, so wire
 			// HTML files up separately for dev HMR. Reconcile on every relevant change.
@@ -107,6 +111,9 @@ export function astlideDeckLoader(options: AstlideDeckLoaderOptions = {}): Loade
 					if (HTML_EXTENSION.test(changedPath)) {
 						void syncHtmlSlides(context, baseUrl);
 					}
+					if (PPTX_EXTENSION.test(changedPath)) {
+						void syncPptxSlides(context, baseUrl);
+					}
 				};
 				watcher.on("add", onChange);
 				watcher.on("change", onChange);
@@ -114,6 +121,76 @@ export function astlideDeckLoader(options: AstlideDeckLoaderOptions = {}): Loade
 			}
 		},
 	};
+}
+
+/**
+ * Every `.pptx` under `baseUrl` (PowerPoint, or Google Slides / Keynote
+ * exported as PowerPoint) becomes one slide entry per page, in place: entry
+ * ids are the file's (`02-talk.pptx` → `02-talk--001`, `02-talk--002` …), so
+ * they sort between their neighbours. Titles, speaker notes and hidden
+ * slides carry over; pictures are inlined.
+ */
+async function syncPptxSlides(context: LoaderContext, baseUrl: URL): Promise<void> {
+	const { store, parseData, config, logger } = context;
+	const baseDir = fileURLToPath(baseUrl);
+	let files: string[];
+	try {
+		const entries = await readdir(baseDir, { recursive: true, withFileTypes: true });
+		files = entries
+			.filter((e) => e.isFile() && PPTX_EXTENSION.test(e.name) && !e.name.startsWith("~$"))
+			.map((e) => relative(baseDir, `${e.parentPath}/${e.name}`).replace(/\\/g, "/"));
+	} catch {
+		files = [];
+	}
+	const seen = new Set<string>();
+	if (files.length > 0) {
+		const { pptxToSlides } = await import("./pptx/index");
+		// Pictures and fonts become files served by the integration (not inlined in every slide).
+		const assets = pptxAssetDir(config.root);
+		const media = (file: { name: string; data: Buffer }) =>
+			storePptxAsset(assets, config.base ?? "/", file);
+		for (const relPath of files) {
+			const fileUrl = new URL(relPath, baseUrl);
+			const raw = await readFile(fileUrl);
+			const filePath = relative(fileURLToPath(config.root), fileURLToPath(fileUrl)).replace(
+				/\\/g,
+				"/",
+			);
+			let deck: ReturnType<typeof pptxToSlides>;
+			try {
+				deck = pptxToSlides(raw, { media });
+			} catch (error) {
+				logger.warn(`${filePath}: ${error instanceof Error ? error.message : error}`);
+				continue;
+			}
+			const digest = createHash("sha256").update(raw).digest("hex");
+			for (const slide of deck.slides) {
+				const id = `${relPath.replace(PPTX_EXTENSION, "")}--${String(slide.index).padStart(3, "0")}`;
+				seen.add(id);
+				const data = await parseData({
+					id,
+					data: {
+						title: slide.title,
+						notes: slide.notes || undefined,
+						hidden: slide.hidden,
+					},
+					filePath,
+				});
+				store.set({
+					id,
+					data,
+					filePath,
+					body: slide.html,
+					digest: `${digest}:${slide.index}`,
+					rendered: { html: slide.html },
+				});
+			}
+		}
+	}
+	// Remove entries whose .pptx was deleted, or pages it no longer has.
+	for (const [id, entry] of store.entries()) {
+		if (entry.filePath && PPTX_EXTENSION.test(entry.filePath) && !seen.has(id)) store.delete(id);
+	}
 }
 
 /**

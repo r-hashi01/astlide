@@ -9,7 +9,7 @@ import type { Page } from "playwright";
 import { describe, expect, it } from "vitest";
 import { open, useBrowser } from "./helpers/browser";
 
-const DECKS = ["example-deck", "tour"];
+const DECKS = ["example-deck", "tour", "from-powerpoint"];
 const THEMES = ["default", "dark", "minimal", "corporate", "gradient", "rose", "forest"];
 
 const browser = useBrowser();

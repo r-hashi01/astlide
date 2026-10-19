@@ -4,6 +4,7 @@
  *
  *   astlide export <deck> [--pdf] [--pptx] [--png]
  *   astlide export --all --pdf --pptx
+ *   astlide import talk.pptx [--deck my-talk]
  *
  * Every format starts from the built site. PDF and PNG are rendered by a
  * browser: unless `--base-url` points at a running server, dist/ is served on
@@ -40,6 +41,11 @@ Usage:
     <deck> is a deck name, or a path to it (src/content/decks/my-talk,
     dist/my-talk, …) — the project is then found from that path
   astlide export --all [formats] [options]
+  astlide import <file.pptx | Google Slides URL> [--deck <name>] [--force]
+    Turn a PowerPoint (or Google Slides / Keynote saved as PowerPoint) into
+    an editable deck: src/content/decks/<deck>/*.html, pictures in public/pptx/.
+    A Google Slides URL works when the deck is shared as "Anyone with the link".
+    (To show a .pptx as is, just put it in a deck folder.)
 
 Formats (combine as needed; default --pdf):
   --pdf                 One multi-page PDF per deck
@@ -63,6 +69,7 @@ Examples:
   astlide export my-talk --pptx          # → exports/my-talk.pptx
   astlide export --all --pdf --pptx
   astlide export my-talk --base-url http://localhost:4321
+  astlide import ~/Downloads/kickoff.pptx --deck kickoff
 `;
 
 function fail(message: string): never {
@@ -257,15 +264,50 @@ async function runExport(options: Options): Promise<void> {
 	}
 }
 
+async function runImport(args: string[]): Promise<void> {
+	let source: string | undefined;
+	let deck: string | undefined;
+	let cwd = process.cwd();
+	let force = false;
+	for (let i = 0; i < args.length; i++) {
+		const arg = args[i] as string;
+		if (arg === "--deck") deck = args[++i] ?? fail("--deck needs a name");
+		else if (arg === "--cwd") cwd = resolve(args[++i] ?? fail("--cwd needs a directory"));
+		else if (arg === "--force") force = true;
+		else if (arg.startsWith("-")) fail(`unknown option ${arg}`);
+		else if (source) fail("import takes one file or URL");
+		else source = arg;
+	}
+	if (!source) fail("name a .pptx file or a Google Slides URL");
+	const root = findProjectRoot(cwd);
+	if (!root)
+		fail(
+			`no Astlide project here (no src/content/decks in ${cwd} or above) — run it in your project, or pass --cwd`,
+		);
+	const { importDeck } = await import("./import");
+	const isUrl = /^https?:/.test(source);
+	const result = await importDeck({
+		source: isUrl ? source : resolve(process.cwd(), source),
+		root,
+		deck,
+		force,
+	});
+	console.log(`✓ Imported ${result.slides} slides → ${result.dir}`);
+}
+
 async function main(): Promise<void> {
 	const [command, ...rest] = process.argv.slice(2);
 	if (!command || command === "-h" || command === "--help") {
 		console.log(HELP);
 		return;
 	}
-	if (command !== "export") fail(`unknown command "${command}"`);
+	if (command !== "export" && command !== "import") fail(`unknown command "${command}"`);
 	if (rest.includes("-h") || rest.includes("--help")) {
 		console.log(HELP);
+		return;
+	}
+	if (command === "import") {
+		await runImport(rest);
 		return;
 	}
 	await runExport(parseExportArgs(rest));

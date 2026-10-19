@@ -68,25 +68,31 @@ describe("astlide integration", () => {
 	// ── Route injection ──
 
 	describe("route injection", () => {
-		it("injects all-slides print route, slide route, and index route", () => {
+		it("injects the pptx asset, print, slide and index routes", () => {
 			const { args } = runSetup();
 
-			expect(args.injectRoute).toHaveBeenCalledTimes(3);
+			expect(args.injectRoute).toHaveBeenCalledTimes(4);
+
+			// Pictures / fonts of .pptx slides (a static first segment, so it beats /[deck]/…).
+			expect(args.injectRoute).toHaveBeenNthCalledWith(1, {
+				pattern: "/_astlide/pptx/[file]",
+				entrypoint: "@astlide/core/internal/pages/pptx-asset.ts",
+			});
 
 			// Print route (must be injected before the generic slide pattern so it wins).
-			expect(args.injectRoute).toHaveBeenNthCalledWith(1, {
+			expect(args.injectRoute).toHaveBeenNthCalledWith(2, {
 				pattern: "/[deck]/all",
 				entrypoint: "@astlide/core/internal/pages/all.astro",
 			});
 
 			// Slide route
-			expect(args.injectRoute).toHaveBeenNthCalledWith(2, {
+			expect(args.injectRoute).toHaveBeenNthCalledWith(3, {
 				pattern: "/[deck]/[...slide]",
 				entrypoint: "@astlide/core/internal/pages/slide.astro",
 			});
 
 			// Index route
-			expect(args.injectRoute).toHaveBeenNthCalledWith(3, {
+			expect(args.injectRoute).toHaveBeenNthCalledWith(4, {
 				pattern: "/",
 				entrypoint: "@astlide/core/internal/pages/index.astro",
 			});

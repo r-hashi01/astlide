@@ -10,6 +10,7 @@ import { astlideCodeHighlight } from "./utils/code-highlight";
 import { astlideCommentNotesPlugin } from "./utils/comment-notes";
 import { resolveFavicon } from "./utils/favicon";
 import { astlideMermaid } from "./utils/mermaid";
+import { PPTX_ASSET_ROUTE, pptxAssetDir } from "./utils/pptx-assets";
 
 // Re-export the typed deck/slide metadata API
 export type { DeckContext } from "./context";
@@ -376,6 +377,7 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 							__ASTLIDE_TRANSITION_NAMES__: JSON.stringify([...resolved.transitionNames]),
 							__ASTLIDE_TOOLBAR__: JSON.stringify(options.toolbar ?? ["prev", "counter", "next"]),
 							__ASTLIDE_FONT__: JSON.stringify(resolveFontOption(options.font)),
+							__ASTLIDE_PPTX_ASSETS__: JSON.stringify(pptxAssetDir(config.root)),
 							__ASTLIDE_FAVICON__: JSON.stringify(favicon),
 							// Page URLs end in "/" when that's how the site is served (see utils/base-path).
 							__ASTLIDE_TRAILING_SLASH__: JSON.stringify(
@@ -390,6 +392,11 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 
 				// Inject the page routes. `/[deck]/all` must come before `/[deck]/[...slide]`
 				// so Astro's router matches it ahead of the generic slide pattern.
+				// Pictures and fonts of .pptx slides (written by the deck loader).
+				injectRoute({
+					pattern: `${PPTX_ASSET_ROUTE}/[file]`,
+					entrypoint: "@astlide/core/internal/pages/pptx-asset.ts",
+				});
 				injectRoute({
 					pattern: "/[deck]/all",
 					entrypoint: "@astlide/core/internal/pages/all.astro",

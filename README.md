@@ -498,6 +498,15 @@ bunx astlide export --all --pdf --pptx      # every deck
 
 PDF / PNG: the site is built and served on a free port for the export (no dev server to start; Astro's `base` is detected). Use `--base-url` to export from a server you already run. PPTX is laid out from the built slides without a browser: native shapes and editable text.
 
+## Importing PowerPoint & Google Slides
+
+Drop a `.pptx` into a deck folder and its pages show up as slides, among your Markdown ones — text stays text, shapes / pictures / tables keep their place, notes come along. Or turn it into an editable deck:
+
+```bash
+bunx astlide import kickoff.pptx --deck kickoff
+bunx astlide import https://docs.google.com/presentation/d/…   # shared as "Anyone with the link"
+```
+
 ## Deploying under a sub-path
 
 Astlide honours Astro's [`base`](https://docs.astro.build/en/reference/configuration-reference/#base) option — every internal link, the presenter preview, overview thumbnails and PDF export resolve against it. For example, a GitHub Pages project site:
