@@ -12,6 +12,9 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, extname, join, relative } from "node:path";
 import { pptxToSlides } from "../pptx/index";
+import { slugify } from "../pptx/slug";
+
+export { slugify };
 
 export interface ImportOptions {
 	/** A .pptx path, or a Google Slides URL. */
@@ -25,18 +28,6 @@ export interface ImportOptions {
 }
 
 const GOOGLE_SLIDES = /^https:\/\/docs\.google\.com\/presentation\/d\/([\w-]+)/;
-
-/** A folder / file name from free text: lowercase words joined by hyphens. */
-export function slugify(text: string, fallback = "slide"): string {
-	const slug = text
-		.normalize("NFKD")
-		.toLowerCase()
-		.replace(/[^\p{Letter}\p{Number}]+/gu, "-")
-		.replace(/^-+|-+$/g, "")
-		.slice(0, 48)
-		.replace(/-+$/, "");
-	return slug || fallback;
-}
 
 /** The deck's bytes: a local file, or a Google Slides deck exported as PowerPoint. */
 async function readSource(source: string): Promise<{ data: Buffer; name: string }> {

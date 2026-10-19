@@ -30,6 +30,10 @@ A theme is CSS scoped to `[data-theme="<name>"]` that sets Astlide's custom prop
 
 Register it through a plugin (below), then set `"theme": "my-theme"` in the deck's `_config.json`.
 
+### From a PowerPoint template
+
+A `.pptx` / `.potx` / `.thmx` template can be a theme too — its backgrounds, fonts, colors and placeholder positions: `astlide({ templates: { brand: './brand.pptx' } })`. See [PowerPoint templates](/astlide/guides/templates/).
+
 ## Plugin API
 
 Plugins contribute themes, layouts, transitions, Shiki languages / themes and slide decorators.

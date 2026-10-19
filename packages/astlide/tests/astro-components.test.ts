@@ -149,6 +149,42 @@ describe("Fragments", () => {
 // ── Slide ─────────────────────────────────────────────────────────────────────
 
 describe("Slide", () => {
+	describe("with a PowerPoint template theme", () => {
+		const render = (props: Record<string, unknown>) =>
+			container.renderToString(Slide, {
+				props: { theme: "fixture-template", slideNumber: 3, totalSlides: 9, ...props },
+			});
+
+		it("draws the template layout standing for a built-in one", async () => {
+			const html = await render({ layout: "cover" });
+			expect(html).toMatch(/class="[^"]*astlide-tpl astlide-tpl-title-slide/);
+			expect(html).toContain("title art");
+			expect(html).not.toContain("astlide-tpl-number");
+		});
+
+		it("takes template layouts by name, with their slide number", async () => {
+			const html = await render({ layout: "title-and-content" });
+			expect(html).toContain("content art");
+			expect(html).toMatch(/<div class="astlide-tpl-number"[^>]*>3<\/div>/);
+		});
+
+		it("falls back to the master's artwork", async () => {
+			const html = await render({ layout: "quote" });
+			expect(html).toContain("master art");
+			expect(html).not.toMatch(/astlide-tpl astlide-tpl-/);
+		});
+
+		it("shows a slide's own background instead", async () => {
+			const html = await render({ layout: "cover", background: "#000000" });
+			expect(html).not.toContain("title art");
+		});
+
+		it("leaves other themes alone", async () => {
+			const html = await render({ layout: "cover", theme: "dark" });
+			expect(html).not.toContain("astlide-tpl");
+		});
+	});
+
 	it("renders with default layout class", async () => {
 		const html = await container.renderToString(Slide, { props: {} });
 		expect(html).toContain("slide-default");

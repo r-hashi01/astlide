@@ -19,3 +19,18 @@ declare module "virtual:astlide/mermaid" {
 	/** Lazy loader for the optional `mermaid` package, or `null` when it isn't installed. */
 	export const loadMermaid: (() => Promise<MermaidModule>) | null;
 }
+
+declare module "virtual:astlide/templates" {
+	/** PowerPoint templates registered as themes (`astlide({ templates })`), by theme name. */
+	export const templates: Record<
+		string,
+		{
+			/** Template layouts by id: their artwork, and whether they show a slide number. */
+			layouts: Record<string, { art: string; slideNumber: boolean }>;
+			/** Built-in layout name → template layout id. */
+			aliases: Record<string, string>;
+			/** The master's artwork (for layouts the template doesn't have). */
+			master: string;
+		}
+	>;
+}

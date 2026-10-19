@@ -26,6 +26,8 @@ export default defineConfig({
 			],
 			slideDecorators: ["./src/components/DeckFooter.astro"],
 			drawings: { persist: true },
+			// A PowerPoint template as a theme (used by the from-template deck).
+			templates: { brand: "./templates/brand.pptx" },
 		}),
 	],
 });

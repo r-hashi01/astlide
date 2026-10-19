@@ -7,6 +7,7 @@ import {
 	defineAstlidePlugin,
 	resolvePlugins,
 } from "./packages/astlide/src/plugin";
+import { astlideTemplatesPlugin } from "./packages/astlide/src/utils/pptx-templates";
 
 // Slide.astro imports `virtual:astlide/layouts`; the integration emits that
 // virtual module at build time, but in Container API tests the integration
@@ -23,8 +24,23 @@ const resolved = resolvePlugins([
 	}),
 ]);
 
+// A PowerPoint template theme, as `virtual:astlide/templates` serves it.
+const template = {
+	theme: "fixture-template",
+	source: "",
+	cssPath: "",
+	data: {
+		layouts: {
+			"title-slide": { art: '<i class="art">title art</i>', slideNumber: false },
+			"title-and-content": { art: '<i class="art">content art</i>', slideNumber: true },
+		},
+		aliases: { cover: "title-slide", default: "title-and-content" },
+		master: '<i class="art">master art</i>',
+	},
+};
+
 export default getViteConfig({
-	plugins: [astlideVirtualPlugin(resolved)],
+	plugins: [astlideVirtualPlugin(resolved), astlideTemplatesPlugin([template], (t) => t)],
 	test: {
 		name: "astro-components",
 		include: ["**/astro-components.test.ts"],

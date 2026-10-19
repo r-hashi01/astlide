@@ -507,6 +507,16 @@ bunx astlide import kickoff.pptx --deck kickoff
 bunx astlide import https://docs.google.com/presentation/d/…   # shared as "Anyone with the link"
 ```
 
+Or keep writing Markdown and use a PowerPoint template as the theme — its backgrounds, fonts, colors and placeholder positions:
+
+```js
+astlide({ templates: { brand: './templates/brand.pptx' } })   // .pptx / .potx / .thmx
+```
+
+```json
+{ "title": "Q3 review", "theme": "brand" }
+```
+
 ## Deploying under a sub-path
 
 Astlide honours Astro's [`base`](https://docs.astro.build/en/reference/configuration-reference/#base) option — every internal link, the presenter preview, overview thumbnails and PDF export resolve against it. For example, a GitHub Pages project site:

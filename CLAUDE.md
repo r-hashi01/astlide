@@ -33,7 +33,7 @@ bun run changeset    # changeset 作成
 - ❌ npm/pnpm → ✅ bun のみ
 - スライドファイル名: `01-name.mdx` の番号付き。`.mdx` / `.md` / `.html` を混在可（`astlideDeckLoader()` が処理、番号順にソート）
 - デッキ設定: `_config.json` (title, author, date, theme)
-- テーマ: default, dark, minimal, corporate, gradient, rose, forest
+- テーマ: default, dark, minimal, corporate, gradient, rose, forest（`templates` オプションで PowerPoint テンプレートもテーマにできる: `src/pptx/template.ts`）
 - content collection の loader は `astlideDeckLoader()` を使う（`glob({ pattern: '**/*.mdx' })` ではなく）
 
 ## TypeScript

@@ -17,3 +17,10 @@ export {
 	type PptxImportOptions,
 	pptxToSlides,
 } from "./import";
+export {
+	type PptxTemplate,
+	pptxToTemplate,
+	type TemplateLayout,
+	type TemplateRegion,
+	templateCss,
+} from "./template";

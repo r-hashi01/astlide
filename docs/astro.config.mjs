@@ -44,6 +44,7 @@ export default defineConfig({
 						{ slug: "guides/themes-and-plugins" },
 						{ slug: "guides/export" },
 						{ slug: "guides/import" },
+						{ slug: "guides/templates" },
 						{ slug: "guides/deploy" },
 					],
 				},

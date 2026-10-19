@@ -11,6 +11,7 @@ import { astlideCommentNotesPlugin } from "./utils/comment-notes";
 import { resolveFavicon } from "./utils/favicon";
 import { astlideMermaid } from "./utils/mermaid";
 import { PPTX_ASSET_ROUTE, pptxAssetDir } from "./utils/pptx-assets";
+import { astlideTemplatesPlugin, type LoadedTemplate, loadTemplate } from "./utils/pptx-templates";
 
 // Re-export the typed deck/slide metadata API
 export type { DeckContext } from "./context";
@@ -141,6 +142,25 @@ export interface AstlideOptions {
 	 * ```
 	 */
 	favicon?: string | false;
+	/**
+	 * PowerPoint templates as themes: theme name → a `.pptx` / `.potx` / `.thmx`
+	 * file (project-relative; for Google Slides, File → Download → PowerPoint).
+	 * Decks with `"theme": "<name>"` in `_config.json` get the template's
+	 * colors, fonts and per-layout backgrounds and artwork, and their content
+	 * goes where the template's placeholders are — the first heading into the
+	 * title, the rest into the body.
+	 *
+	 * The built-in layouts map to the template's: `cover` → its title slide,
+	 * `section` → section header, `default` → title and content, `two-column`
+	 * → two content. Every template layout is also available by its name, as
+	 * a slug (`slideLayout: comparison`, `slideLayout: title-only` …).
+	 *
+	 * @example
+	 * ```ts
+	 * astlide({ templates: { brand: './templates/brand.pptx' } })
+	 * ```
+	 */
+	templates?: Record<string, string>;
 	/**
 	 * Pen drawings (`d`).
 	 *
@@ -301,6 +321,24 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 					if (l.componentEntrypoint) l.componentEntrypoint = resolveEntry(l.componentEntrypoint);
 				}
 
+				// PowerPoint templates → themes (CSS from the cache) and their layout names.
+				const root = fileURLToPath(config.root);
+				const templates: LoadedTemplate[] = [];
+				for (const [theme, source] of Object.entries(options.templates ?? {})) {
+					let t: LoadedTemplate;
+					try {
+						t = loadTemplate(theme, source, root, config.base);
+					} catch (e) {
+						throw new Error(`[astlide] template "${theme}" (${source}): ${(e as Error).message}`);
+					}
+					templates.push(t);
+					if (!resolved.themeNames.has(theme)) {
+						resolved.themeNames.add(theme);
+						resolved.themes.push({ name: theme, cssEntrypoint: t.cssPath });
+					}
+					for (const id of Object.keys(t.data.layouts)) resolved.layoutNames.add(id);
+				}
+
 				// Dev: pages that don't live-update reload on the editor's HMR events.
 				if (command === "dev") injectScript("page", DEV_RELOAD_SCRIPT);
 
@@ -340,6 +378,9 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 						// `PluginOption`. The value is correct at runtime (build passes).
 						plugins: [
 							astlideVirtualPlugin(resolved, { hasMermaid }) as never,
+							astlideTemplatesPlugin(templates, (t) =>
+								loadTemplate(t.theme, t.source, root, config.base),
+							) as never,
 							// Dev-only (apply: "serve"): read/write endpoint for the `e` slide editor.
 							astlideEditorPlugin(fileURLToPath(config.root)) as never,
 							// Speaker notes as a trailing `<!-- … -->`: MDX would reject the comment.

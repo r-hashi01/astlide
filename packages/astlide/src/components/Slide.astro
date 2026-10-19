@@ -3,6 +3,7 @@ import { sanitizeBackground } from '@astlide/core/utils/sanitize';
 import { withBaseIfRootRelative } from '@astlide/core/utils/base-path';
 import { layouts as pluginLayouts } from 'virtual:astlide/layouts';
 import { decorators as slideDecorators } from 'virtual:astlide/decorators';
+import { templates } from 'virtual:astlide/templates';
 
 interface Props {
   layout?: string;
@@ -11,6 +12,8 @@ interface Props {
   class?: string;
   slideNumber?: number;
   totalSlides?: number;
+  /** The deck's theme: a PowerPoint template theme draws its layout's artwork. */
+  theme?: string;
 }
 
 const {
@@ -20,6 +23,7 @@ const {
   class: className,
   slideNumber,
   totalSlides,
+  theme,
 } = Astro.props;
 
 // Sanitize background before CSS injection — guards against callers that bypass
@@ -40,6 +44,18 @@ if (safeBackground) {
     backgroundStyle = `background-color: ${safeBackground};`;
   }
 }
+
+// A PowerPoint template theme: the template layout standing for this built-in
+// layout, or the one of this name, else just its master's artwork. A slide
+// with its own background shows that instead.
+const template = theme ? templates[theme] : undefined;
+const templateLayout = template
+  ? (template.aliases[layout] ?? (template.layouts[layout] ? layout : undefined))
+  : undefined;
+const templateArt = template && !safeBackground
+  ? (templateLayout ? template.layouts[templateLayout]?.art : undefined) ?? template.master
+  : undefined;
+const templateNumber = templateLayout && template?.layouts[templateLayout]?.slideNumber;
 
 // C-5: plugin-contributed layout component, if any, owns the slide markup.
 const LayoutComponent = (pluginLayouts as Record<string, unknown>)[layout] as
@@ -64,16 +80,18 @@ const decoratorProps = { layout, transition, slideNumber, totalSlides };
   </LayoutComponent>
 ) : (
   <section
-    class:list={['slide', `slide-${layout}`, className]}
+    class:list={['slide', `slide-${layout}`, template && 'astlide-tpl', templateLayout && `astlide-tpl-${templateLayout}`, className]}
     data-transition={transition}
     style={backgroundStyle}
     role="region"
     aria-roledescription="slide"
     aria-label={slideNumber && totalSlides ? `Slide ${slideNumber} of ${totalSlides}` : undefined}
   >
+    {templateArt && <div class="astlide-tpl-art" set:html={templateArt} />}
     <div class="slide-content">
       <slot />
     </div>
+    {templateNumber && <div class="astlide-tpl-number">{slideNumber}</div>}
     {slideDecorators.map((Decorator) => <Decorator {...decoratorProps} />)}
   </section>
 )}

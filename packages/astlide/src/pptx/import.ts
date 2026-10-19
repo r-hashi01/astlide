@@ -87,7 +87,7 @@ interface Rel {
 }
 
 /** The OOXML package: parts by path, parsed XML and relationships on demand. */
-class Package {
+export class Package {
 	private parsed = new Map<string, Element | null>();
 	private relsCache = new Map<string, Map<string, Rel>>();
 	constructor(readonly files: Map<string, Buffer>) {}
@@ -130,12 +130,15 @@ class Package {
 	}
 }
 
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+/** @internal */
+export const esc = (s: string) =>
+	s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const attrEsc = (s: string) => esc(s).replace(/"/g, "&quot;");
-const r2 = (n: number) => Math.round(n * 100) / 100;
+/** @internal */
+export const r2 = (n: number) => Math.round(n * 100) / 100;
 
-/** Paragraph / run properties as they cascade (level styles → shape → paragraph → run). */
-interface TextProps {
+/** @internal Paragraph / run properties as they cascade (level styles → shape → paragraph → run). */
+export interface TextProps {
 	algn?: string;
 	marL?: number;
 	indent?: number;
@@ -282,19 +285,22 @@ function autoNumber(type: string, n: number): string {
 	return `${body}.`;
 }
 
-interface Placeholder {
+/** @internal */
+export interface Placeholder {
 	type: string;
 	idx?: string;
 }
 
-function placeholderOf(shape: Element): Placeholder | undefined {
+/** @internal */
+export function placeholderOf(shape: Element): Placeholder | undefined {
 	const nv = kids(shape).find((c) => /^p:nv(Sp|Pic|GraphicFrame|CxnSp|GrpSp)Pr$/.test(c.name));
 	const ph = path(nv, "p:nvPr", "p:ph");
 	if (!ph) return undefined;
 	return { type: ph.attribs.type ?? "body", idx: ph.attribs.idx };
 }
 
-const titleTypes = new Set(["title", "ctrTitle"]);
+/** @internal */
+export const titleTypes = new Set(["title", "ctrTitle"]);
 
 /** The shape a placeholder inherits from in a layout / master tree. */
 function inherited(
@@ -324,7 +330,8 @@ interface Transform {
 }
 const IDENTITY: Transform = { sx: 1, sy: 1, tx: 0, ty: 0 };
 
-interface Xfrm {
+/** @internal */
+export interface Xfrm {
 	x: number;
 	y: number;
 	w: number;
@@ -334,7 +341,8 @@ interface Xfrm {
 	flipV: boolean;
 }
 
-function xfrmOf(el: Element | undefined): Xfrm | undefined {
+/** @internal */
+export function xfrmOf(el: Element | undefined): Xfrm | undefined {
 	if (!el) return undefined;
 	const off = kid(el, "a:off");
 	const ext = kid(el, "a:ext");
@@ -350,14 +358,16 @@ function xfrmOf(el: Element | undefined): Xfrm | undefined {
 	};
 }
 
-/** Everything one slide's conversion needs. */
-interface SlideContext {
+/** @internal Everything one slide's (or layout's) conversion needs. */
+export interface SlideContext {
 	pkg: Package;
 	part: string;
+	layoutPart?: string;
+	masterPart?: string;
 	layout?: Element;
 	master?: Element;
 	colors: ColorContext;
-	fonts: { major?: string; minor?: string };
+	fonts: { major?: string; minor?: string; majorEa?: string; minorEa?: string };
 	masterStyles: { title?: Element; body?: Element; other?: Element };
 	defaultStyle?: Element;
 	/** px per EMU. */
@@ -368,9 +378,33 @@ interface SlideContext {
 	ids: { n: number };
 }
 
-export function pptxToSlides(data: Uint8Array, options: PptxImportOptions = {}): ImportedDeck {
+/** @internal An opened presentation: what building slide / layout contexts needs. */
+export interface Presentation {
+	pkg: Package;
+	/** The presentation part and element (ppt/presentation.xml). */
+	part: string;
+	el: Element;
+	/** Slide size in EMU. */
+	width: number;
+	height: number;
+	/** px per EMU, and where the (letterboxed) slide sits on the canvas. */
+	scale: number;
+	offsetX: number;
+	offsetY: number;
+	media: (part: string) => string | null;
+	/** @font-face rules for embedded fonts (only with a `media` callback). */
+	fontCss: string;
+	/** Slide parts, in presentation order. */
+	slideParts: string[];
+}
+
+/** @internal */
+export function openPresentation(data: Uint8Array, options: PptxImportOptions = {}): Presentation {
 	const pkg = new Package(readZip(data));
-	const presentationPart = pkg.relOf("", REL.office)?.target ?? "ppt/presentation.xml";
+	let presentationPart = pkg.relOf("", REL.office)?.target ?? "ppt/presentation.xml";
+	// A theme file (.thmx) points at a theme manager, which points at the presentation.
+	const next = pkg.relOf(presentationPart, REL.office)?.target;
+	if (pkg.xml(presentationPart)?.name !== "p:presentation" && next) presentationPart = next;
 	const presentation = pkg.xml(presentationPart);
 	if (!presentation) throw new Error("not a PowerPoint file (no presentation part)");
 	const size = kid(presentation, "p:sldSz");
@@ -378,8 +412,6 @@ export function pptxToSlides(data: Uint8Array, options: PptxImportOptions = {}):
 	const height = num(size, "cy", 6858000);
 	const canvas = options.canvas ?? { width: 1920, height: 1080 };
 	const scale = Math.min(canvas.width / width, canvas.height / height);
-	const offsetX = (canvas.width - width * scale) / 2;
-	const offsetY = (canvas.height - height * scale) / 2;
 
 	const mediaUrls = new Map<string, string | null>();
 	const media = (part: string): string | null => {
@@ -419,69 +451,122 @@ export function pptxToSlides(data: Uint8Array, options: PptxImportOptions = {}):
 			}
 		}
 	}
-	const slideParts = kids(kid(presentation, "p:sldIdLst"), "p:sldId")
-		.map((s) => rels.get(s.attribs["r:id"] ?? "")?.target)
-		.filter((p): p is string => !!p);
+	return {
+		pkg,
+		part: presentationPart,
+		el: presentation,
+		width,
+		height,
+		scale,
+		offsetX: (canvas.width - width * scale) / 2,
+		offsetY: (canvas.height - height * scale) / 2,
+		media,
+		fontCss,
+		slideParts: kids(kid(presentation, "p:sldIdLst"), "p:sldId")
+			.map((s) => rels.get(s.attribs["r:id"] ?? "")?.target)
+			.filter((p): p is string => !!p),
+	};
+}
+
+/**
+ * @internal The context for converting a slide, or a layout (`part` is then
+ * the layout itself): its layout, master, theme colors / fonts and text styles.
+ */
+export function contextFor(p: Presentation, part: string, slideNumber = 0): SlideContext {
+	const { pkg } = p;
+	const own = pkg.xml(part);
+	const isLayout = own?.name === "p:sldLayout";
+	const layoutPart = isLayout ? part : pkg.relOf(part, REL.layout)?.target;
+	const layout = pkg.xml(layoutPart);
+	const masterPart = layoutPart ? pkg.relOf(layoutPart, REL.master)?.target : undefined;
+	const master = pkg.xml(masterPart);
+	const themePart = masterPart ? pkg.relOf(masterPart, REL.theme)?.target : undefined;
+	const theme = pkg.xml(themePart);
+	const fontScheme = path(theme, "a:themeElements", "a:fontScheme");
+	// Color map: the master's, overridden by the layout's / slide's.
+	let map: ColorMap = { ...DEFAULT_COLOR_MAP, ...(kid(master, "p:clrMap")?.attribs ?? {}) };
+	for (const src of isLayout ? [layout] : [layout, own]) {
+		const over = path(src, "p:clrMapOvr", "a:overrideClrMapping");
+		if (over) map = { ...map, ...over.attribs };
+	}
+	const txStyles = kid(master, "p:txStyles");
+	return {
+		pkg,
+		part,
+		layoutPart,
+		masterPart,
+		layout,
+		master,
+		colors: { theme: themeColors(theme), map },
+		fonts: {
+			major: path(fontScheme, "a:majorFont", "a:latin")?.attribs.typeface,
+			minor: path(fontScheme, "a:minorFont", "a:latin")?.attribs.typeface,
+			majorEa: path(fontScheme, "a:majorFont", "a:ea")?.attribs.typeface || undefined,
+			minorEa: path(fontScheme, "a:minorFont", "a:ea")?.attribs.typeface || undefined,
+		},
+		masterStyles: {
+			title: kid(txStyles, "p:titleStyle"),
+			body: kid(txStyles, "p:bodyStyle"),
+			other: kid(txStyles, "p:otherStyle"),
+		},
+		defaultStyle: kid(p.el, "p:defaultTextStyle"),
+		scale: p.scale,
+		media: p.media,
+		slideNumber,
+		ids: { n: 0 },
+	};
+}
+
+/** @internal A slide's (or layout's) shape tree. */
+export const spTree = (el: Element | undefined) => path(el, "p:cSld", "p:spTree");
+const showMaster = (el: Element | undefined) => el?.attribs.showMasterSp !== "0";
+
+/**
+ * @internal Master and layout artwork (not their placeholders, which only
+ * prompt) — what's under a slide's own shapes. `ctx` is a slide's or a layout's.
+ */
+export function artwork(ctx: SlideContext, slide?: Element): string {
+	const parts: string[] = [];
+	if (showMaster(slide) && showMaster(ctx.layout) && ctx.masterPart)
+		parts.push(renderTree(spTree(ctx.master), IDENTITY, { ...ctx, part: ctx.masterPart }, false));
+	if (showMaster(slide) && ctx.layoutPart)
+		parts.push(renderTree(spTree(ctx.layout), IDENTITY, { ...ctx, part: ctx.layoutPart }, false));
+	return parts.join("");
+}
+
+/** @internal The canvas div's opening tag: letterboxed position, background, default font / color. */
+export function canvasOpen(p: Presentation, ctx: SlideContext, slide?: Element): string {
+	const background = backgroundCss(
+		[
+			[slide, ctx.part],
+			[ctx.layout, ctx.layoutPart],
+			[ctx.master, ctx.masterPart],
+		],
+		ctx,
+	);
+	return `<div class="astlide-pptx-canvas" style="left:${r2(p.offsetX)}px;top:${r2(p.offsetY)}px;width:${r2(p.width * p.scale)}px;height:${r2(p.height * p.scale)}px;${background}${ctx.fonts.minor ? `font-family:${fontStack(ctx.fonts.minor)};` : ""}color:${cssColor(schemeEl("tx1"), ctx.colors) ?? "#000"}">`;
+}
+
+export function pptxToSlides(data: Uint8Array, options: PptxImportOptions = {}): ImportedDeck {
+	const p = openPresentation(data, options);
+	const { pkg } = p;
 
 	let deckTheme: ImportedDeck["theme"] = { colors: {}, fonts: {} };
-	const slides = slideParts.map((part, i) => {
+	const slides = p.slideParts.map((part, i) => {
 		const slide = pkg.xml(part);
 		if (!slide) throw new Error(`missing slide part ${part}`);
-		const layoutPart = pkg.relOf(part, REL.layout)?.target;
-		const layout = pkg.xml(layoutPart);
-		const masterPart = layoutPart ? pkg.relOf(layoutPart, REL.master)?.target : undefined;
-		const master = pkg.xml(masterPart);
-		const themePart = masterPart ? pkg.relOf(masterPart, REL.theme)?.target : undefined;
-		const theme = pkg.xml(themePart);
-		const colors = themeColors(theme);
-		const fonts = {
-			major: path(theme, "a:themeElements", "a:fontScheme", "a:majorFont", "a:latin")?.attribs
-				.typeface,
-			minor: path(theme, "a:themeElements", "a:fontScheme", "a:minorFont", "a:latin")?.attribs
-				.typeface,
-		};
-		if (i === 0) deckTheme = { colors, fonts: { heading: fonts.major, body: fonts.minor } };
-		// Color map: the master's, overridden by the layout's / slide's.
-		let map: ColorMap = { ...DEFAULT_COLOR_MAP, ...(kid(master, "p:clrMap")?.attribs ?? {}) };
-		for (const src of [layout, slide]) {
-			const over = path(src, "p:clrMapOvr", "a:overrideClrMapping");
-			if (over) map = { ...map, ...over.attribs };
-		}
-		const txStyles = kid(master, "p:txStyles");
-		const ctx: SlideContext = {
-			pkg,
-			part,
-			layout,
-			master,
-			colors: { theme: colors, map },
-			fonts,
-			masterStyles: {
-				title: kid(txStyles, "p:titleStyle"),
-				body: kid(txStyles, "p:bodyStyle"),
-				other: kid(txStyles, "p:otherStyle"),
-			},
-			defaultStyle: kid(presentation, "p:defaultTextStyle"),
-			scale,
-			media,
-			slideNumber: i + 1,
-			ids: { n: 0 },
-		};
-
-		const tree = (el: Element | undefined) => path(el, "p:cSld", "p:spTree");
-		const showMaster = (el: Element | undefined) => el?.attribs.showMasterSp !== "0";
-		const parts: string[] = [];
-		// Master and layout artwork (not their placeholders, which only prompt), under the slide's own.
-		if (showMaster(slide) && showMaster(layout) && masterPart)
-			parts.push(renderTree(tree(master), IDENTITY, { ...ctx, part: masterPart }, false));
-		if (showMaster(slide) && layoutPart)
-			parts.push(renderTree(tree(layout), IDENTITY, { ...ctx, part: layoutPart }, false));
-		parts.push(renderTree(tree(slide), IDENTITY, ctx, true));
-
-		const background = backgroundCss([slide, layout, master], ctx);
-		const titleShape = kids(tree(slide)).find((s) => titleTypes.has(placeholderOf(s)?.type ?? ""));
+		const ctx = contextFor(p, part, i + 1);
+		if (i === 0)
+			deckTheme = {
+				colors: ctx.colors.theme,
+				fonts: { heading: ctx.fonts.major, body: ctx.fonts.minor },
+			};
+		const titleShape = kids(spTree(slide)).find((s) =>
+			titleTypes.has(placeholderOf(s)?.type ?? ""),
+		);
 		const html =
-			`${STYLE}${fontCss ? `<style>${fontCss}</style>` : ""}<div class="astlide-pptx"><div class="astlide-pptx-canvas" style="left:${r2(offsetX)}px;top:${r2(offsetY)}px;width:${r2(width * scale)}px;height:${r2(height * scale)}px;${background}${fonts.minor ? `font-family:${fontStack(fonts.minor)};` : ""}color:${cssColor(schemeEl("tx1"), ctx.colors) ?? "#000"}">` +
-			`${parts.join("")}\n</div></div>`;
+			`${STYLE}${p.fontCss ? `<style>${p.fontCss}</style>` : ""}<div class="astlide-pptx">${canvasOpen(p, ctx, slide)}` +
+			`${artwork(ctx, slide)}${renderTree(spTree(slide), IDENTITY, ctx, true)}\n</div></div>`;
 		return {
 			index: i + 1,
 			html,
@@ -495,8 +580,8 @@ export function pptxToSlides(data: Uint8Array, options: PptxImportOptions = {}):
 
 	const core = pkg.xml("docProps/core.xml");
 	return {
-		width,
-		height,
+		width: p.width,
+		height: p.height,
 		slides,
 		title: textOf(kid(core, "dc:title")).trim() || undefined,
 		author: textOf(kid(core, "dc:creator")).trim() || undefined,
@@ -504,8 +589,8 @@ export function pptxToSlides(data: Uint8Array, options: PptxImportOptions = {}):
 	};
 }
 
-/** Resets the slide's theme CSS would otherwise apply to the imported markup. */
-const STYLE =
+/** @internal Resets the slide's theme CSS would otherwise apply to the imported markup. */
+export const STYLE =
 	"<style>.astlide-pptx{position:absolute;inset:0;overflow:hidden}" +
 	".astlide-pptx-canvas{position:absolute;overflow:hidden;line-height:1.2}" +
 	".astlide-pptx *{box-sizing:border-box}" +
@@ -516,7 +601,8 @@ const STYLE =
 	".astlide-pptx a{color:inherit}" +
 	".astlide-pptx img{max-width:none}</style>\n";
 
-function schemeEl(name: string): Element {
+/** @internal */
+export function schemeEl(name: string): Element {
 	return parseXml(`<a:schemeClr val="${name}"/>`);
 }
 
@@ -533,12 +619,17 @@ function themeColors(theme: Element | undefined): ThemeColors {
 	return out;
 }
 
-function fontStack(face: string): string {
+/** @internal */
+export function fontStack(face: string): string {
 	// Single quotes: this goes inside style="…".
 	return `'${face.replace(/['"\\]/g, "")}', sans-serif`;
 }
 
-function resolveFont(face: string | undefined, fonts: SlideContext["fonts"]): string | undefined {
+/** @internal */
+export function resolveFont(
+	face: string | undefined,
+	fonts: SlideContext["fonts"],
+): string | undefined {
 	if (!face) return undefined;
 	if (face.startsWith("+mj")) return fonts.major;
 	if (face.startsWith("+mn")) return fonts.minor;
@@ -654,14 +745,17 @@ function imageUrl(blipFill: Element, ctx: SlideContext, part: string): string | 
 	return rel && !rel.external ? ctx.media(rel.target) : null;
 }
 
-function backgroundCss(chain: (Element | undefined)[], ctx: SlideContext): string {
-	for (const el of chain) {
+function backgroundCss(
+	chain: [Element | undefined, string | undefined][],
+	ctx: SlideContext,
+): string {
+	for (const [el, part] of chain) {
 		const bg = path(el, "p:cSld", "p:bg");
 		if (!bg) continue;
 		const bgPr = kid(bg, "p:bgPr");
 		if (bgPr) {
 			// A picture background's relationship is in the part that defines it.
-			const css = fillCss(bgPr, ctx, owningPart(el, chain, ctx) ?? ctx.part);
+			const css = fillCss(bgPr, ctx, part ?? ctx.part);
 			if (css) return `background:${css};`;
 		}
 		const ref = kid(bg, "p:bgRef");
@@ -671,19 +765,6 @@ function backgroundCss(chain: (Element | undefined)[], ctx: SlideContext): strin
 		}
 	}
 	return `background:${cssColor(schemeEl("bg1"), ctx.colors) ?? "#fff"};`;
-}
-
-/** The part path of the slide / layout / master element in `chain`. */
-function owningPart(
-	el: Element | undefined,
-	chain: (Element | undefined)[],
-	ctx: SlideContext,
-): string | undefined {
-	const i = chain.indexOf(el);
-	if (i === 0) return ctx.part;
-	const layoutPart = ctx.pkg.relOf(ctx.part, REL.layout)?.target;
-	if (i === 1) return layoutPart;
-	return layoutPart ? ctx.pkg.relOf(layoutPart, REL.master)?.target : undefined;
 }
 
 /** One shape per line, so imported slides read (and edit) shape by shape. */
@@ -756,8 +837,8 @@ function boxCss(xf: Xfrm, t: Transform, ctx: SlideContext): string {
 	);
 }
 
-/** The placeholder chain of a shape: [master shape, layout shape] it inherits from. */
-function sources(ph: Placeholder | undefined, ctx: SlideContext): Element[] {
+/** @internal The placeholder chain of a shape: [master shape, layout shape] it inherits from. */
+export function sources(ph: Placeholder | undefined, ctx: SlideContext): Element[] {
 	if (!ph) return [];
 	const tree = (el: Element | undefined) => path(el, "p:cSld", "p:spTree");
 	const layoutShape = inherited(tree(ctx.layout), ph);
@@ -1214,8 +1295,8 @@ export function fontFromEot(eot: Buffer | undefined): Buffer | null {
 	return magic === 0x00010000 || magic === 0x4f54544f || magic === 0x74727565 ? font : null;
 }
 
-/** Level styles for a shape's text: master text style → master / layout placeholder → shape. */
-function levelStyle(
+/** @internal Level styles for a shape's text: master text style → master / layout placeholder → shape. */
+export function levelStyle(
 	level: number,
 	chain: Element[],
 	ph: Placeholder | undefined,

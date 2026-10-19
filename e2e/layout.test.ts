@@ -9,7 +9,7 @@ import type { Page } from "playwright";
 import { describe, expect, it } from "vitest";
 import { open, useBrowser } from "./helpers/browser";
 
-const DECKS = ["example-deck", "tour", "from-powerpoint"];
+const DECKS = ["example-deck", "tour", "from-powerpoint", "from-template"];
 const THEMES = ["default", "dark", "minimal", "corporate", "gradient", "rose", "forest"];
 
 const browser = useBrowser();
@@ -127,12 +127,23 @@ describe.each(DECKS)("%s", (deck) => {
 					out.push(`${at}: image-right image isn't right of the text`);
 				if (image && (image.width < s.width * 0.25 || image.height < s.height * 0.5))
 					out.push(`${at}: image ${Math.round(image.width)}×${Math.round(image.height)} too small`);
-				// cover / section: the title is centered.
-				if (slide.matches(".slide-cover, .slide-section")) {
+				// cover / section: the title is centered (a PowerPoint template's goes
+				// where its placeholder is).
+				if (slide.matches(".slide-cover, .slide-section") && !slide.matches(".astlide-tpl")) {
 					const h = slide.querySelector("h1, h2")?.getBoundingClientRect();
 					if (h && !near(h.left + h.width / 2, s.left + s.width / 2, 4))
 						out.push(`${at}: title not centered`);
 				}
+				// Template layouts: the title in its placeholder, clear of the body text.
+				const title = slide.querySelector(
+					":scope.astlide-tpl > .slide-content > :is(h1, h2):first-child",
+				);
+				const body = title?.nextElementSibling?.getBoundingClientRect();
+				const t = title?.getBoundingClientRect();
+				if (t && (t.left < s.left || t.right > s.right || t.top < s.top))
+					out.push(`${at}: template title outside the slide`);
+				if (t && body && body.top < t.bottom - 1 && body.left < t.right && body.right > t.left)
+					out.push(`${at}: template title overlaps the body`);
 			});
 			return out;
 		});

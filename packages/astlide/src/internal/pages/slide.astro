@@ -220,6 +220,7 @@ if (import.meta.env.DEV) {
     class={className}
     slideNumber={slideNumber}
     totalSlides={totalSlides}
+    theme={deckConfig.theme}
   >
     <Content components={{ Left, Right, ImageSide, TextPanel, Fragment: SlideFragment, Fragments, Notes, SpeakerNotes, Columns, CodeBlock, Math, YouTube, Tweet }} />
   </Slide>

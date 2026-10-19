@@ -96,6 +96,7 @@ const rendered = await Promise.all(
         class={slide.data.class}
         slideNumber={i + 1}
         totalSlides={totalSlides}
+        theme={deckConfig.theme}
       >
         <Content components={{ Left, Right, ImageSide, TextPanel, Fragment: SlideFragment, Fragments, Notes, SpeakerNotes, Columns, CodeBlock, Math, YouTube, Tweet }} />
       </Slide>
