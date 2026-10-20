@@ -96,6 +96,37 @@ describe("sanitizeHTML", () => {
 
 	// ── Dangerous attributes are removed ──
 
+	it("removes scripts however the tag is spelled", () => {
+		for (const input of [
+			"<span>ok</span><script >alert(1)</script >",
+			"<span>ok</span><ScRiPt>alert(1)</sCrIpT>",
+			"<span>ok</span><script>alert(1)</script\n>",
+		]) {
+			const result = sanitizeKaTeXOutput(input);
+			expect(result.toLowerCase()).not.toContain("<script");
+			expect(result).not.toContain("alert");
+			expect(result).toContain("<span>ok</span>");
+		}
+	});
+
+	it("removes script URLs hidden with entities, case or whitespace", () => {
+		for (const href of [
+			"JaVaScRiPt:alert(1)",
+			"&#106;avascript:alert(1)",
+			" \tjavascript:alert(1)",
+			"vbscript:x",
+		]) {
+			const result = sanitizeKaTeXOutput(`<a href="${href}">x</a>`);
+			expect(result).not.toMatch(/href/i);
+			expect(result).toContain(">x</a>");
+		}
+	});
+
+	it("keeps entities in text as they were", () => {
+		const input = "<span>a &amp; b &lt; c</span>";
+		expect(sanitizeKaTeXOutput(input)).toBe(input);
+	});
+
 	it("removes onclick event handlers", () => {
 		const input = '<p onclick="alert(1)">text</p>';
 		const result = sanitizeHTML(input);

@@ -2,7 +2,14 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { distFile, FontRegistry, layoutPage, toScene, transformText } from "@astlide/engine";
+import {
+	distFile,
+	FontRegistry,
+	familiesIn,
+	layoutPage,
+	toScene,
+	transformText,
+} from "@astlide/engine";
 import { describe, expect, it } from "vitest";
 
 /** A font every install has (KaTeX ships TrueType), for text tests. */
@@ -165,6 +172,17 @@ describe("engine layout", () => {
 			{ fill: "0000ff", border: "0000ff" },
 			{ fill: "efefef", border: "767676" },
 		]);
+	});
+
+	it("reads font families from CSS quickly, even from pathological input", () => {
+		expect(familiesIn('body{font-family: "Inter", "Noto Sans JP", sans-serif}')).toEqual([
+			"Inter",
+			"Noto Sans JP",
+		]);
+		const start = performance.now();
+		familiesIn(`a{font-family:${" ".repeat(50000)}x`);
+		familiesIn(`@font-face{src:${"url(".repeat(20000)}`);
+		expect(performance.now() - start).toBeLessThan(500);
 	});
 
 	it("clips to ancestors with overflow other than visible", () => {

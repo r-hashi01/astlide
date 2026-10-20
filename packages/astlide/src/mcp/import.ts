@@ -92,7 +92,7 @@ function table(t: Element): string[] {
 	const walk = (n: ChildNode) => {
 		if (!isTag(n)) return;
 		if (n.name === "tr")
-			rows.push(n.children.filter(isTag).map((c) => clean(textOf(c)).replace(/\|/g, "\\|")));
+			rows.push(n.children.filter(isTag).map((c) => clean(textOf(c)).replace(/[\\|]/g, "\\$&")));
 		else n.children.forEach(walk);
 	};
 	t.children.forEach(walk);

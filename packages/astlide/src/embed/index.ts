@@ -65,7 +65,14 @@ export function slideSrc(src: string, n: number): string {
 	const rest = cut === -1 ? "" : src.slice(cut);
 	const slash = path.endsWith("/");
 	const slide = Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
-	return `${path.replace(/\/+$/, "")}/${slide}${slash ? "/" : ""}${rest}`;
+	return `${trimTrailingSlashes(path)}/${slide}${slash ? "/" : ""}${rest}`;
+}
+
+/** `value` without trailing slashes (a loop: a regex like /\/+$/ backtracks on long runs of slashes). */
+function trimTrailingSlashes(value: string): string {
+	let end = value.length;
+	while (end > 0 && value.charCodeAt(end - 1) === 47) end--;
+	return value.slice(0, end);
 }
 
 /** Parse a `slidechange` message from a deck, or `null` when it isn't one. */

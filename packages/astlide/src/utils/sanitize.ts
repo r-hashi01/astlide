@@ -1,3 +1,8 @@
+import render from "dom-serializer";
+import { type ChildNode, isTag } from "domhandler";
+import { decodeHTML } from "entities";
+import { parseDocument } from "htmlparser2";
+
 /**
  * Lightweight HTML sanitizer for build-time use.
  *
@@ -209,23 +214,62 @@ function escapeAttrValue(value: string): string {
  *
  * Lighter than sanitizeHTML — preserves SVG elements and inline styles
  * required for correct math rendering while removing the three injection vectors:
- *   1. <script> tags (KaTeX never generates these, but belt-and-suspenders)
+ *   1. <script> elements (KaTeX never generates these, but belt-and-suspenders)
  *   2. on* event-handler attributes
- *   3. javascript:/vbscript: URLs in href/src/xlink:href
+ *   3. javascript:/vbscript: URLs in href/src/xlink:href/action/formaction
+ *
+ * Works on a parsed tree, not regexes, so odd spellings (`</script >`,
+ * `<ScRiPt>`, entities in URLs) can't slip through. Entities and markup are
+ * otherwise written back as they were.
  */
 export function sanitizeKaTeXOutput(html: string): string {
 	if (!html) return "";
-	let result = html;
-	// 1. Strip <script>...</script>
-	result = result.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
-	// 2. Remove on* event-handler attributes
-	result = result.replace(/\s+on[a-z]\w*\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
-	// 3. Strip javascript:/vbscript: from href/src/xlink:href
-	result = result.replace(
-		/(?:href|src|xlink:href)\s*=\s*["']?\s*(?:javascript:|vbscript:)[^"'\s>]*/gi,
-		"",
+	const doc = parseDocument(html, { decodeEntities: false, recognizeSelfClosing: true });
+	const clean = (nodes: ChildNode[]) => {
+		for (const node of [...nodes]) {
+			if (node.type === "script" || (isTag(node) && node.name.toLowerCase() === "script")) {
+				removeElement(node);
+				continue;
+			}
+			if (!isTag(node)) continue;
+			for (const name of Object.keys(node.attribs)) {
+				const key = name.toLowerCase();
+				if (key.startsWith("on")) delete node.attribs[name];
+				else if (
+					URL_ATTRIBUTES.has(key) &&
+					SCRIPT_URL.test(decodeForCheck(node.attribs[name] ?? ""))
+				)
+					delete node.attribs[name];
+			}
+			clean(node.children);
+		}
+	};
+	clean(doc.children);
+	return render(doc, { decodeEntities: false, encodeEntities: false, selfClosingTags: true });
+}
+
+const URL_ATTRIBUTES = new Set(["href", "src", "xlink:href", "action", "formaction"]);
+const SCRIPT_URL = /^(?:javascript|vbscript):/;
+
+/** An attribute value as a browser would read its scheme: entities decoded, controls / spaces dropped, lower case. */
+function decodeForCheck(value: string): string {
+	return (
+		decodeHTML(value)
+			// biome-ignore lint/suspicious/noControlCharactersInRegex: browsers ignore these in a URL scheme, so must we
+			.replace(/[\u0000-\u0020]+/g, "")
+			.toLowerCase()
 	);
-	return result;
+}
+
+/** Remove an element from its parent (domhandler keeps sibling links). */
+function removeElement(node: ChildNode): void {
+	const parent = node.parent;
+	if (!parent) return;
+	const i = parent.children.indexOf(node);
+	if (i >= 0) parent.children.splice(i, 1);
+	if (node.prev) node.prev.next = node.next;
+	if (node.next) node.next.prev = node.prev;
+	node.parent = node.prev = node.next = null;
 }
 
 /**

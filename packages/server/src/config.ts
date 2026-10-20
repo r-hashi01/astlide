@@ -86,6 +86,13 @@ export function resolveOptions(
 		concurrency: positive(env.CONCURRENCY, 2),
 		maxQueued: positive(env.MAX_QUEUE, 16),
 		apiKey: env.ASTLIDE_API_KEY || undefined,
-		publicUrl: env.PUBLIC_URL?.replace(/\/+$/, "") || undefined,
+		publicUrl: (env.PUBLIC_URL && trimTrailingSlashes(env.PUBLIC_URL)) || undefined,
 	};
+}
+
+/** `value` without trailing slashes (a loop: a regex like /\/+$/ backtracks on long runs of slashes). */
+function trimTrailingSlashes(value: string): string {
+	let end = value.length;
+	while (end > 0 && value.charCodeAt(end - 1) === 47) end--;
+	return value.slice(0, end);
 }

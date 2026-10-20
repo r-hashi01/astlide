@@ -34,7 +34,8 @@ export function familiesIn(css: string): string[] {
 	// (not --font-size-* / --font-weight-*); @font-face blocks are skipped.
 	const withoutFaces = css.replace(/@font-face\s*\{[^}]*\}/g, "");
 	for (const m of withoutFaces.matchAll(
-		/(?:font-family|--font-(?!size|weight|style)[\w-]+)\s*:\s*([^;}]+)/gi,
+		// No \s* before the value: [^;}] takes the spaces (overlapping quantifiers backtrack).
+		/(?:font-family|--font-(?!size|weight|style)[\w-]+)\s*:([^;}]+)/gi,
 	)) {
 		for (const raw of (m[1] ?? "").split(",")) {
 			const name = raw
@@ -58,13 +59,13 @@ export function loadFontFaces(fonts: FontRegistry, css: string, dist: string): S
 	const loaded = new Set<string>();
 	for (const [, body = ""] of css.matchAll(/@font-face\s*\{([^}]*)\}/g)) {
 		const prop = (name: string) =>
-			body.match(new RegExp(`(?:^|;)\\s*${name}\\s*:\\s*([^;]+)`, "i"))?.[1]?.trim();
+			body.match(new RegExp(`(?:^|;)\\s*${name}\\s*:([^;]+)`, "i"))?.[1]?.trim();
 		const family = prop("font-family")?.replace(/^["']|["']$/g, "");
 		// Not prop(): data: URLs inside src contain ";".
-		const src = body.match(/(?:^|;)\s*src\s*:\s*((?:url\([^)]*\)|[^;])+)/i)?.[1];
+		const src = declarationValue(body, "src");
 		if (!family || !src) continue;
 		const url = [
-			...src.matchAll(/url\(\s*["']?([^"')]+)["']?\s*\)\s*format\(\s*["']?(truetype|opentype)/gi),
+			...src.matchAll(/url\(\s*["']?([^"')\s]+)["']?\s*\)\s*format\(\s*["']?(truetype|opentype)/gi),
 		][0]?.[1];
 		if (!url || /^(https?:|data:)/.test(url)) continue;
 		const path = url.split(/[?#]/)[0] ?? "";
@@ -116,4 +117,24 @@ export async function loadGoogleFonts(
 		if (!found) missing.push(family);
 	}
 	return missing;
+}
+
+/**
+ * The value of a declaration in a rule body, up to its `;` — a `;` inside
+ * `url(…)` (data: URLs) doesn't end it. Scanned, not matched: a regex with
+ * alternatives that overlap backtracks on long values.
+ */
+function declarationValue(body: string, name: string): string | undefined {
+	const at = body.match(new RegExp(`(?:^|;)\\s*${name}\\s*:`, "i"));
+	if (!at || at.index === undefined) return undefined;
+	let depth = 0;
+	let i = at.index + at[0].length;
+	const start = i;
+	for (; i < body.length; i++) {
+		const c = body[i];
+		if (c === "(") depth++;
+		else if (c === ")") depth = Math.max(0, depth - 1);
+		else if (c === ";" && depth === 0) break;
+	}
+	return body.slice(start, i).trim() || undefined;
 }

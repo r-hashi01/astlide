@@ -52,13 +52,16 @@ function cleanMarkdown(text: string): string {
 
 /** Strip tags and decode the handful of entities headings commonly contain. */
 function cleanHtml(text: string): string {
-	return text
-		.replace(/<[^>]*>/g, "")
-		.replace(/&amp;/g, "&")
-		.replace(/&lt;/g, "<")
-		.replace(/&gt;/g, ">")
-		.replace(/&quot;/g, '"')
-		.replace(/&#39;/g, "'")
-		.replace(/\s+/g, " ")
-		.trim();
+	return (
+		text
+			.replace(/<[^>]*>/g, "")
+			.replace(/&lt;/g, "<")
+			.replace(/&gt;/g, ">")
+			.replace(/&quot;/g, '"')
+			.replace(/&#39;/g, "'")
+			// Last, so "&amp;lt;" stays "&lt;" (one level of escaping removed, not two).
+			.replace(/&amp;/g, "&")
+			.replace(/\s+/g, " ")
+			.trim()
+	);
 }

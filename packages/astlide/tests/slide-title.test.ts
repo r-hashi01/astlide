@@ -23,6 +23,12 @@ describe("slideTitle", () => {
 		expect(slideTitle({ data: {}, body })).toBe("Real title");
 	});
 
+	it("removes one level of HTML escaping, not two", () => {
+		expect(slideTitle({ data: {}, body: "<h1>Use &amp;lt;Slide&amp;gt;</h1>" })).toBe(
+			"Use &lt;Slide&gt;",
+		);
+	});
+
 	it("reads HTML headings for .html slides", () => {
 		expect(
 			slideTitle({

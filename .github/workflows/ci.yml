@@ -7,6 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Read-only token for every job: none of them writes to the repository.
+permissions:
+  contents: read
+
 # Astro 7 requires Node.js >=22.12. Bun ships its own Node-compat runtime,
 # but `bunx astro check` and `astro build` shell into the system `node` for
 # child processes — so every job that runs Astro needs setup-node@v4 with
