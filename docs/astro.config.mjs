@@ -24,6 +24,20 @@ export default defineConfig({
 		starlight({
 			title: "Astlide",
 			customCss: ["./src/styles/custom.css"],
+			// The picture shown when a docs page is shared (X, Slack …).
+			head: [
+				{ tag: "meta", attrs: { property: "og:image", content: `${site}${base}/og.png` } },
+				{ tag: "meta", attrs: { property: "og:image:width", content: "1200" } },
+				{ tag: "meta", attrs: { property: "og:image:height", content: "630" } },
+				{
+					tag: "meta",
+					attrs: {
+						property: "og:image:alt",
+						content: "astlide — Slides that live in your Astro site",
+					},
+				},
+				{ tag: "meta", attrs: { name: "twitter:image", content: `${site}${base}/og.png` } },
+			],
 			description:
 				"Slides that live in your Astro site — an Astro integration for MDX, Markdown and HTML decks, with editable PowerPoint export in your own template.",
 			social: [{ icon: "github", label: "GitHub", href: "https://github.com/r-hashi01/astlide" }],
