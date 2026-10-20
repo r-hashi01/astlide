@@ -24,6 +24,8 @@ export interface TextRunOptions {
 	fontSize?: number;
 	color?: string;
 	fontFace?: string;
+	/** Font for East Asian characters (Japanese, Chinese, Korean): `<a:ea>`. */
+	eaFontFace?: string;
 	bold?: boolean;
 	italic?: boolean;
 	align?: "left" | "center" | "right";
@@ -167,6 +169,8 @@ export type SlideElement = TextBoxSpec | RectSpec | ImageSpec | TableSpec | Shap
 
 export interface SlideSpec {
 	background: string;
+	/** Speaker notes (paragraphs separated by line breaks). */
+	notes?: string;
 	backgroundPath?: string;
 	elements: SlideElement[];
 }
@@ -598,7 +602,7 @@ function buildParagraphXml(
 		const text = run.text;
 		if (!text && !o.breakLine) continue;
 
-		const rPrParts: string[] = ['lang="en-US"', 'dirty="0"'];
+		const rPrParts: string[] = [`lang="${langOf(text)}"`, 'dirty="0"'];
 		// PowerPoint's range is 1–4000 pt (out of range: a repair prompt).
 		if (o.fontSize) rPrParts.push(`sz="${Math.min(400000, Math.max(100, hpt(o.fontSize)))}"`);
 		if (o.bold) rPrParts.push('b="1"');
@@ -615,7 +619,8 @@ function buildParagraphXml(
 			rPrInner += `<a:highlight><a:srgbClr val="${o.highlight}"/></a:highlight>`;
 		}
 		if (o.fontFace) {
-			rPrInner += `<a:latin typeface="${esc(o.fontFace)}"/><a:cs typeface="${esc(o.fontFace)}"/>`;
+			const ea = o.eaFontFace ? `<a:ea typeface="${esc(o.eaFontFace)}"/>` : "";
+			rPrInner += `<a:latin typeface="${esc(o.fontFace)}"/>${ea}<a:cs typeface="${esc(o.fontFace)}"/>`;
 		}
 		if (o.hyperlink?.url) {
 			const rId = nextRId();
@@ -638,6 +643,19 @@ function buildParagraphXml(
 	return `<a:p>${pPr}${runXmls.join("")}</a:p>`;
 }
 
+/** Japanese / Korean / Chinese characters (kana, hangul, CJK ideographs, fullwidth forms). */
+const KANA = /[\u3040-\u30ff\u31f0-\u31ff\uff66-\uff9f]/;
+const HANGUL = /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]/;
+const HAN = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
+
+/** The language of a run, for spelling / line breaking: Japanese, Korean, else English. */
+export function langOf(text: string): string {
+	if (KANA.test(text)) return "ja-JP";
+	if (HANGUL.test(text)) return "ko-KR";
+	if (HAN.test(text)) return "ja-JP";
+	return "en-US";
+}
+
 // ---------------------------------------------------------------------------
 // Slide .rels builder
 // ---------------------------------------------------------------------------
@@ -645,10 +663,15 @@ function buildParagraphXml(
 function buildSlideRels(
 	hyperlinks: HyperlinkEntry[],
 	images: { rId: string; target: string }[] = [],
+	notesTarget?: string,
 ): string {
 	const rels = [
 		'<Relationship Id="rIdLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>',
 	];
+	if (notesTarget)
+		rels.push(
+			`<Relationship Id="rIdNotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide" Target="${notesTarget}"/>`,
+		);
 	for (const h of hyperlinks) {
 		rels.push(
 			`<Relationship Id="${h.rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${esc(h.url)}" TargetMode="External"/>`,
@@ -713,12 +736,22 @@ function tableStylesXml(): string {
 <a:tblStyleLst xmlns:a="${NS_A}" def="{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}"/>`;
 }
 
-function contentTypesXml(slideCount: number): string {
+function contentTypesXml(slideCount: number, notes: number[] = []): string {
 	const overrides: string[] = [];
 	for (let i = 1; i <= slideCount; i++) {
 		overrides.push(
 			`<Override PartName="/ppt/slides/slide${i}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`,
 		);
+	}
+	if (notes.length) {
+		overrides.push(
+			'<Override PartName="/ppt/notesMasters/notesMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.notesMaster+xml"/>',
+			'<Override PartName="/ppt/theme/theme2.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>',
+		);
+		for (const i of notes)
+			overrides.push(
+				`<Override PartName="/ppt/notesSlides/notesSlide${i}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml"/>`,
+			);
 	}
 	return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -749,8 +782,13 @@ function rootRelsXml(): string {
 </Relationships>`;
 }
 
-function presentationRelsXml(slideCount: number, fontParts: string[]): string {
+function presentationRelsXml(slideCount: number, fontParts: string[], notes = false): string {
 	const rels = [
+		...(notes
+			? [
+					`<Relationship Id="rIdNm1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesMaster" Target="notesMasters/notesMaster1.xml"/>`,
+				]
+			: []),
 		`<Relationship Id="rIdSm1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>`,
 		`<Relationship Id="rIdTheme1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>`,
 		`<Relationship Id="rIdPresProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/presProps" Target="presProps.xml"/>`,
@@ -786,7 +824,7 @@ function embeddedFontLstXml(fonts: EmbeddedFont[]): string {
 	return `<p:embeddedFontLst>${items.join("")}</p:embeddedFontLst>`;
 }
 
-function presentationXml(slideCount: number, fonts: EmbeddedFont[]): string {
+function presentationXml(slideCount: number, fonts: EmbeddedFont[], notes = false): string {
 	const sldIds: string[] = [];
 	for (let i = 1; i <= slideCount; i++) {
 		sldIds.push(`<p:sldId id="${255 + i}" r:id="rIdSlide${i}"/>`);
@@ -794,6 +832,7 @@ function presentationXml(slideCount: number, fonts: EmbeddedFont[]): string {
 	return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:presentation xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}"${fonts.length ? ' embedTrueTypeFonts="1"' : ""}>
 <p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rIdSm1"/></p:sldMasterIdLst>
+${notes ? '<p:notesMasterIdLst><p:notesMasterId r:id="rIdNm1"/></p:notesMasterIdLst>' : ""}
 <p:sldIdLst>${sldIds.join("")}</p:sldIdLst>
 <p:sldSz cx="9144000" cy="5143500" type="screen16x9"/>
 <p:notesSz cx="6858000" cy="9144000"/>
@@ -845,7 +884,61 @@ function slideLayoutRelsXml(): string {
 </Relationships>`;
 }
 
-function themeXml(theme: ThemeColors): string {
+const CLR_MAP =
+	'<p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>';
+const GROUP_PROPS =
+	'<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>';
+
+/** The notes page: the slide picture above, the notes text below (portrait, as PowerPoint's). */
+function notesMasterXml(): string {
+	return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:notesMaster xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}">
+<p:cSld><p:bg><p:bgRef idx="1001"><a:schemeClr val="bg1"/></p:bgRef></p:bg><p:spTree>${GROUP_PROPS}
+<p:sp><p:nvSpPr><p:cNvPr id="2" name="Slide Image Placeholder 1"/><p:cNvSpPr><a:spLocks noGrp="1" noRot="1" noChangeAspect="1"/></p:cNvSpPr><p:nvPr><p:ph type="sldImg" idx="2"/></p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="381000" y="685800"/><a:ext cx="6096000" cy="3429000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln w="12700"><a:solidFill><a:prstClr val="black"/></a:solidFill></a:ln></p:spPr></p:sp>
+<p:sp><p:nvSpPr><p:cNvPr id="3" name="Notes Placeholder 2"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="body" sz="quarter" idx="3"/></p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="685800" y="4400550"/><a:ext cx="5486400" cy="3600450"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:txBody><a:bodyPr vert="horz" lIns="91440" tIns="45720" rIns="91440" bIns="45720" rtlCol="0"/><a:lstStyle/><a:p><a:endParaRPr lang="en-US"/></a:p></p:txBody></p:sp>
+</p:spTree></p:cSld>
+${CLR_MAP}
+<p:notesStyle>${levelStyles(9, { size: 1200, font: "mn" })}</p:notesStyle>
+</p:notesMaster>`;
+}
+
+function notesMasterRelsXml(): string {
+	return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rIdTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme2.xml"/>
+</Relationships>`;
+}
+
+/** A slide's notes page: one paragraph per line of `notes` (blank lines dropped). */
+function notesSlideXml(notes: string, eaFont?: string): string {
+	const paras = notes
+		.split(/\r?\n/)
+		.map((l) => l.trim())
+		.filter(Boolean)
+		.map((l) => {
+			const ea = eaFont ? `<a:ea typeface="${esc(eaFont)}"/>` : "";
+			return `<a:p><a:r><a:rPr lang="${langOf(l)}" dirty="0">${ea}</a:rPr><a:t>${esc(l)}</a:t></a:r></a:p>`;
+		})
+		.join("");
+	return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:notes xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}">
+<p:cSld><p:spTree>${GROUP_PROPS}
+<p:sp><p:nvSpPr><p:cNvPr id="2" name="Slide Image Placeholder 1"/><p:cNvSpPr><a:spLocks noGrp="1" noRot="1" noChangeAspect="1"/></p:cNvSpPr><p:nvPr><p:ph type="sldImg"/></p:nvPr></p:nvSpPr><p:spPr/></p:sp>
+<p:sp><p:nvSpPr><p:cNvPr id="3" name="Notes Placeholder 2"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/>${paras || '<a:p><a:endParaRPr lang="en-US"/></a:p>'}</p:txBody></p:sp>
+</p:spTree></p:cSld>
+<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>
+</p:notes>`;
+}
+
+function notesSlideRelsXml(slide: number): string {
+	return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rIdNm" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesMaster" Target="../notesMasters/notesMaster1.xml"/>
+<Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="../slides/slide${slide}.xml"/>
+</Relationships>`;
+}
+
+function themeXml(theme: ThemeColors, eaFont = ""): string {
 	return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <a:theme xmlns:a="${NS_A}" name="Astlide">
 <a:themeElements>
@@ -864,8 +957,8 @@ function themeXml(theme: ThemeColors): string {
 <a:folHlink><a:srgbClr val="${theme.secondary}"/></a:folHlink>
 </a:clrScheme>
 <a:fontScheme name="Astlide">
-<a:majorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>
-<a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>
+<a:majorFont><a:latin typeface="Calibri"/><a:ea typeface="${esc(eaFont)}"/><a:cs typeface=""/></a:majorFont>
+<a:minorFont><a:latin typeface="Calibri"/><a:ea typeface="${esc(eaFont)}"/><a:cs typeface=""/></a:minorFont>
 </a:fontScheme>
 <a:fmtScheme name="Astlide">
 <a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>
@@ -1063,6 +1156,8 @@ export interface PptxFileOptions {
 	theme?: ThemeColors;
 	/** Fonts to embed. */
 	fonts?: EmbeddedFont[];
+	/** The East Asian font of the theme (what PowerPoint uses for Japanese text typed into the file). */
+	eaFont?: string;
 }
 
 const DEFAULT_THEME: ThemeColors = {
@@ -1076,18 +1171,33 @@ const DEFAULT_THEME: ThemeColors = {
 	codeFg: "D4D4D4",
 };
 
+/** Give every run with a font, in text boxes and table cells, `eaFont` for its East Asian text. */
+function withEaFont(spec: SlideSpec, eaFont: string): void {
+	const runs = spec.elements.flatMap((el) =>
+		el.type === "textbox"
+			? el.runs
+			: el.type === "table"
+				? el.rows.flatMap((r) => r.cells.flatMap((c) => c.runs))
+				: [],
+	);
+	for (const r of runs)
+		if (r.options?.fontFace && !r.options.eaFontFace) r.options.eaFontFace = eaFont;
+}
+
 export class PptxFile {
 	private slides: SlideSpec[] = [];
 	private title: string;
 	private author: string;
 	private theme: ThemeColors;
 	private fonts: EmbeddedFont[];
+	private eaFont: string;
 
 	constructor(opts: PptxFileOptions = {}) {
 		this.title = opts.title ?? "";
 		this.author = opts.author ?? "";
 		this.theme = opts.theme ?? DEFAULT_THEME;
 		this.fonts = opts.fonts ?? [];
+		this.eaFont = opts.eaFont ?? "";
 	}
 
 	addSlide(spec: SlideSpec): void {
@@ -1097,9 +1207,11 @@ export class PptxFile {
 	async save(outputPath: string): Promise<void> {
 		const zip = new ZipWriter();
 		const count = this.slides.length;
+		// Slides with speaker notes (1-based).
+		const notes = this.slides.flatMap((s, i) => (s.notes?.trim() ? [i + 1] : []));
 
 		// Boilerplate
-		zip.add("[Content_Types].xml", contentTypesXml(count));
+		zip.add("[Content_Types].xml", contentTypesXml(count, notes));
 		zip.add("_rels/.rels", rootRelsXml());
 		// Embedded fonts, numbered in embeddedFontLst order.
 		const fontParts: string[] = [];
@@ -1112,13 +1224,21 @@ export class PptxFile {
 				fontParts.push(target);
 			}
 		}
-		zip.add("ppt/presentation.xml", presentationXml(count, this.fonts));
-		zip.add("ppt/_rels/presentation.xml.rels", presentationRelsXml(count, fontParts));
+		zip.add("ppt/presentation.xml", presentationXml(count, this.fonts, notes.length > 0));
+		zip.add(
+			"ppt/_rels/presentation.xml.rels",
+			presentationRelsXml(count, fontParts, notes.length > 0),
+		);
 		zip.add("ppt/slideMasters/slideMaster1.xml", slideMasterXml());
 		zip.add("ppt/slideMasters/_rels/slideMaster1.xml.rels", slideMasterRelsXml());
 		zip.add("ppt/slideLayouts/slideLayout1.xml", slideLayoutXml());
 		zip.add("ppt/slideLayouts/_rels/slideLayout1.xml.rels", slideLayoutRelsXml());
-		zip.add("ppt/theme/theme1.xml", themeXml(this.theme));
+		zip.add("ppt/theme/theme1.xml", themeXml(this.theme, this.eaFont));
+		if (notes.length) {
+			zip.add("ppt/notesMasters/notesMaster1.xml", notesMasterXml());
+			zip.add("ppt/notesMasters/_rels/notesMaster1.xml.rels", notesMasterRelsXml());
+			zip.add("ppt/theme/theme2.xml", themeXml(this.theme, this.eaFont));
+		}
 		zip.add("ppt/presProps.xml", presPropsXml());
 		zip.add("ppt/viewProps.xml", viewPropsXml());
 		zip.add("ppt/tableStyles.xml", tableStylesXml());
@@ -1128,14 +1248,28 @@ export class PptxFile {
 		// Slides
 		let mediaCount = 0;
 		for (let i = 0; i < count; i++) {
-			const { xml, hyperlinks, images } = buildSlideXml(this.slides[i], i + 1);
+			const spec = this.slides[i] as SlideSpec;
+			if (this.eaFont) withEaFont(spec, this.eaFont);
+			const { xml, hyperlinks, images } = buildSlideXml(spec, i + 1);
 			const media = images.map((img) => {
 				mediaCount++;
 				zip.add(`ppt/media/image${mediaCount}.${img.ext}`, img.data);
 				return { rId: img.rId, target: `../media/image${mediaCount}.${img.ext}` };
 			});
 			zip.add(`ppt/slides/slide${i + 1}.xml`, xml);
-			zip.add(`ppt/slides/_rels/slide${i + 1}.xml.rels`, buildSlideRels(hyperlinks, media));
+			const slideNotes = this.slides[i]?.notes?.trim();
+			zip.add(
+				`ppt/slides/_rels/slide${i + 1}.xml.rels`,
+				buildSlideRels(
+					hyperlinks,
+					media,
+					slideNotes ? `../notesSlides/notesSlide${i + 1}.xml` : undefined,
+				),
+			);
+			if (slideNotes) {
+				zip.add(`ppt/notesSlides/notesSlide${i + 1}.xml`, notesSlideXml(slideNotes, this.eaFont));
+				zip.add(`ppt/notesSlides/_rels/notesSlide${i + 1}.xml.rels`, notesSlideRelsXml(i + 1));
+			}
 		}
 
 		await mkdir(dirname(outputPath), { recursive: true });
