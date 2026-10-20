@@ -4,7 +4,15 @@
 [![npm version](https://img.shields.io/npm/v/@astlide/core.svg)](https://www.npmjs.com/package/@astlide/core)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Astro-based slide presentation framework — like Slidev, but for the Astro ecosystem.
+**Slides that live in your Astro site.** An Astro integration for presentations: write slides in MDX, Markdown or HTML, present them on the web, and hand them over as editable PowerPoint in your company's template.
+
+- **Many decks, one site** — every folder under `src/content/decks/` is a deck, sharing themes, components and one deploy.
+- **Your PowerPoint template, editable PPTX out** — register a `.pptx` / `.potx` template as a theme; `astlide export --pptx` writes real text boxes, tables and shapes with speaker notes, without a browser.
+- **PowerPoint & Google Slides in** — drop a `.pptx` into a deck, or `astlide import` it into editable slides.
+- **Goes into any Astro site** — React / Vue / Svelte components in slides, `<astlide-deck>` to embed decks elsewhere.
+- **For coding agents** — `astlide mcp` runs an MCP server: read templates, import, check for text that doesn't fit, export.
+
+📖 Docs: https://r-hashi01.github.io/astlide/ (日本語: https://r-hashi01.github.io/astlide/ja/)
 
 ## Install
 
@@ -42,7 +50,7 @@ export const collections = { decks };
 Author slides under `src/content/decks/<name>/` as numbered `.mdx`, `.md`, or `.html`
 files (`01-cover.mdx`, `02-intro.md`, `03-demo.html`, …).
 
-For the full guide (frontmatter, themes, components, plugin API, exports) see the [project README](https://github.com/r-hashi01/astlide#readme).
+For the full guide (frontmatter, layouts, themes, PowerPoint templates, export, import, presenting, agents) see the [documentation](https://r-hashi01.github.io/astlide/).
 
 To scaffold a fresh project, use [`create-astlide`](https://www.npmjs.com/package/create-astlide):
 

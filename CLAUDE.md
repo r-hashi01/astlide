@@ -1,4 +1,4 @@
-# Astlide — Astro Slide Framework
+# Astlide — Astro のスライド用インテグレーション
 
 bun workspaces モノレポ。パッケージマネージャーは **bun**。
 

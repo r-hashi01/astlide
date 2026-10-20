@@ -25,7 +25,7 @@ export default defineConfig({
 			title: "Astlide",
 			customCss: ["./src/styles/custom.css"],
 			description:
-				"An Astro-based slide presentation framework — like Slidev, for the Astro ecosystem.",
+				"Slides that live in your Astro site — an Astro integration for MDX, Markdown and HTML decks, with editable PowerPoint export in your own template.",
 			social: [{ icon: "github", label: "GitHub", href: "https://github.com/r-hashi01/astlide" }],
 			editLink: { baseUrl: "https://github.com/r-hashi01/astlide/edit/main/docs/" },
 			lastUpdated: true,

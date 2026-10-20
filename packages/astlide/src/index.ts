@@ -261,7 +261,7 @@ export const collections = { decks };
 `.trim();
 
 /**
- * Astro integration for the Astlide slide framework.
+ * The Astlide Astro integration: slides that live in your Astro site.
  *
  * Add to your `astro.config.mjs`:
  * ```ts
