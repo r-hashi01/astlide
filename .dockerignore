@@ -1,0 +1,9 @@
+**/node_modules
+**/dist
+**/.astro
+.astlide-work
+.git
+.github
+.claude
+exports
+docs/public/api

@@ -149,6 +149,31 @@ jobs:
     steps:
       - run: test "${{ needs.astro-compat.result }}" = "success"
 
+  # The render service's image builds, starts and renders PPTX and PDF
+  # (built only — nothing is pushed).
+  server-docker:
+    name: Server Docker
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: docker build -f packages/server/Dockerfile -t astlide-server .
+      - run: docker run -d --name astlide-server -p 8787:8787 astlide-server
+      - name: Render through the API
+        run: |
+          for i in $(seq 1 30); do curl -sf localhost:8787/health && break; sleep 1; done
+          curl -sf localhost:8787/openapi.json > /dev/null
+          for format in pptx pdf; do
+            curl -sS --fail-with-body -o "out.$format" -H 'content-type: application/json' \
+              -d "{\"markdown\":\"# こんにちは\\n---\\n# Two\",\"format\":\"$format\"}" \
+              localhost:8787/render
+            file "out.$format"
+          done
+          file out.pptx | grep -q -i "PowerPoint\|Zip"
+          file out.pdf | grep -q PDF
+      - if: failure()
+        run: docker logs astlide-server
+
   template-smoke:
     name: Template Smoke
     runs-on: ubuntu-latest

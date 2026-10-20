@@ -43,3 +43,6 @@ docs/.astro/
 
 # Playwright MCP browser-session artifacts
 .playwright-mcp/
+
+# astlide-server per-request projects
+.astlide-work/

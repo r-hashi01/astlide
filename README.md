@@ -517,6 +517,19 @@ astlide({ templates: { brand: './templates/brand.pptx' } })   // .pptx / .potx /
 { "title": "Q3 review", "theme": "brand" }
 ```
 
+## Render service (HTTP API)
+
+`packages/server` is a small HTTP service around Astlide, for tools that can call an API but don't run Node / Astro — Dify or n8n custom tools, internal apps. Send Markdown (and a theme or a PowerPoint template), get an editable PPTX, a PDF or PNGs back; import a PowerPoint as HTML slides; list a template's layouts. Its OpenAPI spec is served at `/openapi.json`, and nothing is stored.
+
+```bash
+docker build -f packages/server/Dockerfile -t astlide-server .
+docker run --rm -p 8787:8787 astlide-server
+curl -o talk.pptx -H 'content-type: application/json' \
+  -d '{"markdown":"# Hello\n---\n# Second slide","theme":"dark"}' localhost:8787/render
+```
+
+See the [render service guide](https://r-hashi01.github.io/astlide/guides/server/).
+
 ## Deploying under a sub-path
 
 Astlide honours Astro's [`base`](https://docs.astro.build/en/reference/configuration-reference/#base) option — every internal link, the presenter preview, overview thumbnails and PDF export resolve against it. For example, a GitHub Pages project site:
@@ -548,9 +561,11 @@ packages/
 │   │   ├── styles/       # base.css + themes/
 │   │   └── cli/          # astlide export
 │   └── package.json
-└── create-astlide/       # CLI scaffolder (bun create astlide)
-    ├── src/index.ts
-    └── template/
+├── create-astlide/       # CLI scaffolder (bun create astlide)
+│   ├── src/index.ts
+│   └── template/
+├── engine/               # @astlide/engine — HTML + CSS layout for PPTX export
+└── server/               # HTTP render service (OpenAPI, Dockerfile)
 ```
 
 ## Development

@@ -1,0 +1,409 @@
+{
+	"openapi": "3.1.0",
+	"info": {
+		"title": "Astlide render service",
+		"version": "0.0.0",
+		"description": "Turn Markdown slides into editable PowerPoint, PDF or PNG, import PowerPoint decks as HTML slides, and read a PowerPoint template's layouts. Nothing is stored: every request's files are deleted once its response is ready.",
+		"license": { "name": "MIT", "identifier": "MIT" }
+	},
+	"servers": [{ "url": "http://localhost:8787" }],
+	"security": [{}, { "bearerAuth": [] }],
+	"paths": {
+		"/render": {
+			"post": {
+				"operationId": "renderSlides",
+				"summary": "Render Markdown slides to PPTX, PDF or PNG",
+				"description": "Builds the slides with Astlide and exports them. Send the slides as one Markdown string (`markdown`; slides separated by lines that are exactly `---`, each optionally starting with a frontmatter block) or as an array (`slides`). Style them with a built-in `theme`, or upload a PowerPoint template (`template`: .pptx / .potx / .thmx) whose layouts can then be chosen per slide with `slideLayout` (see /templates/layouts). By default the file itself is returned; with `output: base64` a JSON object carrying the file as base64.",
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/RenderRequest" },
+							"examples": {
+								"markdown": {
+									"summary": "One Markdown string",
+									"value": {
+										"markdown": "---\nslideLayout: cover\n---\n# Quarterly review\n\nQ3 2026\n---\n# Highlights\n\n- Revenue up 12%\n- Two new regions",
+										"theme": "corporate",
+										"format": "pptx"
+									}
+								},
+								"slides": {
+									"summary": "An array of slides",
+									"value": {
+										"slides": [
+											{ "markdown": "# Quarterly review\n\nQ3 2026", "slideLayout": "cover" },
+											{
+												"markdown": "# Highlights\n\n- Revenue up 12%",
+												"notes": "Mention the new regions"
+											}
+										],
+										"title": "Quarterly review",
+										"format": "pdf"
+									}
+								}
+							}
+						},
+						"multipart/form-data": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"markdown": { "type": "string", "description": "Slides as one Markdown string." },
+									"slides": {
+										"type": "string",
+										"description": "Slides as a JSON array (same shape as in the JSON body)."
+									},
+									"template": {
+										"type": "string",
+										"format": "binary",
+										"description": "A PowerPoint template (.pptx / .potx / .thmx) to use as the theme."
+									},
+									"theme": { "$ref": "#/components/schemas/Theme" },
+									"format": { "$ref": "#/components/schemas/Format" },
+									"output": { "$ref": "#/components/schemas/Output" },
+									"title": { "type": "string" },
+									"author": { "type": "string" },
+									"date": { "type": "string" }
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "The rendered file (`output: file`), or a JSON object with it as base64 (`output: base64`). PNG comes as a ZIP of one image per slide.",
+						"headers": {
+							"X-Render-Time-Ms": {
+								"description": "Time the render took, in milliseconds.",
+								"schema": { "type": "integer" }
+							}
+						},
+						"content": {
+							"application/vnd.openxmlformats-officedocument.presentationml.presentation": {
+								"schema": { "type": "string", "format": "binary" }
+							},
+							"application/pdf": { "schema": { "type": "string", "format": "binary" } },
+							"application/zip": { "schema": { "type": "string", "format": "binary" } },
+							"application/json": { "schema": { "$ref": "#/components/schemas/RenderedFile" } }
+						}
+					},
+					"400": { "$ref": "#/components/responses/Error" },
+					"401": { "$ref": "#/components/responses/Error" },
+					"413": { "$ref": "#/components/responses/Error" },
+					"422": { "$ref": "#/components/responses/Error" },
+					"503": { "$ref": "#/components/responses/Error" },
+					"504": { "$ref": "#/components/responses/Error" }
+				}
+			}
+		},
+		"/import": {
+			"post": {
+				"operationId": "importPresentation",
+				"summary": "Import a PowerPoint or Google Slides deck as HTML slides",
+				"description": "Converts each slide to an Astlide HTML slide (pictures inlined as data: URLs), with its title and speaker notes. Send the .pptx as `file`, or a Google Slides `url` (the deck must be shared as \"Anyone with the link\").",
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"url": {
+										"type": "string",
+										"description": "A Google Slides URL (https://docs.google.com/presentation/d/…)."
+									},
+									"file": { "$ref": "#/components/schemas/Base64File" }
+								}
+							}
+						},
+						"multipart/form-data": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"file": { "type": "string", "format": "binary", "description": "A .pptx file." },
+									"url": { "type": "string", "description": "A Google Slides URL." }
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "The deck's slides.",
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/ImportedDeck" } }
+						}
+					},
+					"400": { "$ref": "#/components/responses/Error" },
+					"401": { "$ref": "#/components/responses/Error" },
+					"413": { "$ref": "#/components/responses/Error" }
+				}
+			}
+		},
+		"/templates/layouts": {
+			"post": {
+				"operationId": "listTemplateLayouts",
+				"summary": "List a PowerPoint template's layouts",
+				"description": "Reads a template (.pptx / .potx / .thmx): its theme colors and fonts, and each layout's id (usable as `slideLayout` when rendering with that template), name and where its title / body / slide-number placeholders are (px on a 1920×1080 canvas).",
+				"requestBody": {
+					"required": true,
+					"content": {
+						"multipart/form-data": {
+							"schema": {
+								"type": "object",
+								"required": ["file"],
+								"properties": {
+									"file": { "type": "string", "format": "binary", "description": "The template." }
+								}
+							}
+						},
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": ["file"],
+								"properties": { "file": { "$ref": "#/components/schemas/Base64File" } }
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "The template's layouts.",
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/TemplateLayouts" } }
+						}
+					},
+					"400": { "$ref": "#/components/responses/Error" },
+					"401": { "$ref": "#/components/responses/Error" },
+					"413": { "$ref": "#/components/responses/Error" }
+				}
+			}
+		},
+		"/health": {
+			"get": {
+				"operationId": "health",
+				"summary": "Health check",
+				"security": [],
+				"responses": {
+					"200": {
+						"description": "The service is up.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"status": { "type": "string", "const": "ok" },
+										"version": { "type": "string" },
+										"queue": {
+											"type": "object",
+											"properties": {
+												"running": { "type": "integer" },
+												"waiting": { "type": "integer" }
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/openapi.json": {
+			"get": {
+				"operationId": "openapi",
+				"summary": "This OpenAPI document",
+				"security": [],
+				"responses": {
+					"200": {
+						"description": "The OpenAPI document, with `servers` set to this service's URL.",
+						"content": { "application/json": { "schema": { "type": "object" } } }
+					}
+				}
+			}
+		}
+	},
+	"components": {
+		"securitySchemes": {
+			"bearerAuth": {
+				"type": "http",
+				"scheme": "bearer",
+				"description": "Needed when the service runs with ASTLIDE_API_KEY (also accepted as an X-API-Key header)."
+			}
+		},
+		"responses": {
+			"Error": {
+				"description": "The request failed; `error` says why.",
+				"content": {
+					"application/json": {
+						"schema": {
+							"type": "object",
+							"required": ["error"],
+							"properties": { "error": { "type": "string" } }
+						}
+					}
+				}
+			}
+		},
+		"schemas": {
+			"Theme": {
+				"type": "string",
+				"description": "A built-in theme (ignored when a template is uploaded).",
+				"enum": ["default", "dark", "minimal", "corporate", "gradient", "rose", "forest"]
+			},
+			"Format": {
+				"type": "string",
+				"enum": ["pptx", "pdf", "png"],
+				"default": "pptx",
+				"description": "pptx: editable PowerPoint. pdf: one page per slide. png: a ZIP with one image per slide."
+			},
+			"Output": {
+				"type": "string",
+				"enum": ["file", "base64"],
+				"default": "file",
+				"description": "file: the file itself. base64: JSON with the file as base64 (for clients that only handle JSON)."
+			},
+			"Base64File": {
+				"type": "object",
+				"required": ["data"],
+				"properties": {
+					"filename": { "type": "string", "description": "File name, e.g. brand.pptx." },
+					"data": {
+						"type": "string",
+						"contentEncoding": "base64",
+						"description": "The file, base64-encoded."
+					}
+				}
+			},
+			"Slide": {
+				"type": "object",
+				"description": "One slide: a Markdown (or HTML) body and its frontmatter.",
+				"properties": {
+					"markdown": { "type": "string", "description": "The slide in Markdown." },
+					"html": {
+						"type": "string",
+						"description": "The slide as HTML (used when markdown is absent)."
+					},
+					"slideLayout": {
+						"type": "string",
+						"description": "Layout: default, cover, section, two-column, image-full, image-left, image-right, code, quote, statement — or a template layout id."
+					},
+					"title": { "type": "string" },
+					"notes": { "type": "string", "description": "Speaker notes." },
+					"frontmatter": {
+						"type": "object",
+						"additionalProperties": true,
+						"description": "Any other slide frontmatter (background, class, hidden, transition …)."
+					}
+				}
+			},
+			"RenderRequest": {
+				"type": "object",
+				"properties": {
+					"markdown": {
+						"type": "string",
+						"description": "All slides in one Markdown string, separated by lines that are exactly `---`. A slide may start with a frontmatter block (`---` / key: value lines / `---`)."
+					},
+					"slides": {
+						"type": "array",
+						"description": "The slides, one item each: a Markdown string or a Slide object. Used instead of markdown.",
+						"items": { "anyOf": [{ "type": "string" }, { "$ref": "#/components/schemas/Slide" }] }
+					},
+					"theme": { "$ref": "#/components/schemas/Theme" },
+					"template": { "$ref": "#/components/schemas/Base64File" },
+					"format": { "$ref": "#/components/schemas/Format" },
+					"output": { "$ref": "#/components/schemas/Output" },
+					"title": { "type": "string", "description": "Deck title (also names the file)." },
+					"author": { "type": "string" },
+					"date": { "type": "string" }
+				}
+			},
+			"RenderedFile": {
+				"type": "object",
+				"required": ["filename", "contentType", "size", "data"],
+				"properties": {
+					"filename": { "type": "string" },
+					"contentType": { "type": "string" },
+					"size": { "type": "integer", "description": "Bytes." },
+					"data": { "type": "string", "contentEncoding": "base64" }
+				}
+			},
+			"ImportedDeck": {
+				"type": "object",
+				"properties": {
+					"title": { "type": ["string", "null"] },
+					"author": { "type": ["string", "null"] },
+					"width": { "type": "integer", "description": "Slide width in EMU (914400 per inch)." },
+					"height": { "type": "integer", "description": "Slide height in EMU." },
+					"theme": {
+						"type": "object",
+						"properties": {
+							"colors": { "type": "object", "additionalProperties": { "type": "string" } },
+							"fonts": {
+								"type": "object",
+								"properties": { "heading": { "type": "string" }, "body": { "type": "string" } }
+							}
+						}
+					},
+					"slides": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"index": { "type": "integer" },
+								"title": { "type": ["string", "null"] },
+								"notes": { "type": "string" },
+								"hidden": { "type": "boolean" },
+								"html": {
+									"type": "string",
+									"description": "The slide as an Astlide HTML slide body."
+								}
+							}
+						}
+					}
+				}
+			},
+			"Box": {
+				"type": ["object", "null"],
+				"description": "A placeholder's box in px on a 1920×1080 canvas.",
+				"properties": {
+					"left": { "type": "number" },
+					"top": { "type": "number" },
+					"width": { "type": "number" },
+					"height": { "type": "number" }
+				}
+			},
+			"TemplateLayouts": {
+				"type": "object",
+				"properties": {
+					"width": { "type": "integer", "description": "Slide width in EMU." },
+					"height": { "type": "integer", "description": "Slide height in EMU." },
+					"colors": { "type": "object", "additionalProperties": { "type": "string" } },
+					"fonts": {
+						"type": "object",
+						"properties": { "heading": { "type": "string" }, "body": { "type": "string" } }
+					},
+					"aliases": {
+						"type": "object",
+						"additionalProperties": { "type": "string" },
+						"description": "Built-in Astlide layouts → the template layout drawn for them (cover → title slide …)."
+					},
+					"layouts": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"id": { "type": "string", "description": "Use as slideLayout." },
+								"name": { "type": "string" },
+								"type": { "type": ["string", "null"] },
+								"title": { "$ref": "#/components/schemas/Box" },
+								"body": { "type": "array", "items": { "$ref": "#/components/schemas/Box" } },
+								"slideNumber": { "$ref": "#/components/schemas/Box" }
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
