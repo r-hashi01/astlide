@@ -12,7 +12,7 @@
 - **Goes into any Astro site** — React / Vue / Svelte components in slides, `<astlide-deck>` to embed decks elsewhere.
 - **For coding agents** — `astlide mcp` runs an MCP server: read templates, import, check for text that doesn't fit, export.
 
-📖 Docs: https://r-hashi01.github.io/astlide/ (日本語: https://r-hashi01.github.io/astlide/ja/)
+📖 Docs: https://astlide.dev/ (日本語: https://astlide.dev/ja/)
 
 ## Install
 
@@ -50,7 +50,7 @@ export const collections = { decks };
 Author slides under `src/content/decks/<name>/` as numbered `.mdx`, `.md`, or `.html`
 files (`01-cover.mdx`, `02-intro.md`, `03-demo.html`, …).
 
-For the full guide (frontmatter, layouts, themes, PowerPoint templates, export, import, presenting, agents) see the [documentation](https://r-hashi01.github.io/astlide/).
+For the full guide (frontmatter, layouts, themes, PowerPoint templates, export, import, presenting, agents) see the [documentation](https://astlide.dev/).
 
 To scaffold a fresh project, use [`create-astlide`](https://www.npmjs.com/package/create-astlide):
 

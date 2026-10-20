@@ -9,7 +9,7 @@ Inside the frame the deck hides its own chrome (toolbar, progress bar, notes) an
 
 ## In another page of the same Astro site
 
-Use the `DeckEmbed` component — it resolves the deck's URL against Astro's [`base`](/astlide/guides/deploy/):
+Use the `DeckEmbed` component — it resolves the deck's URL against Astro's [`base`](/guides/deploy/):
 
 ```astro
 ---

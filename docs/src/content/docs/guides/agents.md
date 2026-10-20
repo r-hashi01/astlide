@@ -7,7 +7,7 @@ Coding agents can write Astlide decks like any other files. Three things help th
 
 - the **MCP server**, whose tools read PowerPoint templates, import `.pptx` files, find text that doesn't fit and export decks;
 - the **agent skill**, which teaches the slide syntax, layouts and the write → check → fix → export loop;
-- the **docs as plain text**, at [`/astlide/llms.txt`](https://r-hashi01.github.io/astlide/llms.txt) and [`/astlide/llms-full.txt`](https://r-hashi01.github.io/astlide/llms-full.txt).
+- the **docs as plain text**, at [`/llms.txt`](https://astlide.dev/llms.txt) and [`/llms-full.txt`](https://astlide.dev/llms-full.txt).
 
 ## MCP server
 
@@ -20,9 +20,9 @@ Each call names the Astlide project to work on, and uses that project's own `@as
 | Tool | Arguments | Returns |
 |---|---|---|
 | `template_layouts` | `templatePath` (`.pptx` / `.potx` / `.thmx`) | The template's layouts: the id to use as `slideLayout`, PowerPoint name and type, title / body / slide-number placeholders, and which built-in layouts (`cover`, `section`, `default`, `two-column`, `code`) are drawn with each; theme colors and fonts |
-| `import_pptx` | `path`, optional `projectRoot`, `deck`, `force`, `includeHtml` | Each slide's title, speaker notes and text as Markdown. With `projectRoot`, also writes an editable deck, like [`astlide import`](/astlide/guides/import/) |
+| `import_pptx` | `path`, optional `projectRoot`, `deck`, `force`, `includeHtml` | Each slide's title, speaker notes and text as Markdown. With `projectRoot`, also writes an editable deck, like [`astlide import`](/guides/import/) |
 | `check_deck` | `projectRoot`, `deck`, optional `build` | Text and boxes that don't fit, per slide (below) |
-| `render_deck` | `projectRoot`, `deck`, `formats` (`pptx`, `pdf`), optional `outDir`, `build` | The exported files' paths, as [`astlide export`](/astlide/guides/export/) writes them |
+| `render_deck` | `projectRoot`, `deck`, `formats` (`pptx`, `pdf`), optional `outDir`, `build` | The exported files' paths, as [`astlide export`](/guides/export/) writes them |
 
 `check_deck` and `render_deck` build the site themselves (`check_deck` only when `dist/` is older than the deck), so no dev server is needed. PDF export needs Playwright's Chromium (`bunx playwright install chromium`).
 
@@ -61,7 +61,7 @@ Other MCP clients take the same command: `bunx astlide mcp`, started in the proj
 
 ## Checking a deck
 
-`check_deck` lays the deck out with the engine behind the [PowerPoint export](/astlide/guides/export/) — at 1920×1080, with the theme's fonts, without a browser — and reports, per slide:
+`check_deck` lays the deck out with the engine behind the [PowerPoint export](/guides/export/) — at 1920×1080, with the theme's fonts, without a browser — and reports, per slide:
 
 | Kind | Meaning |
 |---|---|
@@ -98,7 +98,7 @@ Text is measured with the fonts the deck loads (its `@font-face` rules and Googl
 
 The docs are published for language models as well:
 
-- [`https://r-hashi01.github.io/astlide/llms.txt`](https://r-hashi01.github.io/astlide/llms.txt) — every page with a one-line summary ([llms.txt format](https://llmstxt.org));
-- [`https://r-hashi01.github.io/astlide/llms-full.txt`](https://r-hashi01.github.io/astlide/llms-full.txt) — all pages as Markdown in one file.
+- [`https://astlide.dev/llms.txt`](https://astlide.dev/llms.txt) — every page with a one-line summary ([llms.txt format](https://llmstxt.org));
+- [`https://astlide.dev/llms-full.txt`](https://astlide.dev/llms-full.txt) — all pages as Markdown in one file.
 
 Give an agent the second one when it should know all of Astlide at once.

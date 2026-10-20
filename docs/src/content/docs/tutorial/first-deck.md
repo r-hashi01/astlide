@@ -74,7 +74,7 @@ slideLayout: default
 </Fragments>
 ```
 
-Press <kbd>→</kbd>: each bullet appears on its own step before the deck moves on. [Fragments](/astlide/guides/fragments/) can do much more — reveal several items together, hide them again, or highlight.
+Press <kbd>→</kbd>: each bullet appears on its own step before the deck moves on. [Fragments](/guides/fragments/) can do much more — reveal several items together, hide them again, or highlight.
 
 ## 5. Walk through code
 
@@ -122,7 +122,7 @@ Markdown in git, built by CI.
 </Right>
 ```
 
-And `05-flow.md` — a plain Markdown slide with a [Mermaid](/astlide/guides/diagrams/) diagram (run `bun add mermaid` first):
+And `05-flow.md` — a plain Markdown slide with a [Mermaid](/guides/diagrams/) diagram (run `bun add mermaid` first):
 
 ````md
 ---
@@ -160,7 +160,7 @@ A few more keys worth knowing:
 
 ![A pen annotation circling a diagram](../../../assets/tutorial/pen.png)
 
-The full list is in [Presenting](/astlide/guides/presenting/).
+The full list is in [Presenting](/guides/presenting/).
 
 ## 8. Export a PDF
 
@@ -169,7 +169,7 @@ bunx playwright install chromium   # once — Playwright comes with @astlide/cor
 bun run export hello-astro         # or: bunx astlide export hello-astro
 ```
 
-Astlide builds the site, renders it and writes `exports/hello-astro.pdf`, with every slide in its final state (all steps revealed). Add `--pptx` for an editable PowerPoint, or `--png` for images; see [Export](/astlide/guides/export/).
+Astlide builds the site, renders it and writes `exports/hello-astro.pdf`, with every slide in its final state (all steps revealed). Add `--pptx` for an editable PowerPoint, or `--png` for images; see [Export](/guides/export/).
 
 ## 9. Publish on GitHub Pages
 
@@ -188,6 +188,6 @@ Push the project to a GitHub repository named `my-talks`, enable **Settings → 
 
 ## What's next
 
-- Browse every layout and theme in the [Gallery](/astlide/gallery/).
-- Try the [feature tour deck](https://r-hashi01.github.io/astlide/demo/tour/1/).
-- Make it yours with [themes, plugins and decorators](/astlide/guides/themes-and-plugins/).
+- Browse every layout and theme in the [Gallery](/gallery/).
+- Try the [feature tour deck](https://astlide.dev/demo/tour/1/).
+- Make it yours with [themes, plugins and decorators](/guides/themes-and-plugins/).

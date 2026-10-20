@@ -72,7 +72,7 @@ src/
 
 ## 次のステップ
 
-- [チュートリアル](/astlide/ja/tutorial/first-deck/)に沿って、発表の作成・プレゼン・公開までを体験する
-- [最初のデッキを作る](/astlide/ja/guides/decks/)
-- [プレゼンする](/astlide/ja/guides/presenting/) — キーボードショートカット、発表者ウィンドウ、ペンとレーザーポインター
-- すべてのレイアウトとテーマを[ギャラリー](/astlide/ja/gallery/)で見る、または[ライブデモを試す](https://r-hashi01.github.io/astlide/demo/tour/1/)
+- [チュートリアル](/ja/tutorial/first-deck/)に沿って、発表の作成・プレゼン・公開までを体験する
+- [最初のデッキを作る](/ja/guides/decks/)
+- [プレゼンする](/ja/guides/presenting/) — キーボードショートカット、発表者ウィンドウ、ペンとレーザーポインター
+- すべてのレイアウトとテーマを[ギャラリー](/ja/gallery/)で見る、または[ライブデモを試す](https://astlide.dev/demo/tour/1/)

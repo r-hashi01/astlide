@@ -11,11 +11,11 @@ Astlide は、スライドを Web サイトの一部として管理したいけ�
 
 **アプリではなく SDK です。** Astlide の本体は `astro.config.mjs` に書く `astlide()` だけなので、ブログでも Starlight のドキュメントでも独自のナビゲーションを持つポータルでも、作ったサイトにそのまま組み込めます。部品は単体でも使えます。デッキローダー（`astlideDeckLoader`）、PowerPoint の取り込みとテンプレート（`@astlide/core/pptx`）、PPTX エクスポートの裏で動くレイアウトエンジン（`@astlide/engine`）です。
 
-**自社の PowerPoint テンプレートを使い、編集できる PowerPoint を出力できます。** `.pptx` / `.potx` / `.thmx` の[テンプレートをテーマとして](/astlide/ja/guides/templates/)登録すると、Markdown のスライドにテンプレートの背景、フォント、色、プレースホルダーの位置が反映されます。[エクスポート](/astlide/ja/guides/export/)すると、PowerPoint のテキストボックス・表・図形として、スピーカーノートも付けて書き出され、そのまま編集できます。配置の計算は Astlide 独自のエンジンが行い、ブラウザも LibreOffice も使いません。Node が動く環境ならどこでも実行できます。
+**自社の PowerPoint テンプレートを使い、編集できる PowerPoint を出力できます。** `.pptx` / `.potx` / `.thmx` の[テンプレートをテーマとして](/ja/guides/templates/)登録すると、Markdown のスライドにテンプレートの背景、フォント、色、プレースホルダーの位置が反映されます。[エクスポート](/ja/guides/export/)すると、PowerPoint のテキストボックス・表・図形として、スピーカーノートも付けて書き出され、そのまま編集できます。配置の計算は Astlide 独自のエンジンが行い、ブラウザも LibreOffice も使いません。Node が動く環境ならどこでも実行できます。
 
-**PowerPoint と Google スライドを取り込めます。** デッキのフォルダに `.pptx` を置くとそのままスライドとして表示され、`astlide import` を使えば編集できる HTML スライドに変換できます（[インポート](/astlide/ja/guides/import/)）。既存のデッキをサイトに移すときも、前の四半期の資料を更新するときも、一から作り直さずに済みます。
+**PowerPoint と Google スライドを取り込めます。** デッキのフォルダに `.pptx` を置くとそのままスライドとして表示され、`astlide import` を使えば編集できる HTML スライドに変換できます（[インポート](/ja/guides/import/)）。既存のデッキをサイトに移すときも、前の四半期の資料を更新するときも、一から作り直さずに済みます。
 
-**どのフレームワークのコンポーネントも使えます。** スライドの中身は Astro なので、React、Vue、Svelte、Solid、Preact のコンポーネントがそのまま動き、発表中も操作できます（[ガイド](/astlide/ja/guides/frameworks/)）。
+**どのフレームワークのコンポーネントも使えます。** スライドの中身は Astro なので、React、Vue、Svelte、Solid、Preact のコンポーネントがそのまま動き、発表中も操作できます（[ガイド](/ja/guides/frameworks/)）。
 
 **スライドは 1 枚ずつ静的なページです。** スライドごとに URL と HTML ファイル（`/my-talk/7`）があります。1 枚のスライドに直接リンクでき、JavaScript のアプリが起動するのを待たずに表示されます。GitHub Pages のようにサブパスで公開する場合も含め、ホスティング先を選びません。
 

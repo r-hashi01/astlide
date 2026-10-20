@@ -7,7 +7,7 @@ description: Claude Code、Codex、Gemini CLI にデッキを書かせ、チェ�
 
 - **MCP サーバー**: PowerPoint テンプレートの読み取り、`.pptx` ファイルのインポート、収まらないテキストの検出、デッキのエクスポートを行うツールを提供します。
 - **エージェントスキル**: スライドの書き方、レイアウト、そして「書く → チェックする → 直す → エクスポートする」の流れを教えます。
-- **プレーンテキストのドキュメント**: [`/astlide/llms.txt`](https://r-hashi01.github.io/astlide/llms.txt) と [`/astlide/llms-full.txt`](https://r-hashi01.github.io/astlide/llms-full.txt) にあります。
+- **プレーンテキストのドキュメント**: [`/llms.txt`](https://astlide.dev/llms.txt) と [`/llms-full.txt`](https://astlide.dev/llms-full.txt) にあります。
 
 ## MCP サーバー
 
@@ -20,9 +20,9 @@ description: Claude Code、Codex、Gemini CLI にデッキを書かせ、チェ�
 | ツール | 引数 | 戻り値 |
 |---|---|---|
 | `template_layouts` | `templatePath`（`.pptx` / `.potx` / `.thmx`） | テンプレートのレイアウト（`slideLayout` に使う ID、PowerPoint での名前と種類、タイトル / 本文 / スライド番号のプレースホルダー、各レイアウトで描画される組み込みレイアウト（`cover`、`section`、`default`、`two-column`、`code`））と、テーマの色とフォント |
-| `import_pptx` | `path`、省略可能な `projectRoot`、`deck`、`force`、`includeHtml` | 各スライドのタイトル、スピーカーノート、Markdown にしたテキスト。`projectRoot` を指定すると、[`astlide import`](/astlide/ja/guides/import/) と同じように編集可能なデッキも書き出します |
+| `import_pptx` | `path`、省略可能な `projectRoot`、`deck`、`force`、`includeHtml` | 各スライドのタイトル、スピーカーノート、Markdown にしたテキスト。`projectRoot` を指定すると、[`astlide import`](/ja/guides/import/) と同じように編集可能なデッキも書き出します |
 | `check_deck` | `projectRoot`、`deck`、省略可能な `build` | スライドごとの、収まっていないテキストやボックス（後述） |
-| `render_deck` | `projectRoot`、`deck`、`formats`（`pptx`、`pdf`）、省略可能な `outDir`、`build` | [`astlide export`](/astlide/ja/guides/export/) と同じように書き出したファイルのパス |
+| `render_deck` | `projectRoot`、`deck`、`formats`（`pptx`、`pdf`）、省略可能な `outDir`、`build` | [`astlide export`](/ja/guides/export/) と同じように書き出したファイルのパス |
 
 `check_deck` と `render_deck` はサイトを自分でビルドするので（`check_deck` は `dist/` がデッキより古い場合のみ）、開発サーバーは不要です。PDF のエクスポートには Playwright の Chromium（`bunx playwright install chromium`）が必要です。
 
@@ -61,7 +61,7 @@ args = ["astlide", "mcp"]
 
 ## デッキをチェックする
 
-`check_deck` は、[PowerPoint エクスポート](/astlide/ja/guides/export/)を支えるエンジンでデッキをレイアウトし（1920×1080、テーマのフォントを使用、ブラウザは使いません）、スライドごとに次の問題を報告します。
+`check_deck` は、[PowerPoint エクスポート](/ja/guides/export/)を支えるエンジンでデッキをレイアウトし（1920×1080、テーマのフォントを使用、ブラウザは使いません）、スライドごとに次の問題を報告します。
 
 | 種類 | 意味 |
 |---|---|
@@ -98,7 +98,7 @@ args = ["astlide", "mcp"]
 
 ドキュメントは言語モデル向けにも公開しています。
 
-- [`https://r-hashi01.github.io/astlide/llms.txt`](https://r-hashi01.github.io/astlide/llms.txt) — 全ページの一覧と 1 行の要約（[llms.txt 形式](https://llmstxt.org)）
-- [`https://r-hashi01.github.io/astlide/llms-full.txt`](https://r-hashi01.github.io/astlide/llms-full.txt) — 全ページを 1 つにまとめた Markdown
+- [`https://astlide.dev/llms.txt`](https://astlide.dev/llms.txt) — 全ページの一覧と 1 行の要約（[llms.txt 形式](https://llmstxt.org)）
+- [`https://astlide.dev/llms-full.txt`](https://astlide.dev/llms-full.txt) — 全ページを 1 つにまとめた Markdown
 
 Astlide のすべてを一度に把握させたいときは、エージェントに後者を渡してください。

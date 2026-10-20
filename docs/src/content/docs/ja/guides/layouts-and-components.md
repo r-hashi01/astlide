@@ -20,7 +20,7 @@ description: 組み込みのスライドレイアウトと、MDX スライドで
 | `quote` | 中央寄せの引用 |
 | `statement` | 大きな一文 |
 
-プラグインでレイアウトを追加することもできます。[テーマとプラグイン](/astlide/ja/guides/themes-and-plugins/)を参照してください。
+プラグインでレイアウトを追加することもできます。[テーマとプラグイン](/ja/guides/themes-and-plugins/)を参照してください。
 
 ### 2 カラム
 
@@ -101,7 +101,7 @@ export const collections = { decks };
 </CodeBlock>
 ````
 
-行のハイライトについては[コード](/astlide/ja/guides/code/)を参照してください。
+行のハイライトについては[コード](/ja/guides/code/)を参照してください。
 
 ### `<Math>`
 
@@ -157,4 +157,4 @@ Inline: <Math formula="\frac{x^2}{2}" />
 
 ### `<Fragment>`、`<Fragments>`、`<SpeakerNotes>`
 
-[フラグメント](/astlide/ja/guides/fragments/)と[スピーカーノート](/astlide/ja/guides/decks/#スピーカーノート)を参照してください。
+[フラグメント](/ja/guides/fragments/)と[スピーカーノート](/ja/guides/decks/#スピーカーノート)を参照してください。

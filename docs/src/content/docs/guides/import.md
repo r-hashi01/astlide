@@ -5,7 +5,7 @@ description: Show a .pptx as Astlide slides, or turn it into an editable deck.
 
 Astlide reads PowerPoint files: each page becomes an Astlide slide, with its text kept as text and its shapes, pictures and tables in place. Placeholders get their position and text style from the slide layout and master, theme colors and fonts are resolved, and speaker notes, titles and hidden slides carry over.
 
-Google Slides and Keynote work through their PowerPoint export. To write new slides in Markdown with a template's design, see [PowerPoint templates](/astlide/guides/templates/).
+Google Slides and Keynote work through their PowerPoint export. To write new slides in Markdown with a template's design, see [PowerPoint templates](/guides/templates/).
 
 ## Show a .pptx as it is
 

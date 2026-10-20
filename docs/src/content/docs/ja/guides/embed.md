@@ -9,7 +9,7 @@ description: <astlide-deck> 要素を使って、ブログ記事やドキュメ�
 
 ## 同じ Astro サイトの別のページで使う
 
-`DeckEmbed` コンポーネントを使います。デッキの URL は Astro の [`base`](/astlide/ja/guides/deploy/) を考慮して解決されます。
+`DeckEmbed` コンポーネントを使います。デッキの URL は Astro の [`base`](/ja/guides/deploy/) を考慮して解決されます。
 
 ```astro
 ---

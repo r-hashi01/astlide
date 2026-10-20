@@ -57,4 +57,4 @@ The `astlide` MCP server ships with `@astlide/core` (`astlide mcp`, runs with Bu
 claude mcp add astlide -- bunx astlide mcp
 ```
 
-See https://r-hashi01.github.io/astlide/guides/agents/ for Codex and Gemini CLI.
+See https://astlide.dev/guides/agents/ for Codex and Gemini CLI.

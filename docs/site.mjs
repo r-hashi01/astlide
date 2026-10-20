@@ -2,8 +2,10 @@
 // and the llms.txt endpoints (src/pages/llms*.txt.ts), which list the pages
 // in sidebar order.
 
-export const site = "https://r-hashi01.github.io";
-export const base = "/astlide";
+// The docs live at the root of astlide.dev (the demo deck at /demo/, the API reference at /api/).
+export const site = "https://astlide.dev";
+/** Path prefix of every page ("" at the domain root). */
+export const base = "";
 
 export const sidebar = [
 	{ label: "Why Astlide?", translations: { ja: "なぜ Astlide？" }, slug: "why" },

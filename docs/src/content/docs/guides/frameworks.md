@@ -53,7 +53,7 @@ Exports show a component **as it is first rendered**:
 - **PDF / PNG** (rendered in a browser): what the slide shows when it loads, after `client:*` components have started.
 - **PPTX** (laid out without a browser): the component's server-rendered HTML — its text, boxes and SVG become editable shapes like the rest of the slide.
 
-A component rendered only in the browser (`client:only`) has no HTML at build time, so it is missing from the PPTX. Give it a server-rendered state, or a [static stand-in](/astlide/guides/layouts-and-components/#static-stand-ins-for-your-own-embeds): an element marked `data-astlide-static` is shown over it in prints and exports, and hidden while you present.
+A component rendered only in the browser (`client:only`) has no HTML at build time, so it is missing from the PPTX. Give it a server-rendered state, or a [static stand-in](/guides/layouts-and-components/#static-stand-ins-for-your-own-embeds): an element marked `data-astlide-static` is shown over it in prints and exports, and hidden while you present.
 
 ```mdx
 <div style="position: relative">

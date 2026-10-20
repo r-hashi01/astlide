@@ -16,7 +16,7 @@ bunx astlide export --all --pdf --pptx      # every deck, both formats
 
 デッキはパス（`src/content/decks/my-talk`、`dist/my-talk` など）でも指定できます。プロジェクトはそのパスから自動で見つけます。プロジェクト内のどのフォルダから実行しても同じです。
 
-- **PDF / PNG** はヘッドレスブラウザで描画します（[Playwright](https://playwright.dev) を使います。最初に一度 `bunx playwright install chromium` を実行してください）。`astlide export` がサイトをビルドし、空いているポートで配信してから書き出すので、サーバーを起動しておく必要はありません。Astro の [`base`](/astlide/ja/guides/deploy/) も自動的に反映されます。各スライドは最終状態（フラグメントとコードのステップをすべて適用した状態）で出力され、図の描画が終わるのを待ってから書き出されます。
+- **PDF / PNG** はヘッドレスブラウザで描画します（[Playwright](https://playwright.dev) を使います。最初に一度 `bunx playwright install chromium` を実行してください）。`astlide export` がサイトをビルドし、空いているポートで配信してから書き出すので、サーバーを起動しておく必要はありません。Astro の [`base`](/ja/guides/deploy/) も自動的に反映されます。各スライドは最終状態（フラグメントとコードのステップをすべて適用した状態）で出力され、図の描画が終わるのを待ってから書き出されます。
 - **PPTX** はブラウザを使いません。ビルドしたスライドを Astlide 独自の CSS レイアウトエンジンで配置し、PowerPoint の図形と編集できるテキストボックスとして書き出します。テーマが読み込むフォントはファイルに埋め込まれるので、そのフォントが入っていない PC の PowerPoint でも同じフォントで表示されます（ライセンスで埋め込みが禁止されているフォントは除きます）。表は PowerPoint の表になり、ボックス、CSS の `::before` / `::after` のテキスト、単純なインライン SVG の図（四角形、円、線と矢印、パス、テキスト）は編集できる図形になります。Mermaid の図もブラウザなしで（プロジェクトにインストールされた `mermaid` で）描画して画像として配置します。それ以上の要素（グラデーション、円弧など）を使う SVG の図も画像になります。PNG と SVG の画像はそのまま含まれます。
 
 | オプション | |
@@ -38,7 +38,7 @@ bunx astlide export --all --pdf --pptx      # every deck, both formats
 - **PowerPoint で使われるフォント** — テキストには東アジア言語用のフォントが設定されます。スライドの CSS に CJK フォント（Noto Sans JP など）が指定されていればそのフォントを、なければ Office に同梱されている游ゴシック（Yu Gothic）を使います。
 - **改行位置の計算** — 日本語のテキストは、CSS の CJK フォントが読み込まれていればそのフォントで、なければ Google Fonts の Noto Sans JP で幅を測ってレイアウトします。そのため、行の折り返し位置がブラウザでの表示とほぼ同じになります。
 
-ブラウザ、PDF、PPTX で見た目をそろえるには、テーマで日本語の Web フォントを指定しておくのがおすすめです。`font` オプションで読み込み、[カスタムテーマ](/astlide/ja/guides/themes-and-plugins/#カスタムテーマ)でフォントの指定に加えます。
+ブラウザ、PDF、PPTX で見た目をそろえるには、テーマで日本語の Web フォントを指定しておくのがおすすめです。`font` オプションで読み込み、[カスタムテーマ](/ja/guides/themes-and-plugins/#カスタムテーマ)でフォントの指定に加えます。
 
 ```js
 // astro.config.mjs
@@ -59,7 +59,7 @@ astlide({
 
 ## ブラウザ内での PDF 生成（実験的機能）
 
-[ツールバー](/astlide/ja/guides/presenting/#ツールバー)に `"download"` を追加すると、表示中のデッキをワンクリックで PDF にできます。これはオプションで 1.0 未満の [`@astlide/crispdf`](https://www.npmjs.com/package/@astlide/crispdf) を使っており、出力が今後変わる可能性があります。安定した結果が必要な場合は CLI を使ってください。
+[ツールバー](/ja/guides/presenting/#ツールバー)に `"download"` を追加すると、表示中のデッキをワンクリックで PDF にできます。これはオプションで 1.0 未満の [`@astlide/crispdf`](https://www.npmjs.com/package/@astlide/crispdf) を使っており、出力が今後変わる可能性があります。安定した結果が必要な場合は CLI を使ってください。
 
 ```bash
 bun add -D @astlide/crispdf

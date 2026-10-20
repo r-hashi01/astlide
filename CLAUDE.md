@@ -8,7 +8,7 @@ packages/create-astlide/   — create-astlide (CLI scaffolder)
 packages/engine/           — @astlide/engine (ブラウザなしの HTML/CSS レイアウト、PPTX export が使用)
 skills/astlide/            — エージェント用スキル (SKILL.md)
 playground/                — 開発用 Astro プロジェクト
-docs/                      — ドキュメントサイト (Starlight) → https://r-hashi01.github.io/astlide/
+docs/                      — ドキュメントサイト (Starlight) → https://astlide.dev/
                              サイドバーは docs/site.mjs、/llms.txt・/llms-full.txt は docs/src/pages/
 tools/ts6/                 — TypeScript 6 ブリッジ（下記）
 ```
@@ -63,7 +63,7 @@ bun run changeset    # changeset 作成
 
 - **公開APIを変更したら TSDoc コメントも同時に更新する**（コメントがソースの真実）
 - ドキュメントサイトは `docs/`（Starlight）。**機能を追加・変更したら `docs/src/content/docs/` の該当ページも更新する**
-- `.github/workflows/pages.yml` が main への push で GitHub Pages に公開: `/astlide/`（docs）、`/astlide/api/`（TypeDoc、生成物は git 管理外）、`/astlide/demo/`（playground を base `/astlide/demo` でビルド）
+- `.github/workflows/pages.yml` が main への push で GitHub Pages（独自ドメイン https://astlide.dev/ ）に公開: `/`（docs）、`/api/`（TypeDoc、生成物は git 管理外）、`/demo/`（playground を base `/demo` でビルド）
 - ドキュメントの画像は playground の `tour` デッキから生成: `node scripts/docs-screenshots.mjs`（ギャラリー: レイアウト/テーマ）と `node scripts/docs-ui-screenshots.mjs`（チュートリアル: プレゼンター等）。レイアウトや UI を変えたら撮り直す
 - 内部リンクを手で組み立てるときは `withBase()`（`@astlide/core/utils/base-path`）を通す。CI が base 付きビルドで検査する
 

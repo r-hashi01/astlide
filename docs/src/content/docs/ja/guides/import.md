@@ -5,7 +5,7 @@ description: .pptx をそのまま Astlide のスライドとして表示した�
 
 Astlide は PowerPoint ファイルを読み込めます。各ページが Astlide のスライドになり、テキストはテキストのまま、図形・画像・表は元の位置に配置されます。プレースホルダーの位置と文字スタイルはスライドレイアウトとスライドマスターから取得し、テーマの色とフォントも解決します。スピーカーノート、タイトル、非表示スライドも引き継がれます。
 
-Google スライドと Keynote は、PowerPoint 形式で書き出せば使えます。テンプレートのデザインで新しいスライドを Markdown で書きたい場合は、[PowerPoint テンプレート](/astlide/ja/guides/templates/)を参照してください。
+Google スライドと Keynote は、PowerPoint 形式で書き出せば使えます。テンプレートのデザインで新しいスライドを Markdown で書きたい場合は、[PowerPoint テンプレート](/ja/guides/templates/)を参照してください。
 
 ## .pptx をそのまま表示する
 

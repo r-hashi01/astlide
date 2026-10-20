@@ -1,9 +1,10 @@
 name: Pages
 
-# Publishes https://r-hashi01.github.io/astlide/:
-#   /astlide/        docs site (Starlight, docs/)
-#   /astlide/api/    TypeDoc API reference
-#   /astlide/demo/   the playground deck, built under that base path
+# Publishes https://astlide.dev/:
+#   /        docs site (Starlight, docs/)
+#   /api/    TypeDoc API reference
+#   /demo/   the playground deck, built under that base path
+# (custom domain: set in the repository's Pages settings; DNS on Cloudflare)
 
 on:
   push:
@@ -36,9 +37,9 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Build docs + API reference
         run: bun run docs:build
-      - name: Build the demo deck under /astlide/demo
-        run: ASTLIDE_BASE=/astlide/demo bun run build
-      - run: node scripts/check-base-links.mjs playground/dist /astlide/demo --trailing-slash
+      - name: Build the demo deck under /demo
+        run: ASTLIDE_BASE=/demo bun run build
+      - run: node scripts/check-base-links.mjs playground/dist /demo --trailing-slash
       - name: Assemble site
         run: cp -r playground/dist docs/dist/demo
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0

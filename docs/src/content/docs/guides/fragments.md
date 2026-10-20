@@ -46,7 +46,7 @@ Keep blank lines around the list inside `<Fragments>` so MDX parses it as Markdo
 
 ## Ordering
 
-Fragments and [code highlight steps](/astlide/guides/code/#highlight-steps) share one sequence per slide:
+Fragments and [code highlight steps](/guides/code/#highlight-steps) share one sequence per slide:
 
 1. unindexed steps, in document order;
 2. then indexed steps, by `index` (steps sharing an index happen together).

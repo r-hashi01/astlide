@@ -3,7 +3,7 @@ title: Code
 description: Syntax highlighting, line highlighting and highlight steps.
 ---
 
-Code fences are highlighted with [Shiki](https://shiki.style) (theme `github-dark` by default — change it with the [`shikiTheme`](/astlide/reference/configuration/) option).
+Code fences are highlighted with [Shiki](https://shiki.style) (theme `github-dark` by default — change it with the [`shikiTheme`](/reference/configuration/) option).
 
 ## Line highlighting
 
@@ -17,7 +17,7 @@ Add a `{…}` range after the language to highlight lines; the rest are dimmed:
 
 ## Highlight steps
 
-Separate ranges with `|` to step through them with `→` / `Space`, like [fragments](/astlide/guides/fragments/). `all` or `*` highlights every line:
+Separate ranges with `|` to step through them with `→` / `Space`, like [fragments](/guides/fragments/). `all` or `*` highlights every line:
 
 ````md
 ```ts {1|3-6|8|all}
@@ -41,7 +41,7 @@ Adjust the dimming with the `--code-dim-opacity` CSS variable (default `0.35`).
 
 ## Filename header and copy button
 
-Wrap a fence in [`<CodeBlock title="…">`](/astlide/guides/layouts-and-components/#codeblock).
+Wrap a fence in [`<CodeBlock title="…">`](/guides/layouts-and-components/#codeblock).
 
 ## Using the transformer elsewhere
 

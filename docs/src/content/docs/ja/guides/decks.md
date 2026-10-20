@@ -69,7 +69,7 @@ hidden: false
 `layout` ではなく **`slideLayout`** を使ってください。`layout` は Astro の MDX パイプラインの予約語です。
 :::
 
-すべてのフィールドは [frontmatter リファレンス](/astlide/ja/reference/frontmatter/)を、組み込みの `slideLayout` の値は[レイアウト](/astlide/ja/guides/layouts-and-components/)を参照してください。
+すべてのフィールドは [frontmatter リファレンス](/ja/reference/frontmatter/)を、組み込みの `slideLayout` の値は[レイアウト](/ja/guides/layouts-and-components/)を参照してください。
 
 ## スピーカーノート
 

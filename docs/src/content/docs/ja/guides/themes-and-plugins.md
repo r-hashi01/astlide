@@ -32,7 +32,7 @@ description: 組み込みテーマ、カスタムテーマ、プラグイン API
 
 ### PowerPoint テンプレートから作る
 
-`.pptx` / `.potx` / `.thmx` のテンプレートもテーマとして使えます。`astlide({ templates: { brand: './brand.pptx' } })` のように登録すると、テンプレートの背景、フォント、色、プレースホルダーの位置が反映されます。詳しくは [PowerPoint テンプレート](/astlide/ja/guides/templates/)を参照してください。
+`.pptx` / `.potx` / `.thmx` のテンプレートもテーマとして使えます。`astlide({ templates: { brand: './brand.pptx' } })` のように登録すると、テンプレートの背景、フォント、色、プレースホルダーの位置が反映されます。詳しくは [PowerPoint テンプレート](/ja/guides/templates/)を参照してください。
 
 ## プラグイン API
 
@@ -130,7 +130,7 @@ astlide({
 }
 ```
 
-PPTX エクスポートでの日本語フォントの扱いは、[エクスポート](/astlide/ja/guides/export/#日本語のフォント)を参照してください。
+PPTX エクスポートでの日本語フォントの扱いは、[エクスポート](/ja/guides/export/#日本語のフォント)を参照してください。
 
 ## カスタムのホームページ
 

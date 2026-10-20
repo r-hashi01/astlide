@@ -70,7 +70,7 @@ const withoutComponents = (text: string) =>
 
 /** Links to other docs pages, made absolute. */
 const absoluteLinks = (line: string) =>
-	line.replace(/\]\((\/astlide\/[^)]*)\)/g, (_, path: string) => `](${site}${path})`);
+	line.replace(/\]\((\/(?!\/)[^)]*)\)/g, (_, path: string) => `](${site}${base}${path})`);
 
 /**
  * A page's Markdown, as a reader without the site sees it: MDX imports and

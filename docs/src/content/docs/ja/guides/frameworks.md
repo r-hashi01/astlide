@@ -53,7 +53,7 @@ import PriceChart from "../../../components/PriceChart.vue";
 - **PDF / PNG**（ブラウザで描画）: スライドを読み込み、`client:*` のコンポーネントが動き出した直後の表示です。
 - **PPTX**（ブラウザを使わずに配置）: コンポーネントをサーバーで描画した HTML が使われます。テキスト、ボックス、SVG は、スライドのほかの部分と同じく編集できる図形になります。
 
-ブラウザでのみ描画されるコンポーネント（`client:only`）はビルド時の HTML を持たないため、PPTX には含まれません。サーバーで描画される状態を用意するか、[静的な代替表示](/astlide/ja/guides/layouts-and-components/#独自の埋め込み用の静的な代替表示)を使ってください。`data-astlide-static` を付けた要素は、印刷やエクスポートではコンポーネントの上に表示され、発表中は非表示になります。
+ブラウザでのみ描画されるコンポーネント（`client:only`）はビルド時の HTML を持たないため、PPTX には含まれません。サーバーで描画される状態を用意するか、[静的な代替表示](/ja/guides/layouts-and-components/#独自の埋め込み用の静的な代替表示)を使ってください。`data-astlide-static` を付けた要素は、印刷やエクスポートではコンポーネントの上に表示され、発表中は非表示になります。
 
 ```mdx
 <div style="position: relative">

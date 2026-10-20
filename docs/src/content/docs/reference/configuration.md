@@ -28,18 +28,18 @@ export default defineConfig({
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `toolbar` | `ToolbarItem[]` | `["prev", "counter", "next"]` | Ordered toolbar actions — see [Presenting](/astlide/guides/presenting/#toolbar). |
+| `toolbar` | `ToolbarItem[]` | `["prev", "counter", "next"]` | Ordered toolbar actions — see [Presenting](/guides/presenting/#toolbar). |
 | `slideDecorators` | `string[]` | `[]` | Components rendered on every slide (module specifiers). |
-| `plugins` | `AstlidePlugin[]` | `[]` | Themes, layouts, transitions, Shiki langs / themes, decorators — see [Plugin API](/astlide/guides/themes-and-plugins/#plugin-api). |
+| `plugins` | `AstlidePlugin[]` | `[]` | Themes, layouts, transitions, Shiki langs / themes, decorators — see [Plugin API](/guides/themes-and-plugins/#plugin-api). |
 | `shikiTheme` | `string` | `"github-dark"` | Shiki theme for code fences. |
 | `font` | `false \| string \| { href?, preconnect? }` | Inter + JetBrains Mono from Google Fonts | Web font stylesheet to inject, or `false` for none. |
 | `favicon` | `string \| false` | auto | Favicon for deck pages and the index. Default: `favicon.svg` / `.ico` / `.png` from `public/` if present, else an empty icon (no request to `/favicon.ico` at the domain root). A root-relative path gets Astro's `base`. `false`: no icon link. |
 | `csp` | `boolean \| string` | `true` | Inject a default Content-Security-Policy meta tag, disable it, or provide your own policy. In `astro dev`, `worker-src 'self' blob:` is added (unless set) for Vite's client; the build keeps the policy as is. |
 | `indexable` | `boolean` | `false` | When `false`, pages carry `noindex, nofollow`. |
 | `injectIndexRoute` | `boolean` | auto | Inject the deck index at `/`. Auto-skipped when you have your own `src/pages/index.*`. |
-| `drawings.persist` | `boolean` | `false` | Keep pen drawings in `localStorage` across reloads — see [Presenting](/astlide/guides/presenting/#keeping-drawings). |
+| `drawings.persist` | `boolean` | `false` | Keep pen drawings in `localStorage` across reloads — see [Presenting](/guides/presenting/#keeping-drawings). |
 
-Astro's own [`base`](/astlide/guides/deploy/) option is honoured as well.
+Astro's own [`base`](/guides/deploy/) option is honoured as well.
 
 ## Deck `_config.json`
 
@@ -60,4 +60,4 @@ Astro's own [`base`](/astlide/guides/deploy/) option is honoured as well.
 | `@astlide/core/utils/code-highlight` | `astlideCodeHighlight` Shiki transformer |
 | `@astlide/core/utils/mermaid` | `astlideMermaid` Shiki transformer |
 
-Full API: [TypeDoc reference](https://r-hashi01.github.io/astlide/api/).
+Full API: [TypeDoc reference](https://astlide.dev/api/).

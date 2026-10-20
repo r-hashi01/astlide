@@ -32,7 +32,7 @@ Register it through a plugin (below), then set `"theme": "my-theme"` in the deck
 
 ### From a PowerPoint template
 
-A `.pptx` / `.potx` / `.thmx` template can be a theme too — its backgrounds, fonts, colors and placeholder positions: `astlide({ templates: { brand: './brand.pptx' } })`. See [PowerPoint templates](/astlide/guides/templates/).
+A `.pptx` / `.potx` / `.thmx` template can be a theme too — its backgrounds, fonts, colors and placeholder positions: `astlide({ templates: { brand: './brand.pptx' } })`. See [PowerPoint templates](/guides/templates/).
 
 ## Plugin API
 

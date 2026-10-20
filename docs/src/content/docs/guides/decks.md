@@ -69,7 +69,7 @@ hidden: false
 Use **`slideLayout`**, not `layout` — Astro's MDX pipeline reserves `layout`.
 :::
 
-See the [frontmatter reference](/astlide/reference/frontmatter/) for every field, and [layouts](/astlide/guides/layouts-and-components/) for the built-in `slideLayout` values.
+See the [frontmatter reference](/reference/frontmatter/) for every field, and [layouts](/guides/layouts-and-components/) for the built-in `slideLayout` values.
 
 ## Speaker notes
 

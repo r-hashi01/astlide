@@ -74,7 +74,7 @@ slideLayout: default
 </Fragments>
 ```
 
-<kbd>→</kbd> を押すと、次のスライドへ進む前に箇条書きが 1 項目ずつ現れます。[フラグメント](/astlide/ja/guides/fragments/)ではほかにも、複数の項目をまとめて表示したり、再び隠したり、ハイライトしたりできます。
+<kbd>→</kbd> を押すと、次のスライドへ進む前に箇条書きが 1 項目ずつ現れます。[フラグメント](/ja/guides/fragments/)ではほかにも、複数の項目をまとめて表示したり、再び隠したり、ハイライトしたりできます。
 
 ## 5. コードを順に説明する
 
@@ -122,7 +122,7 @@ Markdown in git, built by CI.
 </Right>
 ```
 
-続いて `05-flow.md` を作成します。[Mermaid](/astlide/ja/guides/diagrams/) の図を含む素の Markdown スライドです（先に `bun add mermaid` を実行してください）。
+続いて `05-flow.md` を作成します。[Mermaid](/ja/guides/diagrams/) の図を含む素の Markdown スライドです（先に `bun add mermaid` を実行してください）。
 
 ````md
 ---
@@ -160,7 +160,7 @@ flowchart LR
 
 ![図を丸で囲んだペンの書き込み](../../../../assets/tutorial/pen.png)
 
-キーの一覧は[プレゼンテーション](/astlide/ja/guides/presenting/)にあります。
+キーの一覧は[プレゼンテーション](/ja/guides/presenting/)にあります。
 
 ## 8. PDF に書き出す
 
@@ -169,7 +169,7 @@ bunx playwright install chromium   # once — Playwright comes with @astlide/cor
 bun run export hello-astro         # or: bunx astlide export hello-astro
 ```
 
-Astlide がサイトをビルドして描画し、`exports/hello-astro.pdf` を書き出します。各スライドは最終状態（すべてのステップを表示した状態）で出力されます。`--pptx` を付けると編集可能な PowerPoint、`--png` を付けると画像を書き出します。詳しくは[エクスポート](/astlide/ja/guides/export/)を参照してください。
+Astlide がサイトをビルドして描画し、`exports/hello-astro.pdf` を書き出します。各スライドは最終状態（すべてのステップを表示した状態）で出力されます。`--pptx` を付けると編集可能な PowerPoint、`--png` を付けると画像を書き出します。詳しくは[エクスポート](/ja/guides/export/)を参照してください。
 
 ## 9. GitHub Pages で公開する
 
@@ -188,6 +188,6 @@ export default defineConfig({
 
 ## 次にやること
 
-- すべてのレイアウトとテーマを[ギャラリー](/astlide/ja/gallery/)で見る。
-- [機能紹介デッキ](https://r-hashi01.github.io/astlide/demo/tour/1/)を試す。
-- [テーマ、プラグイン、デコレーター](/astlide/ja/guides/themes-and-plugins/)で自分好みにカスタマイズする。
+- すべてのレイアウトとテーマを[ギャラリー](/ja/gallery/)で見る。
+- [機能紹介デッキ](https://astlide.dev/demo/tour/1/)を試す。
+- [テーマ、プラグイン、デコレーター](/ja/guides/themes-and-plugins/)で自分好みにカスタマイズする。

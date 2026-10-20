@@ -11,11 +11,11 @@ Astlide is for people who want slides to be part of a website — and who still 
 
 **It's an SDK, not an app.** Astlide is `astlide()` in your `astro.config.mjs`, so it goes into whatever site you build — a blog, Starlight docs, a portal with your own navigation. Its pieces work on their own too: the deck loader (`astlideDeckLoader`), PowerPoint import and templates (`@astlide/core/pptx`), and the layout engine behind the PPTX export (`@astlide/engine`).
 
-**Your PowerPoint template, editable PowerPoint out.** Register a `.pptx` / `.potx` / `.thmx` [template as a theme](/astlide/guides/templates/) and Markdown slides take its backgrounds, fonts, colors and placeholder positions. [Export](/astlide/guides/export/) writes real PowerPoint text boxes, tables and shapes with your speaker notes, laid out by Astlide's own engine — no browser or LibreOffice involved, so it runs anywhere Node runs.
+**Your PowerPoint template, editable PowerPoint out.** Register a `.pptx` / `.potx` / `.thmx` [template as a theme](/guides/templates/) and Markdown slides take its backgrounds, fonts, colors and placeholder positions. [Export](/guides/export/) writes real PowerPoint text boxes, tables and shapes with your speaker notes, laid out by Astlide's own engine — no browser or LibreOffice involved, so it runs anywhere Node runs.
 
-**PowerPoint and Google Slides in.** A `.pptx` dropped into a deck folder shows as slides; `astlide import` turns one into editable HTML slides ([Import](/astlide/guides/import/)). Moving an existing deck into the site — or updating last quarter's — doesn't start from scratch.
+**PowerPoint and Google Slides in.** A `.pptx` dropped into a deck folder shows as slides; `astlide import` turns one into editable HTML slides ([Import](/guides/import/)). Moving an existing deck into the site — or updating last quarter's — doesn't start from scratch.
 
-**Any framework's components.** Slides are Astro, so React, Vue, Svelte, Solid and Preact components work on them, interactive while you present ([guide](/astlide/guides/frameworks/)).
+**Any framework's components.** Slides are Astro, so React, Vue, Svelte, Solid and Preact components work on them, interactive while you present ([guide](/guides/frameworks/)).
 
 **Every slide is a static page.** Each slide is its own URL and HTML file (`/my-talk/7`): link to a single slide, load without a client app booting, host anywhere — including sub-paths such as GitHub Pages.
 

@@ -2,14 +2,14 @@ import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
 import { base, sidebar, site } from "./site.mjs";
 
-// Published at https://r-hashi01.github.io/astlide/ by .github/workflows/pages.yml,
-// alongside the live demo deck (/astlide/demo/) and the TypeDoc API reference
-// (/astlide/api/). Agents read the docs from /astlide/llms.txt and
-// /astlide/llms-full.txt (src/pages/).
+// Published at https://astlide.dev/ by .github/workflows/pages.yml,
+// alongside the live demo deck (/demo/) and the TypeDoc API reference
+// (/api/). Agents read the docs from /llms.txt and
+// /llms-full.txt (src/pages/).
 
 export default defineConfig({
 	site,
-	base,
+	base: base || "/",
 	// Pages are directories on GitHub Pages; link them with the slash (no redirect).
 	trailingSlash: "always",
 	vite: {
@@ -30,7 +30,7 @@ export default defineConfig({
 			editLink: { baseUrl: "https://github.com/r-hashi01/astlide/edit/main/docs/" },
 			lastUpdated: true,
 			// English stays at the root (existing URLs unchanged); Japanese lives
-			// under /astlide/ja/. Pages without a translation fall back to English.
+			// under /ja/. Pages without a translation fall back to English.
 			defaultLocale: "root",
 			locales: {
 				root: { label: "English", lang: "en" },

@@ -9,7 +9,7 @@
 
 Astlide is an [Astro](https://astro.build) integration for presentations. Every talk, report and pitch is content of one site: write slides in MDX, Markdown or plain HTML, present them on the web, and hand them over as editable PowerPoint in your company's template.
 
-📖 **Documentation:** https://r-hashi01.github.io/astlide/ · 🎬 **Live demo:** https://r-hashi01.github.io/astlide/demo/tour/1/ · 🇯🇵 [日本語ドキュメント](https://r-hashi01.github.io/astlide/ja/)
+📖 **Documentation:** https://astlide.dev/ · 🎬 **Live demo:** https://astlide.dev/demo/tour/1/ · 🇯🇵 [日本語ドキュメント](https://astlide.dev/ja/)
 
 ## Why Astlide
 
@@ -29,7 +29,7 @@ And everything you expect from a presentation tool:
 - **Export** — PDF / PNG via Playwright, editable PowerPoint (in your template, with notes), one-click in-browser PDF
 - **Make it yours** — 7 themes, PowerPoint templates as themes, a plugin API (themes, layouts, transitions), slide decorators, a composable toolbar
 
-How it compares to Slidev, Marp, reveal.js and Quarto: [Why Astlide?](https://r-hashi01.github.io/astlide/why/)
+How it compares to Slidev, Marp, reveal.js and Quarto: [Why Astlide?](https://astlide.dev/why/)
 
 ## Quick Start
 
@@ -532,7 +532,7 @@ curl -o talk.pptx -H 'content-type: application/json' \
   -d '{"markdown":"# Hello\n---\n# Second slide","theme":"dark"}' localhost:8787/render
 ```
 
-See the [render service guide](https://r-hashi01.github.io/astlide/guides/server/).
+See the [render service guide](https://astlide.dev/guides/server/).
 
 ## Deploying under a sub-path
 
@@ -567,7 +567,7 @@ Anywhere else, use the `<astlide-deck>` custom element (`@astlide/core/embed`), 
 <astlide-deck src="https://example.com/talks/my-talk/" controls></astlide-deck>
 ```
 
-It keeps 16:9 at its container's width and has `next()`, `prev()`, `goTo(n)`, `requestFullscreen()` and a `slidechange` event. See the [embedding guide](https://r-hashi01.github.io/astlide/guides/embed/).
+It keeps 16:9 at its container's width and has `next()`, `prev()`, `goTo(n)`, `requestFullscreen()` and a `slidechange` event. See the [embedding guide](https://astlide.dev/guides/embed/).
 
 ## Project Structure
 

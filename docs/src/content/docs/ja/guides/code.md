@@ -3,7 +3,7 @@ title: コード
 description: シンタックスハイライト、行のハイライト、ハイライトのステップ表示。
 ---
 
-コードフェンスは [Shiki](https://shiki.style) でハイライトされます（デフォルトのテーマは `github-dark` です。[`shikiTheme`](/astlide/ja/reference/configuration/) オプションで変更できます）。
+コードフェンスは [Shiki](https://shiki.style) でハイライトされます（デフォルトのテーマは `github-dark` です。[`shikiTheme`](/ja/reference/configuration/) オプションで変更できます）。
 
 ## 行のハイライト
 
@@ -17,7 +17,7 @@ description: シンタックスハイライト、行のハイライト、ハイ�
 
 ## ハイライトのステップ表示
 
-範囲を `|` で区切ると、[フラグメント](/astlide/ja/guides/fragments/)と同じように `→` / `Space` で順に切り替えられます。`all` または `*` はすべての行をハイライトします。
+範囲を `|` で区切ると、[フラグメント](/ja/guides/fragments/)と同じように `→` / `Space` で順に切り替えられます。`all` または `*` はすべての行をハイライトします。
 
 ````md
 ```ts {1|3-6|8|all}
@@ -41,7 +41,7 @@ export const collections = { decks };
 
 ## ファイル名ヘッダーとコピーボタン
 
-コードフェンスを [`<CodeBlock title="…">`](/astlide/ja/guides/layouts-and-components/#codeblock) で囲みます。
+コードフェンスを [`<CodeBlock title="…">`](/ja/guides/layouts-and-components/#codeblock) で囲みます。
 
 ## トランスフォーマーをほかで使う
 

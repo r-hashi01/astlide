@@ -28,4 +28,4 @@ Root-relative paths in `<ImageSide src>` and image `background`s (e.g. `/photo.j
 
 ## Search engines
 
-Decks are `noindex` by default. Set [`indexable: true`](/astlide/reference/configuration/) to let search engines index them.
+Decks are `noindex` by default. Set [`indexable: true`](/reference/configuration/) to let search engines index them.

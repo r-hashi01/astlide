@@ -28,4 +28,4 @@ export default defineConfig({
 
 ## 検索エンジン
 
-デッキはデフォルトで `noindex` になっています。検索エンジンにインデックスさせるには [`indexable: true`](/astlide/ja/reference/configuration/) を設定してください。
+デッキはデフォルトで `noindex` になっています。検索エンジンにインデックスさせるには [`indexable: true`](/ja/reference/configuration/) を設定してください。

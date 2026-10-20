@@ -22,7 +22,7 @@ description: Keyboard shortcuts, the presenter window, overview, go-to-slide, pe
 | `s` | Share mode — hide all chrome for screen sharing |
 | `f` | Fullscreen |
 | `Esc` | Exit pen / laser, fullscreen, close overlays |
-| `e` | Live-edit the slide's source in the browser (`astro dev` only — see [Creating a Deck](/astlide/guides/decks/#editing-in-the-browser)) |
+| `e` | Live-edit the slide's source in the browser (`astro dev` only — see [Creating a Deck](/guides/decks/#editing-in-the-browser)) |
 
 On touch devices, swipe left / right to navigate.
 
@@ -34,7 +34,7 @@ Press `p` to open the presenter window. It shows:
 - speaker notes (font size adjustable with `A−` / `A+` or `Shift+,` / `Shift+.`);
 - a timer.
 
-The two windows stay in sync over `BroadcastChannel`: slide changes, [fragment and code steps](/astlide/guides/fragments/), pen strokes and the laser pointer. Drive the talk from the presenter window; the audience window follows.
+The two windows stay in sync over `BroadcastChannel`: slide changes, [fragment and code steps](/guides/fragments/), pen strokes and the laser pointer. Drive the talk from the presenter window; the audience window follows.
 
 ## Go to slide
 
@@ -86,7 +86,7 @@ astlide({
 | `presenter` | Open the presenter window |
 | `fullscreen` | Toggle fullscreen |
 | `print` / `share` | Print mode / share mode |
-| `download` | In-browser PDF ([experimental](/astlide/guides/export/)) |
+| `download` | In-browser PDF ([experimental](/guides/export/)) |
 | `spacer` | Flexible gap |
 
 Default: `["prev", "counter", "next"]`.

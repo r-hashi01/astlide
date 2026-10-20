@@ -94,7 +94,7 @@ curl -F file=@brand.pptx localhost:8787/templates/layouts
 # {"fonts":{…},"aliases":{"cover":"title-slide",…},"layouts":[{"id":"title-slide","name":"Title Slide","title":{"left":72,…},"body":[…]},…]}
 ```
 
-See [PowerPoint templates](/astlide/guides/templates/) for how content fills the placeholders.
+See [PowerPoint templates](/guides/templates/) for how content fills the placeholders.
 
 ## Import a deck
 

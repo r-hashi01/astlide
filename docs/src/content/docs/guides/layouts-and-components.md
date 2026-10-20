@@ -20,7 +20,7 @@ Choose a layout per slide with `slideLayout`:
 | `quote` | Centred blockquote |
 | `statement` | Single large sentence |
 
-Plugins can add more — see [Themes & Plugins](/astlide/guides/themes-and-plugins/).
+Plugins can add more — see [Themes & Plugins](/guides/themes-and-plugins/).
 
 ### Two columns
 
@@ -101,7 +101,7 @@ export const collections = { decks };
 </CodeBlock>
 ````
 
-See [Code](/astlide/guides/code/) for line highlighting.
+See [Code](/guides/code/) for line highlighting.
 
 ### `<Math>`
 
@@ -157,4 +157,4 @@ A static, styled card — no external API calls:
 
 ### `<Fragment>`, `<Fragments>`, `<SpeakerNotes>`
 
-See [Fragments](/astlide/guides/fragments/) and [speaker notes](/astlide/guides/decks/#speaker-notes).
+See [Fragments](/guides/fragments/) and [speaker notes](/guides/decks/#speaker-notes).

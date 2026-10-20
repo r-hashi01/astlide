@@ -16,7 +16,7 @@ Projects created with `bun create astlide` also have it as a script: `bun run ex
 
 A deck can also be given as a path (`src/content/decks/my-talk`, `dist/my-talk`, …); the project is found from it, as it is when you run the command in any folder inside the project.
 
-- **PDF / PNG** are rendered in a headless browser ([Playwright](https://playwright.dev); run `bunx playwright install chromium` once). `astlide export` builds your site and serves it on a free port for the export, so there's no server to start, and Astro's [`base`](/astlide/guides/deploy/) is picked up automatically. Every slide is shown in its final state (all fragment / code steps applied), and diagrams finish rendering first.
+- **PDF / PNG** are rendered in a headless browser ([Playwright](https://playwright.dev); run `bunx playwright install chromium` once). `astlide export` builds your site and serves it on a free port for the export, so there's no server to start, and Astro's [`base`](/guides/deploy/) is picked up automatically. Every slide is shown in its final state (all fragment / code steps applied), and diagrams finish rendering first.
 - **PPTX** needs no browser: the built slides are laid out by Astlide's own CSS layout engine and written as native shapes and editable text boxes. The fonts your theme loads are embedded in the file, so PowerPoint shows the slides in them without the fonts installed (fonts whose license forbids embedding are left out). Tables become PowerPoint tables, and boxes, CSS `::before` / `::after` text and simple inline SVG drawings (rectangles, circles, lines and arrows, paths, text) become shapes you can edit. Mermaid diagrams are rendered without a browser too (the project's `mermaid` install) and placed as pictures, as are SVG drawings that use more than that (gradients, arcs …); PNG and SVG images are included. Speaker notes go into PowerPoint's notes pane. Japanese (and other East Asian) text is given an East Asian font — the CJK font your CSS names, else Yu Gothic, which comes with Office — and is laid out with a Japanese font, so lines break as in the browser.
 
 | Option | |
@@ -33,7 +33,7 @@ If `astro dev` is running for the same project, pass `--base-url` so a PDF / PNG
 
 ## In-browser PDF (experimental)
 
-Add `"download"` to the [toolbar](/astlide/guides/presenting/#toolbar) for a one-click PDF of the current deck. It uses the optional, pre-1.0 [`@astlide/crispdf`](https://www.npmjs.com/package/@astlide/crispdf), whose output may still change — prefer the CLI for stable results.
+Add `"download"` to the [toolbar](/guides/presenting/#toolbar) for a one-click PDF of the current deck. It uses the optional, pre-1.0 [`@astlide/crispdf`](https://www.npmjs.com/package/@astlide/crispdf), whose output may still change — prefer the CLI for stable results.
 
 ```bash
 bun add -D @astlide/crispdf

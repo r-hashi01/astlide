@@ -94,7 +94,7 @@ curl -F file=@brand.pptx localhost:8787/templates/layouts
 # {"fonts":{…},"aliases":{"cover":"title-slide",…},"layouts":[{"id":"title-slide","name":"Title Slide","title":{"left":72,…},"body":[…]},…]}
 ```
 
-内容がプレースホルダーにどう入るかは [PowerPoint テンプレート](/astlide/ja/guides/templates/)を参照してください。
+内容がプレースホルダーにどう入るかは [PowerPoint テンプレート](/ja/guides/templates/)を参照してください。
 
 ## デッキをインポートする
 

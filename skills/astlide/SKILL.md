@@ -5,7 +5,7 @@ description: Write, check and export slide decks with Astlide (Astro-based slide
 
 # Astlide
 
-Astlide is an Astro integration: each deck is a folder of numbered slide files in an Astro project, every slide is a static page at `/<deck>/<n>`, and decks export to PDF, PNG and editable PowerPoint. Docs: https://r-hashi01.github.io/astlide/ (agent-readable: https://r-hashi01.github.io/astlide/llms-full.txt).
+Astlide is an Astro integration: each deck is a folder of numbered slide files in an Astro project, every slide is a static page at `/<deck>/<n>`, and decks export to PDF, PNG and editable PowerPoint. Docs: https://astlide.dev/ (agent-readable: https://astlide.dev/llms-full.txt).
 
 ## When to use
 
