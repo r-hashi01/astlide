@@ -9,6 +9,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export interface RunResult {
 	code: number;
@@ -66,15 +67,14 @@ export function deckDir(root: string, deck: string): string {
 /** Bun runs the `astlide` CLI (a TypeScript entry with a `bun` shebang). */
 const bun = () => (process.versions.bun ? process.execPath : "bun");
 
-/** The `astlide` CLI entry: the project's own @astlide/core, else the one next to this server. */
+/** The `astlide` CLI entry: the project's own @astlide/core, else this one's. */
 export function astlideCli(root: string): string {
-	let index: string;
 	try {
-		index = createRequire(join(root, "package.json")).resolve("@astlide/core");
+		const index = createRequire(join(root, "package.json")).resolve("@astlide/core");
+		return join(dirname(index), "cli", "astlide.ts");
 	} catch {
-		index = createRequire(import.meta.url).resolve("@astlide/core");
+		return fileURLToPath(new URL("../cli/astlide.ts", import.meta.url));
 	}
-	return join(dirname(index), "cli", "astlide.ts");
 }
 
 /** Run `astlide <args>` in the project. */

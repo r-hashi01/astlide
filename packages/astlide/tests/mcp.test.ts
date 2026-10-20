@@ -14,11 +14,11 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import PptxGenJS from "pptxgenjs";
 import { beforeAll, describe, expect, it } from "vitest";
-import { checkSlide, siteView } from "../src/check";
-import { importPptx, readPptx } from "../src/import";
-import { exportArgs } from "../src/render";
-import { createServer } from "../src/server-def";
-import { templateLayouts } from "../src/template";
+import { checkSlide, siteView } from "../src/mcp/check";
+import { importPptx, readPptx } from "../src/mcp/import";
+import { exportArgs } from "../src/mcp/render";
+import { createServer } from "../src/mcp/server-def";
+import { templateLayouts } from "../src/mcp/template";
 
 /** A template: a title slide layout and a title-and-content layout with a slide number. */
 async function template(): Promise<Buffer> {

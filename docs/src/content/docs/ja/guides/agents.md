@@ -11,13 +11,7 @@ description: Claude Code、Codex、Gemini CLI にデッキを書かせ、チェ�
 
 ## MCP サーバー
 
-サーバーは標準入出力（stdio）で MCP のやり取りをし、[Bun](https://bun.sh) で動きます。Astlide のリポジトリ（`packages/mcp`）にあり、まだ npm には公開していないので、クローンして実行します。
-
-```bash
-git clone https://github.com/r-hashi01/astlide
-cd astlide
-bun install
-```
+サーバーは `@astlide/core` に含まれています。`astlide mcp` で起動し、標準入出力（stdio）で MCP のやり取りをします（[Bun](https://bun.sh) で動きます）。Astlide を入れたプロジェクトなら、追加のインストールは要りません。
 
 ツールを呼ぶたびに対象の Astlide プロジェクトを指定し、そのプロジェクトにインストールされている `@astlide/core` を使って動きます。
 
@@ -35,7 +29,7 @@ bun install
 ### Claude Code
 
 ```bash
-claude mcp add astlide -- bun /path/to/astlide/packages/mcp/src/server.ts
+claude mcp add astlide -- bunx astlide mcp
 ```
 
 `--scope project` を付けると、`.mcp.json` を通じてチームで共有できます。
@@ -45,8 +39,8 @@ claude mcp add astlide -- bun /path/to/astlide/packages/mcp/src/server.ts
 ```toml
 # ~/.codex/config.toml
 [mcp_servers.astlide]
-command = "bun"
-args = ["/path/to/astlide/packages/mcp/src/server.ts"]
+command = "bunx"
+args = ["astlide", "mcp"]
 ```
 
 ### Gemini CLI
@@ -56,14 +50,14 @@ args = ["/path/to/astlide/packages/mcp/src/server.ts"]
 {
   "mcpServers": {
     "astlide": {
-      "command": "bun",
-      "args": ["/path/to/astlide/packages/mcp/src/server.ts"]
+      "command": "bunx",
+      "args": ["astlide", "mcp"]
     }
   }
 }
 ```
 
-ほかの MCP クライアントでも同じコマンドを使います: `bun /path/to/astlide/packages/mcp/src/server.ts`。
+ほかの MCP クライアントでも、プロジェクトのフォルダで `bunx astlide mcp` を起動するように設定します。
 
 ## デッキをチェックする
 

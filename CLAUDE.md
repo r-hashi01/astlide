@@ -6,7 +6,6 @@ bun workspaces モノレポ。パッケージマネージャーは **bun**。
 packages/astlide/          — @astlide/core (Astro Integration)
 packages/create-astlide/   — create-astlide (CLI scaffolder)
 packages/engine/           — @astlide/engine (ブラウザなしの HTML/CSS レイアウト、PPTX export が使用)
-packages/mcp/              — @astlide/mcp (MCP サーバー、private。check_deck 等)
 skills/astlide/            — エージェント用スキル (SKILL.md)
 playground/                — 開発用 Astro プロジェクト
 docs/                      — ドキュメントサイト (Starlight) → https://r-hashi01.github.io/astlide/
@@ -52,6 +51,7 @@ bun run changeset    # changeset 作成
 - `packages/astlide/src/index.ts` — Integration エントリ（`toolbar` / `font` / `slideDecorators` オプション）
 - `packages/astlide/src/schema.ts` — Zod スキーマ (`slideSchema`)
 - `packages/astlide/src/loader.ts` — `astlideDeckLoader()`（.mdx/.md/.html を扱う content loader）
+- `packages/astlide/src/mcp/` — MCP サーバー（`astlide mcp` / `@astlide/core/mcp`。template_layouts・import_pptx・render_deck・check_deck）
 - `packages/astlide/src/context.ts` — 型付きメタデータ API (`getDeckContext` / `getClientDeckContext`)
 - `packages/astlide/src/plugin.ts` — プラグインAPI（themes/layouts/transitions/`decorators`）
 - `packages/astlide/src/internal/DeckLayout.astro` — ビューポートスケーリング・ナビ(toolbar)・プレゼンター・PDF

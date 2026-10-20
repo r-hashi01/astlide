@@ -51,11 +51,10 @@ export const collections = { decks };
 
 ## MCP server
 
-The `astlide` MCP server (`packages/mcp` in the Astlide repository, not on npm yet) runs with Bun from a clone:
+The `astlide` MCP server ships with `@astlide/core` (`astlide mcp`, runs with Bun). In the project folder:
 
 ```bash
-git clone https://github.com/r-hashi01/astlide && cd astlide && bun install
-claude mcp add astlide -- bun "$PWD/packages/mcp/src/server.ts"
+claude mcp add astlide -- bunx astlide mcp
 ```
 
 See https://r-hashi01.github.io/astlide/guides/agents/ for Codex and Gemini CLI.

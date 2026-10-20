@@ -1,5 +1,5 @@
 /**
- * @astlide/mcp — an MCP server that lets coding agents work on Astlide
+ * `@astlide/core/mcp` — the MCP server behind `astlide mcp`, which lets coding agents work on Astlide
  * decks: read a PowerPoint template's layouts, import a .pptx, find text
  * that doesn't fit, and export to PowerPoint / PDF.
  *

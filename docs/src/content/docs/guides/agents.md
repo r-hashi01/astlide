@@ -11,15 +11,9 @@ Coding agents can write Astlide decks like any other files. Three things help th
 
 ## MCP server
 
-The server speaks MCP over stdio and runs with [Bun](https://bun.sh). It lives in the Astlide repository (`packages/mcp`) and isn't published to npm yet, so run it from a clone:
+The server comes with `@astlide/core`: `astlide mcp` runs it over stdio, with [Bun](https://bun.sh). Nothing else to install — any project with Astlide has it.
 
-```bash
-git clone https://github.com/r-hashi01/astlide
-cd astlide
-bun install
-```
-
-It works on the Astlide project you name in each call, using that project's own `@astlide/core`.
+Each call names the Astlide project to work on, and uses that project's own `@astlide/core`.
 
 ### Tools
 
@@ -35,7 +29,7 @@ It works on the Astlide project you name in each call, using that project's own 
 ### Claude Code
 
 ```bash
-claude mcp add astlide -- bun /path/to/astlide/packages/mcp/src/server.ts
+claude mcp add astlide -- bunx astlide mcp
 ```
 
 Add `--scope project` to share it with your team through `.mcp.json`.
@@ -45,8 +39,8 @@ Add `--scope project` to share it with your team through `.mcp.json`.
 ```toml
 # ~/.codex/config.toml
 [mcp_servers.astlide]
-command = "bun"
-args = ["/path/to/astlide/packages/mcp/src/server.ts"]
+command = "bunx"
+args = ["astlide", "mcp"]
 ```
 
 ### Gemini CLI
@@ -56,14 +50,14 @@ args = ["/path/to/astlide/packages/mcp/src/server.ts"]
 {
   "mcpServers": {
     "astlide": {
-      "command": "bun",
-      "args": ["/path/to/astlide/packages/mcp/src/server.ts"]
+      "command": "bunx",
+      "args": ["astlide", "mcp"]
     }
   }
 }
 ```
 
-Other MCP clients take the same command: `bun /path/to/astlide/packages/mcp/src/server.ts`.
+Other MCP clients take the same command: `bunx astlide mcp`, started in the project folder.
 
 ## Checking a deck
 

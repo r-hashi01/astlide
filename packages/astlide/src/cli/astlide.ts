@@ -46,6 +46,9 @@ Usage:
     an editable deck: src/content/decks/<deck>/*.html, pictures in public/pptx/.
     A Google Slides URL works when the deck is shared as "Anyone with the link".
     (To show a .pptx as is, just put it in a deck folder.)
+  astlide mcp
+    Run the Astlide MCP server over stdio, for coding agents:
+    claude mcp add astlide -- bunx astlide mcp
 
 Formats (combine as needed; default --pdf):
   --pdf                 One multi-page PDF per deck
@@ -300,6 +303,15 @@ async function main(): Promise<void> {
 	if (!command || command === "-h" || command === "--help") {
 		console.log(HELP);
 		return;
+	}
+	if (command === "mcp") {
+		// Runs until the client closes stdin; nothing else may write to stdout.
+		const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
+		const { createServer } = await import("../mcp/server-def");
+		const transport = new StdioServerTransport();
+		transport.onclose = () => process.exit(0);
+		await createServer().connect(transport);
+		return new Promise<never>(() => {});
 	}
 	if (command !== "export" && command !== "import") fail(`unknown command "${command}"`);
 	if (rest.includes("-h") || rest.includes("--help")) {

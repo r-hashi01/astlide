@@ -4,6 +4,7 @@
  * @module
  */
 
+import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
@@ -12,7 +13,10 @@ import { importPptx } from "./import";
 import { renderDeck } from "./render";
 import { templateLayoutsFromFile } from "./template";
 
-const VERSION = "0.0.0";
+/** @astlide/core's version (the server ships with it). */
+const VERSION: string = JSON.parse(
+	readFileSync(new URL("../../package.json", import.meta.url), "utf-8"),
+).version;
 
 /** A tool's result: a JSON text block (and the same as structured content). */
 function json(value: object): CallToolResult {
