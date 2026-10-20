@@ -1,5 +1,11 @@
 # @astlide/core
 
+## 2.7.1
+
+### Patch Changes
+
+- [#156](https://github.com/r-hashi01/astlide/pull/156) [`d622bf2`](https://github.com/r-hashi01/astlide/commit/d622bf287bf0442c27f442ece30010cb19a921ab) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Describe Astlide as what it is — an Astro integration ("slides that live in your Astro site"), not a framework: the npm README now lists what it does (many decks per site, PowerPoint templates in / editable PPTX out, import, embedding, `astlide mcp`) and links the docs; the starter deck's wording matches.
+
 ## 2.7.0
 
 ### Minor Changes
