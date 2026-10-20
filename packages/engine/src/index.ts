@@ -31,14 +31,16 @@ export {
 } from "./diagrams";
 export { familiesIn, loadFontFaces, loadGoogleFonts } from "./fonts";
 export type { Box, Rect, SlideLayout, TableBox, TableCellBox, TextLine } from "./layout";
-export { intersect } from "./layout";
+export { intersect, transformText } from "./layout";
 export {
 	type Color,
 	type Gradient,
 	parseColor,
 	parseLinearGradient,
+	parseStripes,
 	type Scene,
 	type SceneItem,
+	type Stripes,
 	toScene,
 } from "./scene";
 export { FontRegistry } from "./text";

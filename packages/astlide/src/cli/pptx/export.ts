@@ -493,6 +493,26 @@ function embeddedFonts(items: TextItem[]): EmbeddedFont[] {
 	return [...byFace.values()];
 }
 
+/**
+ * The DrawingML preset pattern closest to parallel lines across a gradient
+ * at CSS `angle`, `period` px apart on the 1920 px slide: horizontal,
+ * vertical or diagonal, light (8 px or more apart) or not.
+ */
+export function stripePreset(angle: number, period: number): string {
+	const a = ((Math.round(angle / 45) % 4) + 4) % 4; // 0: to top, 1: 45°, 2: 90°, 3: 135°
+	const light = period >= 8;
+	switch (a) {
+		case 0:
+			return light ? "ltHorz" : "horz";
+		case 2:
+			return light ? "ltVert" : "vert";
+		case 1:
+			return light ? "ltDnDiag" : "dnDiag";
+		default:
+			return light ? "ltUpDiag" : "upDiag";
+	}
+}
+
 function runOptions(item: TextItem, k: number): TextRunOptions {
 	const f = fontFor(item.font.family, item.font.weight);
 	return {
@@ -864,6 +884,11 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 							}
 						: undefined,
 					radius: item.radius ? item.radius * k : undefined,
+					pattern: item.stripes && {
+						preset: stripePreset(item.stripes.angle, item.stripes.period),
+						color: hex(item.stripes.color),
+						transparency: Math.round((1 - item.stripes.color.alpha) * 100),
+					},
 					gradient: item.gradient && {
 						angle: item.gradient.angle,
 						stops: item.gradient.stops.map((s) => ({

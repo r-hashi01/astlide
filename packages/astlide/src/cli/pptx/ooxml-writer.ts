@@ -77,6 +77,8 @@ export interface RectSpec {
 	noFill?: boolean;
 	/** Linear gradient instead of the solid fill. */
 	gradient?: GradientSpec;
+	/** A preset pattern (lines in `color` over nothing) instead of the solid fill. */
+	pattern?: { preset: string; color: string; transparency?: number };
 }
 
 /** A PNG placed on the slide (e.g. a rendered background). */
@@ -326,6 +328,13 @@ function buildRectXml(r: RectSpec, id: number): string {
 	fillXml += "</a:solidFill>";
 	if (r.noFill) fillXml = "<a:noFill/>";
 	if (r.gradient) fillXml = gradFillXml(r.gradient);
+	if (r.pattern) {
+		const a = r.pattern.transparency
+			? `<a:alpha val="${Math.round((100 - r.pattern.transparency) * 1000)}"/>`
+			: "";
+		// The background is see-through: the lines go over whatever is below.
+		fillXml = `<a:pattFill prst="${r.pattern.preset}"><a:fgClr><a:srgbClr val="${r.pattern.color}">${a}</a:srgbClr></a:fgClr><a:bgClr><a:srgbClr val="FFFFFF"><a:alpha val="0"/></a:srgbClr></a:bgClr></a:pattFill>`;
+	}
 
 	let lineXml = "<a:ln><a:noFill/></a:ln>";
 	if (r.line) {

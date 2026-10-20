@@ -139,6 +139,23 @@ function generatedContent(value: string | undefined, el: Element): string | null
 const isElement = (n: ChildNode): n is Element =>
 	n.type === "tag" || n.type === "script" || n.type === "style";
 const isText = (n: ChildNode): n is Text => n.type === "text";
+
+/** Text as `text-transform` shows it. */
+export function transformText(text: string, transform: string | undefined): string {
+	switch (transform) {
+		case "uppercase":
+			return text.toUpperCase();
+		case "lowercase":
+			return text.toLowerCase();
+		case "capitalize":
+			return text.replace(
+				/(^|[^\p{L}\p{N}'’])(\p{L})/gu,
+				(_, before, ch) => before + ch.toUpperCase(),
+			);
+		default:
+			return text;
+	}
+}
 const INLINE = new Set(["inline", "inline-block", "inline-flex", "contents"]);
 const EDGES: [string, Edge][] = [
 	["top", Edge.Top],
@@ -297,7 +314,11 @@ class Builder {
 		const size = Number.parseFloat(style.get("font-size") ?? "16");
 		const weight = Number.parseInt(style.get("font-weight") ?? "400", 10) || 400;
 		const italic = /italic|oblique/.test(style.get("font-style") ?? "");
-		const face = this.fonts.pick(style.get("font-family") ?? "serif", weight, italic);
+		const { face, requested } = this.fonts.resolve(
+			style.get("font-family") ?? "serif",
+			weight,
+			italic,
+		);
 		const lh = style.get("line-height") ?? "normal";
 		let lineHeight: number;
 		if (lh === "normal") {
@@ -308,6 +329,7 @@ class Builder {
 		const ls = style.get("letter-spacing") ?? "normal";
 		return {
 			face,
+			requested,
 			size,
 			lineHeight,
 			letterSpacing: ls === "normal" ? 0 : Number.parseFloat(ls) || 0,
@@ -433,7 +455,7 @@ class Builder {
 			if (isText(n)) {
 				items.push({
 					kind: "text",
-					text: n.data,
+					text: transformText(n.data, parentStyle.get("text-transform")),
 					style: this.inlineStyle(parentStyle),
 					nodeIndex: 0,
 				});
@@ -1134,7 +1156,16 @@ function listMarkers(
 		});
 		ms.set("__alpha", box.style.get("__alpha") ?? "1");
 		const style = b.inlineStyle(ms);
-		const first = lines.find((l) => l.y >= box.y - 1 && l.y < box.y + box.h);
+		// The item's first line: by its line box (glyphs overflow a tight line-height), inside the item.
+		const first = lines
+			.filter((l) => {
+				const top = l.lineTop ?? l.y;
+				return top >= box.y - 1 && top < box.y + box.h && l.x >= box.x - 1 && l.x < box.x + box.w;
+			})
+			.reduce<TextLine | undefined>(
+				(best, l) => (!best || (l.lineTop ?? l.y) < (best.lineTop ?? best.y) ? l : best),
+				undefined,
+			);
 		if (!first) continue;
 		const baseline = first.y + verticalMetrics(first.style.face, first.style.size).ascent;
 		const m = verticalMetrics(style.face, style.size);

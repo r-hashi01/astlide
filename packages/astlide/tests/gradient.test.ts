@@ -1,5 +1,6 @@
-import { parseLinearGradient } from "@astlide/engine";
+import { parseLinearGradient, parseStripes } from "@astlide/engine";
 import { describe, expect, it } from "vitest";
+import { stripePreset } from "../src/cli/pptx/export";
 
 describe("parseLinearGradient", () => {
 	it("reads an angle and stop positions", () => {
@@ -22,5 +23,24 @@ describe("parseLinearGradient", () => {
 	it("rejects what it can't read", () => {
 		expect(parseLinearGradient("radial-gradient(red, blue)")).toBeNull();
 		expect(parseLinearGradient("linear-gradient(red)")).toBeNull();
+	});
+});
+
+describe("parseStripes", () => {
+	it("reads a hatch as imported PowerPoint pattern fills draw it", () => {
+		const s = parseStripes("repeating-linear-gradient(45deg, #5a2e1e 0 1px, transparent 1px 4px)");
+		expect(s).toMatchObject({ angle: 45, period: 4, color: { hex: "5a2e1e" } });
+		expect(
+			parseStripes("repeating-linear-gradient(-45deg, #000 0 1px, transparent 1px 8px)")?.angle,
+		).toBe(315);
+		expect(parseStripes("repeating-linear-gradient(red, blue 10%)")).toBeNull();
+		expect(parseStripes("linear-gradient(red, blue)")).toBeNull();
+	});
+
+	it("maps to the DrawingML preset pattern of the same lines", () => {
+		expect(stripePreset(0, 4)).toBe("horz");
+		expect(stripePreset(90, 8)).toBe("ltVert");
+		expect(stripePreset(45, 4)).toBe("dnDiag");
+		expect(stripePreset(315, 8)).toBe("ltUpDiag");
 	});
 });

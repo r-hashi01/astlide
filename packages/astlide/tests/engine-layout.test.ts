@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { FontRegistry, layoutPage } from "@astlide/engine";
+import { FontRegistry, layoutPage, toScene, transformText } from "@astlide/engine";
 import { describe, expect, it } from "vitest";
 
 /** A font every install has (KaTeX ships TrueType), for text tests. */
@@ -87,6 +87,49 @@ describe("engine layout", () => {
 		expect(long.lines.length).toBeGreaterThan(1);
 		expect(long.lines.map((l) => l.text).join("")).toBe("abcdefghijklmnopqrstuvwxyz");
 		for (const l of long.lines) expect(l.w).toBeLessThanOrEqual(100.5);
+	});
+
+	it("applies text-transform to the text it lays out", () => {
+		const s = page(".u{text-transform:uppercase}", '<div class="u">Quarterly review</div>');
+		expect(s.lines.map((l) => l.text)).toEqual(["QUARTERLY REVIEW"]);
+		expect(transformText("next steps for q3", "capitalize")).toBe("Next Steps For Q3");
+		expect(transformText("ABC", "lowercase")).toBe("abc");
+	});
+
+	it("names the font asked for when it has none of them, measuring with a stand-in", () => {
+		const s = page(
+			'.a{font-family:"Calibri Light",system-ui,sans-serif}.b{font-family:"Nope",T}',
+			'<div class="a">Title</div><div class="b">Body</div>',
+		);
+		const text = toScene(s).items.filter((i) => i.kind === "text");
+		// No Calibri Light: measured with T (the only font), named as asked, nothing to embed.
+		expect(text[0]).toMatchObject({ text: "Title", font: { family: "Calibri Light" } });
+		expect(text[0]?.kind === "text" && text[0].font.file).toBeUndefined();
+		// A later family it has wins, as in a browser.
+		expect(text[1]?.kind === "text" && text[1].font.file).toBe(FONT);
+	});
+
+	it("resolves generic families to a common font of the kind, not the first one registered", () => {
+		const fonts = new FontRegistry();
+		fonts.add("KaTeX_AMS", 400, false, FONT);
+		fonts.add("Inter", 400, false, FONT);
+		fonts.add("JetBrains Mono", 400, false, FONT);
+		expect(fonts.pick('"Missing", sans-serif', 400, false).family).toBe("inter");
+		expect(fonts.pick("monospace", 400, false).family).toBe("jetbrains mono");
+		expect(fonts.pick('"Missing"', 400, false).family).toBe("inter");
+		expect(fonts.resolve('"Calibri", sans-serif', 400, false).requested).toBe("Calibri");
+		expect(fonts.resolve('"Inter", sans-serif', 400, false).requested).toBeUndefined();
+	});
+
+	it("puts a list marker on the item's first line, also with a tight line-height", () => {
+		const s = page(
+			"ul{margin:0 0 0 40px;padding:0;line-height:0.8}li{width:150px}",
+			"<ul><li>first line wraps onto a second one</li></ul>",
+		);
+		const [marker] = s.markers;
+		const first = s.lines[0];
+		expect(s.lines.length).toBeGreaterThan(1);
+		expect(marker && first && Math.abs(marker.y - first.y)).toBeLessThan(2);
 	});
 
 	it("clips to ancestors with overflow other than visible", () => {

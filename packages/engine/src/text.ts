@@ -16,6 +16,40 @@ export interface FontFace {
 	file?: string;
 }
 
+/** Common fonts standing for CSS generic families, best first. */
+const SANS = [
+	"inter",
+	"helvetica neue",
+	"helvetica",
+	"arial",
+	"roboto",
+	"noto sans",
+	"open sans",
+	"liberation sans",
+	"dejavu sans",
+];
+const SERIF = ["georgia", "times new roman", "noto serif", "liberation serif", "dejavu serif"];
+const MONO = [
+	"jetbrains mono",
+	"fira code",
+	"sf mono",
+	"menlo",
+	"consolas",
+	"liberation mono",
+	"dejavu sans mono",
+];
+const GENERIC_FAMILIES: Record<string, string[]> = {
+	"sans-serif": SANS,
+	"system-ui": SANS,
+	"ui-sans-serif": SANS,
+	"-apple-system": SANS,
+	blinkmacsystemfont: SANS,
+	serif: SERIF,
+	"ui-serif": SERIF,
+	monospace: MONO,
+	"ui-monospace": MONO,
+};
+
 export class FontRegistry {
 	private faces: FontFace[] = [];
 	private fallbacks: FontFace[] = [];
@@ -65,24 +99,52 @@ export class FontRegistry {
 
 	/** First family in a CSS `font-family` list that we have, nearest weight. */
 	pick(familyList: string, weight: number, italic: boolean): FontFace {
-		const families = familyList.split(",").map((f) =>
-			f
-				.trim()
-				.replace(/^["']|["']$/g, "")
-				.toLowerCase(),
-		);
-		for (const fam of families) {
+		return this.resolve(familyList, weight, italic).face;
+	}
+
+	/**
+	 * The face for a CSS `font-family` list: the first listed family we have,
+	 * a generic family (`sans-serif`, `monospace` …) as a common font of its
+	 * kind we have, else a sans-serif one. When none of the listed families
+	 * was available, `requested` is the first one named — the font the page
+	 * asked for, which a document can still name (PowerPoint has it where
+	 * it's installed) while text is measured with `face`.
+	 */
+	resolve(
+		familyList: string,
+		weight: number,
+		italic: boolean,
+	): { face: FontFace; requested?: string } {
+		const names = familyList
+			.split(",")
+			.map((f) => f.trim().replace(/^["']|["']$/g, ""))
+			.filter(Boolean);
+		const nearest = (fam: string): FontFace | undefined => {
 			const candidates = this.faces.filter((f) => f.family === fam);
-			if (candidates.length === 0) continue;
+			if (candidates.length === 0) return undefined;
 			const styled = candidates.filter((f) => f.italic === italic);
 			const pool = styled.length ? styled : candidates;
 			return pool.reduce((best, f) =>
 				Math.abs(f.weight - weight) < Math.abs(best.weight - weight) ? f : best,
 			);
+		};
+		// A named family we have is the font; a generic one stands in for the first named.
+		let requested: string | undefined;
+		for (const name of names) {
+			const fam = name.toLowerCase();
+			const generic = GENERIC_FAMILIES[fam];
+			if (!generic) {
+				const face = nearest(fam);
+				if (face) return { face };
+				requested ??= name;
+				continue;
+			}
+			const face = generic.map(nearest).find(Boolean);
+			if (face) return { face, requested };
 		}
-		const fallback = this.faces[0];
-		if (!fallback) throw new Error("no fonts registered");
-		return fallback;
+		const face = SANS.map(nearest).find(Boolean) ?? this.faces[0];
+		if (!face) throw new Error("no fonts registered");
+		return { face, requested };
 	}
 
 	/** Advance width of `text` in px (kerning applied), plus letter spacing per character. */
@@ -151,6 +213,8 @@ export function verticalMetrics(
 
 export interface InlineStyle {
 	face: FontFace;
+	/** The family the CSS asked for, when none of its families was available (see {@link FontRegistry.resolve}). */
+	requested?: string;
 	size: number;
 	/** Used line height in px. */
 	lineHeight: number;

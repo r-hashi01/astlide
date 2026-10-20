@@ -31,6 +31,8 @@ export type SceneItem = (
 			inline?: boolean;
 			/** A linear-gradient background (instead of `fill`). */
 			gradient?: Gradient;
+			/** Thin parallel lines (a repeating-linear-gradient hatch) over what's below. */
+			stripes?: Stripes;
 	  }
 	| {
 			kind: "text";
@@ -101,6 +103,42 @@ export type SceneItem = (
 export interface Gradient {
 	angle: number;
 	stops: { color: Color; pos: number }[];
+}
+
+/**
+ * Parallel lines: CSS angle of the gradient (0 = to top, so the lines run
+ * across it), their color, and the distance between them in px.
+ */
+export interface Stripes {
+	angle: number;
+	color: Color;
+	period: number;
+}
+
+/**
+ * Parse a hatch: `repeating-linear-gradient(<angle>, <color> 0 <w>px,
+ * transparent <w>px <period>px)` (unknown forms → null).
+ */
+export function parseStripes(value: string): Stripes | null {
+	const m = value.trim().match(/^(?:-webkit-)?repeating-linear-gradient\((.*)\)$/s);
+	if (!m) return null;
+	const args = topLevel(m[1] ?? "");
+	let angle = 180;
+	const first = (args[0] ?? "").toLowerCase();
+	const deg = first.match(/^(-?[\d.]+)deg$/);
+	if (deg) {
+		angle = Number(deg[1]);
+		args.shift();
+	} else if (first in SIDES) {
+		angle = SIDES[first] ?? 180;
+		args.shift();
+	}
+	if (args.length !== 2) return null;
+	const line = args[0]?.match(/^(.*?)\s+0(?:px)?\s+[\d.]+px$/);
+	const gap = args[1]?.match(/^transparent\s+[\d.]+px\s+([\d.]+)px$/);
+	const color = line?.[1] ? parseColor(line[1]) : null;
+	if (!color || !gap) return null;
+	return { angle: ((angle % 360) + 360) % 360, color, period: Number(gap[1]) };
 }
 
 /** Split on commas outside parentheses. */
@@ -207,6 +245,19 @@ function backgroundLayers(
 					size: style.get("background-size") ?? "auto",
 					position: style.get("background-position") ?? "0% 0%",
 				},
+			});
+			continue;
+		}
+		const stripes = parseStripes(layer);
+		if (stripes) {
+			out.push({
+				kind: "rect",
+				x,
+				y,
+				w,
+				h,
+				radius: radius || undefined,
+				stripes: { ...stripes, color: { ...stripes.color, alpha: stripes.color.alpha * alpha } },
 			});
 			continue;
 		}
@@ -383,10 +434,11 @@ function textItem(l: TextLine): SceneItem | null {
 		h: l.h,
 		text: l.text,
 		font: {
-			family: l.style.face.font.familyName,
+			// The family asked for, when it was measured with a stand-in (whose file isn't it).
+			family: l.style.requested ?? l.style.face.font.familyName,
 			weight: l.style.face.weight,
 			italic: l.style.face.italic,
-			file: l.style.face.file,
+			file: l.style.requested ? undefined : l.style.face.file,
 			size: l.style.size,
 		},
 		color: { hex: color.hex, alpha: color.alpha * l.style.alpha },
