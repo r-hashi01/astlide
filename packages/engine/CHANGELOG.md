@@ -1,5 +1,26 @@
 # @astlide/engine
 
+## 0.1.1
+
+### Patch Changes
+
+- [#134](https://github.com/r-hashi01/astlide/pull/134) [`00ce654`](https://github.com/r-hashi01/astlide/commit/00ce6546e2fc4aa312e7838f3d261514b7ee8fee) Thanks [@r-hashi01](https://github.com/r-hashi01)! - npm metadata: descriptions mention presentations and editable PowerPoint export, more keywords (slides, presentation, pptx, powerpoint, astro-loader …), and `homepage` points to the docs site.
+
+- [#121](https://github.com/r-hashi01/astlide/pull/121) [`7e291b9`](https://github.com/r-hashi01/astlide/commit/7e291b9dedf47298897d4a09557233e417b60af9) Thanks [@r-hashi01](https://github.com/r-hashi01)! - PPTX export: fonts, caps, hatches and list markers.
+
+  - A font the slides ask for but the exporter doesn't have (e.g. Office fonts like Calibri from a PowerPoint template) is now named in the PPTX, so PowerPoint uses it where it's installed; text is measured with a common font of the same kind instead of whichever font was registered first. Generic families (`sans-serif`, `serif`, `monospace`, `system-ui`) resolve to common fonts.
+  - `text-transform` (uppercase / lowercase / capitalize) is applied.
+  - Hatched backgrounds (`repeating-linear-gradient` lines, as imported PowerPoint pattern fills draw them) are exported as PowerPoint pattern fills instead of a solid color.
+  - List markers sit on the item's first line also with a tight `line-height`.
+  - `@astlide/engine` ships a README and LICENSE.
+
+- [#144](https://github.com/r-hashi01/astlide/pull/144) [`b0dd0dd`](https://github.com/r-hashi01/astlide/commit/b0dd0ddd69a255e92c05b3a745f1b7bc7ca04bf8) Thanks [@r-hashi01](https://github.com/r-hashi01)! - PPTX export fixes.
+
+  - Sites with an Astro `base` (GitHub Pages project sites …) export: built files are found with or without the base path in their URLs (`distFile`).
+  - Absolutely positioned boxes are placed against their nearest positioned ancestor, as in browsers, not their parent — `.pptx` pages shown in a deck are no longer shifted by the slide's padding. `position: relative` offsets apply.
+  - `currentColor` in borders, backgrounds and outlines resolves to the element's color; buttons and form fields get Chromium's default look.
+  - `@astlide/core/utils/*` and `@astlide/core/internal/*` imports without an extension type-check (they map to the `.ts` files).
+
 ## 0.1.0
 
 ### Minor Changes

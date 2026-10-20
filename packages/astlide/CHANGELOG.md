@@ -1,5 +1,44 @@
 # @astlide/core
 
+## 2.6.0
+
+### Minor Changes
+
+- [#138](https://github.com/r-hashi01/astlide/pull/138) [`30a7613`](https://github.com/r-hashi01/astlide/commit/30a7613178f191f2ac0989fecb555db4c67acea8) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Embed a deck in any page.
+
+  - `<astlide-deck src="/my-talk/" start="2" controls>` (`@astlide/core/embed`): a framework-agnostic custom element that shows a built deck in an iframe at 16:9, responsive to its container. Methods `next()`, `prev()`, `goTo(n)`, `requestFullscreen()`; a `slidechange` event with `{ deck, slide, total, step, steps }`; an optional control bar (previous / next, counter, fullscreen). SSR-safe to import.
+  - React and Vue wrappers: `@astlide/core/embed/react` and `@astlide/core/embed/vue` (`react` / `vue` are optional peer dependencies).
+  - `<DeckEmbed deck="my-talk" />` (`@astlide/core/components/DeckEmbed.astro`) for embedding a deck in another page of the same site, with the URL resolved against Astro's `base`.
+  - Deck pages framed by `<astlide-deck>` answer a small, origin-checked `postMessage` protocol, take arrow / Page / Home / End keys, and navigate without adding entries to the host page's history.
+
+- [#133](https://github.com/r-hashi01/astlide/pull/133) [`c291813`](https://github.com/r-hashi01/astlide/commit/c291813c89387e39b2a519c7538fa418c4c0ba94) Thanks [@r-hashi01](https://github.com/r-hashi01)! - PPTX export: speaker notes and Japanese text.
+
+  - Speaker notes (`<SpeakerNotes>`, frontmatter `notes`, a trailing `<!-- … -->`) are written to the PPTX and show in PowerPoint's notes pane.
+  - Text gets an East Asian font (`<a:ea>`): the CJK font the slides' CSS names, else Yu Gothic (installed with Office). The theme's East Asian font is set too, and Japanese / Korean runs are tagged `ja-JP` / `ko-KR`.
+  - Japanese text is measured with a Japanese font (the CSS's, else Noto Sans JP from Google Fonts), so lines break where they do in the browser.
+
+### Patch Changes
+
+- [#134](https://github.com/r-hashi01/astlide/pull/134) [`00ce654`](https://github.com/r-hashi01/astlide/commit/00ce6546e2fc4aa312e7838f3d261514b7ee8fee) Thanks [@r-hashi01](https://github.com/r-hashi01)! - npm metadata: descriptions mention presentations and editable PowerPoint export, more keywords (slides, presentation, pptx, powerpoint, astro-loader …), and `homepage` points to the docs site.
+
+- [#121](https://github.com/r-hashi01/astlide/pull/121) [`7e291b9`](https://github.com/r-hashi01/astlide/commit/7e291b9dedf47298897d4a09557233e417b60af9) Thanks [@r-hashi01](https://github.com/r-hashi01)! - PPTX export: fonts, caps, hatches and list markers.
+
+  - A font the slides ask for but the exporter doesn't have (e.g. Office fonts like Calibri from a PowerPoint template) is now named in the PPTX, so PowerPoint uses it where it's installed; text is measured with a common font of the same kind instead of whichever font was registered first. Generic families (`sans-serif`, `serif`, `monospace`, `system-ui`) resolve to common fonts.
+  - `text-transform` (uppercase / lowercase / capitalize) is applied.
+  - Hatched backgrounds (`repeating-linear-gradient` lines, as imported PowerPoint pattern fills draw them) are exported as PowerPoint pattern fills instead of a solid color.
+  - List markers sit on the item's first line also with a tight `line-height`.
+  - `@astlide/engine` ships a README and LICENSE.
+
+- [#144](https://github.com/r-hashi01/astlide/pull/144) [`b0dd0dd`](https://github.com/r-hashi01/astlide/commit/b0dd0ddd69a255e92c05b3a745f1b7bc7ca04bf8) Thanks [@r-hashi01](https://github.com/r-hashi01)! - PPTX export fixes.
+
+  - Sites with an Astro `base` (GitHub Pages project sites …) export: built files are found with or without the base path in their URLs (`distFile`).
+  - Absolutely positioned boxes are placed against their nearest positioned ancestor, as in browsers, not their parent — `.pptx` pages shown in a deck are no longer shifted by the slide's padding. `position: relative` offsets apply.
+  - `currentColor` in borders, backgrounds and outlines resolves to the element's color; buttons and form fields get Chromium's default look.
+  - `@astlide/core/utils/*` and `@astlide/core/internal/*` imports without an extension type-check (they map to the `.ts` files).
+
+- Updated dependencies [[`00ce654`](https://github.com/r-hashi01/astlide/commit/00ce6546e2fc4aa312e7838f3d261514b7ee8fee), [`7e291b9`](https://github.com/r-hashi01/astlide/commit/7e291b9dedf47298897d4a09557233e417b60af9), [`b0dd0dd`](https://github.com/r-hashi01/astlide/commit/b0dd0ddd69a255e92c05b3a745f1b7bc7ca04bf8)]:
+  - @astlide/engine@0.1.1
+
 ## 2.5.0
 
 ### Minor Changes
