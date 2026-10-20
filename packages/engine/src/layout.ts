@@ -390,11 +390,17 @@ class Builder {
 		const ar = (style.get("aspect-ratio") ?? "auto").match(/([\d.]+)\s*(?:\/\s*([\d.]+))?/);
 		const ratio = ar && Number(ar[1]) > 0 ? Number(ar[1]) / Number(ar[2] ?? 1) : 0;
 		if (ratio) node.setAspectRatio(ratio);
-		if (style.get("position") === "absolute") {
+		// Absolute boxes are placed against their containing block, the nearest
+		// positioned ancestor: static boxes (CSS's default) don't count, as in browsers.
+		const position = style.get("position") ?? "static";
+		if (position === "absolute") {
 			node.setPositionType(PositionType.Absolute);
 			for (const [side, edge] of EDGES)
 				this.setLength(style, side, (v) => node.setPosition(edge, v));
-		}
+		} else if (position === "static") node.setPositionType(PositionType.Static);
+		else if (position === "relative" || position === "sticky")
+			for (const [side, edge] of EDGES)
+				this.setLength(style, side, (v) => node.setPosition(edge, v));
 		const grow = Number(style.get("flex-grow") ?? 0);
 		const shrink = Number(style.get("flex-shrink") ?? 1);
 		node.setFlexGrow(Number.isNaN(grow) ? 0 : grow);

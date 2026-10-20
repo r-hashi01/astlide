@@ -1,7 +1,7 @@
 {
 	"name": "@astlide/core",
 	"version": "2.5.0",
-	"description": "Slides that live in your Astro site — an Astro integration for MDX / Markdown / HTML presentations",
+	"description": "Slides that live in your Astro site: an Astro integration for MDX / Markdown / HTML presentations — many decks per site, presenter view, PDF and editable PowerPoint (PPTX) export in your own template, PPTX / Google Slides import",
 	"type": "module",
 	"types": "./src/index.ts",
 	"exports": {
@@ -9,12 +9,18 @@
 		"./plugin": "./src/plugin.ts",
 		"./loader": "./src/loader.ts",
 		"./pptx": "./src/pptx/index.ts",
+		"./embed": "./src/embed/index.ts",
+		"./embed/react": "./src/embed/react.ts",
+		"./embed/vue": "./src/embed/vue.ts",
 		"./context": "./src/context.ts",
 		"./schema": "./src/schema.ts",
 		"./components/*": "./src/components/*",
-		"./internal/*": "./src/internal/*",
+		"./internal/*.astro": "./src/internal/*.astro",
+		"./internal/*.ts": "./src/internal/*.ts",
+		"./internal/*": "./src/internal/*.ts",
 		"./styles/*": "./src/styles/*",
-		"./utils/*": "./src/utils/*"
+		"./utils/*.ts": "./src/utils/*.ts",
+		"./utils/*": "./src/utils/*.ts"
 	},
 	"bin": {
 		"astlide": "./src/cli/astlide.ts"
@@ -37,15 +43,26 @@
 	},
 	"sideEffects": [
 		"*.css",
-		"*.astro"
+		"*.astro",
+		"./src/embed/*.ts"
 	],
 	"publishConfig": {
 		"access": "public"
 	},
-	"homepage": "https://github.com/r-hashi01/astlide#readme",
+	"homepage": "https://r-hashi01.github.io/astlide/",
 	"bugs": "https://github.com/r-hashi01/astlide/issues",
 	"peerDependencies": {
-		"astro": "^7.2.10"
+		"astro": "^7.2.10",
+		"react": ">=18",
+		"vue": ">=3.3"
+	},
+	"peerDependenciesMeta": {
+		"react": {
+			"optional": true
+		},
+		"vue": {
+			"optional": true
+		}
 	},
 	"dependencies": {
 		"@astlide/engine": "^0.1.0",
@@ -66,13 +83,29 @@
 	"keywords": [
 		"astro",
 		"astro-integration",
+		"astro-loader",
+		"tooling",
 		"slides",
 		"presentation",
+		"slideshow",
+		"deck",
 		"mdx",
-		"slidev"
+		"markdown",
+		"pptx",
+		"powerpoint",
+		"google-slides",
+		"pdf",
+		"slidev",
+		"marp"
 	],
 	"license": "MIT",
 	"devDependencies": {
-		"typedoc": "^0.28.20"
+		"@types/react": "^19.3.0",
+		"@types/react-dom": "^19.3.0",
+		"jsdom": "^30.1.2",
+		"react": "^19.3.1",
+		"react-dom": "^19.3.1",
+		"typedoc": "^0.28.20",
+		"vue": "^3.5.44"
 	}
 }

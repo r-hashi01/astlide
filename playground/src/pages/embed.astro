@@ -1,0 +1,63 @@
+---
+/**
+ * A deck embedded in an ordinary page — the example for <DeckEmbed> /
+ * <astlide-deck> (docs: guides/embed), also driven by e2e/embed.test.ts.
+ */
+import DeckEmbed from '@astlide/core/components/DeckEmbed.astro';
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="robots" content="noindex, nofollow" />
+		<title>Embedded deck</title>
+	</head>
+	<body>
+		<main>
+			<h1>A deck inside a page</h1>
+			<p>
+				The example deck, embedded with{" "}
+				<code>&lt;DeckEmbed deck="example-deck" start={'{4}'} controls /&gt;</code>. Use the bar
+				below it, or the buttons here, which call the element's methods.
+			</p>
+			<DeckEmbed deck="example-deck" start={4} controls title="Example Presentation" />
+			<p class="api">
+				<button type="button" data-action="prev">prev()</button>
+				<button type="button" data-action="next">next()</button>
+				<button type="button" data-action="first">goTo(1)</button>
+				<output id="status">loading…</output>
+			</p>
+		</main>
+		<script>
+			import '@astlide/core/embed';
+
+			const deck = document.querySelector('astlide-deck');
+			const status = document.getElementById('status');
+			deck?.addEventListener('slidechange', (e) => {
+				const { slide, total, step, steps } = e.detail;
+				if (status) status.textContent = `slide ${slide} / ${total}` + (steps ? ` · step ${step} / ${steps}` : '');
+			});
+			document.querySelector('.api')?.addEventListener('click', (e) => {
+				const action = (e.target as Element).closest('button')?.dataset.action;
+				if (action === 'prev') deck?.prev();
+				else if (action === 'next') deck?.next();
+				else if (action === 'first') deck?.goTo(1);
+			});
+		</script>
+		<style>
+			body {
+				margin: 0;
+				font-family: system-ui, sans-serif;
+				background: #f8fafc;
+				color: #0f172a;
+			}
+			main {
+				max-width: 860px;
+				margin: 0 auto;
+				padding: 2rem 1rem;
+			}
+		</style>
+	</body>
+</html>

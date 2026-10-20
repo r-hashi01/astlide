@@ -12,6 +12,8 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { mermaidThemeFor } from "@astlide/core/utils/mermaid.ts";
 import type { Box, Scene, SceneItem, TableBox } from "@astlide/engine";
+import type { ChildNode, Element } from "domhandler";
+import { parseDocument } from "htmlparser2";
 import { type EmbedInfo, resolveEmbeds } from "./embeds";
 import { embeddingPermissions, withLegacyFamilyOnly } from "./eot";
 import {
@@ -112,7 +114,11 @@ function bitmapSize(b: Buffer): { format: "png" | "jpeg"; size: { w: number; h: 
 	return null;
 }
 
-function imageSource(src: string, dist: string): ImageSource | null {
+function imageSource(
+	src: string,
+	dist: string,
+	distFile: (dist: string, url: string) => string | null,
+): ImageSource | null {
 	let bytes: Buffer | null = null;
 	const data = src.match(/^data:([^;,]+)(;base64)?,(.*)$/s);
 	if (data) {
@@ -121,9 +127,7 @@ function imageSource(src: string, dist: string): ImageSource | null {
 	} else if (/^https?:\/\//.test(src)) {
 		bytes = remoteImages.get(src) ?? null;
 	} else {
-		const path = [join(dist, src), join(dist, src.replace(/^\/[^/]+/, ""))].find((p) =>
-			existsSync(p),
-		);
+		const path = src.startsWith("/") ? distFile(dist, src) : null;
 		if (path) bytes = readFileSync(path);
 	}
 	if (!bytes) return null;
@@ -759,6 +763,86 @@ function blockText(group: TextItem[], k: number) {
 	return { block, runs, align: align as "left" | "center" | "right", top, bottom, right };
 }
 
+/** Japanese / Chinese / Korean text. */
+const CJK_TEXT = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\uac00-\ud7af]/;
+/** Font families for East Asian text, by name. */
+const CJK_FAMILY =
+	/\b(JP|KR|SC|TC|HK|CJK)\b|Gothic|Mincho|Hiragino|Meiryo|Yu ?(Gothic|Mincho)|BIZ UD|M PLUS|Kosugi|Sawarabi|Zen (Kaku|Maru|Old)|Source Han|Pretendard|游|ゴシック|明朝|源ノ/i;
+/** The East Asian font PPTX files name when the CSS doesn't: installed with Office on Windows and macOS. */
+const DEFAULT_EA_FONT = "Yu Gothic";
+
+/** A Google Fonts family's regular face (downloaded into the project's font cache), or null. */
+async function googleFontFile(
+	engine: typeof import("@astlide/engine"),
+	family: string,
+	root: string,
+): Promise<string | null> {
+	const registry = new engine.FontRegistry();
+	const missing = await engine.loadGoogleFonts(
+		registry,
+		[family],
+		join(root, "node_modules", ".cache", "astlide-fonts"),
+		[400],
+	);
+	return missing.length ? null : (registry.files()[0] ?? null);
+}
+
+/**
+ * Speaker notes of each slide in the print view (`body > .slide`, as laid
+ * out): `<SpeakerNotes>` content, else the frontmatter / comment notes the
+ * page carries as `[data-slide-notes="meta"]`. Plain text, a line per paragraph.
+ */
+export function speakerNotes(html: string): string[] {
+	const doc = parseDocument(html);
+	const body = findAll((e) => e.name === "body", doc.children)[0];
+	const slides = (body?.children ?? []).filter(
+		(c): c is Element => isTag(c) && /(^|\s)slide(\s|$)/.test(c.attribs.class ?? ""),
+	);
+	return slides.map((slide) => {
+		const all = findAll((e) => e.attribs["data-slide-notes"] !== undefined, slide.children);
+		const own = all.find((e) => e.attribs["data-slide-notes"] !== "meta");
+		const el = own ?? all[0];
+		return el ? plainText(el).trim() : "";
+	});
+}
+
+const isTag = (n: ChildNode): n is Element => n.type === "tag";
+
+/** Elements matching `test` below `nodes`, in document order. */
+function findAll(test: (e: Element) => boolean, nodes: ChildNode[]): Element[] {
+	const out: Element[] = [];
+	for (const n of nodes) {
+		if (!isTag(n)) continue;
+		if (test(n)) out.push(n);
+		out.push(...findAll(test, n.children));
+	}
+	return out;
+}
+
+const BLOCK = /^(p|div|li|ul|ol|h[1-6]|pre|blockquote|tr|table|section)$/;
+
+/** Text of an element, with blocks and `<br>` as line breaks and list items bulleted. */
+function plainText(el: Element): string {
+	let out = "";
+	for (const c of el.children) {
+		// Line breaks in text are kept (frontmatter notes); other runs of white space collapse.
+		if (c.type === "text")
+			out += (c as unknown as { data: string }).data.replace(/[ \t\f\r]+/g, " ");
+		else if (isTag(c)) {
+			if (c.name === "br") out += "\n";
+			else if (BLOCK.test(c.name)) {
+				const inner = plainText(c).trim();
+				if (inner) out += `\n${c.name === "li" ? "• " : ""}${inner}\n`;
+			} else out += plainText(c);
+		}
+	}
+	return out
+		.split("\n")
+		.map((l) => l.trim())
+		.filter(Boolean)
+		.join("\n");
+}
+
 export async function exportPptx(deck: string, options: PptxOptions): Promise<void> {
 	const engine = await import("@astlide/engine");
 	if (options.build !== false) {
@@ -771,6 +855,7 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 
 	const fonts = new engine.FontRegistry();
 	const css = engine.pageCss(html, dist);
+	const { familiesIn } = engine;
 	// The site's own fonts (KaTeX …) first; the rest from Google Fonts.
 	const local = engine.loadFontFaces(fonts, css, dist);
 	const missing = await engine.loadGoogleFonts(
@@ -781,6 +866,18 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 	if (missing.length) console.warn(`  ⚠ fonts not found on Google Fonts: ${missing.join(", ")}`);
 	const emoji = "/System/Library/Fonts/Apple Color Emoji.ttc";
 	if (existsSync(emoji)) fonts.addFallback(emoji);
+	// East Asian text: named with the CSS's CJK font (else Yu Gothic, which Office has),
+	// measured with that font when it was loaded, else Noto Sans JP.
+	const eaFont = familiesIn(css).find((f) => CJK_FAMILY.test(f)) ?? DEFAULT_EA_FONT;
+	if (CJK_TEXT.test(readFileSync(html, "utf-8"))) {
+		const loaded = fonts.pick(`"${eaFont}"`, 400, false);
+		const measure =
+			loaded.family === eaFont.toLowerCase() && loaded.file
+				? loaded.file
+				: await googleFontFile(engine, "Noto Sans JP", options.root);
+		if (measure) fonts.addFallback(measure);
+		else console.warn("  ⚠ no Japanese font to measure text with (Noto Sans JP unavailable)");
+	}
 
 	const vp = { width: 1920, height: 1080, media: "screen" as const };
 	const source = await withDiagrams(engine, readFileSync(html, "utf-8"), {
@@ -792,6 +889,7 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 		},
 	});
 	const layouts = engine.layoutPage(html, dist, fonts, vp, source);
+	const notes = speakerNotes(source);
 
 	const config = await readDeckConfig(options.root, deck);
 	const slides: SlideSpec[] = [];
@@ -958,7 +1056,7 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 					...embedCard(item, fontFor(bodyFace.font.familyName, 400).face, k, embeds.get(item.src)),
 				);
 			} else if (item.kind === "image") {
-				const source = imageSource(item.src, dist);
+				const source = imageSource(item.src, dist, engine.distFile);
 				// Background images and object-fit: placed by size / position and clipped to the box.
 				const place = source && item.fit ? placeBackground(item, item.fit, source.size) : null;
 				const drawn = place?.drawn ?? { x: item.x, y: item.y, w: item.w, h: item.h };
@@ -1012,7 +1110,7 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 		}
 		// A transparent slide shows the (white) page behind it.
 		const background = scene.background.alpha > 0 ? hex(scene.background) : "FFFFFF";
-		slides.push({ background, elements });
+		slides.push({ background, elements, notes: notes[i] });
 	});
 	if (process.stdout.isTTY) console.log("");
 	console.log(`  ${layouts.length} slides`);
@@ -1021,6 +1119,7 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 		author: str(config.author) ?? "",
 		theme: getTheme(str(config.theme)),
 		fonts: embeddedFonts(used),
+		eaFont,
 	});
 	for (const slide of slides) pptx.addSlide(slide);
 	await mkdir(dirname(options.output), { recursive: true });

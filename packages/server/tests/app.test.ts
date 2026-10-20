@@ -1,0 +1,159 @@
+import { beforeAll, describe, expect, it } from "vitest";
+import { createHandler } from "../src/app";
+import { resolveOptions, type ServerOptions } from "../src/config";
+import { deckFixture, templateFixture } from "./fixtures";
+
+let options: ServerOptions;
+let handle: (req: Request) => Promise<Response>;
+let template: Uint8Array<ArrayBuffer>;
+let deck: Uint8Array<ArrayBuffer>;
+
+beforeAll(async () => {
+	options = resolveOptions({});
+	handle = createHandler(options);
+	[template, deck] = await Promise.all([templateFixture(), deckFixture()]);
+});
+
+const post = (path: string, body: BodyInit, headers: Record<string, string> = {}) =>
+	handle(new Request(`http://test${path}`, { method: "POST", body, headers }));
+const postJson = (path: string, body: unknown) =>
+	post(path, JSON.stringify(body), { "content-type": "application/json" });
+const form = (fields: Record<string, string | Blob>, filename = "file.pptx") => {
+	const data = new FormData();
+	for (const [key, value] of Object.entries(fields))
+		if (typeof value === "string") data.append(key, value);
+		else data.append(key, value, filename);
+	return data;
+};
+
+describe("routes", () => {
+	it("answers /health and the OpenAPI spec with this server's URL", async () => {
+		const health = await handle(new Request("http://test/health"));
+		expect(await health.json()).toMatchObject({ status: "ok", queue: { running: 0, waiting: 0 } });
+		const spec = await (await handle(new Request("http://example.com:8080/openapi.json"))).json();
+		expect(spec.openapi).toBe("3.1.0");
+		expect(spec.servers).toEqual([{ url: "http://example.com:8080" }]);
+		expect(Object.keys(spec.paths)).toEqual(
+			expect.arrayContaining(["/render", "/import", "/templates/layouts", "/health"]),
+		);
+	});
+
+	it("answers unknown paths, wrong methods and content types with errors", async () => {
+		expect((await handle(new Request("http://test/nope"))).status).toBe(404);
+		expect((await handle(new Request("http://test/render"))).status).toBe(405);
+		expect((await post("/render", "x", { "content-type": "text/plain" })).status).toBe(415);
+		const bad = await post("/render", "{", { "content-type": "application/json" });
+		expect(bad.status).toBe(400);
+		expect((await bad.json()).error).toMatch(/JSON/);
+	});
+
+	it("refuses bodies over the limit", async () => {
+		const small = createHandler({ ...options, maxBodyBytes: 10 });
+		const res = await small(
+			new Request("http://test/render", {
+				method: "POST",
+				body: JSON.stringify({ markdown: "# a long enough body" }),
+				headers: { "content-type": "application/json" },
+			}),
+		);
+		expect(res.status).toBe(413);
+	});
+
+	it("checks the API key when one is set", async () => {
+		const locked = createHandler({ ...options, apiKey: "secret" });
+		const req = (headers: Record<string, string>) =>
+			locked(
+				new Request("http://test/templates/layouts", {
+					method: "POST",
+					body: "{}",
+					headers: { "content-type": "application/json", ...headers },
+				}),
+			);
+		expect((await req({})).status).toBe(401);
+		expect((await req({ authorization: "Bearer wrong" })).status).toBe(401);
+		// Authorized: on to validation (no file sent).
+		expect((await req({ authorization: "Bearer secret" })).status).toBe(400);
+		expect((await req({ "x-api-key": "secret" })).status).toBe(400);
+		expect((await locked(new Request("http://test/health"))).status).toBe(200);
+	});
+});
+
+describe("POST /render validation", () => {
+	it("refuses bad input before building anything", async () => {
+		const cases: [unknown, RegExp][] = [
+			[{}, /markdown/],
+			[{ markdown: "# a", format: "docx" }, /format/],
+			[{ markdown: "# a", theme: "neon" }, /theme/],
+			[{ markdown: "# a", output: "url" }, /output/],
+			[{ slides: [{ markdown: "# a", frontmatter: { hidden: "no" } }] }, /hidden/],
+			[{ markdown: "# a", template: { filename: "t.docx", data: "UEsDBA==" } }, /template/],
+		];
+		for (const [body, message] of cases) {
+			const res = await postJson("/render", body);
+			expect(res.status, JSON.stringify(body)).toBe(400);
+			expect((await res.json()).error).toMatch(message);
+		}
+	});
+
+	it("limits the number of slides", async () => {
+		const few = createHandler({ ...options, maxSlides: 2 });
+		const res = await few(
+			new Request("http://test/render", {
+				method: "POST",
+				body: JSON.stringify({ slides: ["# 1", "# 2", "# 3"] }),
+				headers: { "content-type": "application/json" },
+			}),
+		);
+		expect(res.status).toBe(400);
+		expect((await res.json()).error).toMatch(/at most 2/);
+	});
+});
+
+describe("POST /templates/layouts", () => {
+	it("lists an uploaded template's layouts and placeholders (multipart)", async () => {
+		const res = await post("/templates/layouts", form({ file: new Blob([template]) }));
+		expect(res.status).toBe(200);
+		const body = await res.json();
+		expect(body.fonts).toEqual({ heading: "Georgia", body: "Helvetica" });
+		expect(body.aliases).toMatchObject({ cover: "title-slide", default: "title-and-content" });
+		const content = body.layouts.find((l: { id: string }) => l.id === "title-and-content");
+		expect(content).toMatchObject({
+			name: "Title and Content",
+			title: { left: 72, top: 72, width: 1728, height: 144 },
+			body: [{ left: 72, top: 252 }],
+		});
+		expect(content.slideNumber).not.toBeNull();
+		// The outline only: no artwork / CSS.
+		expect(JSON.stringify(body)).not.toMatch(/background:|font-size/);
+	});
+
+	it("takes the template as base64 JSON too, and refuses other files", async () => {
+		const res = await postJson("/templates/layouts", {
+			file: { filename: "brand.potx", data: Buffer.from(template).toString("base64") },
+		});
+		expect(res.status).toBe(200);
+		expect((await res.json()).layouts.length).toBeGreaterThan(1);
+		const bad = await postJson("/templates/layouts", { file: { data: "aGVsbG8=" } });
+		expect(bad.status).toBe(400);
+	});
+});
+
+describe("POST /import", () => {
+	it("returns the slides as HTML with titles, notes and inlined pictures", async () => {
+		const res = await post("/import", form({ file: new Blob([deck]) }));
+		expect(res.status).toBe(200);
+		const body = await res.json();
+		expect(body).toMatchObject({ title: "Fixture deck", author: "Astlide" });
+		expect(body.slides).toHaveLength(2);
+		expect(body.slides[0]).toMatchObject({ index: 1, title: "Imported title", notes: "Say hello" });
+		expect(body.slides[0].html).toContain("First point");
+		expect(body.slides[1].html).toContain("data:image/png;base64,");
+	});
+
+	it("only fetches Google Slides URLs", async () => {
+		const res = await postJson("/import", { url: "http://169.254.169.254/latest" });
+		expect(res.status).toBe(400);
+		expect((await res.json()).error).toMatch(/Google Slides/);
+		expect((await postJson("/import", {})).status).toBe(400);
+	});
+});

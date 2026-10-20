@@ -1,5 +1,5 @@
 {
 	"extends": "./tsconfig.json",
-	"include": ["src/index.ts", "src/schema.ts", "src/utils/sanitize.ts"],
+	"include": ["src/index.ts", "src/schema.ts", "src/utils/sanitize.ts", "src/embed/index.ts"],
 	"exclude": ["src/cli/**", "src/internal/**", "tests/**"]
 }

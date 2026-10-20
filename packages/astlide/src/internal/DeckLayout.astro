@@ -423,7 +423,9 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       // ── 2. Navigation helper (uses ClientRouter if available) ─
       function navTo(url) {
         if (window.__astlide_navigate) {
-          window.__astlide_navigate(url);
+          // Embedded by <astlide-deck>: replace the history entry, so moving
+          // through slides doesn't fill the host page's back button.
+          window.__astlide_navigate(url, isEmbedded && window.__astlide_embed_host ? { history: 'replace' } : undefined);
         } else {
           window.location.href = url;
         }
@@ -1467,9 +1469,78 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         document.addEventListener('touchend', handleTouchend, { passive: true });
       }
 
+      // ── 11b. Embedding API (<astlide-deck>, @astlide/core/embed) ──
+      // Only in a frame, and only for messages from the parent window. The
+      // parent's `hello` names the origin we report to; commands only move
+      // within this deck. Overview thumbnails and the presenter preview are
+      // framed too, but their parent never says hello, so nothing changes there.
+      function embedState() {
+        return {
+          source: 'astlide-deck',
+          type: 'slidechange',
+          deck,
+          slide: currentSlide,
+          total: totalSlides,
+          step: currentStep + 1,
+          steps: steps.length,
+        };
+      }
+
+      function postToHost() {
+        const host = window.__astlide_embed_host;
+        if (!host) return;
+        try { window.parent.postMessage(embedState(), host === 'null' ? '*' : host); }
+        catch (_) { /* ignore */ }
+      }
+
+      function embedCommand(type, slide) {
+        const before = currentStep;
+        if (type === 'next') goNext();
+        else if (type === 'prev') goPrev();
+        else if (type === 'first' && firstSlide !== currentSlide) navTo(slideUrl(firstSlide));
+        else if (type === 'last' && lastSlide !== currentSlide) navTo(slideUrl(lastSlide));
+        else if (type === 'goto' && Number.isInteger(slide) && slide >= 1 && slide <= totalSlides && slide !== currentSlide) {
+          navTo(slideUrl(slide));
+        }
+        // A new slide reports itself once loaded; a step change is reported here.
+        if (currentStep !== before) postToHost();
+      }
+
+      function handleEmbedMessage(e) {
+        if (e.source !== window.parent) return;
+        const data = e.data;
+        if (!data || typeof data !== 'object' || data.source !== 'astlide-embed') return;
+        if (data.type === 'hello') {
+          window.__astlide_embed_host = e.origin;
+          postToHost();
+          return;
+        }
+        if (e.origin !== window.__astlide_embed_host) return;
+        embedCommand(data.type, data.slide);
+      }
+
+      // Keys pressed inside the embedded deck (once a host page has said hello).
+      function handleEmbedKeydown(e) {
+        if (!window.__astlide_embed_host || e.altKey || e.ctrlKey || e.metaKey) return;
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+        const type = { ArrowRight: 'next', ' ': 'next', PageDown: 'next', ArrowLeft: 'prev', PageUp: 'prev', Home: 'first', End: 'last' }[e.key];
+        if (!type) return;
+        e.preventDefault();
+        embedCommand(type);
+      }
+
+      if (isEmbedded) {
+        window.addEventListener('message', handleEmbedMessage);
+        document.addEventListener('keydown', handleEmbedKeydown);
+        // After a navigation inside the frame, tell the host where we are.
+        postToHost();
+      }
+
       // ── 12. Cleanup (called by next page on ClientRouter) ───
       window.__astlide_cleanup = function() {
         document.removeEventListener('keydown', handleKeydown);
+        document.removeEventListener('keydown', handleEmbedKeydown);
+        window.removeEventListener('message', handleEmbedMessage);
         document.removeEventListener('touchstart', handleTouchstart);
         document.removeEventListener('touchend', handleTouchend);
         document.removeEventListener('click', handleNavClick, true);

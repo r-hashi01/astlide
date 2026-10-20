@@ -31,6 +31,7 @@ import CodeBlock from '@astlide/core/components/CodeBlock.astro';
 import Math from '@astlide/core/components/Math.astro';
 import YouTube from '@astlide/core/components/YouTube.astro';
 import Tweet from '@astlide/core/components/Tweet.astro';
+import { extractCommentNotes } from '@astlide/core/utils/comment-notes';
 
 export async function getStaticPaths() {
   const allSlides = await getCollection('decks');
@@ -68,6 +69,9 @@ export async function getStaticPaths() {
 }
 
 const { deckName, slides, deckConfig } = Astro.props;
+// A slide's notes as in the slide route: frontmatter `notes`, else a trailing comment.
+const notesOf = (slide: (typeof slides)[number]) =>
+  slide.data.notes ?? extractCommentNotes(slide.body ?? '');
 const totalSlides = slides.length;
 
 // Render every slide's MDX content up front so the Astro page body stays declarative.
@@ -99,6 +103,8 @@ const rendered = await Promise.all(
         theme={deckConfig.theme}
       >
         <Content components={{ Left, Right, ImageSide, TextPanel, Fragment: SlideFragment, Fragments, Notes, SpeakerNotes, Columns, CodeBlock, Math, YouTube, Tweet }} />
+        {/* Frontmatter / comment notes, for exporters (PPTX speaker notes); hidden. */}
+        {notesOf(slide) && <div data-slide-notes="meta" hidden>{notesOf(slide)}</div>}
       </Slide>
     ))}
   </body>

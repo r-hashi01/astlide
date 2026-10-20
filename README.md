@@ -7,25 +7,29 @@
 
 **Slides that live in your Astro site.**
 
-Astlide is an [Astro](https://astro.build) integration for presentations. Write slides in MDX, Markdown or plain HTML, keep them next to your blog or docs, and ship every slide as a real static page.
+Astlide is an [Astro](https://astro.build) integration for presentations. Every talk, report and pitch is content of one site: write slides in MDX, Markdown or plain HTML, present them on the web, and hand them over as editable PowerPoint in your company's template.
 
 📖 **Documentation:** https://r-hashi01.github.io/astlide/ · 🎬 **Live demo:** https://r-hashi01.github.io/astlide/demo/tour/1/
 
 ## Why Astlide
 
-- **It's just Astro.** Add `astlide()` to an existing site and your talks sit next to your blog and docs — same repo, same components, same deploy. Content Collections, Astro components and any static host work as usual.
+- **Many decks, one site.** Decks are content, not projects: every folder under `src/content/decks/` is a deck, with an index page out of the box. A year of talks, a team's reports or a product's training decks share themes, components and one deploy — where most slide tools build one deck per project.
+- **An SDK, not an app.** `astlide()` goes into any Astro site — your blog, your Starlight docs, a portal of your own design. The pieces work on their own too: the deck loader, PowerPoint import / templates (`@astlide/core/pptx`) and the layout engine (`@astlide/engine`).
+- **Your PowerPoint template, editable PPTX out.** Register a `.pptx` / `.potx` template as a theme and Markdown slides come out in its design. `astlide export --pptx` writes real text boxes, tables and shapes with speaker notes — laid out by Astlide's own engine, no browser or LibreOffice.
+- **PowerPoint & Google Slides in.** Drop a `.pptx` into a deck folder, or `astlide import` it into editable HTML slides.
+- **React, Vue & Svelte inside.** Slides are Astro, so components from any framework work on them — interactive while you present.
 - **Every slide is a real page.** `/my-talk/7` is static HTML: link straight to a slide, load fast, deploy anywhere (including sub-paths like GitHub Pages).
-- **Write in whatever fits.** Mix `.mdx`, `.md` and plain `.html` slides in one deck — paste hand-made or AI-generated HTML and it renders as-is.
-- **Many decks, one project.** Every folder under `src/content/decks/` is a deck, with an index page out of the box.
-- **Type-safe.** Frontmatter is validated with Zod; slide metadata has a typed API.
+- **Write in whatever fits.** Mix `.mdx`, `.md` and plain `.html` slides in one deck — paste hand-made or AI-generated HTML and it renders as-is. Frontmatter is validated with Zod.
 
 And everything you expect from a presentation tool:
 
 - **Presenting** — presenter window with next-slide preview, steps left, notes and timer; overview, go-to-slide, pen and laser pointer, all mirrored to the audience screen
 - **Reveals & code** — `<Fragment>` / `<Fragments>` (with `until` / `hide`), Shiki highlighting with `{1|3-5|all}` line steps
 - **Diagrams & math** — Mermaid (loaded on demand) and KaTeX
-- **Export** — PDF / PNG via Playwright, editable PowerPoint built from your MDX source, one-click in-browser PDF
-- **Make it yours** — 7 themes, a plugin API (themes, layouts, transitions), slide decorators, a composable toolbar
+- **Export** — PDF / PNG via Playwright, editable PowerPoint (in your template, with notes), one-click in-browser PDF
+- **Make it yours** — 7 themes, PowerPoint templates as themes, a plugin API (themes, layouts, transitions), slide decorators, a composable toolbar
+
+How it compares to Slidev, Marp, reveal.js and Quarto: [Why Astlide?](https://r-hashi01.github.io/astlide/why/)
 
 ## Quick Start
 
@@ -517,6 +521,19 @@ astlide({ templates: { brand: './templates/brand.pptx' } })   // .pptx / .potx /
 { "title": "Q3 review", "theme": "brand" }
 ```
 
+## Render service (HTTP API)
+
+`packages/server` is a small HTTP service around Astlide, for tools that can call an API but don't run Node / Astro — Dify or n8n custom tools, internal apps. Send Markdown (and a theme or a PowerPoint template), get an editable PPTX, a PDF or PNGs back; import a PowerPoint as HTML slides; list a template's layouts. Its OpenAPI spec is served at `/openapi.json`, and nothing is stored.
+
+```bash
+docker build -f packages/server/Dockerfile -t astlide-server .
+docker run --rm -p 8787:8787 astlide-server
+curl -o talk.pptx -H 'content-type: application/json' \
+  -d '{"markdown":"# Hello\n---\n# Second slide","theme":"dark"}' localhost:8787/render
+```
+
+See the [render service guide](https://r-hashi01.github.io/astlide/guides/server/).
+
 ## Deploying under a sub-path
 
 Astlide honours Astro's [`base`](https://docs.astro.build/en/reference/configuration-reference/#base) option — every internal link, the presenter preview, overview thumbnails and PDF export resolve against it. For example, a GitHub Pages project site:
@@ -531,6 +548,26 @@ export default defineConfig({
 ```
 
 Root-relative `<ImageSide src>` and image `background` paths are resolved against `base` too. Other absolute URLs you write yourself (e.g. Markdown `![](/photo.jpg)`) are not rewritten — use `import.meta.env.BASE_URL` or relative paths for them. `astlide export` detects the base; with `--base-url`, include it (e.g. `--base-url http://localhost:4321/<repo>`).
+
+## Embedding a Deck
+
+Show a deck inside another page — a blog post, a docs page, a React or Vue app. In the same Astro site:
+
+```astro
+---
+import DeckEmbed from '@astlide/core/components/DeckEmbed.astro';
+---
+<DeckEmbed deck="my-talk" start={2} controls />
+```
+
+Anywhere else, use the `<astlide-deck>` custom element (`@astlide/core/embed`), or its React / Vue wrappers (`@astlide/core/embed/react`, `@astlide/core/embed/vue`):
+
+```html
+<script type="module">import '@astlide/core/embed';</script>
+<astlide-deck src="https://example.com/talks/my-talk/" controls></astlide-deck>
+```
+
+It keeps 16:9 at its container's width and has `next()`, `prev()`, `goTo(n)`, `requestFullscreen()` and a `slidechange` event. See the [embedding guide](https://r-hashi01.github.io/astlide/guides/embed/).
 
 ## Project Structure
 
@@ -548,9 +585,11 @@ packages/
 │   │   ├── styles/       # base.css + themes/
 │   │   └── cli/          # astlide export
 │   └── package.json
-└── create-astlide/       # CLI scaffolder (bun create astlide)
-    ├── src/index.ts
-    └── template/
+├── create-astlide/       # CLI scaffolder (bun create astlide)
+│   ├── src/index.ts
+│   └── template/
+├── engine/               # @astlide/engine — HTML + CSS layout for PPTX export
+└── server/               # HTTP render service (OpenAPI, Dockerfile)
 ```
 
 ## Development

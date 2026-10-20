@@ -58,6 +58,9 @@ tr{display:table-row}
 td,th{display:table-cell;padding:1px}
 th{text-align:center}
 caption{display:table-caption;text-align:center}
+button,input,select,textarea{display:inline-block;font-size:13.333px;font-family:system-ui,sans-serif}
+button,select{padding:1px 6px;border:2px solid #767676;border-radius:3px;background-color:#efefef;color:#000;text-align:center}
+input,textarea{padding:1px 2px;border:2px solid #767676;background-color:#fff;color:#000}
 `;
 
 /** Properties inherited by default (the subset we compute). */
@@ -627,5 +630,10 @@ export function computeStyle(declared: Map<string, string>, ctx: Context): Compu
 		if (prop === "color" && v.toLowerCase() === "currentcolor") v = parent?.get("color") ?? "#000";
 		out.set(prop, v);
 	}
+	// currentColor elsewhere (border / background / outline / fill …) is this element's color.
+	const color = out.get("color") ?? "#000";
+	for (const [prop, v] of out)
+		if (prop !== "color" && /currentcolor/i.test(v))
+			out.set(prop, v.replace(/currentcolor/gi, color));
 	return out;
 }

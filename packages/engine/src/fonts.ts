@@ -8,6 +8,7 @@
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { distFile } from "./dist";
 import type { FontRegistry } from "./text";
 
 const GENERIC = new Set([
@@ -68,9 +69,7 @@ export function loadFontFaces(fonts: FontRegistry, css: string, dist: string): S
 		if (!url || /^(https?:|data:)/.test(url)) continue;
 		const path = url.split(/[?#]/)[0] ?? "";
 		// Root-relative, possibly under Astro's `base`.
-		const file = [join(dist, path), join(dist, path.replace(/^\/[^/]+/, ""))].find((p) =>
-			existsSync(p),
-		);
+		const file = distFile(dist, path);
 		if (!file) continue;
 		const weight = prop("font-weight") ?? "400";
 		const w = /bold/i.test(weight) ? 700 : Number.parseInt(weight, 10) || 400;

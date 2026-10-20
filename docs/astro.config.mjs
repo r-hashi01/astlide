@@ -10,6 +10,8 @@ import { base, sidebar, site } from "./site.mjs";
 export default defineConfig({
 	site,
 	base,
+	// Pages are directories on GitHub Pages; link them with the slash (no redirect).
+	trailingSlash: "always",
 	vite: {
 		// Starlight needs js-yaml 4, but the workspace root hoists js-yaml 5 (for
 		// @astlide/core). Left external, the bundled Starlight code would resolve the
@@ -27,6 +29,13 @@ export default defineConfig({
 			social: [{ icon: "github", label: "GitHub", href: "https://github.com/r-hashi01/astlide" }],
 			editLink: { baseUrl: "https://github.com/r-hashi01/astlide/edit/main/docs/" },
 			lastUpdated: true,
+			// English stays at the root (existing URLs unchanged); Japanese lives
+			// under /astlide/ja/. Pages without a translation fall back to English.
+			defaultLocale: "root",
+			locales: {
+				root: { label: "English", lang: "en" },
+				ja: { label: "日本語", lang: "ja" },
+			},
 			sidebar,
 		}),
 	],

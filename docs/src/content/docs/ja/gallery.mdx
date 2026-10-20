@@ -1,0 +1,91 @@
+---
+title: ギャラリー
+description: 組み込みのレイアウトとテーマを、機能紹介デッキから描画して一覧にしています。
+---
+
+import { Image } from "astro:assets";
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+import cover from "../../../assets/gallery/tour-1.png";
+import section from "../../../assets/gallery/tour-2.png";
+import defaultLayout from "../../../assets/gallery/tour-3.png";
+import twoColumn from "../../../assets/gallery/tour-7.png";
+import imageLeft from "../../../assets/gallery/tour-9.png";
+import imageRight from "../../../assets/gallery/tour-10.png";
+import imageFull from "../../../assets/gallery/tour-11.png";
+import quote from "../../../assets/gallery/tour-12.png";
+import statement from "../../../assets/gallery/tour-13.png";
+import code from "../../../assets/gallery/tour-17.png";
+
+import themeDefault from "../../../assets/gallery/theme-default.png";
+import themeDark from "../../../assets/gallery/theme-dark.png";
+import themeMinimal from "../../../assets/gallery/theme-minimal.png";
+import themeCorporate from "../../../assets/gallery/theme-corporate.png";
+import themeGradient from "../../../assets/gallery/theme-gradient.png";
+import themeRose from "../../../assets/gallery/theme-rose.png";
+import themeForest from "../../../assets/gallery/theme-forest.png";
+
+スクリーンショットは[機能紹介デッキ](https://r-hashi01.github.io/astlide/demo/tour/1/)から撮影しています。デッキを開くと各スライドを実際に動かして確認でき、<kbd>o</kbd> キーで一覧表示になります。
+
+## レイアウト
+
+スライドの frontmatter で `slideLayout` を指定します。それぞれのレイアウトで使うマークアップは[レイアウトとコンポーネント](/astlide/ja/guides/layouts-and-components/)を参照してください。
+
+<CardGrid>
+	<Card title="cover">
+		<Image class="slide-shot" src={cover} alt="cover レイアウト: 中央にタイトル、サブタイトル、ヒント" />
+		中央寄せのタイトル。最初と最後のスライド向けです。
+	</Card>
+	<Card title="section">
+		<Image class="slide-shot" src={section} alt="section レイアウト: 章の区切り" />
+		章の区切り。
+	</Card>
+	<Card title="default">
+		<Image class="slide-shot" src={defaultLayout} alt="default レイアウト: 見出し、本文、表" />
+		標準的なコンテンツスライド。
+	</Card>
+	<Card title="two-column">
+		<Image class="slide-shot" src={twoColumn} alt="two-column レイアウト: 全幅のタイトルの下に左右の列" />
+		全幅のタイトルの下に `<Left>` / `<Right>`。
+	</Card>
+	<Card title="image-left">
+		<Image class="slide-shot" src={imageLeft} alt="image-left レイアウト: 左にイラスト、右にテキスト" />
+		`<ImageSide>` + `<TextPanel>`。
+	</Card>
+	<Card title="image-right">
+		<Image class="slide-shot" src={imageRight} alt="image-right レイアウト: 左にテキスト、右にイラスト" />
+		image-left の左右反転です。
+	</Card>
+	<Card title="image-full">
+		<Image class="slide-shot" src={imageFull} alt="image-full レイアウト: 全面の背景画像に白い文字" />
+		全面に敷く `background` 画像。
+	</Card>
+	<Card title="code">
+		<Image class="slide-shot" src={code} alt="code レイアウト: 行をハイライトした CodeBlock" />
+		コード向けに余白を詰めたレイアウト。
+	</Card>
+	<Card title="quote">
+		<Image class="slide-shot" src={quote} alt="quote レイアウト: 中央寄せの引用" />
+		中央寄せの引用。
+	</Card>
+	<Card title="statement">
+		<Image class="slide-shot" src={statement} alt="statement レイアウト: 大きな一文" />
+		大きな一文。
+	</Card>
+</CardGrid>
+
+## テーマ
+
+デッキごとに `_config.json` の `"theme"` で指定します。同じスライドを組み込みテーマごとに表示すると次のようになります。
+
+<CardGrid>
+	<Card title="default"><Image class="slide-shot" src={themeDefault} alt="default テーマのスライド" /></Card>
+	<Card title="dark"><Image class="slide-shot" src={themeDark} alt="dark テーマのスライド" /></Card>
+	<Card title="minimal"><Image class="slide-shot" src={themeMinimal} alt="minimal テーマのスライド" /></Card>
+	<Card title="corporate"><Image class="slide-shot" src={themeCorporate} alt="corporate テーマのスライド" /></Card>
+	<Card title="gradient"><Image class="slide-shot" src={themeGradient} alt="gradient テーマのスライド" /></Card>
+	<Card title="rose"><Image class="slide-shot" src={themeRose} alt="rose テーマのスライド" /></Card>
+	<Card title="forest"><Image class="slide-shot" src={themeForest} alt="forest テーマのスライド" /></Card>
+</CardGrid>
+
+独自のテーマを作りたい場合は[カスタムテーマ](/astlide/ja/guides/themes-and-plugins/#カスタムテーマ)を参照してください。

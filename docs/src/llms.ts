@@ -22,7 +22,8 @@ export const pageUrl = (id: string) => `${site}${base}/${id === "index" ? "" : `
 
 /** Pages in sidebar order, grouped as the sidebar groups them (the home page first). */
 export async function pageGroups(): Promise<{ label: string; pages: Page[] }[]> {
-	const pages = await getCollection("docs");
+	// English pages only: translations (ja/ …) repeat them.
+	const pages = await getCollection("docs", (p) => !/^ja\//.test(p.id));
 	const byId = new Map(pages.map((p) => [p.id, p]));
 	const used = new Set<string>();
 	const take = (slug: string | undefined) => {

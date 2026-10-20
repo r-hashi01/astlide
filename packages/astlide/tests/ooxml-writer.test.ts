@@ -3,12 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { inflateRawSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { speakerNotes } from "../src/cli/pptx/export";
 import {
 	crc32,
 	dosDateTime,
 	emu,
 	esc,
 	hpt,
+	langOf,
 	PptxFile,
 	type SlideSpec,
 	ZipWriter,
@@ -217,6 +219,61 @@ describe("PptxFile", () => {
 		background: "FFFFFF",
 		elements: [],
 	};
+
+	it("writes speaker notes as notes slides, only for slides that have them", async () => {
+		const pptx = new PptxFile({ eaFont: "Yu Gothic" });
+		pptx.addSlide({ ...minimalSlide, notes: "First point\n\n二つ目 & <more>" });
+		pptx.addSlide(minimalSlide);
+		const out = join(tmpDir, "notes.pptx");
+		await pptx.save(out);
+		const buf = readFileSync(out);
+		const notes = extractFromZip(buf, "ppt/notesSlides/notesSlide1.xml") ?? "";
+		expect(notes).toContain("<a:t>First point</a:t>");
+		expect(notes).toContain('lang="ja-JP"');
+		expect(notes).toContain("<a:t>二つ目 &amp; &lt;more&gt;</a:t>");
+		expect(extractFromZip(buf, "ppt/notesSlides/notesSlide2.xml")).toBeNull();
+		expect(extractFromZip(buf, "ppt/slides/_rels/slide1.xml.rels")).toContain(
+			'Target="../notesSlides/notesSlide1.xml"',
+		);
+		expect(extractFromZip(buf, "ppt/slides/_rels/slide2.xml.rels")).not.toContain("notesSlide");
+		expect(extractFromZip(buf, "ppt/presentation.xml")).toContain("<p:notesMasterIdLst>");
+		expect(extractFromZip(buf, "[Content_Types].xml")).toContain(
+			"/ppt/notesSlides/notesSlide1.xml",
+		);
+		expect(extractFromZip(buf, "ppt/notesMasters/notesMaster1.xml")).toContain('type="body"');
+	});
+
+	it("gives text an East Asian font and tags Japanese runs", async () => {
+		const pptx = new PptxFile({ eaFont: "Noto Sans JP" });
+		pptx.addSlide({
+			...minimalSlide,
+			elements: [
+				{
+					type: "textbox",
+					x: 0,
+					y: 0,
+					w: 4,
+					h: 1,
+					runs: [
+						{ text: "四半期レビュー", options: { fontFace: "Inter" } },
+						{ text: " Q3", options: { fontFace: "Inter" } },
+					],
+				},
+			],
+		});
+		const out = join(tmpDir, "ea.pptx");
+		await pptx.save(out);
+		const buf = readFileSync(out);
+		const slide = extractFromZip(buf, "ppt/slides/slide1.xml") ?? "";
+		expect(slide).toContain(
+			'<a:rPr lang="ja-JP" dirty="0"><a:latin typeface="Inter"/><a:ea typeface="Noto Sans JP"/>',
+		);
+		expect(slide).toContain('<a:rPr lang="en-US" dirty="0"><a:latin typeface="Inter"/>');
+		expect(extractFromZip(buf, "ppt/theme/theme1.xml")).toContain(
+			'<a:ea typeface="Noto Sans JP"/>',
+		);
+		expect(langOf("한국어")).toBe("ko-KR");
+	});
 
 	it("constructs with default options", () => {
 		expect(() => new PptxFile()).not.toThrow();
@@ -677,5 +734,20 @@ describe("PptxFile XML content", () => {
 		// 50% transparency → alpha = (100 - 50) * 1000 = 50000
 		expect(slideXml).toContain('val="50000"');
 		expect(slideXml).toContain("a:alpha");
+	});
+});
+
+describe("speakerNotes", () => {
+	it("reads each slide's notes: <SpeakerNotes> first, else frontmatter / comment notes", () => {
+		const html = `<html><body>
+<section class="slide slide-default"><div class="slide-content"><h1>A</h1>
+<div class="slide-notes" data-slide-notes><p>Say <strong>this</strong></p><ul><li>one</li><li>two</li></ul></div>
+<div data-slide-notes="meta" hidden>ignored</div></div></section>
+<section class="slide"><div class="slide-content"><div data-slide-notes="meta" hidden>Line one
+
+Line two</div></div></section>
+<section class="slide"><div class="slide-content"><p>no notes</p></div></section>
+</body></html>`;
+		expect(speakerNotes(html)).toEqual(["Say this\n• one\n• two", "Line one\nLine two", ""]);
 	});
 });

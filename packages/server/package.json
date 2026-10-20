@@ -1,0 +1,41 @@
+{
+	"name": "@astlide/server",
+	"version": "0.0.0",
+	"private": true,
+	"description": "HTTP render service for Astlide: Markdown → PowerPoint / PDF / PNG and PowerPoint import, with an OpenAPI spec",
+	"type": "module",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/r-hashi01/astlide.git",
+		"directory": "packages/server"
+	},
+	"bin": {
+		"astlide-server": "./src/cli.ts"
+	},
+	"exports": {
+		".": "./src/app.ts",
+		"./config": "./src/config.ts",
+		"./http": "./src/http.ts",
+		"./openapi.json": "./openapi.json"
+	},
+	"files": [
+		"src",
+		"openapi.json"
+	],
+	"scripts": {
+		"start": "bun src/cli.ts",
+		"typecheck": "tsc -p ."
+	},
+	"engines": {
+		"node": ">=22.12.0"
+	},
+	"dependencies": {
+		"@astlide/core": "workspace:*",
+		"astro": "^7.2.10",
+		"js-yaml": "^5.2.1"
+	},
+	"optionalDependencies": {
+		"playwright": "^1.64.0"
+	}
+}
