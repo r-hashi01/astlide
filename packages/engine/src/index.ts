@@ -11,6 +11,7 @@ import { dirname, join, resolve } from "node:path";
 import type { Element } from "domhandler";
 import { parseDocument } from "htmlparser2";
 import { StyleSheets, UA_CSS, type Viewport } from "./cascade";
+import { distFile } from "./dist";
 import {
 	type Box,
 	intersect,
@@ -29,6 +30,7 @@ export {
 	resolveEsm,
 	svgToPng,
 } from "./diagrams";
+export { distFile } from "./dist";
 export { familiesIn, loadFontFaces, loadGoogleFonts } from "./fonts";
 export type { Box, Rect, SlideLayout, TableBox, TableCellBox, TextLine } from "./layout";
 export { intersect, transformText } from "./layout";
@@ -60,7 +62,8 @@ export function pageCss(htmlPath: string, distDir: string): string {
 	const parts: string[] = [];
 	for (const el of elements(doc)) {
 		if (el.name === "link" && el.attribs.rel === "stylesheet" && el.attribs.href?.startsWith("/")) {
-			parts.push(readFileSync(join(distDir, el.attribs.href), "utf-8"));
+			const file = distFile(distDir, el.attribs.href);
+			if (file) parts.push(readFileSync(file, "utf-8"));
 		} else if (el.name === "style") {
 			parts.push(el.children.map((c) => ("data" in c ? c.data : "")).join(""));
 		}
@@ -87,7 +90,8 @@ export function layoutPage(
 	sheets.add(UA_CSS, 0);
 	for (const el of elements(doc)) {
 		if (el.name === "link" && el.attribs.rel === "stylesheet" && el.attribs.href?.startsWith("/")) {
-			sheets.add(readFileSync(join(distDir, el.attribs.href), "utf-8"));
+			const file = distFile(distDir, el.attribs.href);
+			if (file) sheets.add(readFileSync(file, "utf-8"));
 		} else if (el.name === "style") {
 			sheets.add(el.children.map((c) => ("data" in c ? c.data : "")).join(""));
 		}
@@ -124,8 +128,8 @@ function documentSheets(
 		if (el.name === "link" && el.attribs.rel === "stylesheet" && el.attribs.href) {
 			const href = el.attribs.href.split(/[?#]/)[0] ?? "";
 			if (/^[a-z]+:|^\/\//i.test(href)) continue;
-			const file = href.startsWith("/") ? join(distDir, href) : join(dir, href);
-			if (existsSync(file)) sheets.add(readFileSync(file, "utf-8"));
+			const file = href.startsWith("/") ? distFile(distDir, href) : join(dir, href);
+			if (file && existsSync(file)) sheets.add(readFileSync(file, "utf-8"));
 		} else if (el.name === "style") {
 			sheets.add(el.children.map((c) => ("data" in c ? c.data : "")).join(""));
 		}
@@ -146,7 +150,11 @@ function frameDocument(
 	if (el.attribs.srcdoc !== undefined) return { source: el.attribs.srcdoc, dir };
 	const src = (el.attribs.src ?? "").split(/[?#]/)[0] ?? "";
 	if (!src || /^[a-z]+:|^\/\//i.test(src)) return null;
-	const base = resolve(src.startsWith("/") ? join(distDir, src) : join(dir, src));
+	const page = src.startsWith("/")
+		? (distFile(distDir, src.replace(/\/?$/, "/index.html")) ?? distFile(distDir, src))
+		: resolve(join(dir, src));
+	if (!page) return null;
+	const base = resolve(page);
 	if (!base.startsWith(resolve(distDir))) return null;
 	for (const file of [base, join(base, "index.html"), `${base}.html`]) {
 		if (existsSync(file) && statSync(file).isFile())

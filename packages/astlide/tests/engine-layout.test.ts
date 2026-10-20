@@ -1,8 +1,8 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { FontRegistry, layoutPage, toScene, transformText } from "@astlide/engine";
+import { distFile, FontRegistry, layoutPage, toScene, transformText } from "@astlide/engine";
 import { describe, expect, it } from "vitest";
 
 /** A font every install has (KaTeX ships TrueType), for text tests. */
@@ -130,6 +130,41 @@ describe("engine layout", () => {
 		const first = s.lines[0];
 		expect(s.lines.length).toBeGreaterThan(1);
 		expect(marker && first && Math.abs(marker.y - first.y)).toBeLessThan(2);
+	});
+
+	it("finds a built file from a URL with or without the site's base path", () => {
+		const dist = mkdtempSync(join(tmpdir(), "astlide-dist-"));
+		mkdirSync(join(dist, "_astro"));
+		writeFileSync(join(dist, "_astro", "a.css"), "x");
+		const file = join(dist, "_astro", "a.css");
+		expect(distFile(dist, "/_astro/a.css")).toBe(file);
+		expect(distFile(dist, "/my-repo/demo/_astro/a.css?v=1")).toBe(file);
+		expect(distFile(dist, "/my-repo/missing.css")).toBeNull();
+		expect(distFile(dist, "/../../etc/passwd")).toBeNull();
+	});
+
+	it("places absolute boxes against the nearest positioned ancestor, not their parent", () => {
+		const b = boxes(
+			".slide{position:relative;padding:64px;box-sizing:border-box}.c{flex:1}.abs{position:absolute;inset:0}.rel{position:relative;top:10px;left:20px;height:50px}",
+			'<div class="c"><div class="abs"></div><div class="rel"></div></div>',
+		);
+		expect(b.abs).toEqual({ x: 0, y: 0, w: 1000, h: 500 });
+		expect(b.rel).toMatchObject({ x: 84, y: 74 });
+	});
+
+	it("resolves currentColor in borders and backgrounds, and draws buttons like Chromium", () => {
+		const s = page(
+			".a{color:#ff0000;border:3px solid;width:50px;height:20px}.b{color:#0000ff;background:currentColor;border:1px solid currentcolor;width:50px;height:20px}",
+			'<div class="a"></div><div class="b"></div><div><button>Go</button></div>',
+		);
+		const rects = toScene(s).items.flatMap((i) =>
+			i.kind === "rect" ? [{ fill: i.fill?.hex, border: i.border?.color.hex }] : [],
+		);
+		expect(rects).toEqual([
+			{ fill: undefined, border: "ff0000" },
+			{ fill: "0000ff", border: "0000ff" },
+			{ fill: "efefef", border: "767676" },
+		]);
 	});
 
 	it("clips to ancestors with overflow other than visible", () => {

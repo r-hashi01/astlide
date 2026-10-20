@@ -112,7 +112,11 @@ function bitmapSize(b: Buffer): { format: "png" | "jpeg"; size: { w: number; h: 
 	return null;
 }
 
-function imageSource(src: string, dist: string): ImageSource | null {
+function imageSource(
+	src: string,
+	dist: string,
+	distFile: (dist: string, url: string) => string | null,
+): ImageSource | null {
 	let bytes: Buffer | null = null;
 	const data = src.match(/^data:([^;,]+)(;base64)?,(.*)$/s);
 	if (data) {
@@ -121,9 +125,7 @@ function imageSource(src: string, dist: string): ImageSource | null {
 	} else if (/^https?:\/\//.test(src)) {
 		bytes = remoteImages.get(src) ?? null;
 	} else {
-		const path = [join(dist, src), join(dist, src.replace(/^\/[^/]+/, ""))].find((p) =>
-			existsSync(p),
-		);
+		const path = src.startsWith("/") ? distFile(dist, src) : null;
 		if (path) bytes = readFileSync(path);
 	}
 	if (!bytes) return null;
@@ -958,7 +960,7 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 					...embedCard(item, fontFor(bodyFace.font.familyName, 400).face, k, embeds.get(item.src)),
 				);
 			} else if (item.kind === "image") {
-				const source = imageSource(item.src, dist);
+				const source = imageSource(item.src, dist, engine.distFile);
 				// Background images and object-fit: placed by size / position and clipped to the box.
 				const place = source && item.fit ? placeBackground(item, item.fit, source.size) : null;
 				const drawn = place?.drawn ?? { x: item.x, y: item.y, w: item.w, h: item.h };

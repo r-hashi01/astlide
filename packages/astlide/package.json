@@ -12,9 +12,12 @@
 		"./context": "./src/context.ts",
 		"./schema": "./src/schema.ts",
 		"./components/*": "./src/components/*",
-		"./internal/*": "./src/internal/*",
+		"./internal/*.astro": "./src/internal/*.astro",
+		"./internal/*.ts": "./src/internal/*.ts",
+		"./internal/*": "./src/internal/*.ts",
 		"./styles/*": "./src/styles/*",
-		"./utils/*": "./src/utils/*"
+		"./utils/*.ts": "./src/utils/*.ts",
+		"./utils/*": "./src/utils/*.ts"
 	},
 	"bin": {
 		"astlide": "./src/cli/astlide.ts"
