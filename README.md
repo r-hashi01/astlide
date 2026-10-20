@@ -605,6 +605,10 @@ bun run lint:fix   # Auto-fix lint issues
 bun run format     # Format with Biome
 ```
 
+## Contact
+
+Questions and feedback: [hello@astlide.dev](mailto:hello@astlide.dev), or [GitHub Discussions](https://github.com/r-hashi01/astlide/discussions). Security issues: see [SECURITY.md](SECURITY.md).
+
 ## License
 
 MIT

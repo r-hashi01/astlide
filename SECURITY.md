@@ -17,12 +17,12 @@ Use one of the following channels:
 
 - **GitHub private advisories** — preferred. Open a draft advisory at:
   <https://github.com/r-hashi01/astlide/security/advisories/new>
-- **Email** — `r.hashimoto@dify.ai`
+- **Email** — [hello@astlide.dev](mailto:hello@astlide.dev)
 
 Please include:
 
 - Affected package and version
-- A minimal reproduction (MDX + config snippet)
+- A minimal reproduction (MDX + config snippet, or the `.pptx` / request that triggers it)
 - Impact assessment (what an attacker can achieve)
 - Any proof-of-concept you have
 
@@ -37,8 +37,13 @@ Please include:
 In scope:
 
 - `@astlide/core` integration code, schema, components, and utilities (e.g. `sanitizeHTML`, `sanitizeBackground`, `sanitizeKaTeXOutput`)
+- PowerPoint import and templates (`@astlide/core/pptx`): parsing untrusted `.pptx` / `.potx` / `.thmx` files
+- The `astlide` CLI (`export`, `import`, `mcp`) and the MCP server (`@astlide/core/mcp`)
+- `@astlide/engine` (layout of built pages for PPTX export)
+- The embed element (`@astlide/core/embed`) and its `postMessage` protocol
 - `create-astlide` CLI
 - The injected slide / index pages and their CSP defaults
+- The HTTP render service (`packages/server`) as shipped in the repository
 
 Out of scope:
 
