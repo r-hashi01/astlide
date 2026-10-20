@@ -1,11 +1,11 @@
 import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
+import { base, sidebar, site } from "./site.mjs";
 
 // Published at https://r-hashi01.github.io/astlide/ by .github/workflows/pages.yml,
 // alongside the live demo deck (/astlide/demo/) and the TypeDoc API reference
-// (/astlide/api/).
-const site = "https://r-hashi01.github.io";
-const base = "/astlide";
+// (/astlide/api/). Agents read the docs from /astlide/llms.txt and
+// /astlide/llms-full.txt (src/pages/).
 
 export default defineConfig({
 	site,
@@ -27,37 +27,7 @@ export default defineConfig({
 			social: [{ icon: "github", label: "GitHub", href: "https://github.com/r-hashi01/astlide" }],
 			editLink: { baseUrl: "https://github.com/r-hashi01/astlide/edit/main/docs/" },
 			lastUpdated: true,
-			sidebar: [
-				{ label: "Why Astlide?", slug: "why" },
-				{ label: "Getting Started", slug: "getting-started" },
-				{ slug: "tutorial/first-deck" },
-				{ slug: "gallery" },
-				{
-					label: "Guides",
-					items: [
-						{ slug: "guides/decks" },
-						{ slug: "guides/layouts-and-components" },
-						{ slug: "guides/fragments" },
-						{ slug: "guides/code" },
-						{ slug: "guides/diagrams" },
-						{ slug: "guides/presenting" },
-						{ slug: "guides/themes-and-plugins" },
-						{ slug: "guides/export" },
-						{ slug: "guides/import" },
-						{ slug: "guides/templates" },
-						{ slug: "guides/deploy" },
-					],
-				},
-				{
-					label: "Reference",
-					items: [
-						{ slug: "reference/configuration" },
-						{ slug: "reference/frontmatter" },
-						{ label: "API (TypeDoc)", link: `${site}${base}/api/`, attrs: { target: "_blank" } },
-					],
-				},
-				{ label: "Live demo ↗", link: `${site}${base}/demo/tour/1/`, attrs: { target: "_blank" } },
-			],
+			sidebar,
 		}),
 	],
 });

@@ -5,8 +5,12 @@ bun workspaces モノレポ。パッケージマネージャーは **bun**。
 ```
 packages/astlide/          — @astlide/core (Astro Integration)
 packages/create-astlide/   — create-astlide (CLI scaffolder)
+packages/engine/           — @astlide/engine (ブラウザなしの HTML/CSS レイアウト、PPTX export が使用)
+packages/mcp/              — @astlide/mcp (MCP サーバー、private。check_deck 等)
+skills/astlide/            — エージェント用スキル (SKILL.md)
 playground/                — 開発用 Astro プロジェクト
 docs/                      — ドキュメントサイト (Starlight) → https://r-hashi01.github.io/astlide/
+                             サイドバーは docs/site.mjs、/llms.txt・/llms-full.txt は docs/src/pages/
 tools/ts6/                 — TypeScript 6 ブリッジ（下記）
 ```
 
