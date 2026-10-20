@@ -3,7 +3,7 @@ title: はじめに
 description: Astlide の新しいプロジェクトを作成するか、既存の Astro サイトに Astlide を追加します。
 ---
 
-Astlide は [Astro](https://astro.build) のインテグレーションです。**Astro 7.2.10 以降**が必要で、開発には [Bun](https://bun.sh) を使用しています。
+Astlide は [Astro](https://astro.build) のインテグレーションです。**Astro 7.2.10 以降**が必要です。このドキュメントのコマンドは [Bun](https://bun.sh) で書いています。
 
 ## 新しいプロジェクトを作成する
 
@@ -14,7 +14,7 @@ bun install
 bun run dev
 ```
 
-開発サーバーの URL を開くとデッキの一覧が表示されます。デッキを選ぶとプレゼンテーションを始められます。
+開発サーバーの URL を開くとデッキの一覧が表示され、デッキを選ぶとそのまま発表を始められます。
 
 ## 既存の Astro プロジェクトに追加する
 
@@ -68,7 +68,7 @@ src/
             └── 03-demo.html
 ```
 
-`src/content/decks/` の下にあるディレクトリがそれぞれ 1 つのデッキになり、`/<deck>/<slide-number>` で配信されます。デッキの一覧は `/` にあります。
+`src/content/decks/` の下にあるフォルダが 1 つずつデッキになり、`/<deck>/<slide-number>` で配信されます。デッキの一覧は `/` にあります。
 
 ## 次のステップ
 

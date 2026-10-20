@@ -24,7 +24,7 @@ hidden: false
 | `title` | `string` | 最初の見出し | スライドへの移動ダイアログに表示するタイトル。 |
 | `background` | `string` | — | CSS の背景（色、グラデーション、`url(…)`）。スクリプトのようなパターンを含む値は拒否されます。 |
 | `class` | `string` | — | スライドに追加するクラス。例: `text-light`、`text-dark`。 |
-| `notes` | `string` | — | スピーカーノート（Markdown）。本文の `<SpeakerNotes>` が優先されます。これが未設定の場合は、末尾の `<!-- … -->` コメントが使われます。 |
+| `notes` | `string` | — | スピーカーノート（Markdown）。本文に `<SpeakerNotes>` があればそちらが優先されます。`notes` も `<SpeakerNotes>` もない場合は、末尾の `<!-- … -->` コメントがノートになります。 |
 | `hidden` | `boolean` | `false` | 本番ビルドでスライドをスキップします。 |
 
 :::caution

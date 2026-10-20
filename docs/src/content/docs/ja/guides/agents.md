@@ -3,7 +3,7 @@ title: コーディングエージェント
 description: Claude Code、Codex、Gemini CLI にデッキを書かせ、チェックし、エクスポートさせます。MCP サーバー、エージェントスキル、llms.txt を紹介します。
 ---
 
-コーディングエージェントは、ほかのファイルと同じように Astlide のデッキを書けます。うまく書かせるために、次の 3 つが用意されています。
+コーディングエージェントは、ほかのファイルと同じように Astlide のデッキも書けます。うまく書かせるために、次の 3 つを用意しています。
 
 - **MCP サーバー**: PowerPoint テンプレートの読み取り、`.pptx` ファイルのインポート、収まらないテキストの検出、デッキのエクスポートを行うツールを提供します。
 - **エージェントスキル**: スライドの書き方、レイアウト、そして「書く → チェックする → 直す → エクスポートする」の流れを教えます。
@@ -11,7 +11,7 @@ description: Claude Code、Codex、Gemini CLI にデッキを書かせ、チェ�
 
 ## MCP サーバー
 
-サーバーは stdio 上で MCP を話し、[Bun](https://bun.sh) で動きます。Astlide のリポジトリ（`packages/mcp`）にあり、まだ npm には公開していないので、クローンして実行します。
+サーバーは標準入出力（stdio）で MCP のやり取りをし、[Bun](https://bun.sh) で動きます。Astlide のリポジトリ（`packages/mcp`）にあり、まだ npm には公開していないので、クローンして実行します。
 
 ```bash
 git clone https://github.com/r-hashi01/astlide
@@ -19,7 +19,7 @@ cd astlide
 bun install
 ```
 
-呼び出しごとに指定した Astlide プロジェクトを対象に、そのプロジェクト自身の `@astlide/core` を使って動作します。
+ツールを呼ぶたびに対象の Astlide プロジェクトを指定し、そのプロジェクトにインストールされている `@astlide/core` を使って動きます。
 
 ### ツール
 

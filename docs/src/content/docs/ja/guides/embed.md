@@ -125,7 +125,7 @@ export function Talk() {
 }
 ```
 
-ref は要素そのものなので、そのメソッドとプロパティを使えます。コンポーネントはサーバーでも描画でき（Next.js、Remix など）、要素はブラウザで動き始めます。`react` は `@astlide/core` の省略可能な peer dependency です。
+ref には `<astlide-deck>` 要素がそのまま入るので、`next()` などのメソッドやプロパティをそのまま使えます。コンポーネントはサーバーでも描画でき（Next.js、Remix など）、ブラウザで読み込まれた時点で動き始めます。`react` は `@astlide/core` の省略可能な peer dependency です。
 
 ## Vue
 
@@ -149,10 +149,10 @@ const deck = ref();
 </template>
 ```
 
-`slidechange` はイベントの detail を引数として emit されます。コンポーネントは `next()`、`prev()`、`goTo(n)`、`requestFullscreen()`、`element` を公開しています。サーバーでも描画できます（Nuxt など）。`vue` は `@astlide/core` の省略可能な peer dependency です。
+`@slidechange` のハンドラーには `event.detail` の内容が渡されます。コンポーネントは `next()`、`prev()`、`goTo(n)`、`requestFullscreen()`、`element` を公開しています。サーバーでも描画できます（Nuxt など）。`vue` は `@astlide/core` の省略可能な peer dependency です。
 
 ## 仕組み
 
-要素とデッキは `postMessage` でやり取りします。デッキのページは、フレーム内に置かれたときだけ、親ウィンドウからのメッセージだけを受け付け、最初に通信してきたページのオリジンに状態を報告します。要素は自身のフレームとデッキのオリジンからのメッセージだけを受け付けます。コマンドで操作できるのはデッキ内の移動だけです。
+要素とデッキは `postMessage` でやり取りします。デッキのページがメッセージを受け付けるのは、フレームの中に置かれたときの、親ウィンドウからのものだけです。状態は、最初に通信してきたページのオリジンにだけ報告します。要素は自身のフレームとデッキのオリジンからのメッセージだけを受け付けます。コマンドで操作できるのはデッキ内の移動だけです。
 
 別のドメインでホストされているデッキも、そのホストがフレームへの埋め込みを許可していれば埋め込めます。デッキのサーバーに `X-Frame-Options` や `frame-ancestors` の Content Security Policy が設定されていないか確認してください。

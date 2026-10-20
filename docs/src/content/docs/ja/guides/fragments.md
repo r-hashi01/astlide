@@ -41,7 +41,7 @@ description: <Fragment> と <Fragments> でコンテンツを 1 ステップず�
 ```
 
 :::note
-MDX が Markdown として解釈できるように、`<Fragments>` の中のリストの前後には空行を入れてください。
+MDX が Markdown として解釈できるように、`<Fragments>` で囲んだリストの前後には、空行を入れてください。
 :::
 
 ## 表示順

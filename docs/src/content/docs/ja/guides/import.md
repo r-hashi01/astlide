@@ -19,7 +19,7 @@ src/content/decks/q3-review/
 └── 03-next-steps.mdx
 ```
 
-各ページはほかのファイルと一緒にファイル名順に並び（`02-numbers.pptx` → `02-numbers--001`、`02-numbers--002` …）、発表者ビュー、一覧表示、ノート、PDF / PPTX エクスポートもほかのスライドと同じように動作します。`.pptx` を編集して保存すると、デッキにも反映されます。ファイルに埋め込まれた画像とフォントは Astlide が（`/_astlide/pptx/` から）配信します。
+各ページはほかのファイルと一緒にファイル名順に並び（`02-numbers.pptx` → `02-numbers--001`、`02-numbers--002` …）、発表者ウィンドウ、一覧表示、ノート、PDF / PPTX エクスポートもほかのスライドと同じように使えます。`.pptx` を編集して保存すると、デッキにも反映されます。ファイルに埋め込まれた画像とフォントは Astlide が（`/_astlide/pptx/` から）配信します。
 
 ## 編集可能なデッキに取り込む
 
@@ -27,7 +27,7 @@ src/content/decks/q3-review/
 bunx astlide import ~/Downloads/kickoff.pptx --deck kickoff
 ```
 
-このコマンドは、ページごとに 1 つの `.html` スライドを `src/content/decks/kickoff/` に（タイトル、ノート、`hidden` は frontmatter に、図形は 1 行に 1 つずつ）、画像を `public/pptx/kickoff/` に書き出し、`_config.json` も作成します。以降のスライドはただのファイルなので、編集したり、Markdown のスライドを混ぜたり、テーマを変えたりできます。
+このコマンドは、ページごとに 1 つの `.html` スライドを `src/content/decks/kickoff/` に書き出します。タイトル、ノート、`hidden` は frontmatter に入り、図形は 1 行に 1 つずつ並びます。画像は `public/pptx/kickoff/` に書き出され、`_config.json` も作られます。あとはふつうのファイルなので、編集しても、Markdown のスライドを混ぜても、テーマを変えてもかまいません。
 
 | オプション | |
 |---|---|
@@ -37,7 +37,7 @@ bunx astlide import ~/Downloads/kickoff.pptx --deck kickoff
 
 ### Google スライド
 
-デッキの URL を渡します。PowerPoint 形式でダウンロードされるので、デッキが「リンクを知っている全員」に共有されている必要があります。そうでない場合は（ファイル → ダウンロード → Microsoft PowerPoint）でダウンロードしてから、そのファイルを取り込んでください。
+デッキの URL を渡します。PowerPoint 形式でダウンロードされるので、デッキが「リンクを知っている全員」に共有されている必要があります。そうでない場合は、Google スライドの「ファイル → ダウンロード → Microsoft PowerPoint」でダウンロードしてから、そのファイルを取り込んでください。
 
 ```bash
 bunx astlide import https://docs.google.com/presentation/d/1AbC…/edit
