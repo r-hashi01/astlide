@@ -32,7 +32,13 @@ export function familiesIn(css: string): string[] {
 	const out = new Set<string>();
 	// font-family values and --font-* custom properties that hold family lists
 	// (not --font-size-* / --font-weight-*); @font-face blocks are skipped.
-	const withoutFaces = css.replace(/@font-face\s*\{[^}]*\}/g, "");
+	let withoutFaces = "";
+	let from = 0;
+	for (const face of fontFaceBlocks(css)) {
+		withoutFaces += css.slice(from, face.start);
+		from = face.end;
+	}
+	withoutFaces += css.slice(from);
 	for (const m of withoutFaces.matchAll(
 		// No \s* before the value: [^;}] takes the spaces (overlapping quantifiers backtrack).
 		/(?:font-family|--font-(?!size|weight|style)[\w-]+)\s*:([^;}]+)/gi,
@@ -57,7 +63,7 @@ export function familiesIn(css: string): string[] {
  */
 export function loadFontFaces(fonts: FontRegistry, css: string, dist: string): Set<string> {
 	const loaded = new Set<string>();
-	for (const [, body = ""] of css.matchAll(/@font-face\s*\{([^}]*)\}/g)) {
+	for (const { body } of fontFaceBlocks(css)) {
 		const prop = (name: string) =>
 			body.match(new RegExp(`(?:^|;)\\s*${name}\\s*:([^;]+)`, "i"))?.[1]?.trim();
 		const family = prop("font-family")?.replace(/^["']|["']$/g, "");
@@ -137,4 +143,26 @@ function declarationValue(body: string, name: string): string | undefined {
 		else if (c === ";" && depth === 0) break;
 	}
 	return body.slice(start, i).trim() || undefined;
+}
+
+/**
+ * The `@font-face { … }` blocks of a style sheet: where each starts and
+ * ends, and its body. A linear scan: the regex /@font-face\s*\{[^}]*\}/
+ * is quadratic on runs of unclosed blocks.
+ */
+function fontFaceBlocks(css: string): { start: number; end: number; body: string }[] {
+	const out: { start: number; end: number; body: string }[] = [];
+	let at = css.indexOf("@font-face");
+	while (at !== -1) {
+		let i = at + "@font-face".length;
+		while (i < css.length && /\s/.test(css[i] ?? "")) i++;
+		if (css[i] === "{") {
+			const close = css.indexOf("}", i + 1);
+			// No "}" after this one: no later block can be closed either.
+			if (close === -1) break;
+			out.push({ start: at, end: close + 1, body: css.slice(i + 1, close) });
+			at = css.indexOf("@font-face", close + 1);
+		} else at = css.indexOf("@font-face", i);
+	}
+	return out;
 }

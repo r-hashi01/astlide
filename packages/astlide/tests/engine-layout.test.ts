@@ -182,6 +182,8 @@ describe("engine layout", () => {
 		const start = performance.now();
 		familiesIn(`a{font-family:${" ".repeat(50000)}x`);
 		familiesIn(`@font-face{src:${"url(".repeat(20000)}`);
+		familiesIn("@font-face{{".repeat(20000));
+		expect(familiesIn("@font-face{font-family:Skip}p{font-family:Keep}")).toEqual(["Keep"]);
 		expect(performance.now() - start).toBeLessThan(500);
 	});
 
