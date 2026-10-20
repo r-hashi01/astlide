@@ -1,10 +1,10 @@
 ---
 title: Astlide
-description: Slides that live in your Astro site — write in MDX, Markdown or HTML, ship every slide as a real static page.
+description: Slides that live in your Astro site — many decks per site, written in MDX, Markdown or HTML, presented on the web and exported as editable PowerPoint in your own template.
 template: splash
 hero:
   title: Slides that live in your Astro site
-  tagline: Write in MDX, Markdown or plain HTML. Keep talks next to your blog and docs. Ship every slide as a real static page.
+  tagline: Every talk, report and pitch as content of one site — written in Markdown, presented on the web, handed over as editable PowerPoint in your company's template.
   actions:
     - text: Get started
       link: /astlide/getting-started/
@@ -20,24 +20,55 @@ hero:
 
 import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 
-## Why Astlide
+## What sets it apart
 
 <CardGrid>
-	<Card title="It's just Astro" icon="astro">
-		An integration, not a separate app: add `astlide()` to an existing site and your talks share its
-		repo, components, content collections and deploy.
+	<Card title="Many decks, one site" icon="list-format">
+		Decks are content, not projects: every folder under `src/content/decks/` is a deck, with an index
+		page out of the box. Keep a year of talks, a team's reports or a product's training decks in one
+		repository — sharing themes, components and one deploy.
 	</Card>
-	<Card title="Every slide is a real page" icon="document">
+	<Card title="An SDK, not an app" icon="puzzle">
+		`astlide()` goes into any Astro site — your blog, your Starlight docs, a portal of your own design.
+		The pieces work on their own too: the deck loader, PowerPoint import and templates, and the layout
+		engine behind the PPTX export.
+	</Card>
+	<Card title="Your PowerPoint template, editable PPTX out" icon="document">
+		Register a `.pptx` / `.potx` template as a theme and Markdown slides come out in its design. Export
+		turns them into real PowerPoint text boxes, tables and shapes — laid out without a browser.
+	</Card>
+	<Card title="PowerPoint & Google Slides in" icon="download">
+		Drop a `.pptx` into a deck and its pages become slides, or import it as editable HTML slides — text
+		stays text, placeholders keep their layout and master styles.
+	</Card>
+	<Card title="React, Vue & Svelte inside" icon="seti:react">
+		Astro islands: put the charts, demos and design-system components you already have on a slide,
+		interactive while you present.
+	</Card>
+	<Card title="Every slide a real page" icon="seti:html">
 		`/my-talk/7` is static HTML — link straight to a slide, load fast, host anywhere, including
 		sub-paths like GitHub Pages.
 	</Card>
-	<Card title="Write in whatever fits" icon="pencil">
-		Mix `.mdx`, `.md` and plain `.html` slides in one deck. Paste hand-made or AI-generated HTML and
-		it renders as-is.
+</CardGrid>
+
+## What people build with it
+
+<CardGrid>
+	<Card title="A talk archive" icon="open-book">
+		Your own Speaker Deck: every talk at its own URL, searchable, with PDF and PPTX downloads for the
+		event's upload form.
 	</Card>
-	<Card title="Many decks, one project" icon="list-format">
-		Every folder under `src/content/decks/` is a deck, with an index page out of the box. Frontmatter
-		is type-checked with Zod.
+	<Card title="Slides next to the docs" icon="seti:markdown">
+		Product docs and the decks that explain them in one Starlight site, reusing the same components and
+		code samples.
+	</Card>
+	<Card title="An internal deck portal" icon="laptop">
+		Weekly reports, proposals and onboarding decks in the company template, reviewed as pull requests
+		and handed out as PowerPoint.
+	</Card>
+	<Card title="Decks written by agents" icon="rocket">
+		Markdown and HTML are what language models write best; Astlide turns them into on-brand, editable
+		PowerPoint without a browser in the loop.
 	</Card>
 </CardGrid>
 
@@ -55,8 +86,8 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 		Mermaid diagrams loaded on demand, KaTeX rendered at build time.
 	</Card>
 	<Card title="Export" icon="download">
-		PDF and PNG, editable PowerPoint built from your source, or one-click PDF in the browser.
+		PDF and PNG, editable PowerPoint with your speaker notes, or one-click PDF in the browser.
 	</Card>
 </CardGrid>
 
-<LinkCard title="Is Astlide right for you?" description="How it compares to Slidev, Marp and reveal.js — and when to pick something else." href="/astlide/why/" />
+<LinkCard title="Is Astlide right for you?" description="How it compares to Slidev, Marp, reveal.js and Quarto — and when to pick something else." href="/astlide/why/" />

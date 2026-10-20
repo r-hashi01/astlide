@@ -37,6 +37,7 @@ export default defineConfig({
 					items: [
 						{ slug: "guides/decks" },
 						{ slug: "guides/layouts-and-components" },
+						{ slug: "guides/frameworks" },
 						{ slug: "guides/fragments" },
 						{ slug: "guides/code" },
 						{ slug: "guides/diagrams" },
