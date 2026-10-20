@@ -532,6 +532,26 @@ export default defineConfig({
 
 Root-relative `<ImageSide src>` and image `background` paths are resolved against `base` too. Other absolute URLs you write yourself (e.g. Markdown `![](/photo.jpg)`) are not rewritten — use `import.meta.env.BASE_URL` or relative paths for them. `astlide export` detects the base; with `--base-url`, include it (e.g. `--base-url http://localhost:4321/<repo>`).
 
+## Embedding a Deck
+
+Show a deck inside another page — a blog post, a docs page, a React or Vue app. In the same Astro site:
+
+```astro
+---
+import DeckEmbed from '@astlide/core/components/DeckEmbed.astro';
+---
+<DeckEmbed deck="my-talk" start={2} controls />
+```
+
+Anywhere else, use the `<astlide-deck>` custom element (`@astlide/core/embed`), or its React / Vue wrappers (`@astlide/core/embed/react`, `@astlide/core/embed/vue`):
+
+```html
+<script type="module">import '@astlide/core/embed';</script>
+<astlide-deck src="https://example.com/talks/my-talk/" controls></astlide-deck>
+```
+
+It keeps 16:9 at its container's width and has `next()`, `prev()`, `goTo(n)`, `requestFullscreen()` and a `slidechange` event. See the [embedding guide](https://r-hashi01.github.io/astlide/guides/embed/).
+
 ## Project Structure
 
 ```

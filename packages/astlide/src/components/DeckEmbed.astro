@@ -1,0 +1,49 @@
+---
+/**
+ * DeckEmbed — show a deck of this site inside another page (a blog post, a
+ * docs page, the home page …). Renders the `<astlide-deck>` element from
+ * `@astlide/core/embed`, with the deck's URL resolved against Astro's `base`.
+ *
+ * Usage (any .astro / .mdx page):
+ *   import DeckEmbed from '@astlide/core/components/DeckEmbed.astro';
+ *   <DeckEmbed deck="my-talk" />
+ *   <DeckEmbed deck="my-talk" start={3} controls title="My talk" />
+ *
+ * Without JavaScript a link to the deck is shown instead.
+ *
+ * Props:
+ *   deck     — deck name (its directory under src/content/decks/)
+ *   start    — slide shown first (1-based, default 1)
+ *   controls — show previous / next, a slide counter and fullscreen below the deck
+ *   title    — accessible name of the frame (default: the deck name)
+ *   class    — extra CSS class on the element
+ */
+import { pageUrl } from '@astlide/core/utils/base-path';
+
+interface Props {
+	deck: string;
+	start?: number;
+	controls?: boolean;
+	title?: string;
+	class?: string;
+}
+
+const { deck, start = 1, controls = false, title = deck, class: className } = Astro.props;
+const deckPath = `/${encodeURIComponent(deck)}`;
+const src = pageUrl(deckPath);
+const href = pageUrl(`${deckPath}/${start}`);
+---
+
+<astlide-deck
+	src={src}
+	start={String(start)}
+	controls={controls ? '' : undefined}
+	label={title}
+	class={className}
+>
+	<a href={href}>{title}</a>
+</astlide-deck>
+
+<script>
+	import '@astlide/core/embed';
+</script>
