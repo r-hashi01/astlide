@@ -9,7 +9,7 @@
 
 Astlide is an [Astro](https://astro.build) integration for presentations. Every talk, report and pitch is content of one site: write slides in MDX, Markdown or plain HTML, present them on the web, and hand them over as editable PowerPoint in your company's template.
 
-📖 **Documentation:** https://r-hashi01.github.io/astlide/ · 🎬 **Live demo:** https://r-hashi01.github.io/astlide/demo/tour/1/
+📖 **Documentation:** https://r-hashi01.github.io/astlide/ · 🎬 **Live demo:** https://r-hashi01.github.io/astlide/demo/tour/1/ · 🇯🇵 [日本語ドキュメント](https://r-hashi01.github.io/astlide/ja/)
 
 ## Why Astlide
 
