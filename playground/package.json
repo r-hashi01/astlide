@@ -11,7 +11,7 @@
 	},
 	"dependencies": {
 		"@astlide/core": "workspace:*",
-		"astro": "^7.2.10",
-		"mermaid": "^12.1.0"
+		"astro": "^7.4.0",
+		"mermaid": "^12.2.0"
 	}
 }

@@ -32,13 +32,13 @@
 		"@changesets/changelog-github": "^1.0.1",
 		"@changesets/cli": "^3.0.3",
 		"jszip": "3.10.2",
-		"playwright": "^1.64.0",
+		"playwright": "^1.64.1",
 		"pptxgenjs": "^4.0.1",
 		"typescript": "^7.0.2",
-		"vitest": "^5.0.3",
-		"zod": "^4.6.6"
+		"vitest": "^5.0.5",
+		"zod": "^4.6.7"
 	},
 	"dependencies": {
-		"astro": "^7.3.8"
+		"astro": "^7.4.0"
 	}
 }
