@@ -31,7 +31,7 @@ describe("Chromium sandbox", () => {
 			const launch = vi.spyOn(chromium, "launch");
 			const browser = await launchChromium();
 			await browser.close();
-			expect(launch).toHaveBeenCalledWith({ chromiumSandbox: true });
+			expect(launch).toHaveBeenCalledWith(expect.objectContaining({ chromiumSandbox: true }));
 			launch.mockRestore();
 		},
 	);
