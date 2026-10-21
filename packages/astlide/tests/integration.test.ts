@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import astlide from "../src/index";
+import { exportBuildDir } from "../src/utils/export-build";
 
 // ── Helpers ──
 
@@ -203,7 +204,8 @@ describe("astlide integration", () => {
 		});
 
 		it("builds an export into its own folder, with notes", () => {
-			process.env.ASTLIDE_EXPORT_BUILD = "/p/node_modules/.astro/astlide-export";
+			const own = exportBuildDir(process.cwd());
+			process.env.ASTLIDE_EXPORT_BUILD = own;
 			try {
 				expect(notesDefine(undefined, "build")).toBe("true");
 				const integration = astlide();
@@ -214,7 +216,24 @@ describe("astlide integration", () => {
 					injectScript: () => {},
 				});
 				const { outDir } = args.updateConfig.mock.calls[0][0];
-				expect(String(outDir)).toBe("file:///p/node_modules/.astro/astlide-export/");
+				expect(String(outDir)).toBe(pathToFileURL(`${own}/`).href);
+			} finally {
+				delete process.env.ASTLIDE_EXPORT_BUILD;
+			}
+		});
+
+		it("ignores ASTLIDE_EXPORT_BUILD naming any other folder", () => {
+			process.env.ASTLIDE_EXPORT_BUILD = join(process.cwd(), "dist");
+			try {
+				expect(notesDefine(undefined, "build")).toBe("false");
+				const integration = astlide();
+				const args = createMockHookArgs();
+				(integration.hooks["astro:config:setup"] as HookFn)({
+					...args,
+					command: "build",
+					injectScript: () => {},
+				});
+				expect(args.updateConfig.mock.calls[0][0].outDir).toBeUndefined();
 			} finally {
 				delete process.env.ASTLIDE_EXPORT_BUILD;
 			}

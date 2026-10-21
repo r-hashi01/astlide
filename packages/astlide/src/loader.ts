@@ -40,6 +40,7 @@ import { fileURLToPath } from "node:url";
 import type { Loader, LoaderContext } from "astro/loaders";
 import { glob } from "astro/loaders";
 import { load as parseYaml } from "js-yaml";
+import { stripTrailingComment } from "./utils/comment-notes";
 import { pptxAssetDir, storePptxAsset } from "./utils/pptx-assets";
 
 /** Options for {@link astlideDeckLoader}. */
@@ -97,7 +98,7 @@ export function astlideDeckLoader(options: AstlideDeckLoaderOptions = {}): Loade
 	return {
 		name: "astlide-deck-loader",
 		async load(context) {
-			await markdownLoader.load(context);
+			await markdownLoader.load(withoutMarkdownNotes(context));
 			const baseUrl = new URL(`${base.replace(/\/?$/, "/")}`, context.config.root);
 			await syncHtmlSlides(context, baseUrl);
 			await syncPptxSlides(context, baseUrl);
@@ -120,6 +121,53 @@ export function astlideDeckLoader(options: AstlideDeckLoaderOptions = {}): Loade
 				watcher.on("unlink", onChange);
 			}
 		},
+	};
+}
+
+/**
+ * `context` with a store that takes the trailing notes comment out of
+ * rendered `.md` slides: the notes are read from the entry's raw body and
+ * reach pages only when notes are included, so the rendered HTML mustn't
+ * carry them. (`.mdx` loses it before compiling, `.html` in
+ * {@link syncHtmlSlides}.) The digest changes with it, so entries cached
+ * with the comment are replaced.
+ */
+/** @internal */
+export function withoutMarkdownNotes(context: LoaderContext): LoaderContext {
+	const { store } = context;
+	const MARK = ":notes-out";
+	const set: typeof store.set = (entry) => {
+		const html = entry.rendered?.html;
+		const stripped = html === undefined ? null : stripTrailingComment(html);
+		if (stripped === null || !entry.rendered) return store.set(entry);
+		return store.set({
+			...entry,
+			rendered: { ...entry.rendered, html: stripped },
+			digest: entry.digest === undefined ? undefined : `${entry.digest}${MARK}`,
+		});
+	};
+	// The glob loader skips files whose digest matches the stored entry: show it
+	// the original digest, and none for an entry cached with the comment still in.
+	const get = ((key: string) => {
+		const entry = store.get(key);
+		if (!entry || typeof entry.digest !== "string") return entry;
+		if (entry.digest.endsWith(MARK))
+			return { ...entry, digest: entry.digest.slice(0, -MARK.length) };
+		const html = entry.rendered?.html;
+		return html !== undefined && stripTrailingComment(html) !== null
+			? { ...entry, digest: undefined }
+			: entry;
+	}) as typeof store.get;
+	return {
+		...context,
+		store: new Proxy(store, {
+			get: (target, key) => {
+				if (key === "set") return set;
+				if (key === "get") return get;
+				const value = Reflect.get(target, key, target);
+				return typeof value === "function" ? value.bind(target) : value;
+			},
+		}),
 	};
 }
 
@@ -234,8 +282,9 @@ async function syncHtmlSlides(context: LoaderContext, baseUrl: URL): Promise<voi
 			filePath,
 			body,
 			digest: generateDigest(raw),
-			// `render(entry)` returns a component that emits this HTML directly.
-			rendered: { html: body },
+			// `render(entry)` returns a component that emits this HTML directly —
+			// without the trailing notes comment, which is read from `body`.
+			rendered: { html: stripTrailingComment(body) ?? body },
 		});
 	}
 

@@ -8,7 +8,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 /**
  * Set (to the export build folder) for the `astro build` / `astro preview`
@@ -16,6 +16,22 @@ import { join } from "node:path";
  * includes speaker notes.
  */
 export const EXPORT_BUILD_ENV = "ASTLIDE_EXPORT_BUILD";
+
+/**
+ * The export build folder `env` asks for, or undefined. Only the project's
+ * own {@link exportBuildDir} counts — anything else (a stray or global
+ * `ASTLIDE_EXPORT_BUILD`, `=dist` …) is ignored, so it can't turn speaker
+ * notes on or move the build. `ignored` is set when a value was refused.
+ */
+export function requestedExportBuild(
+	root: string,
+	env: Record<string, string | undefined> = process.env,
+): { dir?: string; ignored?: string } {
+	const value = env[EXPORT_BUILD_ENV];
+	if (!value) return {};
+	const own = exportBuildDir(root);
+	return resolve(value) === resolve(own) ? { dir: own } : { ignored: value };
+}
 
 /** Where `astlide export` builds a project (gitignored with node_modules). */
 export function exportBuildDir(root: string): string {

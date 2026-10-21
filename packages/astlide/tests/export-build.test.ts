@@ -1,7 +1,11 @@
 import { mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { exportBuildDir, exportSiteDir } from "@astlide/core/utils/export-build";
+import {
+	exportBuildDir,
+	exportSiteDir,
+	requestedExportBuild,
+} from "@astlide/core/utils/export-build";
 import { describe, expect, it } from "vitest";
 
 describe("export build folder", () => {
@@ -14,5 +18,19 @@ describe("export build folder", () => {
 		expect(exportSiteDir(root)).toEqual({ dir: join(root, "dist"), own: false });
 		mkdirSync(exportBuildDir(root), { recursive: true });
 		expect(exportSiteDir(root)).toEqual({ dir: exportBuildDir(root), own: true });
+	});
+});
+
+describe("ASTLIDE_EXPORT_BUILD", () => {
+	it("only counts when it names the project's own export folder", () => {
+		const root = "/p";
+		expect(requestedExportBuild(root, {})).toEqual({});
+		expect(requestedExportBuild(root, { ASTLIDE_EXPORT_BUILD: exportBuildDir(root) })).toEqual({
+			dir: exportBuildDir(root),
+		});
+		for (const value of ["/p/dist", "dist", "1", "/elsewhere/node_modules/.astro/astlide-export"])
+			expect(requestedExportBuild(root, { ASTLIDE_EXPORT_BUILD: value })).toEqual({
+				ignored: value,
+			});
 	});
 });

@@ -45,10 +45,12 @@ function astroBin(root: string): string {
 }
 
 function runAstro(root: string, args: string[], env: Record<string, string> = {}): ChildProcess {
+	// The export folder is only ever this CLI's choice, never inherited.
+	const { [EXPORT_BUILD_ENV]: _inherited, ...inherited } = process.env;
 	return spawn("node", [astroBin(root), ...args, "--root", root], {
 		cwd: root,
 		stdio: ["ignore", "pipe", "pipe"],
-		env: { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1", ...env },
+		env: { ...inherited, FORCE_COLOR: "0", NO_COLOR: "1", ...env },
 	});
 }
 

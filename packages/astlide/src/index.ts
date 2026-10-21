@@ -12,7 +12,7 @@ import { astlideVirtualPlugin } from "./internal/virtual-plugins";
 import { type AstlidePlugin, BUILT_IN_PLUGIN, resolvePlugins } from "./plugin";
 import { astlideCodeHighlight } from "./utils/code-highlight";
 import { astlideCommentNotesPlugin } from "./utils/comment-notes";
-import { EXPORT_BUILD_ENV } from "./utils/export-build";
+import { EXPORT_BUILD_ENV, requestedExportBuild } from "./utils/export-build";
 import { resolveFavicon } from "./utils/favicon";
 import { astlideMermaid } from "./utils/mermaid";
 import { PPTX_ASSET_ROUTE, pptxAssetDir } from "./utils/pptx-assets";
@@ -375,7 +375,11 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 				);
 
 				// `astlide export` builds into (and previews from) its own folder — see utils/export-build.
-				const exportBuild = process.env[EXPORT_BUILD_ENV];
+				const { dir: exportBuild, ignored } = requestedExportBuild(fileURLToPath(config.root));
+				if (ignored)
+					logger.warn(
+						`${EXPORT_BUILD_ENV}=${ignored} ignored: only astlide export sets it (to this project's export folder)`,
+					);
 
 				// Merge all config updates into a single call
 				updateConfig({
