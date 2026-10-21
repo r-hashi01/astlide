@@ -18,6 +18,15 @@ on:
   push:
     branches:
       - main
+  # Finishing a release that didn't publish (e.g. a fix landed after the
+  # version PR): packs every unpublished version, not only those bumped by
+  # the last commit. Publishing still waits for approval.
+  workflow_dispatch:
+    inputs:
+      any_unpublished:
+        description: Publish every version not yet on npm
+        type: boolean
+        default: false
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -75,6 +84,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 2    # release-pack compares versions with the parent commit
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
@@ -90,10 +100,26 @@ jobs:
 
       - name: Pack what isn't on npm yet
         id: pack
+        env:
+          RELEASE_ANY_UNPUBLISHED: ${{ inputs.any_unpublished && '1' || '' }}
         run: |
           node scripts/release-pack.mjs
           echo "count=$(jq length release/manifest.json)" >> "$GITHUB_OUTPUT"
           echo "digest=$(cd release && sha256sum -- * | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          # What the approver is asked to publish: shown on the run's summary page.
+          {
+            echo "## To publish ($(jq length release/manifest.json))"
+            jq -r '.[].file' release/manifest.json | while read -r file; do
+              echo "### \`$file\`"
+              echo "sha256 \`$(sha256sum "release/$file" | cut -d' ' -f1)\`, $(tar -tzf "release/$file" | wc -l | tr -d ' ') files"
+              echo "<details><summary>Files</summary>"
+              echo
+              echo '```'
+              tar -tzf "release/$file"
+              echo '```'
+              echo "</details>"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - if: steps.pack.outputs.count != '0'
         id: upload
@@ -142,24 +168,33 @@ jobs:
           jq -c '.[]' release/manifest.json | while read -r pkg; do
             file=$(jq -r .file <<<"$pkg")
             # Only plain tarball names, and the name / version are read from the tarball itself.
-            [[ "$file" =~ ^[A-Za-z0-9._-]+\.tgz$ && -f "release/$file" ]] || { echo "bad file: $file"; exit 1; }
+            [[ "$file" =~ ^[A-Za-z0-9_-][A-Za-z0-9._-]*\.tgz$ && -f "release/$file" ]] || { echo "bad file: $file"; exit 1; }
             meta=$(tar -xOzf "release/$file" package/package.json)
             name=$(jq -r .name <<<"$meta")
             version=$(jq -r .version <<<"$meta")
             case "$name" in @astlide/core|@astlide/engine|create-astlide|astlide) ;; *) echo "unexpected package: $name"; exit 1 ;; esac
             [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "bad version: $version"; exit 1; }
+            # None of the packages has install scripts; one appearing means the build was tampered with.
+            if jq -e '(.scripts // {}) | has("preinstall") or has("install") or has("postinstall")' <<<"$meta" >/dev/null; then
+              echo "$name@$version has install scripts"; exit 1
+            fi
             tag="$name@$version"
+            echo "$tag: sha256 $(sha256sum "release/$file" | cut -d' ' -f1), $(tar -tzf "release/$file" | wc -l | tr -d ' ') files"
+            # Checked before publishing: an existing tag must point at this commit. Only "not found" means no tag.
+            if sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --jq .object.sha 2>tag-error); then
+              [ "$sha" = "$GITHUB_SHA" ] || { echo "$tag exists on $sha, not $GITHUB_SHA"; exit 1; }
+            elif ! grep -q "HTTP 404" tag-error; then
+              cat tag-error; exit 1
+            fi
             # Reruns pick up where they stopped.
             if npm view "$tag" version >/dev/null 2>&1; then
               echo "$tag is already on npm"
             else
               # "./": a bare "release/x.tgz" reads as a GitHub "user/repo" spec. --provenance
               # makes npm do the OIDC handshake Trusted Publishing needs.
-              npm publish "./release/$file" --access public --provenance --ignore-scripts
-            fi
-            # A tag made elsewhere must not get this release's notes.
-            if sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --jq .object.sha 2>/dev/null); then
-              [ "$sha" = "$GITHUB_SHA" ] || { echo "$tag exists on $sha, not $GITHUB_SHA"; exit 1; }
+              # A prerelease (x.y.z-…) goes out under the "next" dist-tag, never as "latest".
+              dist_tag=latest; [[ "$version" == *-* ]] && dist_tag=next
+              npm publish "./release/$file" --access public --provenance --ignore-scripts --tag "$dist_tag"
             fi
             if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
               jq -r .notes <<<"$pkg" > notes.md

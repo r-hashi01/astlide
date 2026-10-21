@@ -11,10 +11,10 @@
  */
 
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
-import { delimiter, dirname, join, resolve } from "node:path";
+import { delimiter, dirname, extname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deckFolderName } from "../cli/import";
 import { isWithin, realPath } from "../utils/real-path";
@@ -89,19 +89,27 @@ const HOW_TO_ALLOW =
 	delimiter +
 	"<dir>…], MCP roots from the client, or ASTLIDE_MCP_ANY_PROJECT=1 to allow any folder.";
 
-/** Shared temp folders: anyone on the machine can put a "project" there. */
-const TEMP_FOLDERS = () => [tmpdir(), "/tmp", "/private/tmp", "/var/tmp"];
+/** Shared folders: anyone on the machine can put a "project" there. */
+const SHARED_FOLDERS = () => [
+	tmpdir(),
+	"/tmp",
+	"/private/tmp",
+	"/var/tmp",
+	"/Users/Shared",
+	process.env.PUBLIC ?? "C:\\Users\\Public",
+];
 
 /**
  * Whether `dir` is too broad to be an allowed folder by default: the
- * filesystem root, the home folder, a shared temp folder, or a folder above
- * one of them — what MCP clients often start servers in.
+ * filesystem root, the home folder, a shared folder (temp folders,
+ * `/Users/Shared`, `C:\Users\Public`), or a folder above one of them — what
+ * MCP clients often start servers in.
  */
 export function isBroadFolder(dir: string, home: string = homedir()): boolean {
 	const real = realPath(dir);
 	if (dirname(real) === real) return true;
 	if (isWithin(home, real)) return true;
-	return TEMP_FOLDERS().some((temp) => existsSync(temp) && isWithin(temp, real));
+	return SHARED_FOLDERS().some((shared) => existsSync(shared) && isWithin(shared, real));
 }
 
 /**
@@ -128,12 +136,19 @@ export function explicitRoots(
 	return roots.map((dir) => resolve(dir));
 }
 
+/** Whether `root` is `folder` itself or a folder directly in it (symlinks resolved). */
+function atOrJustBelow(root: string, folder: string): boolean {
+	const rel = relative(realPath(folder), realPath(root));
+	return rel === "" || (!rel.startsWith("..") && !rel.includes(sep) && !rel.includes("/"));
+}
+
 /**
- * The project root, checked ({@link projectRoot}) and inside one of
- * `allowed` (symlinks resolved): the MCP server only builds or exports
- * projects under the folders it was given. Returns the resolved path that
- * was checked, so the work happens there even if a symlink on the way
- * changes afterwards.
+ * The project root, checked ({@link projectRoot}): it must be one of
+ * `allowed`, or a folder directly in one (symlinks resolved) — the MCP
+ * server only builds or exports projects the user pointed it at, not any
+ * repository somewhere below a broad folder. A deeper project needs its own
+ * `--root`. Returns the resolved path that was checked, so the work happens
+ * there even if a symlink on the way changes afterwards.
  */
 export function projectRootWithin(dir: string, allowed: string[]): string {
 	const root = realPath(projectRoot(dir));
@@ -143,7 +158,46 @@ export function projectRootWithin(dir: string, allowed: string[]): string {
 		throw new Error(
 			`${root} is outside the folders this server may work in (${allowed.join(", ")}). ${HOW_TO_ALLOW}`,
 		);
+	if (!allowed.some((a) => atOrJustBelow(root, a)))
+		throw new Error(
+			`${root} is more than one folder below the folders this server may work in (${allowed.join(", ")}): ` +
+				`name the project itself (or its parent) with --root. ${HOW_TO_ALLOW}`,
+		);
 	return root;
+}
+
+/** Largest PowerPoint file the MCP server reads, in bytes. */
+export const MAX_INPUT_FILE = 256 * 1024 * 1024;
+
+/**
+ * An input file the MCP server may read: a regular file (symlinks
+ * resolved) with one of `extensions`, at most {@link MAX_INPUT_FILE} bytes,
+ * inside one of `allowed` (any depth) — or anywhere when `allowed` is
+ * `null` (`ASTLIDE_MCP_ANY_PROJECT=1`). Returns the resolved path.
+ */
+export function inputFileWithin(
+	path: string,
+	allowed: string[] | null,
+	extensions: Set<string>,
+): string {
+	const real = realPath(path);
+	const ext = (p: string) => extname(p).toLowerCase();
+	const expected = [...extensions].join(" / ");
+	if (!extensions.has(ext(path)) || !extensions.has(ext(real)))
+		throw new Error(`${path}: expected a ${expected} file`);
+	if (allowed) {
+		if (!allowed.length)
+			throw new Error(`No folders are allowed to read from yet (${real}). ${HOW_TO_ALLOW}`);
+		if (!allowed.some((a) => isWithin(real, a)))
+			throw new Error(
+				`${real} is outside the folders this server may read (${allowed.join(", ")}). ${HOW_TO_ALLOW}`,
+			);
+	}
+	const stat = statSync(real, { throwIfNoEntry: false });
+	if (!stat?.isFile()) throw new Error(`${path}: not a file`);
+	if (stat.size > MAX_INPUT_FILE)
+		throw new Error(`${path}: larger than ${MAX_INPUT_FILE / 1024 / 1024} MB`);
+	return real;
 }
 
 /** The deck's folder, checked. */
@@ -158,13 +212,39 @@ export function deckDir(root: string, deck: string): string {
 /** Bun runs the `astlide` CLI (a TypeScript entry with a `bun` shebang). */
 const bun = () => (process.versions.bun ? process.execPath : "bun");
 
-/** The `astlide` CLI entry: the project's own @astlide/core, else this one's. */
+/**
+ * Oldest project `@astlide/core` whose CLI the server runs: from here on
+ * it checks deck names, refuses symlinked deck folders and takes the deck
+ * after `--`. Older projects get this package's CLI.
+ */
+export const MIN_PROJECT_CLI = "2.8.0";
+
+/** Whether version `a` (x.y.z…) is at least `b`. */
+function atLeast(a: string, b: string): boolean {
+	const pa = a.split(/[.-]/).map((n) => Number.parseInt(n, 10) || 0);
+	const pb = b.split(/[.-]/).map((n) => Number.parseInt(n, 10) || 0);
+	for (let i = 0; i < 3; i++) if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) > (pb[i] ?? 0);
+	return true;
+}
+
+/**
+ * The `astlide` CLI entry: the project's own @astlide/core (so exports
+ * match the version the project builds with) when it is at least
+ * {@link MIN_PROJECT_CLI}, else this package's.
+ */
 export function astlideCli(root: string): string {
+	const bundled = fileURLToPath(new URL("../cli/astlide.ts", import.meta.url));
 	try {
 		const index = createRequire(join(root, "package.json")).resolve("@astlide/core");
+		let dir = dirname(index);
+		while (!existsSync(join(dir, "package.json")) && dirname(dir) !== dir) dir = dirname(dir);
+		const { version } = JSON.parse(readFileSync(join(dir, "package.json"), "utf-8")) as {
+			version?: string;
+		};
+		if (!version || !atLeast(version, MIN_PROJECT_CLI)) return bundled;
 		return join(dirname(index), "cli", "astlide.ts");
 	} catch {
-		return fileURLToPath(new URL("../cli/astlide.ts", import.meta.url));
+		return bundled;
 	}
 }
 

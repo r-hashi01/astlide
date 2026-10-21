@@ -22,10 +22,12 @@ import { checkSlide, siteView } from "../src/mcp/check";
 import { importPptx, readPptx } from "../src/mcp/import";
 import {
 	astlideArgs,
+	astlideCli,
 	childEnv,
 	deckDir,
 	explicitRoots,
 	isBroadFolder,
+	MIN_PROJECT_CLI,
 	projectRootWithin,
 } from "../src/mcp/project";
 import { exportArgs, outputDir } from "../src/mcp/render";
@@ -197,6 +199,15 @@ describe("import_pptx", () => {
 		await expect(importPptx({ path: file, projectRoot: root, deck: "q3" })).rejects.toThrow(
 			/exists/,
 		);
+	}, 30_000);
+
+	it("names the deck itself when none is given", async () => {
+		const root = mkdtempSync(join(tmpdir(), "astlide-mcp-project-"));
+		mkdirSync(join(root, "src", "content", "decks"), { recursive: true });
+		const file = join(root, "Q3 Results.pptx");
+		writeFileSync(file, data);
+		const r = await importPptx({ path: file, projectRoot: root });
+		expect(r.written?.dir).toBe(join("src", "content", "decks", "q3-results"));
 	}, 30_000);
 
 	it("rejects files that aren't .pptx", async () => {
@@ -419,8 +430,9 @@ describe("siteView", () => {
 
 describe("MCP server", () => {
 	it("serves the four tools and answers a call", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "astlide-mcp-"));
 		const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
-		await createServer().connect(serverSide);
+		await createServer({ allowedRoots: [dir] }).connect(serverSide);
 		const client = new Client({ name: "test", version: "0" });
 		await client.connect(clientSide);
 		const { tools } = await client.listTools();
@@ -430,7 +442,6 @@ describe("MCP server", () => {
 			"render_deck",
 			"template_layouts",
 		]);
-		const dir = mkdtempSync(join(tmpdir(), "astlide-mcp-"));
 		const file = join(dir, "brand.potx");
 		writeFileSync(file, await template());
 		const r = await client.callTool({
@@ -628,5 +639,87 @@ describe("allowed folders", () => {
 		const b = await connect({ allowedRoots: ["/"] });
 		expect(await b.check(elsewhere)).toMatch(/No folders are allowed/);
 		await b.client.close();
+	});
+});
+
+describe("files and projects the tools may touch", () => {
+	afterEach(() => vi.restoreAllMocks());
+
+	async function connect(allowed: string) {
+		const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+		await createServer({ allowedRoots: [allowed] }).connect(serverSide);
+		const client = new Client({ name: "test", version: "0" });
+		await client.connect(clientSide);
+		const call = async (name: string, args: Record<string, unknown>) => {
+			const r = await client.callTool({ name, arguments: args });
+			return { error: !!r.isError, text: (r.content as { text: string }[])[0]?.text ?? "" };
+		};
+		return { client, call };
+	}
+
+	it("reads PowerPoint files only inside the allowed folders", async () => {
+		const allowed = realpathSync(mkdtempSync(join(tmpdir(), "astlide-mcp-files-")));
+		const outside = realpathSync(mkdtempSync(join(tmpdir(), "astlide-mcp-elsewhere-")));
+		const potx = await template();
+		writeFileSync(join(allowed, "in.potx"), potx);
+		writeFileSync(join(outside, "out.potx"), potx);
+		writeFileSync(join(outside, "notes.txt"), "secret");
+		// A link inside that points outside, and one with the right name but other content.
+		symlinkSync(join(outside, "out.potx"), join(allowed, "link.potx"));
+		symlinkSync(join(outside, "notes.txt"), join(allowed, "notes.pptx"));
+		mkdirSync(join(allowed, "folder.potx"));
+		const { client, call } = await connect(allowed);
+		expect((await call("template_layouts", { templatePath: join(allowed, "in.potx") })).error).toBe(
+			false,
+		);
+		for (const templatePath of [join(outside, "out.potx"), join(allowed, "link.potx")])
+			expect((await call("template_layouts", { templatePath })).text).toMatch(
+				/outside the folders/,
+			);
+		expect(
+			(await call("template_layouts", { templatePath: join(allowed, "folder.potx") })).text,
+		).toMatch(/not a file/);
+		expect((await call("import_pptx", { path: join(allowed, "notes.pptx") })).text).toMatch(
+			/expected a \.pptx/,
+		);
+		expect((await call("import_pptx", { path: join(outside, "out.potx") })).error).toBe(true);
+		await client.close();
+	});
+
+	it("builds only projects that are an allowed folder or directly in one", async () => {
+		const allowed = realpathSync(mkdtempSync(join(tmpdir(), "astlide-mcp-depth-")));
+		const child = join(allowed, "talk");
+		const deeper = join(allowed, "clones", "someone-else");
+		for (const dir of [child, deeper])
+			mkdirSync(join(dir, "src", "content", "decks"), { recursive: true });
+		expect(projectRootWithin(child, [allowed])).toBe(child);
+		expect(() => projectRootWithin(deeper, [allowed])).toThrow(/more than one folder below/);
+		// Named itself, it is allowed.
+		expect(projectRootWithin(deeper, [deeper])).toBe(deeper);
+	});
+
+	it("runs a project's own CLI only when it is recent enough", () => {
+		const project = (version: string) => {
+			const root = mkdtempSync(join(tmpdir(), "astlide-mcp-cli-"));
+			const core = join(root, "node_modules", "@astlide", "core");
+			mkdirSync(join(core, "src", "cli"), { recursive: true });
+			writeFileSync(
+				join(core, "package.json"),
+				JSON.stringify({
+					name: "@astlide/core",
+					version,
+					type: "module",
+					exports: { ".": "./src/index.ts" },
+				}),
+			);
+			writeFileSync(join(core, "src", "index.ts"), "export {};\n");
+			writeFileSync(join(root, "package.json"), "{}");
+			return { root, cli: join(realpathSync(core), "src", "cli", "astlide.ts") };
+		};
+		const bundled = astlideCli(mkdtempSync(join(tmpdir(), "astlide-mcp-nocore-")));
+		const recent = project(MIN_PROJECT_CLI);
+		expect(realpathSync(dirname(astlideCli(recent.root)))).toBe(dirname(recent.cli));
+		const old = project("2.7.1");
+		expect(astlideCli(old.root)).toBe(bundled);
 	});
 });

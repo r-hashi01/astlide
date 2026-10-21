@@ -7,11 +7,11 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { extname, resolve } from "node:path";
+import { basename, extname, resolve } from "node:path";
 import { pptxToSlides } from "@astlide/core/pptx";
 import type { ChildNode, Element } from "domhandler";
 import { parseDocument } from "htmlparser2";
-import { deckFolderName } from "../cli/import";
+import { deckFolderName, slugify } from "../cli/import";
 import { projectRoot, runAstlide } from "./project";
 
 export interface ImportedSlideText {
@@ -156,11 +156,13 @@ export async function importPptx(options: ImportOptions): Promise<ImportResult> 
 	const result = readPptx(await readFile(path), options.includeHtml);
 	if (!options.projectRoot) return result;
 	const root = projectRoot(options.projectRoot);
-	if (options.deck !== undefined) deckFolderName(options.deck);
+	// The deck's name is decided (and checked) here, whatever CLI version writes it.
+	const deck = deckFolderName(options.deck ?? slugify(basename(path, extname(path)), "imported"));
 	const r = await runAstlide(root, [
 		"import",
 		path,
-		...(options.deck ? ["--deck", options.deck] : []),
+		"--deck",
+		deck,
 		...(options.force ? ["--force"] : []),
 	]);
 	const done = r.stdout.match(/Imported (\d+) slides → (.+)/);

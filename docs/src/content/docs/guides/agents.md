@@ -28,13 +28,17 @@ Each call names the Astlide project to work on, and uses that project's own `@as
 
 Building and exporting run the project's own code — its Astro config and integrations, MDX slides, a `bunfig.toml` preload, the project's installed `@astlide/core` — and `import_pptx` with `projectRoot` runs the project's `astlide` CLI. So:
 
-- None of these tools is marked read-only (`check_deck` with `build: false` only reads), and `import_pptx` is marked destructive, since `force` replaces a deck folder.
+- None of these tools is marked read-only (`check_deck` with `build: false` only reads), and `import_pptx` is marked destructive, since `force` replaces a deck folder. Set your client to ask before each call of `check_deck`, `render_deck` and `import_pptx` with a project rather than auto-approving them.
 - They only work on projects inside the folders the server is given:
   - the folders named with `--root <dir>` (repeatable) or `ASTLIDE_MCP_ROOTS` (separated like `PATH`) are the outer limit;
   - the client's MCP roots, when it sends them (Claude Code does — nothing to set up), are used inside that limit: with named folders, only client roots inside them count;
-  - with neither, the folder the server was started in — but never the filesystem root, your home folder, a shared temp folder (`/tmp` …), or a folder above one of them, where clients often start servers. Then nothing is allowed until you name a folder.
+  - with neither, the folder the server was started in — but never the filesystem root, your home folder, a shared folder (`/tmp`, `/Users/Shared`, `C:\Users\Public` …), or a folder above one of them, where clients often start servers. Then nothing is allowed until you name a folder.
+
+  A project must be one of those folders or directly in one: with `--root ~/slides`, `~/slides/q3-review` is fine, `~/slides/clones/someone-else` is not (name it with its own `--root`). That keeps a broad folder from covering every repository somewhere below it.
 
   Client roots that broad are ignored too, one by one (a note goes to stderr). The filesystem root never counts, even when named. The project path is resolved once and the work happens there, so swapping a symlink afterwards changes nothing. To allow any folder, set `ASTLIDE_MCP_ANY_PROJECT=1` in the server's environment.
+- The files `template_layouts` and `import_pptx` read must be inside the same folders (any depth, symlinks resolved), be regular files with the right extension and at most 256 MB.
+- `import_pptx` names the deck itself (from the file name, unless `deck` is given) and checks the name before anything is written. A project whose `@astlide/core` is older than 2.8.0 is written with the server's own `astlide` CLI instead of the project's.
 - The build and export get only the environment variables they need (`PATH`, `HOME`, locale, proxy, `ASTLIDE_*` …); tokens and keys are left out.
 - Deck names are plain folder names, and output folders (`outDir`) must stay inside the project, symlinks included.
 

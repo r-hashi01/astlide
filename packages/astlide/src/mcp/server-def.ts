@@ -13,9 +13,9 @@ import { z } from "zod";
 import { isWithin, realPath } from "../utils/real-path";
 import { checkDeck } from "./check";
 import { importPptx } from "./import";
-import { isBroadFolder, projectRootWithin } from "./project";
+import { inputFileWithin, isBroadFolder, projectRootWithin } from "./project";
 import { renderDeck } from "./render";
-import { templateLayoutsFromFile } from "./template";
+import { TEMPLATE_EXTENSIONS, templateLayoutsFromFile } from "./template";
 
 /** @astlide/core's version (the server ships with it). */
 const VERSION: string = JSON.parse(
@@ -47,11 +47,14 @@ const projectRoot = z
 	.describe(
 		"Absolute path of the Astro project (the folder with src/content/decks); it must be inside the client's roots or the server's working directory",
 	);
+/** Input files `import_pptx` reads (templates: {@link TEMPLATE_EXTENSIONS}). */
+const PPTX_FILES = new Set([".pptx"]);
+
 const deck = z.string().describe("Deck name: its folder under src/content/decks");
 
 /** Said of every tool that runs the project's code, so clients don't take it for a read. */
 const RUNS_PROJECT_CODE =
-	"This runs the project's own code (its Astro config and integrations, MDX slides, a bunfig.toml preload, the project's installed @astlide/core): only use it on a project the user asked you to work on.";
+	"This runs the project's own code (its Astro config and integrations, MDX slides, a bunfig.toml preload, the project's installed @astlide/core): only use it on a project the user asked you to work on. MCP clients should ask before each call rather than auto-approve it.";
 
 export interface ServerOptions {
 	/**
@@ -69,11 +72,12 @@ export interface ServerOptions {
  * Create the Astlide MCP server (connect it to a transport to serve it).
  *
  * Tools that build, export or write a deck (`check_deck`, `render_deck`,
- * `import_pptx` with a project) only work on projects inside the client's
- * MCP roots — or, when the client lists none, inside `allowedRoots` (see
- * {@link ServerOptions}) — since building runs the project's code. The
- * filesystem root never counts as a root. `ASTLIDE_MCP_ANY_PROJECT=1` allows
- * any folder.
+ * `import_pptx` with a project) only work on projects that are one of the
+ * client's MCP roots or a folder directly in one — or, when the client
+ * lists none, of `allowedRoots` (see {@link ServerOptions}) — since
+ * building runs the project's code. The files `template_layouts` and
+ * `import_pptx` read must be inside those folders too. The filesystem root
+ * never counts as a root. `ASTLIDE_MCP_ANY_PROJECT=1` allows any folder.
  */
 export function createServer(options: ServerOptions = {}): McpServer {
 	const server = new McpServer(
@@ -87,9 +91,12 @@ export function createServer(options: ServerOptions = {}): McpServer {
 		},
 	);
 
-	/** The project root, checked against the folders the server may work in. */
-	const allowedProject = async (dir: string): Promise<string> => {
-		if (process.env.ASTLIDE_MCP_ANY_PROJECT === "1") return dir;
+	/**
+	 * The folders the server may work in and read from right now, or `null`
+	 * for any (`ASTLIDE_MCP_ANY_PROJECT=1`).
+	 */
+	const allowedFolders = async (): Promise<string[] | null> => {
+		if (process.env.ASTLIDE_MCP_ANY_PROJECT === "1") return null;
 		const notFsRoot = (d: string) => {
 			const real = realPath(d);
 			if (dirname(real) !== real) return true;
@@ -130,8 +137,18 @@ export function createServer(options: ServerOptions = {}): McpServer {
 			}
 			if (dirs.length) allowed = dirs;
 		}
-		return projectRootWithin(dir, allowed);
+		return allowed;
 	};
+
+	/** The project root, checked against the folders the server may work in. */
+	const allowedProject = async (dir: string): Promise<string> => {
+		const allowed = await allowedFolders();
+		return allowed === null ? dir : projectRootWithin(dir, allowed);
+	};
+
+	/** An input file (a .pptx / template), checked against the same folders. */
+	const allowedInput = async (path: string, extensions: Set<string>): Promise<string> =>
+		inputFileWithin(path, await allowedFolders(), extensions);
 
 	server.registerTool(
 		"template_layouts",
@@ -144,7 +161,10 @@ export function createServer(options: ServerOptions = {}): McpServer {
 			},
 			annotations: { readOnlyHint: true },
 		},
-		({ templatePath }) => guarded(async () => json(await templateLayoutsFromFile(templatePath))),
+		({ templatePath }) =>
+			guarded(async () =>
+				json(await templateLayoutsFromFile(await allowedInput(templatePath, TEMPLATE_EXTENSIONS))),
+			),
 	);
 
 	server.registerTool(
@@ -174,6 +194,7 @@ export function createServer(options: ServerOptions = {}): McpServer {
 				json(
 					await importPptx({
 						...args,
+						path: await allowedInput(args.path, PPTX_FILES),
 						...(args.projectRoot ? { projectRoot: await allowedProject(args.projectRoot) } : {}),
 					}),
 				),

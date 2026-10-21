@@ -24,7 +24,7 @@
 		"docs:build": "bun run docs:api && bun run --filter astlide-docs build",
 		"changeset": "changeset",
 		"version": "changeset version && bun install --ignore-scripts",
-		"release": "changeset publish"
+		"release": "echo 'Releases are published by CI only (Release workflow, with approval) — see RELEASING.md' && exit 1"
 	},
 	"devDependencies": {
 		"@astrojs/language-server": "^2.17.2",
