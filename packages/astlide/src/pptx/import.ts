@@ -51,12 +51,12 @@ export interface ImportedDeck {
 export interface PptxImportOptions {
 	/**
 	 * Where pictures and embedded fonts go: called once per file, returns the
-	 * URL to use. Default: pictures as inline `data:` URLs (self-contained
+	 * URL to use (or null to leave the file out). Default: pictures as inline `data:` URLs (self-contained
 	 * HTML) and embedded fonts left out (they'd be repeated in every slide).
 	 * SVG pictures are always inlined as `data:` URLs: an SVG file served
 	 * from the site would run any script it holds when opened directly.
 	 */
-	media?: (file: { name: string; data: Buffer; type: string }) => string;
+	media?: (file: { name: string; data: Buffer; type: string }) => string | null;
 	/** Canvas size in px (default 1920×1080); other slide ratios are letterboxed. */
 	canvas?: { width: number; height: number };
 }

@@ -33,4 +33,6 @@ declare module "virtual:astlide/templates" {
 			master: string;
 		}
 	>;
+	/** Stored `.pptx` assets the templates' theme CSS uses (embedded fonts), by file name. */
+	export const templateAssets: string[];
 }

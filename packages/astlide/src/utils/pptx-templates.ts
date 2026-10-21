@@ -7,11 +7,11 @@
  * @module
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { Plugin, ViteDevServer } from "vite";
 import { pptxToTemplate, templateCss } from "../pptx/template";
-import { pptxAssetDir, storePptxAsset } from "./pptx-assets";
+import { pptxAssetDir, referencedAssets, storePptxAsset } from "./pptx-assets";
 
 /** What a slide needs at render time: artwork per layout, aliases, the master's art. */
 export interface TemplateData {
@@ -73,7 +73,14 @@ export function astlideTemplatesPlugin(
 		load(id) {
 			if (id !== RESOLVED_ID) return null;
 			const data = Object.fromEntries(templates.map((t) => [t.theme, t.data]));
-			return `export const templates = ${JSON.stringify(data)};\n`;
+			// Assets the theme CSS uses (fonts), so the build publishes them (see internal/pages/pptx-asset).
+			const assets = templates.flatMap((t) =>
+				existsSync(t.cssPath) ? referencedAssets(readFileSync(t.cssPath, "utf-8")) : [],
+			);
+			return (
+				`export const templates = ${JSON.stringify(data)};\n` +
+				`export const templateAssets = ${JSON.stringify([...new Set(assets)])};\n`
+			);
 		},
 		configureServer(server: ViteDevServer) {
 			if (!templates.length) return;

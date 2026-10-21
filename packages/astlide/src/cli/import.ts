@@ -13,6 +13,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, extname, join, relative, resolve, sep } from "node:path";
 import { pptxToSlides } from "../pptx/index";
 import { slugify } from "../pptx/slug";
+import { assetExtension } from "../utils/pptx-assets";
 import { realPath } from "../utils/real-path";
 
 export { slugify };
@@ -142,7 +143,10 @@ export async function importDeck(options: ImportOptions): Promise<{ dir: string;
 	const pending: Promise<void>[] = [];
 	const deck = pptxToSlides(data, {
 		media: (file) => {
-			const fileName = `${createHash("sha256").update(file.data).digest("hex").slice(0, 16)}${extname(file.name).toLowerCase()}`;
+			// What the bytes are, not what the file is called (see assetExtension).
+			const ext = assetExtension(file.data);
+			if (!ext) return null;
+			const fileName = `${createHash("sha256").update(file.data).digest("hex").slice(0, 16)}${ext}`;
 			pending.push(
 				mkdir(assetDir, { recursive: true }).then(() =>
 					writeFile(join(assetDir, fileName), file.data),
