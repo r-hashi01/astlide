@@ -190,6 +190,23 @@ describe("import_pptx", () => {
 	it("rejects files that aren't .pptx", async () => {
 		await expect(importPptx({ path: "talk.key" })).rejects.toThrow(/\.pptx/);
 	});
+
+	it("refuses deck names that are paths, and touches nothing outside the decks folder", async () => {
+		const outside = mkdtempSync(join(tmpdir(), "astlide-mcp-outside-"));
+		const root = join(outside, "project");
+		mkdirSync(join(root, "src", "content", "decks"), { recursive: true });
+		const keep = join(outside, "keep");
+		mkdirSync(keep);
+		writeFileSync(join(keep, "precious.txt"), "x");
+		const file = join(root, "q3.pptx");
+		writeFileSync(file, data);
+		for (const deck of ["../../../keep", "..", "a/b", ".hidden", "-rf", "x\\..\\y", ""])
+			await expect(
+				importPptx({ path: file, projectRoot: root, deck, force: true }),
+			).rejects.toThrow(/bad deck name/);
+		expect(readFileSync(join(keep, "precious.txt"), "utf-8")).toBe("x");
+		expect(readdirSync(join(root, "src", "content", "decks"))).toEqual([]);
+	});
 });
 
 describe("render_deck", () => {
