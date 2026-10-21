@@ -9,18 +9,25 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { delimiter, dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { FontRegistry, layoutPage } from "@astlide/engine";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ListRootsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import PptxGenJS from "pptxgenjs";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { checkSlide, siteView } from "../src/mcp/check";
 import { importPptx, readPptx } from "../src/mcp/import";
-import { astlideArgs, childEnv, deckDir, projectRootWithin } from "../src/mcp/project";
+import {
+	astlideArgs,
+	childEnv,
+	deckDir,
+	explicitRoots,
+	isBroadFolder,
+	projectRootWithin,
+} from "../src/mcp/project";
 import { exportArgs, outputDir } from "../src/mcp/render";
 import { createServer } from "../src/mcp/server-def";
 import { templateLayouts } from "../src/mcp/template";
@@ -460,5 +467,103 @@ describe("MCP server", () => {
 		expect(await text(outside)).toMatch(/outside the folders/);
 		expect(await text(allowed)).toMatch(/no deck "nope"/);
 		await client.close();
+	});
+});
+
+describe("allowed folders", () => {
+	afterEach(() => vi.restoreAllMocks());
+
+	/** A project folder (with src/content/decks) in a fresh temp dir. */
+	const project = (name: string) => {
+		const dir = realpathSync(mkdtempSync(join(tmpdir(), `astlide-mcp-${name}-`)));
+		mkdirSync(join(dir, "src", "content", "decks"), { recursive: true });
+		return dir;
+	};
+
+	/** A connected client; `roots` (file paths) when the client offers MCP roots. */
+	async function connect(options: Parameters<typeof createServer>[0], roots?: string[]) {
+		const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+		await createServer(options).connect(serverSide);
+		const client = new Client(
+			{ name: "test", version: "0" },
+			roots ? { capabilities: { roots: {} } } : undefined,
+		);
+		if (roots)
+			client.setRequestHandler(ListRootsRequestSchema, () => ({
+				roots: roots.map((r) => ({ uri: pathToFileURL(r).href })),
+			}));
+		await client.connect(clientSide);
+		const check = async (projectRoot: string) => {
+			const r = await client.callTool({
+				name: "check_deck",
+				arguments: { projectRoot, deck: "nope" },
+			});
+			return (r.content as { text: string }[])[0]?.text ?? "";
+		};
+		return { client, check };
+	}
+
+	it("counts the filesystem root and the home folder (or above it) as too broad", () => {
+		const home = join(tmpdir(), "home", "me");
+		expect(isBroadFolder("/", home)).toBe(true);
+		expect(isBroadFolder(home, home)).toBe(true);
+		expect(isBroadFolder(dirname(home), home)).toBe(true);
+		expect(isBroadFolder(join(home, "work", "talks"), home)).toBe(false);
+		expect(isBroadFolder(homedir())).toBe(true);
+	});
+
+	it("reads --root folders and ASTLIDE_MCP_ROOTS", () => {
+		expect(
+			explicitRoots(["--root", "/a", "--root=/b"], {
+				ASTLIDE_MCP_ROOTS: ["/c", "/d"].join(delimiter),
+			}),
+		).toEqual(["/a", "/b", "/c", "/d"]);
+		expect(() => explicitRoots(["--root"], {})).toThrow(/needs a folder/);
+	});
+
+	it("allows nothing by default when started in / or the home folder", async () => {
+		const dir = project("broad");
+		for (const cwd of ["/", homedir()]) {
+			vi.spyOn(process, "cwd").mockReturnValue(cwd);
+			const { client, check } = await connect({});
+			expect(await check(dir)).toMatch(/No folders are allowed[\s\S]*--root/);
+			await client.close();
+			vi.restoreAllMocks();
+		}
+	});
+
+	it("uses the folder it was started in when that is specific", async () => {
+		const dir = project("cwd");
+		vi.spyOn(process, "cwd").mockReturnValue(dir);
+		const { client, check } = await connect({});
+		expect(await check(dir)).toMatch(/no deck "nope"/);
+		await client.close();
+	});
+
+	it("uses named folders, and client roots over them", async () => {
+		const named = project("named");
+		const fromClient = project("client");
+		const a = await connect({ allowedRoots: [named] });
+		expect(await a.check(named)).toMatch(/no deck "nope"/);
+		expect(await a.check(fromClient)).toMatch(/outside the folders/);
+		await a.client.close();
+		const b = await connect({ allowedRoots: [named] }, [fromClient]);
+		expect(await b.check(fromClient)).toMatch(/no deck "nope"/);
+		expect(await b.check(named)).toMatch(/outside the folders/);
+		await b.client.close();
+	});
+
+	it("never takes the filesystem root as a root", async () => {
+		const named = project("named-only");
+		const elsewhere = project("elsewhere");
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		// A client root of / is ignored: the named folder still applies.
+		const a = await connect({ allowedRoots: [named] }, ["/"]);
+		expect(await a.check(elsewhere)).toMatch(/outside the folders/);
+		expect(await a.check(named)).toMatch(/no deck "nope"/);
+		await a.client.close();
+		const b = await connect({ allowedRoots: ["/"] });
+		expect(await b.check(elsewhere)).toMatch(/No folders are allowed/);
+		await b.client.close();
 	});
 });

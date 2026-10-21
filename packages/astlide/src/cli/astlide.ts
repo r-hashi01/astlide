@@ -46,9 +46,12 @@ Usage:
     an editable deck: src/content/decks/<deck>/*.html, pictures in public/pptx/.
     A Google Slides URL works when the deck is shared as "Anyone with the link".
     (To show a .pptx as is, just put it in a deck folder.)
-  astlide mcp
+  astlide mcp [--root <dir>]...
     Run the Astlide MCP server over stdio, for coding agents:
     claude mcp add astlide -- bunx astlide mcp
+    Its tools build and export only projects inside the client's MCP roots,
+    the --root folders (or ASTLIDE_MCP_ROOTS), or else the folder it was
+    started in — never by default the filesystem root or home folder.
 
 Formats (combine as needed; default --pdf):
   --pdf                 One multi-page PDF per deck
@@ -313,9 +316,16 @@ async function main(): Promise<void> {
 		// Runs until the client closes stdin; nothing else may write to stdout.
 		const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
 		const { createServer } = await import("../mcp/server-def");
+		const { explicitRoots, isBroadFolder } = await import("../mcp/project");
+		const roots = explicitRoots(rest);
+		// stdout is the MCP channel: notes go to stderr.
+		for (const root of roots.filter((r) => isBroadFolder(r)))
+			console.error(
+				`astlide mcp: ${root} allows every project under it — name the project folder instead if you can`,
+			);
 		const transport = new StdioServerTransport();
 		transport.onclose = () => process.exit(0);
-		await createServer().connect(transport);
+		await createServer(roots.length ? { allowedRoots: roots } : {}).connect(transport);
 		return new Promise<never>(() => {});
 	}
 	if (command !== "export" && command !== "import") fail(`unknown command "${command}"`);

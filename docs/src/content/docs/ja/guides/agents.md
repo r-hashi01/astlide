@@ -29,7 +29,12 @@ description: Claude Code、Codex、Gemini CLI にデッキを書かせ、チェ�
 ビルドとエクスポートでは、プロジェクト自身のコードが実行されます（Astro の設定とインテグレーション、MDX のスライド、`bunfig.toml` の preload、プロジェクトにインストールされた `@astlide/core`）。`projectRoot` を指定した `import_pptx` も、プロジェクトの `astlide` CLI を実行します。そのため、次のようにしています。
 
 - どのツールも読み取り専用とは申告していません（`check_deck` に `build: false` を指定した場合は読み取りだけです）。`import_pptx` は、`force` でデッキのフォルダーを置き換えるため、破壊的な操作として申告しています。
-- 扱えるのは、クライアントの MCP ルートの中にあるプロジェクトだけです。クライアントがルートを示さない場合は、サーバーを起動したフォルダーの中に限ります。サーバーはプロジェクトのフォルダー（または複数のプロジェクトをまとめた親フォルダー）で起動してください。どのフォルダーでも扱えるようにするには、サーバーの環境変数に `ASTLIDE_MCP_ANY_PROJECT=1` を設定します。
+- 扱えるのは、サーバーに渡したフォルダーの中にあるプロジェクトだけです。次の順で決まります。
+  - クライアントが MCP ルートを送ってくれば、そのルート（Claude Code は送ってくるので設定は不要です）
+  - なければ、`--root <dir>`（複数指定できます）か `ASTLIDE_MCP_ROOTS`（`PATH` と同じ区切り）で指定したフォルダー
+  - それもなければ、サーバーを起動したフォルダー。ただし、ファイルシステムのルートやホームフォルダー（とその上のフォルダー）は使いません。クライアントはサーバーをそうした場所で起動することが多いためです。この場合は、フォルダーを指定するまでどのプロジェクトも扱えません。
+
+  ファイルシステムのルートは、指定しても対象になりません。どのフォルダーでも扱えるようにするには、サーバーの環境変数に `ASTLIDE_MCP_ANY_PROJECT=1` を設定します。
 - ビルドとエクスポートには、必要な環境変数（`PATH`、`HOME`、ロケール、プロキシ、`ASTLIDE_*` など）だけを渡し、トークンやキーは渡しません。
 - デッキ名は普通のフォルダー名に限り、出力先（`outDir`）はシンボリックリンクをたどった先も含めてプロジェクトの中に限ります。
 
@@ -47,7 +52,7 @@ claude mcp add astlide -- bunx astlide mcp
 # ~/.codex/config.toml
 [mcp_servers.astlide]
 command = "bunx"
-args = ["astlide", "mcp"]
+args = ["astlide", "mcp", "--root", "/path/to/your/slides"]
 ```
 
 ### Gemini CLI
@@ -58,13 +63,13 @@ args = ["astlide", "mcp"]
   "mcpServers": {
     "astlide": {
       "command": "bunx",
-      "args": ["astlide", "mcp"]
+      "args": ["astlide", "mcp", "--root", "/path/to/your/slides"]
     }
   }
 }
 ```
 
-ほかの MCP クライアントでも、プロジェクトのフォルダで `bunx astlide mcp` を起動するように設定します。
+ほかの MCP クライアント（Claude Desktop など）でも、同じように `bunx astlide mcp --root /path/to/your/slides` と、プロジェクト（または複数のプロジェクトをまとめたフォルダー）を指定して起動します。MCP ルートを送るクライアントなら `--root` は要りません。
 
 ## デッキをチェックする
 
