@@ -1,7 +1,12 @@
 # Astlide render service — build from the repository root:
 #
 #   docker build -f packages/server/Dockerfile -t astlide-server .
-#   docker run --rm -p 8787:8787 astlide-server
+#   docker run --rm -p 8787:8787 -e ASTLIDE_API_KEY=… \
+#     --security-opt seccomp=packages/server/chromium-seccomp.json astlide-server
+#
+# The seccomp profile is Docker's default plus the namespace calls Chromium's
+# sandbox needs (clone / clone3 / unshare / setns); PDF / PNG renders keep the
+# sandbox on and fail without it (ASTLIDE_CHROMIUM_SANDBOX=0 opts out).
 #
 # Node (Astro builds run in Node), Bun (runs the server and the astlide CLI),
 # Playwright's Chromium (PDF / PNG) and Noto CJK fonts (Japanese, Chinese,

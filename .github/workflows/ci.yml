@@ -165,7 +165,11 @@ jobs:
       - name: Refuses to start in the open without a key
         run: |
           if docker run --rm astlide-server; then echo "started without an API key"; exit 1; fi
-      - run: docker run -d --name astlide-server -p 8787:8787 -e ASTLIDE_API_KEY=ci-key astlide-server
+      # Chromium keeps its sandbox (the default): the seccomp profile lets it
+      # create the namespaces it needs, and the PDF below fails without them.
+      - run: >-
+          docker run -d --name astlide-server -p 8787:8787 -e ASTLIDE_API_KEY=ci-key
+          --security-opt seccomp=packages/server/chromium-seccomp.json astlide-server
       - name: Render through the API
         run: |
           for i in $(seq 1 30); do curl -sf localhost:8787/health && break; sleep 1; done

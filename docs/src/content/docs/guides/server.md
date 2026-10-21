@@ -19,10 +19,11 @@ The image has everything a render needs: Node and Bun, Chromium for PDF / PNG, a
 ```bash
 docker build -f packages/server/Dockerfile -t astlide-server .
 export ASTLIDE_API_KEY="$(openssl rand -hex 24)"
-docker run --rm -p 8787:8787 -e ASTLIDE_API_KEY astlide-server
+docker run --rm -p 8787:8787 -e ASTLIDE_API_KEY \
+  --security-opt seccomp=packages/server/chromium-seccomp.json astlide-server
 ```
 
-The image listens on all interfaces, so it won't start without an API key (see [Security](#security)). Add `-H "Authorization: Bearer $ASTLIDE_API_KEY"` to the requests below — `/health` and `/openapi.json` need none.
+The image listens on all interfaces, so it won't start without an API key (see [Security](#security)). The seccomp profile lets Chromium run its sandbox for PDF / PNG (Docker's default profile plus the namespace calls the sandbox needs); without it, PDF / PNG renders fail rather than run unsandboxed. Add `-H "Authorization: Bearer $ASTLIDE_API_KEY"` to the requests below — `/health` and `/openapi.json` need none.
 
 ```bash
 curl localhost:8787/health
@@ -131,7 +132,7 @@ Environment variables:
 | `MAX_OUTPUT_MB` | `200` | Largest rendered file (PPTX, PDF or PNG ZIP); a bigger one is a 422. |
 | `RENDER_TIMEOUT_MS` | `180000` | A render (or the reading of an uploaded PowerPoint file) taking longer is stopped (504). |
 | `CONCURRENCY` / `MAX_QUEUE` | `2` / `16` | Renders at once, and how many may wait; more get 503 — before their upload is read. |
-| `ASTLIDE_CHROMIUM_SANDBOX` | `0` | `1` keeps Chromium's sandbox on for PDF / PNG (see [Security](#security)). |
+| `ASTLIDE_CHROMIUM_SANDBOX` | `1` | Chromium's sandbox for PDF / PNG. `0` turns it off — only where every caller is trusted (see [Security](#security)). |
 | `ASTLIDE_WORK_DIR` | `.astlide-work` next to `node_modules` | Where per-request projects are made. It must share a parent directory with the installed packages. |
 
 Errors are JSON `{ "error": "…" }`: 400 for bad input (checked before anything is built — e.g. a frontmatter value the slide schema rejects), 422 when the build or export fails, with the end of its log.
@@ -152,5 +153,5 @@ A request is someone else's slides: raw HTML in the Markdown is rendered as is, 
 - **Images must be URLs.** A Markdown image with a file path (`![](../x.png)`) is refused with a 400 — Astro would read it from the server's disk. Use `https:` or `data:` URLs.
 - Slides are written with their own frontmatter block, so a slide body that starts with `---` stays body and can't slip past the frontmatter checks. Frontmatter may not use YAML anchors / aliases (`&a` / `*a`), and is at most 256 KB per slide.
 - **Uploaded PowerPoint files** (`/import`, `/templates/layouts`) are read in a child process, through the same queue as renders: a file that takes longer than `RENDER_TIMEOUT_MS` is stopped (504), an answer over `MAX_OUTPUT_MB` is refused (422), and neither can stall the server itself.
-- **Chromium's sandbox** is off by default (Playwright turns it off; most containers don't allow the user namespaces it needs). Where they are allowed — e.g. Docker with a seccomp profile that permits `clone` / `unshare` of user namespaces, such as Chrome's — set `ASTLIDE_CHROMIUM_SANDBOX=1`: a bug in Chromium's renderer then stays inside the sandbox. Renders never see `ASTLIDE_API_KEY` either way.
+- **Chromium runs with its sandbox**, so a bug in its renderer stays inside it. The sandbox needs user namespaces: in Docker, run with `--security-opt seccomp=packages/server/chromium-seccomp.json` (Docker's default profile plus `clone` / `clone3` / `unshare` / `setns`); on a Linux host that restricts them (Ubuntu 24.04: `kernel.apparmor_restrict_unprivileged_userns=1`), allow them for the service. Where the sandbox can't start, PDF / PNG renders fail with how to fix it — they never fall back to running without it. `ASTLIDE_CHROMIUM_SANDBOX=0` turns it off. Renders never see `ASTLIDE_API_KEY` either way.
 - Without the key, every route but `/health`, `/openapi.json` and `/` answers 401, unknown ones included; the key is compared in constant time.

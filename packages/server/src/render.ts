@@ -68,7 +68,7 @@ export interface RenderOptions {
 	maxSlides?: number;
 	/** Largest rendered file, in bytes. */
 	maxOutputBytes?: number;
-	/** Keep Chromium's sandbox on. */
+	/** Chromium's sandbox (default on; `false` turns it off). */
 	chromiumSandbox?: boolean;
 }
 
@@ -162,8 +162,7 @@ export function renderEnv(
 	};
 	delete out.ASTLIDE_API_KEY;
 	if (options.maxSlides) out.ASTLIDE_MAX_SLIDES = String(options.maxSlides);
-	if (options.chromiumSandbox) out.ASTLIDE_CHROMIUM_SANDBOX = "1";
-	else delete out.ASTLIDE_CHROMIUM_SANDBOX;
+	out.ASTLIDE_CHROMIUM_SANDBOX = options.chromiumSandbox === false ? "0" : "1";
 	if (options.allowPrivateNetwork) delete out.ASTLIDE_PUBLIC_NETWORK_ONLY;
 	else out.ASTLIDE_PUBLIC_NETWORK_ONLY = "1";
 	return out;

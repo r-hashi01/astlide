@@ -41,4 +41,15 @@ describe("renderEnv", () => {
 		const env = renderEnv({ allowPrivateNetwork: true }, { ASTLIDE_PUBLIC_NETWORK_ONLY: "1" });
 		expect(env.ASTLIDE_PUBLIC_NETWORK_ONLY).toBeUndefined();
 	});
+	it("keeps Chromium's sandbox on unless turned off", () => {
+		expect(resolveOptions({}).chromiumSandbox).toBe(true);
+		expect(resolveOptions({ ASTLIDE_CHROMIUM_SANDBOX: "0" }).chromiumSandbox).toBe(false);
+		expect(renderEnv({}, {}).ASTLIDE_CHROMIUM_SANDBOX).toBe("1");
+		expect(renderEnv({ chromiumSandbox: false }, {}).ASTLIDE_CHROMIUM_SANDBOX).toBe("0");
+		// The server's setting wins over what its own environment says.
+		expect(
+			renderEnv({ chromiumSandbox: true }, { ASTLIDE_CHROMIUM_SANDBOX: "0" })
+				.ASTLIDE_CHROMIUM_SANDBOX,
+		).toBe("1");
+	});
 });

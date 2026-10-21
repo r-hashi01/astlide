@@ -19,10 +19,11 @@ description: Astlide を HTTP サービスとして動かし、Markdown から P
 ```bash
 docker build -f packages/server/Dockerfile -t astlide-server .
 export ASTLIDE_API_KEY="$(openssl rand -hex 24)"
-docker run --rm -p 8787:8787 -e ASTLIDE_API_KEY astlide-server
+docker run --rm -p 8787:8787 -e ASTLIDE_API_KEY \
+  --security-opt seccomp=packages/server/chromium-seccomp.json astlide-server
 ```
 
-イメージはすべてのインターフェースで待ち受けるので、API キーなしでは起動しません（[セキュリティ](#セキュリティ)を参照）。以下のリクエストには `-H "Authorization: Bearer $ASTLIDE_API_KEY"` を付けてください。`/health` と `/openapi.json` には不要です。
+イメージはすべてのインターフェースで待ち受けるので、API キーなしでは起動しません（[セキュリティ](#セキュリティ)を参照）。seccomp プロファイルは、PDF / PNG の描画で Chromium がサンドボックスを使うためのものです（Docker の標準プロファイルに、サンドボックスが必要とする名前空間のシステムコールを足したもの）。指定しないと、PDF / PNG の描画はサンドボックスなしで動くのではなく、失敗します。以下のリクエストには `-H "Authorization: Bearer $ASTLIDE_API_KEY"` を付けてください。`/health` と `/openapi.json` には不要です。
 
 ```bash
 curl localhost:8787/health
@@ -131,7 +132,7 @@ curl -H 'content-type: application/json' -d '{"url":"https://docs.google.com/pre
 | `MAX_OUTPUT_MB` | `200` | 出力ファイル（PPTX、PDF、PNG の ZIP）の最大サイズ。超えると 422 になります。 |
 | `RENDER_TIMEOUT_MS` | `180000` | これより長くかかるレンダリング（とアップロードされた PowerPoint ファイルの読み込み）は中止されます（504）。 |
 | `CONCURRENCY` / `MAX_QUEUE` | `2` / `16` | 同時に実行するレンダリングの数と、待機できる数。それを超えると、アップロードを読み込む前に 503 を返します。 |
-| `ASTLIDE_CHROMIUM_SANDBOX` | `0` | `1` にすると、PDF / PNG の描画で Chromium のサンドボックスを有効にします（[セキュリティ](#セキュリティ)を参照）。 |
+| `ASTLIDE_CHROMIUM_SANDBOX` | `1` | PDF / PNG の描画で使う Chromium のサンドボックス。`0` で無効にします。呼び出し元がすべて信頼できる場合だけにしてください（[セキュリティ](#セキュリティ)を参照）。 |
 | `ASTLIDE_WORK_DIR` | `node_modules` と同じ階層の `.astlide-work` | リクエストごとのプロジェクトを作る場所。インストール済みのパッケージと親ディレクトリを共有している必要があります。 |
 
 エラーは JSON `{ "error": "…" }` で返します。入力が不正なら 400 です。入力はビルドを始める前に検査します（スライドのスキーマが受け付けない frontmatter の値など）。ビルドやエクスポートに失敗したときは、ログの末尾を付けて 422 を返します。
@@ -152,5 +153,5 @@ curl -H 'content-type: application/json' -d '{"url":"https://docs.google.com/pre
 - **画像は URL で指定してください。** ファイルパスを指す Markdown の画像（`![](../x.png)`）は 400 で拒否します。Astro がサーバーのディスクから読み込んでしまうためです。`https:` か `data:` の URL を使ってください。
 - スライドは必ず自前の frontmatter ブロックを付けて書き出します。本文が `---` で始まっていても本文のまま扱われ、frontmatter の検査をすり抜けることはありません。frontmatter では YAML のアンカーとエイリアス（`&a` / `*a`）は使えず、大きさは 1 スライドあたり 256 KB までです。
 - **アップロードされた PowerPoint ファイル**（`/import`、`/templates/layouts`）は、レンダリングと同じキューを通して子プロセスで読み込みます。`RENDER_TIMEOUT_MS` より長くかかれば中止し（504）、結果が `MAX_OUTPUT_MB` を超えれば拒否します（422）。どちらの場合もサーバー本体は止まりません。
-- **Chromium のサンドボックス**は既定では無効です（Playwright が無効にしており、多くのコンテナではサンドボックスに必要なユーザー名前空間が使えません）。使える環境（ユーザー名前空間の `clone` / `unshare` を許す seccomp プロファイル、たとえば Chrome 用のものを指定した Docker など）では `ASTLIDE_CHROMIUM_SANDBOX=1` を設定してください。Chromium のレンダラーに不具合があっても、影響がサンドボックスの中にとどまります。どちらの場合も、描画プロセスに `ASTLIDE_API_KEY` は渡しません。
+- **Chromium はサンドボックスの中で動きます。** レンダラーに不具合があっても、影響はサンドボックスの中にとどまります。サンドボックスにはユーザー名前空間が必要です。Docker では `--security-opt seccomp=packages/server/chromium-seccomp.json` を付けて起動してください（Docker の標準プロファイルに `clone` / `clone3` / `unshare` / `setns` を許可したもの）。ユーザー名前空間を制限している Linux ホスト（Ubuntu 24.04 の `kernel.apparmor_restrict_unprivileged_userns=1`）では、サービスに許可してください。サンドボックスを起動できないとき、PDF / PNG の描画は直し方を示して失敗します。サンドボックスなしに切り替えて動くことはありません。`ASTLIDE_CHROMIUM_SANDBOX=0` で無効にできます。どちらの場合も、描画プロセスに `ASTLIDE_API_KEY` は渡しません。
 - API キーがないリクエストには、`/health`、`/openapi.json`、`/` 以外のすべてのパスで 401 を返します（存在しないパスも含みます）。キーは一定時間で比較します。

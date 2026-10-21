@@ -2,9 +2,11 @@
  * PDF / PNG rendering of a deck from a running site (dev, preview or the
  * temporary server `astlide export` starts).
  *
- * The render service sets: `ASTLIDE_PUBLIC_NETWORK_ONLY=1` (slides reach only
- * public hosts), `ASTLIDE_MAX_SLIDES` (most slides rendered) and, when asked,
- * `ASTLIDE_CHROMIUM_SANDBOX=1` (Chromium keeps its sandbox).
+ * Chromium runs with its sandbox on; `ASTLIDE_CHROMIUM_SANDBOX=0` turns it off
+ * (only for environments that can't provide it, see {@link launchChromium}).
+ *
+ * The render service also sets: `ASTLIDE_PUBLIC_NETWORK_ONLY=1` (slides reach
+ * only public hosts) and `ASTLIDE_MAX_SLIDES` (most slides rendered).
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
@@ -122,18 +124,7 @@ export async function exportDeck(deck: string, options: RenderOptions): Promise<
 	console.log(`\nExporting: ${deck}`);
 
 	// Launch a single browser instance shared across slide-count detection and export
-	// ASTLIDE_CHROMIUM_SANDBOX=1 keeps Chromium's sandbox on (Playwright turns it
-	// off by default); it needs user namespaces, which containers often deny.
-	const chromiumSandbox = process.env.ASTLIDE_CHROMIUM_SANDBOX === "1";
-	const browser = await chromium.launch({ chromiumSandbox }).catch((err: Error) => {
-		if (/Executable doesn't exist/.test(err.message)) {
-			throw new Error(
-				"PDF / PNG export needs Chromium. Install it once with: bunx playwright install chromium\n" +
-					"(PPTX needs no browser: --pptx)",
-			);
-		}
-		throw err;
-	});
+	const browser = await launchChromium();
 	try {
 		const context = await browser.newContext({ serviceWorkers: "block" });
 		if (publicNetworkOnly()) await guardNetwork(context, options.baseUrl);
@@ -208,4 +199,38 @@ export async function guardNetwork(context: BrowserContext, baseUrl: string): Pr
 		}
 	});
 	await context.routeWebSocket(/.*/, (ws) => ws.close());
+}
+
+/** Whether Chromium keeps its sandbox: on unless `ASTLIDE_CHROMIUM_SANDBOX=0`. */
+export function chromiumSandbox(env: Record<string, string | undefined> = process.env): boolean {
+	return env.ASTLIDE_CHROMIUM_SANDBOX !== "0";
+}
+
+/**
+ * Chromium for PDF / PNG, with its sandbox on (Playwright turns it off by
+ * default): the slides are web pages, and a renderer bug should stay inside
+ * the sandbox. On Linux the sandbox needs user namespaces; when the system
+ * refuses them this fails with how to allow them — it never quietly runs
+ * without the sandbox. `ASTLIDE_CHROMIUM_SANDBOX=0` opts out.
+ */
+export async function launchChromium() {
+	const sandbox = chromiumSandbox();
+	return chromium.launch({ chromiumSandbox: sandbox }).catch((err: Error) => {
+		if (/Executable doesn't exist/.test(err.message)) {
+			throw new Error(
+				"PDF / PNG export needs Chromium. Install it once with: bunx playwright install chromium\n" +
+					"(PPTX needs no browser: --pptx)",
+			);
+		}
+		if (sandbox && /sandbox|namespace|zygote/i.test(err.message)) {
+			throw new Error(
+				"Chromium couldn't start its sandbox (it needs unprivileged user namespaces).\n" +
+					"  · Linux (e.g. Ubuntu 24.04): sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0\n" +
+					"  · Docker: run with --security-opt seccomp=<the Chromium profile> (see the render service guide)\n" +
+					"  · Or, only where the slides are your own: ASTLIDE_CHROMIUM_SANDBOX=0\n" +
+					`(${err.message.split("\n")[0]})`,
+			);
+		}
+		throw err;
+	});
 }
