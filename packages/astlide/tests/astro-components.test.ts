@@ -11,7 +11,7 @@
 
 import { experimental_AstroContainer as AstroContainer } from "astro/container";
 import type { AstroComponentFactory } from "astro/runtime/server/index.js";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 let container: AstroContainer;
 let CodeBlock: AstroComponentFactory;
@@ -398,6 +398,16 @@ describe("YouTube", () => {
 		expect(html).toContain("youtube-nocookie.com");
 		expect(html).not.toContain("youtube.com/embed");
 	});
+
+	it("renders nothing for something that isn't a video id", async () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		for (const id of ["../../evil", "x?autoplay=1&list=y", "javascript:alert(1)"]) {
+			const html = await container.renderToString(YouTube, { props: { id } });
+			expect(html).not.toContain("<iframe");
+			expect(html).not.toContain(id);
+		}
+		warn.mockRestore();
+	});
 });
 
 // ── Tweet ─────────────────────────────────────────────────────────────────────
@@ -430,6 +440,20 @@ describe("Tweet", () => {
 		const html = await container.renderToString(Tweet, { props: base });
 		expect(html).toContain(`href="${base.url}"`);
 		expect(html).toContain('target="_blank"');
+	});
+
+	it("keeps only http(s) links and safe avatar URLs", async () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const html = await container.renderToString(Tweet, {
+			props: { ...base, url: "javascript:alert(1)", avatar: "javascript:alert(2)" },
+		});
+		expect(html).not.toContain("javascript:");
+		expect(html).not.toMatch(/<img[^>]+tweet-avatar/);
+		warn.mockRestore();
+		const ok = await container.renderToString(Tweet, {
+			props: { ...base, avatar: "/avatars/me.png" },
+		});
+		expect(ok).toContain('src="/avatars/me.png"');
 	});
 
 	it("renders date in a <time> element when provided", async () => {

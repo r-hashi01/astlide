@@ -81,7 +81,6 @@ const ALLOWED_TAGS = new Set([
 /** Attributes allowed on any element. */
 const ALLOWED_ATTRS = new Set([
 	"class",
-	"id",
 	"title",
 	"lang",
 	"dir",
@@ -104,8 +103,8 @@ const TAG_ATTRS: Record<string, Set<string>> = {
 	abbr: new Set(["title"]),
 };
 
-/** URL protocols considered safe for href/src. */
-const SAFE_PROTOCOLS = /^(?:https?:|mailto:|#|\/)/i;
+/** URL protocols considered safe for href/src (a `/` path, but not protocol-relative `//` or `/\`). */
+const SAFE_PROTOCOLS = /^(?:https?:|mailto:|#|\/(?![/\\]))/i;
 
 /** Matches on* event-handler attributes like onclick, onerror. */
 const EVENT_HANDLER_RE = /^on\w+$/i;
@@ -117,8 +116,10 @@ const EVENT_HANDLER_RE = /^on\w+$/i;
  * unterminated tags can't slip through. Tags in the allowlist are kept with
  * their allowed attributes; `script`, `iframe`, form controls and similar are
  * removed with their content; any other tag is dropped and its content kept.
- * `href` / `src` must be `http(s):`, `mailto:`, `#…` or a `/…` path. Text is
- * written back escaped, so the output is always well-formed.
+ * `href` / `src` must be `http(s):`, `mailto:`, `#…` or a `/…` path (not
+ * `//…`); a kept `target` gets `rel="noopener noreferrer"`. `id` is dropped,
+ * so content can't shadow page globals (DOM clobbering). Text is written back
+ * escaped, so the output is always well-formed.
  *
  * Designed for build-time use (Node.js). Does NOT rely on DOM APIs.
  */
@@ -165,6 +166,7 @@ function sanitizeAttributes(tag: string, attribs: Record<string, string>): Recor
 			continue;
 		out[name] = value;
 	}
+	if (out.target !== undefined) out.rel = "noopener noreferrer";
 	return out;
 }
 
@@ -190,13 +192,18 @@ function unwrap(node: ChildNode): void {
 }
 
 /**
- * Sanitize KaTeX-generated HTML output.
+ * Sanitize KaTeX-generated HTML output. Meant for KaTeX's own output only
+ * (rendered with `trust: false`): it is a denylist, not a general sanitizer —
+ * use {@link sanitizeHTML} for other HTML.
  *
  * Lighter than sanitizeHTML — preserves SVG elements and inline styles
- * required for correct math rendering while removing the three injection vectors:
- *   1. <script> elements (KaTeX never generates these, but belt-and-suspenders)
- *   2. on* event-handler attributes
- *   3. javascript:/vbscript: URLs in href/src/xlink:href/action/formaction
+ * required for correct math rendering while removing injection vectors:
+ *   1. `<script>`, and elements KaTeX never emits that can run or load
+ *      content or change how the page parses (`iframe`, `object`, `embed`,
+ *      `noscript`, `style`, `meta`, `base`, `form`, SVG `animate` / `set` …)
+ *   2. on* event-handler attributes, `srcdoc`, and SVG animation values
+ *      (`values` / `to` / `from` / `by`)
+ *   3. javascript:/vbscript:/data: URLs in href/src/xlink:href/action/formaction
  *
  * Works on a parsed tree, not regexes, so odd spellings (`</script >`,
  * `<ScRiPt>`, entities in URLs) can't slip through. Entities and markup are
@@ -207,14 +214,18 @@ export function sanitizeKaTeXOutput(html: string): string {
 	const doc = parseDocument(html, { decodeEntities: false, recognizeSelfClosing: true });
 	const clean = (nodes: ChildNode[]) => {
 		for (const node of [...nodes]) {
-			if (node.type === "script" || (isTag(node) && node.name.toLowerCase() === "script")) {
+			if (
+				node.type === "script" ||
+				node.type === "style" ||
+				(isTag(node) && KATEX_STRIP.has(node.name.toLowerCase()))
+			) {
 				removeElement(node);
 				continue;
 			}
 			if (!isTag(node)) continue;
 			for (const name of Object.keys(node.attribs)) {
 				const key = name.toLowerCase();
-				if (key.startsWith("on")) delete node.attribs[name];
+				if (key.startsWith("on") || KATEX_STRIP_ATTRS.has(key)) delete node.attribs[name];
 				else if (
 					URL_ATTRIBUTES.has(key) &&
 					SCRIPT_URL.test(decodeForCheck(node.attribs[name] ?? ""))
@@ -229,7 +240,35 @@ export function sanitizeKaTeXOutput(html: string): string {
 }
 
 const URL_ATTRIBUTES = new Set(["href", "src", "xlink:href", "action", "formaction"]);
-const SCRIPT_URL = /^(?:javascript|vbscript):/;
+const SCRIPT_URL = /^(?:javascript|vbscript|data):/;
+/** Elements removed from KaTeX output (with their content): none of them is math. */
+const KATEX_STRIP = new Set([
+	"script",
+	"noscript",
+	"style",
+	"iframe",
+	"frame",
+	"object",
+	"embed",
+	"base",
+	"meta",
+	"link",
+	"form",
+	"template",
+	"xmp",
+	"plaintext",
+	"noembed",
+	"noframes",
+	"textarea",
+	"title",
+	"foreignobject",
+	"animate",
+	"animatemotion",
+	"animatetransform",
+	"set",
+]);
+/** Attributes removed from KaTeX output. */
+const KATEX_STRIP_ATTRS = new Set(["srcdoc", "values", "to", "from", "by", "attributename"]);
 
 /** An attribute value as a browser would read its scheme: entities decoded, controls / spaces dropped, lower case. */
 function decodeForCheck(value: string): string {

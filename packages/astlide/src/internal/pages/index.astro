@@ -6,29 +6,14 @@ import { deckConfigSchema } from '@astlide/core/schema';
 import { pageUrl } from '@astlide/core/utils/base-path';
 import Favicon from '@astlide/core/internal/Favicon.astro';
 import FontLinks from '@astlide/core/internal/FontLinks.astro';
-import { withDevDirectives } from '@astlide/core/utils/csp';
+import { cspFor, DEFAULT_INDEX_CSP } from '@astlide/core/utils/csp';
 
 declare const __ASTLIDE_CSP__: boolean | string;
-
-const DEFAULT_CSP = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com",
-  "img-src 'self' data: https:",
-  "connect-src 'self'",
-  "frame-src 'self'",
-].join('; ');
 
 const cspOption: boolean | string =
   typeof __ASTLIDE_CSP__ !== 'undefined' ? __ASTLIDE_CSP__ : true;
 // Dev only: let Vite's client run its reconnect worker (see utils/csp).
-const cspContent =
-  cspOption === false ? null
-  : withDevDirectives(
-      typeof cspOption === 'string' && cspOption !== 'true' ? cspOption : DEFAULT_CSP,
-      import.meta.env.DEV,
-    );
+const cspContent = cspFor(cspOption, DEFAULT_INDEX_CSP, import.meta.env.DEV);
 
 // Get all deck directories
 const decksDir = path.join(process.cwd(), 'src', 'content', 'decks');

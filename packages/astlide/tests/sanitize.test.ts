@@ -381,3 +381,58 @@ describe("sanitizeHTML (parse tree)", () => {
 		);
 	});
 });
+
+describe("sanitizeKaTeXOutput (non-math markup)", () => {
+	it("drops elements and attributes KaTeX never emits", () => {
+		const out = sanitizeKaTeXOutput(
+			[
+				`<noscript><p title="</noscript><img src=x onerror=alert(1)>"></p></noscript>`,
+				`<iframe srcdoc="<script>alert(1)</script>"></iframe>`,
+				`<svg><a><animate attributeName="href" values="javascript:alert(1)"/><text>x</text></a></svg>`,
+				`<meta http-equiv="refresh" content="0;url=https://evil.example">`,
+				`<base href="https://evil.example/">`,
+				`<object data="x.swf"></object><embed src="x.swf">`,
+				`<a href="data:text/html,<script>alert(1)</script>">d</a>`,
+			].join(""),
+		);
+		for (const bad of [
+			"noscript",
+			"onerror",
+			"iframe",
+			"srcdoc",
+			"animate",
+			"javascript:",
+			"<meta",
+			"<base",
+			"<object",
+			"<embed",
+			"data:text",
+		])
+			expect(out).not.toContain(bad);
+	});
+
+	it("keeps KaTeX's own SVG", () => {
+		const svg = `<span class="katex"><svg width="400em" height="0.548em" viewBox="0 0 400000 548"><path d="M0 0h400000v548H0z"></path></svg></span>`;
+		const out = sanitizeKaTeXOutput(svg);
+		expect(out).toContain('viewBox="0 0 400000 548"');
+		expect(out).toContain('<path d="M0 0h400000v548H0z"');
+	});
+});
+
+describe("sanitizeHTML links and ids", () => {
+	it("refuses protocol-relative links", () => {
+		expect(sanitizeHTML('<a href="//evil.example/x">a</a>')).not.toContain("href");
+		expect(sanitizeHTML('<a href="/\\evil.example/x">a</a>')).not.toContain("href");
+		expect(sanitizeHTML('<a href="/deck/2">a</a>')).toContain('href="/deck/2"');
+	});
+
+	it("adds rel=noopener noreferrer when target is kept", () => {
+		expect(
+			sanitizeHTML('<a href="https://x.example" target="_blank" rel="opener">a</a>'),
+		).toContain('rel="noopener noreferrer"');
+	});
+
+	it("drops id attributes (DOM clobbering)", () => {
+		expect(sanitizeHTML('<p id="__astlide_embed_host">x</p>')).toBe("<p>x</p>");
+	});
+});

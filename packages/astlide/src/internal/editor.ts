@@ -262,8 +262,16 @@ async function saveSource(): Promise<void> {
 	await saving;
 }
 
+/**
+ * This page's path, with a leading `//` collapsed: used as is, a path some
+ * servers accept (`//host/...`) would make requests protocol-relative.
+ */
+function herePath(): string {
+	return `/${location.pathname.replace(/^\/+/, "")}`;
+}
+
 async function fetchPage(): Promise<Document> {
-	const res = await fetch(location.pathname + location.search, { cache: "no-store" });
+	const res = await fetch(herePath() + location.search, { cache: "no-store" });
 	if (!res.ok) throw new Error(res.statusText);
 	return new DOMParser().parseFromString(await res.text(), "text/html");
 }
@@ -397,7 +405,7 @@ async function refreshSlide(): Promise<void> {
 		return;
 	}
 	w.__astlide_pending_step = w.__astlide_step ?? null;
-	w.__astlide_navigate(location.pathname + location.search, { history: "replace" });
+	w.__astlide_navigate(herePath() + location.search, { history: "replace" });
 }
 
 function dirOf(path: string): string {
@@ -413,7 +421,7 @@ function dirOf(path: string): string {
 async function followDeck(): Promise<void> {
 	const w = window as AstlideWindow;
 	const current = sourcePath();
-	const deckUrl = location.pathname.replace(/\/\d+\/?$/, "");
+	const deckUrl = herePath().replace(/\/\d+\/?$/, "");
 	const here = Number(document.body.dataset.currentSlide) || 1;
 	let sources: string[] = [];
 	// The dev server may still be settling (error page while modules reload).

@@ -21,6 +21,7 @@ export default defineConfig({
       indexable: false,
       injectIndexRoute: undefined,
       drawings: { persist: false },
+      notes: "public",
     }),
   ],
 });
@@ -34,10 +35,11 @@ export default defineConfig({
 | `shikiTheme` | `string` | `"github-dark"` | コードフェンスに使う Shiki のテーマ。 |
 | `font` | `false \| string \| { href?, preconnect? }` | Google Fonts の Inter + JetBrains Mono | 読み込む Web フォントのスタイルシート。`false` で読み込みません。 |
 | `favicon` | `string \| false` | 自動 | デッキのページと一覧ページのファビコン。デフォルトでは `public/` に `favicon.svg` / `.ico` / `.png` があればそれを使い、なければ空のアイコンを使います（ドメイン直下の `/favicon.ico` へのリクエストは発生しません）。ルート相対パスには Astro の `base` が付きます。`false` でアイコンのリンクを出力しません。 |
-| `csp` | `boolean \| string` | `true` | デフォルトの Content-Security-Policy の meta タグを挿入するか、無効にするか、独自のポリシーを指定します。`astro dev` では、Vite のクライアント用に `worker-src 'self' blob:` が（指定がなければ）追加されます。ビルドではポリシーはそのままです。 |
+| `csp` | `boolean \| string` | `true` | デフォルトの Content-Security-Policy の meta タグ（スライドのページ、`/[deck]/all`、一覧ページに入り、`base-uri 'self'; form-action 'self'; object-src 'none'` を含みます）を挿入するか、無効にするか、独自のポリシーを指定します。`astro dev` では、Vite のクライアント用に `worker-src 'self' blob:` が（指定がなければ）追加されます。ビルドではポリシーはそのままです。 |
 | `indexable` | `boolean` | `false` | `false` の場合、ページに `noindex, nofollow` が付きます。 |
 | `injectIndexRoute` | `boolean` | 自動 | `/` にデッキの一覧を挿入します。独自の `src/pages/index.*` がある場合は自動的にスキップされます。 |
 | `drawings.persist` | `boolean` | `false` | ペンの描画を `localStorage` に保存し、再読み込み後も残します。[プレゼンテーション](/ja/guides/presenting/#描画を残す)を参照してください。 |
+| `notes` | `"public" \| "dev"` | `"public"` | スピーカーノートをどこに含めるか。`"public"` はすべてのページに含めるので、URL を知っている人なら誰でも読めます。`"dev"` は `astro dev` のときだけ含め、ビルドしたページ（とそこから作るエクスポート）には含めません。[スピーカーノート](/ja/guides/decks/#スピーカーノート)を参照してください。 |
 
 Astro 自体の [`base`](/ja/guides/deploy/) オプションにも従います。
 
