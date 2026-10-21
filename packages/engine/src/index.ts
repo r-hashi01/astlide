@@ -156,8 +156,9 @@ function frameDocument(
 		: resolve(join(dir, src));
 	if (!page) return null;
 	const base = resolve(page);
-	if (!isInside(distDir, base)) return null;
 	for (const file of [base, join(base, "index.html"), `${base}.html`]) {
+		// Each candidate on its own: for `dist/` itself, `${base}.html` is next to it.
+		if (!isInside(distDir, file)) continue;
 		if (existsSync(file) && statSync(file).isFile())
 			return { source: readFileSync(file, "utf-8"), dir: dirname(file) };
 	}

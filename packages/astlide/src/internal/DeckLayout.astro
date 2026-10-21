@@ -1529,6 +1529,9 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       function postToHost() {
         const host = window.__astlide_embed_host;
         if (!host) return;
+        // A "null" host (a file: page, a sandboxed frame) can't be named as the
+        // target; the message still only goes to window.parent, and says no
+        // more than any page that frames the deck can learn.
         try { window.parent.postMessage(embedState(), host === 'null' ? '*' : host); }
         catch (_) { /* ignore */ }
       }
