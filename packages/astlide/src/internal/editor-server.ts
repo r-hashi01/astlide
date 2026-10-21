@@ -3,6 +3,7 @@
  *
  *   GET  /__astlide/source?path=src/content/decks/talk/01-cover.mdx → { path, content }
  *   POST /__astlide/source  { path, content }                        → { ok: true }
+ *   GET  /__astlide/editor-token                                     → { token }
  *
  * Writing the file lets Astro's dev server rebuild the slide. Astro would then
  * tell the browser to do a full page reload; for writes made by the editor we
@@ -15,10 +16,13 @@
  *
  * Only slide sources can be read or written: the path must resolve
  * inside the project's `src/` (symlinks included) and end in `.mdx`, `.md` or
- * `.html`. Every request must come from the machine running the dev server
- * (loopback, even with `astro dev --host`), carry the per-server token the dev
- * pages are given (`x-astlide-editor-token`), and come from the dev server's
- * own origin (required for POSTs; for GETs, any cross-site marker refuses).
+ * `.html`. Every request must be local — from this machine (loopback, even with
+ * `astro dev --host`), addressed to a loopback host name (`localhost`,
+ * `127.0.0.1` …) and not relayed by a proxy or tunnel — come from the dev
+ * server's own origin (required for POSTs; for GETs, any cross-site marker
+ * refuses), and carry the per-server token (`x-astlide-editor-token`). The
+ * editor fetches that token from `/__astlide/editor-token`, which answers only
+ * such same-origin local requests, so no other site or origin can read it.
  * Registered with `apply: "serve"`, so it never exists in a production build.
  */
 
@@ -29,6 +33,8 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import type { Plugin } from "vite";
 
 export const EDITOR_ENDPOINT = "/__astlide/source";
+/** Where the editor gets the dev server's token (see {@link refuseEditorRequest}). */
+export const EDITOR_TOKEN_ENDPOINT = "/__astlide/editor-token";
 /** HMR event sent instead of a full reload after an editor write. */
 export const SOURCE_SAVED_EVENT = "astlide:source-saved";
 /** HMR event sent instead of a full reload after a slide file is added or removed. */
@@ -49,10 +55,6 @@ export const EDITOR_TOKEN_HEADER = "x-astlide-editor-token";
 /** A new random editor token (one per dev server start). */
 export function createEditorToken(): string {
 	return randomBytes(24).toString("hex");
-}
-/** Injected into dev pages: hands the page the token the editor sends with its requests. */
-export function editorTokenScript(token: string): string {
-	return `globalThis.__astlideEditorToken = ${JSON.stringify(token)};`;
 }
 /** How long after a write (or file add/remove) a full reload is considered its echo. */
 const RELOAD_ECHO_MS = 3000;
@@ -100,6 +102,67 @@ export function isLoopback(address: string | undefined): boolean {
 	return address === "::1" || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(v4);
 }
 
+/**
+ * Whether a host name (from `Host` or an origin, port allowed) names this
+ * machine: `localhost`, `*.localhost`, 127.0.0.0/8 or `[::1]`. A page reached
+ * under any other name came through something else — a tunnel, a proxy, the
+ * network — even when the connection itself is from loopback.
+ */
+export function isLoopbackHost(host: string | undefined): boolean {
+	if (!host) return false;
+	let hostname: string;
+	try {
+		hostname = new URL(`http://${host}`).hostname.toLowerCase();
+	} catch {
+		return false;
+	}
+	return (
+		hostname === "localhost" ||
+		hostname.endsWith(".localhost") ||
+		hostname === "[::1]" ||
+		/^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)
+	);
+}
+
+/** Headers proxies and tunnels add; a request carrying one wasn't made on this machine. */
+const RELAY_HEADER =
+	/^(?:forwarded|via|x-forwarded-.*|x-real-ip|cf-connecting-ip|true-client-ip|x-client-ip|ngrok-.*)$/;
+
+/** Whether a request was relayed by a proxy or tunnel (see {@link RELAY_HEADER}). */
+export function isRelayed(req: Pick<IncomingMessage, "headers">): boolean {
+	return Object.keys(req.headers).some((name) => RELAY_HEADER.test(name.toLowerCase()));
+}
+
+type EditorRequest = Pick<IncomingMessage, "headers" | "method"> & {
+	socket?: { remoteAddress?: string | undefined };
+};
+
+/**
+ * Why a request isn't a local, same-origin one, or `null` when it is: from
+ * loopback, to a loopback host name, not relayed, and from the dev server's
+ * own origin (POST: Origin required; GET: no foreign Origin and no cross-site
+ * `Sec-Fetch-Site`).
+ */
+export function refuseNonLocal(req: EditorRequest): string | null {
+	if (!isLoopback(req.socket?.remoteAddress) || !isLoopbackHost(req.headers.host) || isRelayed(req))
+		return "The slide editor only accepts requests made on this machine (localhost)";
+	const origin = req.headers.origin;
+	if (origin && !isLoopbackHost(hostOf(origin))) return "Cross-origin request refused";
+	if (req.method === "POST") return isSameOrigin(req) ? null : "Cross-origin write refused";
+	const site = req.headers["sec-fetch-site"];
+	if (site && site !== "same-origin" && site !== "none") return "Cross-origin read refused";
+	if (origin && !isSameOrigin(req)) return "Cross-origin read refused";
+	return null;
+}
+
+function hostOf(origin: string): string | undefined {
+	try {
+		return new URL(origin).host;
+	} catch {
+		return undefined;
+	}
+}
+
 function sameToken(given: unknown, token: string): boolean {
 	if (typeof given !== "string") return false;
 	const a = Buffer.from(given);
@@ -108,24 +171,13 @@ function sameToken(given: unknown, token: string): boolean {
 }
 
 /**
- * Why an editor request is refused, or `null` when it may proceed: it must
- * come over loopback, carry the dev server's token, and come from the dev
- * server's own origin (POST: Origin required; GET: no foreign Origin and no
- * cross-site `Sec-Fetch-Site`).
+ * Why an editor request is refused, or `null` when it may proceed: it must be
+ * local and same-origin ({@link refuseNonLocal}) and carry the dev server's token.
  */
-export function refuseEditorRequest(
-	req: Pick<IncomingMessage, "headers" | "method"> & {
-		socket?: { remoteAddress?: string | undefined };
-	},
-	token: string,
-): string | null {
-	if (!isLoopback(req.socket?.remoteAddress))
-		return "The slide editor only accepts requests from this machine";
+export function refuseEditorRequest(req: EditorRequest, token: string): string | null {
+	const nonLocal = refuseNonLocal(req);
+	if (nonLocal) return nonLocal;
 	if (!sameToken(req.headers[EDITOR_TOKEN_HEADER], token)) return "Missing or wrong editor token";
-	if (req.method === "POST") return isSameOrigin(req) ? null : "Cross-origin write refused";
-	const site = req.headers["sec-fetch-site"];
-	if (site && site !== "same-origin" && site !== "none") return "Cross-origin read refused";
-	if (req.headers.origin && !isSameOrigin(req)) return "Cross-origin read refused";
 	return null;
 }
 
@@ -206,7 +258,7 @@ export function interceptReloads(
 
 /**
  * @param token The dev server's editor token (see {@link createEditorToken}),
- *   also given to the pages through {@link editorTokenScript}.
+ *   handed to the dev server's own pages at {@link EDITOR_TOKEN_ENDPOINT}.
  */
 export function astlideEditorPlugin(root: string, token: string): Plugin {
 	// The last editor write or slide file add/remove, while its reload echo can
@@ -239,6 +291,17 @@ export function astlideEditorPlugin(root: string, token: string): Plugin {
 			};
 			server.watcher.on("add", onDeckFile(false));
 			server.watcher.on("unlink", onDeckFile(true));
+
+			// The token, for the dev server's own pages only (never cached; see refuseNonLocal).
+			server.middlewares.use(EDITOR_TOKEN_ENDPOINT, (req, res) => {
+				if (req.method !== "GET") {
+					res.setHeader("Allow", "GET");
+					return send(res, 405, { error: "Method not allowed" });
+				}
+				const refused = refuseNonLocal(req);
+				if (refused) return send(res, 403, { error: refused });
+				return send(res, 200, { token });
+			});
 
 			server.middlewares.use(EDITOR_ENDPOINT, async (req, res) => {
 				try {

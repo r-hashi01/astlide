@@ -119,7 +119,7 @@ Adding, removing or renaming slide files is picked up live too: every window on 
 The panel stays open as you move between slides and switches to each slide's source.
 
 - Dev server only: the editor and its endpoint don't exist in production builds.
-- It edits slide files (`.mdx`, `.md`, `.html` under `src/`) and nothing else, and only from the dev server's own pages on the machine running it. With `astro dev --host` you can still view slides from other devices, but the editor only saves from that machine.
+- It edits slide files (`.mdx`, `.md`, `.html` under `src/`) and nothing else, and only from the dev server's own pages on the machine running it. Open the deck at `localhost` (or `127.0.0.1`): with `astro dev --host`, or through a tunnel or reverse proxy (ngrok, cloudflared, port forwarding), you can still view slides from elsewhere, but the editor neither loads nor saves there.
 - Edits are written to disk as you type — use undo in the panel or your version control to roll back.
 
 ## Hidden slides

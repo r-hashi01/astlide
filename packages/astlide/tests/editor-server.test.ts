@@ -6,9 +6,12 @@ import { describe, expect, it } from "vitest";
 import {
 	astlideEditorPlugin,
 	DECK_CHANGED_EVENT,
+	EDITOR_ENDPOINT,
+	EDITOR_TOKEN_ENDPOINT,
 	EDITOR_TOKEN_HEADER,
 	interceptReloads,
 	isLoopback,
+	isLoopbackHost,
 	isSameOrigin,
 	refuseEditorRequest,
 	resolveSlideSource,
@@ -133,6 +136,29 @@ describe("isLoopback", () => {
 	});
 });
 
+describe("isLoopbackHost", () => {
+	it("accepts only names of this machine", () => {
+		for (const h of [
+			"localhost",
+			"localhost:4321",
+			"app.localhost:4321",
+			"127.0.0.1:4321",
+			"[::1]:4321",
+			"LOCALHOST",
+		])
+			expect(isLoopbackHost(h)).toBe(true);
+		for (const h of [
+			"192.168.1.5:4321",
+			"abc.ngrok.app",
+			"localhost.evil.com",
+			"127.0.0.1.nip.io",
+			"",
+			undefined,
+		])
+			expect(isLoopbackHost(h)).toBe(false);
+	});
+});
+
 describe("refuseEditorRequest", () => {
 	it("allows the dev page's own requests", () => {
 		expect(refuseEditorRequest(request("GET", local), TOKEN)).toBeNull();
@@ -162,6 +188,35 @@ describe("refuseEditorRequest", () => {
 		).toMatch(/token/);
 	});
 
+	it("refuses requests relayed by a tunnel or proxy, though they arrive over loopback", () => {
+		// A tunnel client runs on this machine: loopback socket, its own host name.
+		const tunnel = { ...local, host: "abc.ngrok.app", origin: "https://abc.ngrok.app" };
+		expect(refuseEditorRequest(request("POST", tunnel), TOKEN)).toMatch(/this machine/);
+		expect(refuseEditorRequest(request("GET", tunnel), TOKEN)).toMatch(/this machine/);
+		// …or one that rewrites Host to localhost but says it forwarded the request.
+		for (const header of [
+			"x-forwarded-for",
+			"x-forwarded-host",
+			"forwarded",
+			"x-real-ip",
+			"cf-connecting-ip",
+			"ngrok-trace-id",
+			"via",
+		])
+			expect(refuseEditorRequest(request("GET", { ...local, [header]: "1.2.3.4" }), TOKEN)).toMatch(
+				/this machine/,
+			);
+	});
+
+	it("refuses an origin that isn't a loopback name", () => {
+		expect(
+			refuseEditorRequest(
+				request("POST", { ...local, host: "localhost:4321", origin: "http://evil.example" }),
+				TOKEN,
+			),
+		).toMatch(/Cross-origin/);
+	});
+
 	it("refuses other origins", () => {
 		expect(refuseEditorRequest(request("POST", local), TOKEN)).toMatch(/Cross-origin/);
 		expect(
@@ -174,18 +229,18 @@ describe("refuseEditorRequest", () => {
 });
 
 describe("editor endpoint", () => {
-	type Handler = (req: unknown, res: unknown) => Promise<void>;
-	function endpoint(projectRoot: string): Handler {
-		let handler: Handler | undefined;
+	type Handler = (req: unknown, res: unknown) => Promise<void> | void;
+	function endpoint(projectRoot: string, path = EDITOR_ENDPOINT): Handler {
+		const handlers = new Map<string, Handler>();
 		const plugin = astlideEditorPlugin(projectRoot, TOKEN);
 		const server = {
 			ws: { send() {} },
 			environments: {},
 			watcher: { on() {} },
-			middlewares: { use: (_: string, fn: Handler) => (handler = fn) },
+			middlewares: { use: (at: string, fn: Handler) => handlers.set(at, fn) },
 		};
 		(plugin.configureServer as (s: unknown) => void)(server);
-		return handler as Handler;
+		return handlers.get(path) as Handler;
 	}
 	async function call(
 		handler: Handler,
@@ -257,6 +312,32 @@ describe("editor endpoint", () => {
 			(await call(handler, "GET", noToken, { url: "/?path=src/content/decks/talk/01.md" })).status,
 		).toBe(403);
 		expect(readFileSync(join(dir, "src/content/decks/talk/01.md"), "utf-8")).toBe("# Hi");
+	});
+
+	it("hands the token to the dev server's own pages only", async () => {
+		const handler = endpoint(project(), EDITOR_TOKEN_ENDPOINT);
+		const { [EDITOR_TOKEN_HEADER]: _, ...page } = local;
+		expect(await call(handler, "GET", { ...page, "sec-fetch-site": "same-origin" })).toEqual({
+			status: 200,
+			body: { token: TOKEN },
+		});
+		// Another localhost app (Vite would otherwise answer it with CORS headers).
+		expect(
+			(
+				await call(handler, "GET", {
+					...page,
+					origin: "http://localhost:3000",
+					"sec-fetch-site": "same-site",
+				})
+			).status,
+		).toBe(403);
+		// A tunnel, another machine, a relayed request.
+		expect((await call(handler, "GET", { ...page, host: "abc.ngrok.app" })).status).toBe(403);
+		expect((await call(handler, "GET", page, { remoteAddress: "192.168.1.20" })).status).toBe(403);
+		expect((await call(handler, "GET", { ...page, "x-forwarded-for": "1.2.3.4" })).status).toBe(
+			403,
+		);
+		expect((await call(handler, "POST", page)).status).toBe(405);
 	});
 
 	it("doesn't follow a symlink out of src/", async () => {

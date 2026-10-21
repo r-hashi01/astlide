@@ -30,11 +30,19 @@
 import { trailingSlash } from "@astlide/core/utils/base-path";
 
 const ENDPOINT = "/__astlide/source";
-/** The dev server's editor token, handed to dev pages (see `editorTokenScript`). */
-const authHeaders = (): Record<string, string> => ({
-	"x-astlide-editor-token":
-		(globalThis as { __astlideEditorToken?: string }).__astlideEditorToken ?? "",
-});
+const TOKEN_ENDPOINT = "/__astlide/editor-token";
+/** The dev server's editor token: fetched once, from the dev server's own origin. */
+let token: Promise<string> | null = null;
+async function authHeaders(): Promise<Record<string, string>> {
+	token ??= fetch(TOKEN_ENDPOINT, { cache: "no-store" })
+		.then((res) => (res.ok ? (res.json() as Promise<{ token?: string }>) : {}))
+		.then((data) => data.token ?? "")
+		.catch(() => "");
+	const value = await token;
+	// Not handed out (another machine, a tunnel): try again next time.
+	if (!value) token = null;
+	return { "x-astlide-editor-token": value };
+}
 const SOURCE_SAVED_EVENT = "astlide:source-saved";
 const DECK_CHANGED_EVENT = "astlide:deck-changed";
 /** Coalesce the burst of events after the content store committed a change… */
@@ -222,7 +230,7 @@ async function loadSource(): Promise<void> {
 	try {
 		const res = await fetch(`${ENDPOINT}?path=${encodeURIComponent(target.path)}`, {
 			cache: "no-store",
-			headers: authHeaders(),
+			headers: await authHeaders(),
 		});
 		const body = (await res.json()) as { content?: string; error?: string };
 		if (!res.ok || typeof body.content !== "string") throw new Error(body.error ?? res.statusText);
@@ -252,7 +260,7 @@ async function saveSource(): Promise<void> {
 		try {
 			const res = await fetch(ENDPOINT, {
 				method: "POST",
-				headers: { "Content-Type": "application/json", ...authHeaders() },
+				headers: { "Content-Type": "application/json", ...(await authHeaders()) },
 				body: JSON.stringify({ path, content }),
 			});
 			const body = (await res.json()) as { ok?: boolean; error?: string };
