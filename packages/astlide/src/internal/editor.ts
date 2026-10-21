@@ -232,7 +232,11 @@ async function loadSource(): Promise<void> {
 			cache: "no-store",
 			headers: await authHeaders(),
 		});
-		const body = (await res.json()) as { content?: string; error?: string };
+		const body = (await res.json()) as { content?: string; error?: string; locked?: boolean };
+		if (body.locked) {
+			if (state === target) setStatus(body.error ?? "", "error");
+			return;
+		}
 		if (!res.ok || typeof body.content !== "string") throw new Error(body.error ?? res.statusText);
 		// The panel may have moved to another slide while this was loading.
 		if (state !== target) return;
@@ -263,7 +267,12 @@ async function saveSource(): Promise<void> {
 				headers: { "Content-Type": "application/json", ...(await authHeaders()) },
 				body: JSON.stringify({ path, content }),
 			});
-			const body = (await res.json()) as { ok?: boolean; error?: string };
+			const body = (await res.json()) as { ok?: boolean; error?: string; locked?: boolean };
+			// Not enabled in this browser: say how, rather than "Couldn't save".
+			if (body.locked) {
+				if (state === current) setStatus(body.error ?? "", "error");
+				return;
+			}
 			if (!res.ok || !body.ok) throw new Error(body.error ?? res.statusText);
 			current.saved = content;
 			if (state === current) setStatus(isDirty() ? "Editing…" : "Saved", "ok");

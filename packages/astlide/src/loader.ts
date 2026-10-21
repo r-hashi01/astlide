@@ -42,6 +42,7 @@ import { glob } from "astro/loaders";
 import { load as parseYaml } from "js-yaml";
 import { stripTrailingComment } from "./utils/comment-notes";
 import { pptxAssetDir, storePptxAsset } from "./utils/pptx-assets";
+import { slideScriptsKept, stripSlideScripts } from "./utils/slide-scripts";
 
 /** Options for {@link astlideDeckLoader}. */
 export interface AstlideDeckLoaderOptions {
@@ -75,6 +76,32 @@ function splitFrontmatter(raw: string): { data: Record<string, unknown>; body: s
 	return { data, body: raw.slice(match[0].length) };
 }
 
+/**
+ * `context` whose store removes scripts from the rendered HTML of every
+ * Markdown, HTML and PowerPoint slide it is given (see utils/slide-scripts) —
+ * also the updates Astro's own Markdown loader makes later in `astro dev`.
+ * MDX slides are code and are left alone.
+ *
+ * @internal
+ */
+export function withoutSlideScripts(context: LoaderContext): LoaderContext {
+	const store = new Proxy(context.store, {
+		get(target, key) {
+			if (key === "set") {
+				return (entry: Parameters<typeof target.set>[0]) => {
+					const html = entry.rendered?.html;
+					if (typeof html === "string" && entry.filePath && !/\.mdx$/i.test(entry.filePath))
+						entry = { ...entry, rendered: { ...entry.rendered, html: stripSlideScripts(html) } };
+					return target.set(entry);
+				};
+			}
+			const value = Reflect.get(target, key, target);
+			return typeof value === "function" ? value.bind(target) : value;
+		},
+	});
+	return { ...context, store };
+}
+
 /** Guard against re-registering dev watcher listeners each time `load()` re-runs. */
 const wiredWatchers = new WeakSet<object>();
 
@@ -97,8 +124,12 @@ export function astlideDeckLoader(options: AstlideDeckLoaderOptions = {}): Loade
 
 	return {
 		name: "astlide-deck-loader",
-		async load(context) {
-			await markdownLoader.load(withoutMarkdownNotes(context));
+		async load(loaderContext) {
+			// Trailing-comment notes never reach the rendered body; scripts in Markdown /
+			// HTML / PowerPoint slides only run with `slideScripts: true`.
+			const withoutNotes = withoutMarkdownNotes(loaderContext);
+			const context = slideScriptsKept() ? withoutNotes : withoutSlideScripts(withoutNotes);
+			await markdownLoader.load(context);
 			const baseUrl = new URL(`${base.replace(/\/?$/, "/")}`, context.config.root);
 			await syncHtmlSlides(context, baseUrl);
 			await syncPptxSlides(context, baseUrl);
@@ -245,9 +276,10 @@ async function syncPptxSlides(context: LoaderContext, baseUrl: URL): Promise<voi
  * Read every `.html`/`.htm` file under `baseUrl`, store each as a pre-rendered
  * slide entry, and drop store entries whose HTML source has been deleted.
  *
- * HTML slides are first-party authored files (same trust level as `.mdx`), so
- * the body is stored verbatim — no sanitization — allowing inline `<style>`
- * and markup exactly as MDX slides already allow.
+ * The body is stored as written — inline `<style>` and any markup — except
+ * that scripts are removed from the rendered HTML unless the integration's
+ * `slideScripts` option is on (an HTML slide may be someone else's; see
+ * {@link withoutSlideScripts}).
  */
 async function syncHtmlSlides(context: LoaderContext, baseUrl: URL): Promise<void> {
 	const { store, parseData, generateDigest, config } = context;

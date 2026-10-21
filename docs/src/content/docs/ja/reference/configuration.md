@@ -40,6 +40,7 @@ export default defineConfig({
 | `injectIndexRoute` | `boolean` | 自動 | `/` にデッキの一覧を挿入します。独自の `src/pages/index.*` がある場合は自動的にスキップされます。 |
 | `drawings.persist` | `boolean` | `false` | ペンの描画を `localStorage` に保存し、再読み込み後も残します。[プレゼンテーション](/ja/guides/presenting/#描画を残す)を参照してください。 |
 | `notes` | `"public" \| "dev"` | `"dev"` | スピーカーノートをどこに含めるか。`"dev"` は `astro dev` のときと、`astlide export` が行うビルドにだけ含めます（PowerPoint の書き出しにはノートが入ります）。`astro build` でビルドしたページには含めません。`"public"` はすべてのページに含めるので、URL を知っている人なら誰でも読めます。[スピーカーノート](/ja/guides/decks/#スピーカーノート)を参照してください。 |
+| `slideScripts` | `boolean` | `false` | Markdown・HTML・PowerPoint のスライドにある `<script>`、イベント属性、`javascript:` の URL を実行するかどうか（`astro dev` でもビルドでも）。オフのときは、スライドを描画するときに取り除きます。スライドの内容は他人から受け取ったものかもしれず、`astro dev` ではスクリプトがスライドエディターと同じページで動いてしまうためです。MDX のスライドのスクリプトは常にそのまま動きます。内容を完全に信頼できるデッキだけオンにしてください。 |
 
 Astro 自体の [`base`](/ja/guides/deploy/) オプションにも従います。
 

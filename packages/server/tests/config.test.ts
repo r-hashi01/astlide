@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { exposureError, resolveOptions } from "../src/config";
-import { renderEnv } from "../src/render";
+import { renderEnv, renderFailure } from "../src/render";
 
 describe("exposureError", () => {
 	const open = { apiKey: undefined, allowUnauthenticated: false };
@@ -40,5 +40,34 @@ describe("renderEnv", () => {
 	it("lets them reach it when allowed", () => {
 		const env = renderEnv({ allowPrivateNetwork: true }, { ASTLIDE_PUBLIC_NETWORK_ONLY: "1" });
 		expect(env.ASTLIDE_PUBLIC_NETWORK_ONLY).toBeUndefined();
+	});
+	it("keeps Chromium's sandbox on unless turned off", () => {
+		expect(resolveOptions({}).chromiumSandbox).toBe(true);
+		expect(resolveOptions({ ASTLIDE_CHROMIUM_SANDBOX: "0" }).chromiumSandbox).toBe(false);
+		expect(renderEnv({}, {}).ASTLIDE_CHROMIUM_SANDBOX).toBe("1");
+		expect(renderEnv({ chromiumSandbox: false }, {}).ASTLIDE_CHROMIUM_SANDBOX).toBe("0");
+		// The server's setting wins over what its own environment says.
+		expect(
+			renderEnv({ chromiumSandbox: true }, { ASTLIDE_CHROMIUM_SANDBOX: "0" })
+				.ASTLIDE_CHROMIUM_SANDBOX,
+		).toBe("1");
+	});
+});
+
+describe("renderFailure", () => {
+	it("keeps the sandbox details for the server log", () => {
+		const log =
+			"Export failed: Chromium couldn't start its sandbox (it needs unprivileged user namespaces).\n  · Docker: run with --security-opt seccomp=…\n";
+		const failure = renderFailure(log, "/work/render-1");
+		expect(failure.client).toBe(
+			"render failed: Chromium couldn't start its sandbox — see the server log",
+		);
+		expect(failure.server).toMatch(/seccomp/);
+	});
+
+	it("passes other failures on, without the server's paths", () => {
+		const failure = renderFailure("Error in /work/render-1/src/x.md: bad\n", "/work/render-1");
+		expect(failure.client).toBe("render failed:\nError in <project>/src/x.md: bad");
+		expect(failure.server).toBeUndefined();
 	});
 });
