@@ -26,13 +26,28 @@ describe("isPublicAddress", () => {
 		"::ffff:a9fe:a9fe",
 		"64:ff9b::a9fe:a9fe",
 		"2001:db8::1",
+		"::127.0.0.1",
+		"::a9fe:a9fe",
+		"::ffff:0:127.0.0.1",
+		"64:ff9b:1::a00:1",
+		"2002:7f00:1::",
+		"2002:a9fe:a9fe::1",
+		"2001:0:4136:e378:8000:63bf:3fff:fdd2",
+		"100::1",
+		"fec0::1",
+		"3fff::1",
 		"not an ip",
 	])("refuses %s", (ip) => expect(isPublicAddress(ip)).toBe(false));
 
-	it.each(["8.8.8.8", "1.1.1.1", "172.32.0.1", "2606:4700:4700::1111", "::ffff:8.8.8.8"])(
-		"allows %s",
-		(ip) => expect(isPublicAddress(ip)).toBe(true),
-	);
+	it.each([
+		"8.8.8.8",
+		"1.1.1.1",
+		"172.32.0.1",
+		"2606:4700:4700::1111",
+		"::ffff:8.8.8.8",
+		"64:ff9b::808:808",
+		"2002:808:808::1",
+	])("allows %s", (ip) => expect(isPublicAddress(ip)).toBe(true));
 });
 
 describe("isPublicUrl", () => {

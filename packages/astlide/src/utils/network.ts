@@ -81,15 +81,25 @@ export function isPublicAddress(ip: string): boolean {
 	if (family !== 6) return false;
 	const g = v6Groups(ip);
 	if (!g) return false;
-	const [g0 = 0, g1 = 0, , , , g5 = 0, g6 = 0, g7 = 0] = g;
-	const embedded = `${g6 >> 8}.${g6 & 0xff}.${g7 >> 8}.${g7 & 0xff}`;
+	const [g0 = 0, g1 = 0, g2 = 0, , g4 = 0, g5 = 0, g6 = 0, g7 = 0] = g;
+	const quad = (hi: number, lo: number) => `${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`;
+	const embedded = quad(g6, g7);
 	if (g.slice(0, 7).every((x) => x === 0)) return false; // :: and ::1
 	if (g.slice(0, 5).every((x) => x === 0) && g5 === 0xffff) return v4Public(embedded); // ::ffff:a.b.c.d
-	if (g0 === 0x64 && g1 === 0xff9b) return v4Public(embedded); // NAT64
+	if (g.slice(0, 6).every((x) => x === 0)) return v4Public(embedded); // ::a.b.c.d (IPv4-compatible)
+	if (g.slice(0, 4).every((x) => x === 0) && g4 === 0xffff && g5 === 0) return v4Public(embedded); // ::ffff:0:a.b.c.d
+	// NAT64: the well-known 64:ff9b::/96 carries an IPv4 address; the rest of 64:ff9b::/32 (local-use) is refused.
+	if (g0 === 0x64 && g1 === 0xff9b)
+		return g.slice(2, 6).every((x) => x === 0) && v4Public(embedded);
+	if (g0 === 0x2002) return v4Public(quad(g1, g2)); // 6to4 carries an IPv4 address
+	if (g0 === 0x2001 && g1 === 0) return false; // Teredo
+	if (g0 === 0x0100 && g.slice(1, 4).every((x) => x === 0)) return false; // discard-only 100::/64
 	if ((g0 & 0xfe00) === 0xfc00) return false; // unique local fc00::/7
 	if ((g0 & 0xffc0) === 0xfe80) return false; // link-local fe80::/10
+	if ((g0 & 0xffc0) === 0xfec0) return false; // site-local fec0::/10 (deprecated)
 	if ((g0 & 0xff00) === 0xff00) return false; // multicast
 	if (g0 === 0x2001 && g1 === 0x0db8) return false; // documentation
+	if ((g0 & 0xfff0) === 0x3ff0) return false; // documentation 3fff::/20
 	return true;
 }
 
