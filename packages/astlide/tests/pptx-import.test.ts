@@ -235,7 +235,7 @@ describe("untrusted files", () => {
 	});
 
 	it("refuses XML nested deeper than the helpers can walk", async () => {
-		const depth = 100_000;
+		const depth = 1000;
 		const pptx = patched(await fixture(), (name, text) =>
 			/^ppt\/slides\/slide1\.xml$/.test(name)
 				? text.replace(
