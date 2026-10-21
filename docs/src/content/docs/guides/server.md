@@ -19,10 +19,11 @@ The image has everything a render needs: Node and Bun, Chromium for PDF / PNG, a
 ```bash
 docker build -f packages/server/Dockerfile -t astlide-server .
 export ASTLIDE_API_KEY="$(openssl rand -hex 24)"
-docker run --rm -p 8787:8787 -e ASTLIDE_API_KEY astlide-server
+docker run --rm -p 8787:8787 -e ASTLIDE_API_KEY \
+  --security-opt seccomp=packages/server/chromium-seccomp.json astlide-server
 ```
 
-The image listens on all interfaces, so it won't start without an API key (see [Security](#security)). Add `-H "Authorization: Bearer $ASTLIDE_API_KEY"` to the requests below — `/health` and `/openapi.json` need none.
+The image listens on all interfaces, so it won't start without an API key (see [Security](#security)). The seccomp profile lets Chromium run its sandbox for PDF / PNG (Docker's default profile plus the namespace calls the sandbox needs); without it, PDF / PNG renders fail rather than run unsandboxed. Add `-H "Authorization: Bearer $ASTLIDE_API_KEY"` to the requests below — `/health` and `/openapi.json` need none.
 
 ```bash
 curl localhost:8787/health
@@ -131,7 +132,7 @@ Environment variables:
 | `MAX_OUTPUT_MB` | `200` | Largest rendered file (PPTX, PDF or PNG ZIP); a bigger one is a 422. |
 | `RENDER_TIMEOUT_MS` | `180000` | A render (or the reading of an uploaded PowerPoint file) taking longer is stopped (504). |
 | `CONCURRENCY` / `MAX_QUEUE` | `2` / `16` | Renders at once, and how many may wait; more get 503 — before their upload is read. |
-| `ASTLIDE_CHROMIUM_SANDBOX` | `0` | `1` keeps Chromium's sandbox on for PDF / PNG (see [Security](#security)). |
+| `ASTLIDE_CHROMIUM_SANDBOX` | `1` | Chromium's sandbox for PDF / PNG. `0` turns it off — only where every caller is trusted (see [Security](#security)). |
 | `ASTLIDE_WORK_DIR` | `.astlide-work` next to `node_modules` | Where per-request projects are made. It must share a parent directory with the installed packages. |
 
 Errors are JSON `{ "error": "…" }`: 400 for bad input (checked before anything is built — e.g. a frontmatter value the slide schema rejects), 422 when the build or export fails, with the end of its log.
@@ -147,10 +148,12 @@ A request is someone else's slides: raw HTML in the Markdown is rendered as is, 
 
 - **An API key is required** to listen beyond loopback. Without `ASTLIDE_API_KEY` the server refuses to start unless `HOST` is `127.0.0.1` / `localhost` (or you set `ASTLIDE_ALLOW_UNAUTHENTICATED=1` because something else controls access).
 - **Slides can't reach your network.** During a render, the slides and the exporter may load only from the deck itself, `data:` / `blob:` URLs and public internet hosts. Loopback, private ranges (`10/8`, `172.16/12`, `192.168/16`, `fc00::/7` …), link-local addresses (including cloud metadata at `169.254.169.254`) and other reserved ranges are refused, on every redirect too; WebSockets and service workers are blocked. Set `ASTLIDE_ALLOW_PRIVATE_NETWORK=1` only if every caller is trusted and the slides need intranet resources.
-- The check resolves host names before each request; a host that changes its DNS answer between the check and the request (DNS rebinding) can still slip through. For a service exposed to untrusted callers, also restrict the container's outbound traffic (a firewall or egress policy that allows only the public internet).
+- Chromium doesn't connect to other hosts itself: Astlide makes those requests and hands it the responses. Addresses are checked as each connection is made, so the connection goes to the address that was checked — a host can't pass with one DNS answer and connect with another (DNS rebinding) — and every redirect hop is checked the same way. Requests that aren't routed this way go to a proxy that doesn't exist, and WebRTC sends no UDP of its own.
+- Defense in depth: for a service exposed to untrusted callers, also restrict the container's outbound traffic (a firewall or egress policy that allows only the public internet).
 - Remote images are capped at 20 MB and pages read for embed previews at 2 MB.
 - **Images must be URLs.** A Markdown image with a file path (`![](../x.png)`) is refused with a 400 — Astro would read it from the server's disk. Use `https:` or `data:` URLs.
 - Slides are written with their own frontmatter block, so a slide body that starts with `---` stays body and can't slip past the frontmatter checks. Frontmatter may not use YAML anchors / aliases (`&a` / `*a`), and is at most 256 KB per slide.
 - **Uploaded PowerPoint files** (`/import`, `/templates/layouts`) are read in a child process, through the same queue as renders: a file that takes longer than `RENDER_TIMEOUT_MS` is stopped (504), an answer over `MAX_OUTPUT_MB` is refused (422), and neither can stall the server itself.
-- **Chromium's sandbox** is off by default (Playwright turns it off; most containers don't allow the user namespaces it needs). Where they are allowed — e.g. Docker with a seccomp profile that permits `clone` / `unshare` of user namespaces, such as Chrome's — set `ASTLIDE_CHROMIUM_SANDBOX=1`: a bug in Chromium's renderer then stays inside the sandbox. Renders never see `ASTLIDE_API_KEY` either way.
+- **Chromium runs with its sandbox**, so a bug in its renderer stays inside it. The sandbox needs user namespaces: in Docker, run with `--security-opt seccomp=packages/server/chromium-seccomp.json` (Docker's default profile plus `clone` / `clone3` / `unshare` / `setns`); on a Linux host that restricts them (Ubuntu 24.04), allow them for Playwright's Chromium only with an AppArmor profile (see [Chromium sandbox on Linux](/guides/export/#chromium-sandbox-on-linux)) — not by turning the restriction off for the whole machine. Where the sandbox can't start, PDF / PNG renders fail with how to fix it — they never fall back to running without it. `ASTLIDE_CHROMIUM_SANDBOX=0` turns it off (the server warns at startup). Renders never see `ASTLIDE_API_KEY` either way. When the sandbox can't start, API clients get a short error and the details (what to change on the host) go to the server log.
+- The seccomp profile applies to the whole container — the Bun server and the Astro build of each request too — so code running there may also create user namespaces. Stricter, if you can set it up: run the renders in a container of their own with the profile, and the API server in one without it.
 - Without the key, every route but `/health`, `/openapi.json` and `/` answers 401, unknown ones included; the key is compared in constant time.

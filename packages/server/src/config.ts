@@ -29,7 +29,7 @@ export interface ServerOptions {
 	maxQueued: number;
 	/** Largest rendered file (PPTX, PDF or PNG zip), in bytes; a bigger one is a 422. */
 	maxOutputBytes: number;
-	/** Keep Chromium's sandbox on for PDF / PNG (`ASTLIDE_CHROMIUM_SANDBOX=1`; needs user namespaces). */
+	/** Chromium's sandbox for PDF / PNG: on unless `ASTLIDE_CHROMIUM_SANDBOX=0` (it needs user namespaces). */
 	chromiumSandbox: boolean;
 	/** When set, requests need `Authorization: Bearer <key>` (or `X-API-Key: <key>`). */
 	apiKey?: string;
@@ -98,7 +98,7 @@ export function resolveOptions(
 		concurrency: positive(env.CONCURRENCY, 2),
 		maxQueued: positive(env.MAX_QUEUE, 16),
 		maxOutputBytes: positive(env.MAX_OUTPUT_MB, 200) * 1024 * 1024,
-		chromiumSandbox: env.ASTLIDE_CHROMIUM_SANDBOX === "1",
+		chromiumSandbox: env.ASTLIDE_CHROMIUM_SANDBOX !== "0",
 		apiKey: env.ASTLIDE_API_KEY || undefined,
 		publicUrl: (env.PUBLIC_URL && trimTrailingSlashes(env.PUBLIC_URL)) || undefined,
 		allowPrivateNetwork: env.ASTLIDE_ALLOW_PRIVATE_NETWORK === "1",

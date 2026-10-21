@@ -58,6 +58,21 @@ function summarize(log: string, root: string): string {
 		.join("\n");
 }
 
+/**
+ * Why a render failed, for the client — and, when that would tell the client
+ * about the server itself (Chromium's sandbox couldn't start: how the host
+ * or container is set up), the detail for the server's log instead.
+ */
+export function renderFailure(log: string, root: string): { client: string; server?: string } {
+	const summary = summarize(log, root);
+	if (/couldn't start its sandbox/i.test(log))
+		return {
+			client: "render failed: Chromium couldn't start its sandbox — see the server log",
+			server: `Chromium couldn't start its sandbox:\n${summary}`,
+		};
+	return { client: `render failed:\n${summary}` };
+}
+
 export interface RenderOptions {
 	cli: string;
 	bun: string;
@@ -68,7 +83,7 @@ export interface RenderOptions {
 	maxSlides?: number;
 	/** Largest rendered file, in bytes. */
 	maxOutputBytes?: number;
-	/** Keep Chromium's sandbox on. */
+	/** Chromium's sandbox (default on; `false` turns it off). */
 	chromiumSandbox?: boolean;
 }
 
@@ -113,7 +128,11 @@ export async function renderProject(
 					new RenderTimeout(`render took longer than ${Math.round(options.timeoutMs / 1000)}s`),
 				);
 			else if (code === 0) resolve();
-			else reject(new RenderFailed(`render failed:\n${summarize(log, root)}`));
+			else {
+				const failure = renderFailure(log, root);
+				if (failure.server) console.error(`astlide-server: ${failure.server}`);
+				reject(new RenderFailed(failure.client));
+			}
 		});
 	});
 
@@ -162,8 +181,7 @@ export function renderEnv(
 	};
 	delete out.ASTLIDE_API_KEY;
 	if (options.maxSlides) out.ASTLIDE_MAX_SLIDES = String(options.maxSlides);
-	if (options.chromiumSandbox) out.ASTLIDE_CHROMIUM_SANDBOX = "1";
-	else delete out.ASTLIDE_CHROMIUM_SANDBOX;
+	out.ASTLIDE_CHROMIUM_SANDBOX = options.chromiumSandbox === false ? "0" : "1";
 	if (options.allowPrivateNetwork) delete out.ASTLIDE_PUBLIC_NETWORK_ONLY;
 	else out.ASTLIDE_PUBLIC_NETWORK_ONLY = "1";
 	return out;
