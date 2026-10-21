@@ -23,7 +23,7 @@ import { resolveFavicon } from "./utils/favicon";
 import { astlideMermaid } from "./utils/mermaid";
 import { PPTX_ASSET_ROUTE, pptxAssetDir } from "./utils/pptx-assets";
 import { astlideTemplatesPlugin, type LoadedTemplate, loadTemplate } from "./utils/pptx-templates";
-import { setSlideScripts } from "./utils/slide-scripts";
+import { astlideSlideScriptsPlugin, setSlideScripts, stripBuiltPages } from "./utils/slide-scripts";
 
 // Re-export the typed deck/slide metadata API
 export type { DeckContext } from "./context";
@@ -456,6 +456,8 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 							astlideTemplatesPlugin(templates, (t) =>
 								loadTemplate(t.theme, t.source, root, config.base),
 							) as never,
+							// Dev only: slide scripts also leave the final HTML responses.
+							...(options.slideScripts ? [] : [astlideSlideScriptsPlugin(slideMark) as never]),
 							// Dev-only (apply: "serve"): read/write endpoint for the `e` slide editor.
 							astlideEditorPlugin(
 								fileURLToPath(config.root),
@@ -595,6 +597,12 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 			// scripts Astlide and Astro put on pages, in place of 'unsafe-inline'
 			// (slide scripts only with slideScripts; see utils/csp-hashes).
 			"astro:build:done": async ({ dir, logger }) => {
+				// Slide scripts leave the final pages too — also what Astro added after
+				// the loader (see utils/slide-scripts) — before the CSP pass.
+				if (!options.slideScripts) {
+					const checked = await stripBuiltPages(fileURLToPath(dir), slideMark);
+					if (checked) logger.info(`Slide content checked for scripts in ${checked} page(s)`);
+				}
 				const { pages, blocked } = await hashBuiltPages(fileURLToPath(dir), {
 					mark: slideMark,
 					slideScripts: options.slideScripts,

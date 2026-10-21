@@ -40,9 +40,13 @@ import { fileURLToPath } from "node:url";
 import type { Loader, LoaderContext } from "astro/loaders";
 import { glob } from "astro/loaders";
 import { load as parseYaml } from "js-yaml";
-import { stripTrailingComment } from "./utils/comment-notes";
+import {
+	extractCommentNotes,
+	stripTrailingComment,
+	withoutNotesComment,
+} from "./utils/comment-notes";
 import { pptxAssetDir, storePptxAsset } from "./utils/pptx-assets";
-import { slideScriptsKept, stripSlideScripts } from "./utils/slide-scripts";
+import { SLIDE_SCRIPTS_VERSION, slideScriptsKept, stripSlideScripts } from "./utils/slide-scripts";
 
 /** Options for {@link astlideDeckLoader}. */
 export interface AstlideDeckLoaderOptions {
@@ -85,21 +89,45 @@ function splitFrontmatter(raw: string): { data: Record<string, unknown>; body: s
  * @internal
  */
 export function withoutSlideScripts(context: LoaderContext): LoaderContext {
-	const store = new Proxy(context.store, {
-		get(target, key) {
-			if (key === "set") {
-				return (entry: Parameters<typeof target.set>[0]) => {
-					const html = entry.rendered?.html;
-					if (typeof html === "string" && entry.filePath && !/\.mdx$/i.test(entry.filePath))
-						entry = { ...entry, rendered: { ...entry.rendered, html: stripSlideScripts(html) } };
-					return target.set(entry);
-				};
-			}
-			const value = Reflect.get(target, key, target);
-			return typeof value === "function" ? value.bind(target) : value;
-		},
-	});
-	return { ...context, store };
+	const { store } = context;
+	// Entries cleaned by this version carry it in their digest; others (cached
+	// before, or with `slideScripts` on) look changed, so they are rendered again.
+	const MARK = `:scripts-${SLIDE_SCRIPTS_VERSION}`;
+	const content = (filePath: string | undefined) => !!filePath && !/\.mdx$/i.test(filePath);
+	const set: typeof store.set = (entry) => {
+		const html = entry.rendered?.html;
+		if (typeof html !== "string" || !entry.rendered || !content(entry.filePath))
+			return store.set(entry);
+		return store.set({
+			...entry,
+			rendered: { ...entry.rendered, html: stripSlideScripts(html) },
+			digest: entry.digest === undefined ? undefined : `${entry.digest}${MARK}`,
+		});
+	};
+	const get = ((key: string) => {
+		const entry = store.get(key);
+		if (!entry || typeof entry.digest !== "string" || !content(entry.filePath)) return entry;
+		return entry.digest.endsWith(MARK)
+			? { ...entry, digest: entry.digest.slice(0, -MARK.length) }
+			: { ...entry, digest: undefined };
+	}) as typeof store.get;
+	return {
+		...context,
+		store: new Proxy(store, {
+			get: (target, key) => {
+				if (key === "set") return set;
+				if (key === "get") return get;
+				const value = Reflect.get(target, key, target);
+				return typeof value === "function" ? value.bind(target) : value;
+			},
+		}),
+	};
+}
+
+/** An HTML slide's body without its trailing notes comment. */
+function htmlWithoutNotes(body: string): string {
+	const notes = extractCommentNotes(body);
+	return (notes === undefined ? null : withoutNotesComment(body, notes)) ?? body;
 }
 
 /** Guard against re-registering dev watcher listeners each time `load()` re-runs. */
@@ -167,9 +195,14 @@ export function astlideDeckLoader(options: AstlideDeckLoaderOptions = {}): Loade
 export function withoutMarkdownNotes(context: LoaderContext): LoaderContext {
 	const { store } = context;
 	const MARK = ":notes-out";
-	const set: typeof store.set = (entry) => {
+	/** The rendered HTML without the notes comment, or null when it has none. */
+	const withoutNotes = (entry: { body?: string; rendered?: { html?: string } }) => {
+		const notes = entry.body === undefined ? undefined : extractCommentNotes(entry.body);
 		const html = entry.rendered?.html;
-		const stripped = html === undefined ? null : stripTrailingComment(html);
+		return notes === undefined || html === undefined ? null : withoutNotesComment(html, notes);
+	};
+	const set: typeof store.set = (entry) => {
+		const stripped = withoutNotes(entry);
 		if (stripped === null || !entry.rendered) return store.set(entry);
 		return store.set({
 			...entry,
@@ -184,10 +217,12 @@ export function withoutMarkdownNotes(context: LoaderContext): LoaderContext {
 		if (!entry || typeof entry.digest !== "string") return entry;
 		if (entry.digest.endsWith(MARK))
 			return { ...entry, digest: entry.digest.slice(0, -MARK.length) };
-		const html = entry.rendered?.html;
-		return html !== undefined && stripTrailingComment(html) !== null
-			? { ...entry, digest: undefined }
-			: entry;
+		// Without a body to read the notes from, any trailing comment counts.
+		const cached =
+			entry.body === undefined
+				? entry.rendered?.html !== undefined && stripTrailingComment(entry.rendered.html) !== null
+				: withoutNotes(entry) !== null;
+		return cached ? { ...entry, digest: undefined } : entry;
 	}) as typeof store.get;
 	return {
 		...context,
@@ -316,7 +351,7 @@ async function syncHtmlSlides(context: LoaderContext, baseUrl: URL): Promise<voi
 			digest: generateDigest(raw),
 			// `render(entry)` returns a component that emits this HTML directly —
 			// without the trailing notes comment, which is read from `body`.
-			rendered: { html: stripTrailingComment(body) ?? body },
+			rendered: { html: htmlWithoutNotes(body) },
 		});
 	}
 
