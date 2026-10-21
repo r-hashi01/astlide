@@ -1,5 +1,19 @@
 # @astlide/engine
 
+## 0.1.2
+
+### Patch Changes
+
+- [#159](https://github.com/r-hashi01/astlide/pull/159) [`01c0b37`](https://github.com/r-hashi01/astlide/commit/01c0b374695aa46d23776c0fe735c4f24fa47e9b) Thanks [@r-hashi01](https://github.com/r-hashi01)! - The docs moved to https://astlide.dev/ (package `homepage`, README links).
+
+- [#184](https://github.com/r-hashi01/astlide/pull/184) [`834d12f`](https://github.com/r-hashi01/astlide/commit/834d12f7ceb7c4dcdad65b5d6d5988ba6edf7495) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Hardening: `<astlide-deck>` (and the React / Vue wrappers) only loads `http(s)` or relative `src` URLs; presenter sync checks incoming messages and is scoped to the site's base path; `sanitizeHTML` now works on a parsed tree (unterminated tags and encoded `javascript:` URLs no longer get through) and the client-side notes sanitizer keeps only allowlisted attributes; the engine's `distFile` and same-site iframes / stylesheets stay inside `dist` (a sibling folder like `dist-old` no longer counts).
+
+- [#167](https://github.com/r-hashi01/astlide/pull/167) [`d05498f`](https://github.com/r-hashi01/astlide/commit/d05498f027e646637ab776347796a7f4fcb3a444) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Hardening from the first CodeQL scan: KaTeX output is sanitized on a parsed tree (script elements however spelled, `on*` handlers, `javascript:` / `vbscript:` URLs even when entity-encoded); slide titles from HTML headings remove one level of escaping, not two; CSS font parsing and trailing-slash trimming no longer use backtracking-prone regexes; table cells in MCP imports escape backslashes too.
+
+- [#191](https://github.com/r-hashi01/astlide/pull/191) [`e063de7`](https://github.com/r-hashi01/astlide/commit/e063de75ca23dedaf345e357291e7c0d539e0231) Thanks [@r-hashi01](https://github.com/r-hashi01)! - PPTX export is sturdier against the pages and images a deck points to: embed-card links are http(s) only, page tags are read with a parser (linear time), URLs a remote response chose (an advertised oEmbed endpoint, thumbnails, `og:image`, redirects from a public server) must be public addresses, an embed or SVG that fails no longer aborts the export, SVG pictures above 50 megapixels are skipped, control characters XML can't hold are dropped, and Google Fonts downloads have a size cap and timeout.
+
+- [#183](https://github.com/r-hashi01/astlide/pull/183) [`8b5dc4e`](https://github.com/r-hashi01/astlide/commit/8b5dc4ea75faf61d08a68b6b8d26e98bb935013c) Thanks [@r-hashi01](https://github.com/r-hashi01)! - SVG rasterized for PPTX export (remote SVG images, inline SVG) only draws in-document references and inline PNG / JPEG / GIF / WebP images; other image links, including file paths, are dropped.
+
 ## 0.1.1
 
 ### Patch Changes

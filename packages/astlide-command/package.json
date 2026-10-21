@@ -1,6 +1,6 @@
 {
 	"name": "astlide",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"description": "The astlide command (export, import, MCP server) — runs the CLI of @astlide/core",
 	"type": "module",
 	"bin": {
@@ -25,6 +25,6 @@
 		"access": "public"
 	},
 	"dependencies": {
-		"@astlide/core": "^2.7.1"
+		"@astlide/core": "^2.8.0"
 	}
 }
