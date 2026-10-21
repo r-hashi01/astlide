@@ -225,7 +225,8 @@ export async function launchChromium() {
 		if (sandbox && /sandbox|namespace|zygote/i.test(err.message)) {
 			throw new Error(
 				"Chromium couldn't start its sandbox (it needs unprivileged user namespaces).\n" +
-					"  · Linux (e.g. Ubuntu 24.04): sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0\n" +
+					"  · Linux (e.g. Ubuntu 24.04): allow them for Playwright's Chromium only, with an AppArmor profile:\n" +
+					"    https://astlide.dev/guides/export/#chromium-sandbox-on-linux\n" +
 					"  · Docker: run with --security-opt seccomp=<the Chromium profile> (see the render service guide)\n" +
 					"  · Or, only where the slides are your own: ASTLIDE_CHROMIUM_SANDBOX=0\n" +
 					`(${err.message.split("\n")[0]})`,

@@ -18,7 +18,7 @@ bunx astlide export --all --pdf --pptx      # every deck, both formats
 
 - **PDF / PNG** はヘッドレスブラウザで描画します（[Playwright](https://playwright.dev) を使います。最初に一度 `bunx playwright install chromium` を実行してください）。`astlide export` がサイトをビルドし、空いているポートで配信してから書き出すので、サーバーを起動しておく必要はありません。Astro の [`base`](/ja/guides/deploy/) も自動的に反映されます。各スライドは最終状態（フラグメントとコードのステップをすべて適用した状態）で出力され、図の描画が終わるのを待ってから書き出されます。
 
-  描画中の Chromium はサンドボックスの中で動きます。Linux ではこれに特権なしのユーザー名前空間が必要です。システムが制限している場合（Ubuntu 24.04 や多くのコンテナ）は、許可する方法を示して書き出しが止まります。`ASTLIDE_CHROMIUM_SANDBOX=0` でサンドボックスを無効にできますが、内容を信頼できるデッキだけにしてください。
+  描画中の Chromium はサンドボックスの中で動きます。Linux ではこれに特権なしのユーザー名前空間が必要です。システムが制限している場合（Ubuntu 24.04 や多くのコンテナ）は、Chromium にだけ許可する方法を示して書き出しが止まります（[Linux での Chromium のサンドボックス](#linux-での-chromium-のサンドボックス)を参照）。`ASTLIDE_CHROMIUM_SANDBOX=0` でサンドボックスを無効にできますが、内容を信頼できるデッキだけにしてください。
 - **PPTX** はブラウザを使いません。ビルドしたスライドを Astlide 独自の CSS レイアウトエンジンで配置し、PowerPoint の図形と編集できるテキストボックスとして書き出します。テーマが読み込むフォントはファイルに埋め込まれるので、そのフォントが入っていない PC の PowerPoint でも同じフォントで表示されます（ライセンスで埋め込みが禁止されているフォントは除きます）。表は PowerPoint の表になり、ボックス、CSS の `::before` / `::after` のテキスト、単純なインライン SVG の図（四角形、円、線と矢印、パス、テキスト）は編集できる図形になります。Mermaid の図もブラウザなしで（プロジェクトにインストールされた `mermaid` で）描画して画像として配置します。それ以上の要素（グラデーション、円弧など）を使う SVG の図も画像になります。PNG と SVG の画像はそのまま含まれます。
 
 | オプション | |
@@ -58,6 +58,29 @@ astlide({
 ```
 
 テーマが読み込んだフォントは PPTX に埋め込まれるので、Noto Sans JP がインストールされていない PC の PowerPoint でも同じフォントで表示されます。
+
+## Linux での Chromium のサンドボックス
+
+PDF / PNG の書き出しは Chromium のサンドボックスを有効にしたまま動きます。Linux では、このサンドボックスに特権なしのユーザー名前空間が必要です。Ubuntu 23.10 以降（と、AppArmor の制限を有効にしているほかのディストリビューション）では、AppArmor のプロファイルで許可したプログラムしかユーザー名前空間を作れません。マシン全体の制限を外すのではなく、Ubuntu が Google Chrome に対してしているのと同じように、Playwright の Chromium にだけプロファイルを用意してください。
+
+```text title="/etc/apparmor.d/astlide-chromium"
+abi <abi/4.0>,
+include <tunables/global>
+
+profile astlide-chromium @{HOME}/.cache/ms-playwright/chromium-*/chrome-linux*/chrome flags=(unconfined) {
+  userns,
+
+  include if exists <local/astlide-chromium>
+}
+```
+
+```bash
+sudo apparmor_parser -r /etc/apparmor.d/astlide-chromium
+```
+
+パスは `bunx playwright install chromium` が Chromium を置く場所です。`PLAYWRIGHT_BROWSERS_PATH` を設定している場合は、そのフォルダーに置き換えてください。このプロファイルは、その実行ファイル 1 つにだけユーザー名前空間の作成（サンドボックスに必要なもの）を許可し、ほかには影響しません。
+
+Docker では、描画サーバーの seccomp プロファイルを使ってください（[描画サーバー](/ja/guides/server/#セキュリティ)を参照）。代わりに `ASTLIDE_CHROMIUM_SANDBOX=0` でサンドボックスを無効にすることもできますが、内容を信頼できるデッキだけにしてください。
 
 ## ブラウザ内での PDF 生成（実験的機能）
 
