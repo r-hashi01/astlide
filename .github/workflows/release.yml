@@ -37,7 +37,8 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       # This job can publish to npm and push, so it installs exactly the reviewed
-      # lockfile and runs no dependency lifecycle scripts (publishing builds nothing).
+      # lockfile and runs no dependency lifecycle scripts. (Our own packages'
+      # scripts still run: create-astlide builds itself in prepublishOnly.)
       - run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Create Release Pull Request or Publish
