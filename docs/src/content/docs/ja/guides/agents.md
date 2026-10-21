@@ -22,9 +22,9 @@ description: Claude Code、Codex、Gemini CLI にデッキを書かせ、チェ�
 | `template_layouts` | `templatePath`（`.pptx` / `.potx` / `.thmx`） | テンプレートのレイアウト（`slideLayout` に使う ID、PowerPoint での名前と種類、タイトル / 本文 / スライド番号のプレースホルダー、各レイアウトで描画される組み込みレイアウト（`cover`、`section`、`default`、`two-column`、`code`））と、テーマの色とフォント |
 | `import_pptx` | `path`、省略可能な `projectRoot`、`deck`、`force`、`includeHtml` | 各スライドのタイトル、スピーカーノート、Markdown にしたテキスト。`projectRoot` を指定すると、[`astlide import`](/ja/guides/import/) と同じように編集可能なデッキも書き出します |
 | `check_deck` | `projectRoot`、`deck`、省略可能な `build` | スライドごとの、収まっていないテキストやボックス（後述） |
-| `render_deck` | `projectRoot`、`deck`、`formats`（`pptx`、`pdf`）、省略可能な `outDir`、`build` | [`astlide export`](/ja/guides/export/) と同じように書き出したファイルのパス |
+| `render_deck` | `projectRoot`、`deck`、`formats`（`pptx`、`pdf`）、省略可能な `outDir`（プロジェクト内）、`build` | [`astlide export`](/ja/guides/export/) と同じように書き出したファイルのパス |
 
-`check_deck` と `render_deck` はサイトを自分でビルドするので（`check_deck` は `dist/` がデッキより古い場合のみ）、開発サーバーは不要です。PDF のエクスポートには Playwright の Chromium（`bunx playwright install chromium`）が必要です。
+`check_deck` と `render_deck` はサイトを自分でビルドするので（`check_deck` は `dist/` がデッキより古い場合のみ）、開発サーバーは不要です。ビルドではプロジェクトの Astro 設定が実行されるため、どちらのツールも読み取り専用とは申告していません。`check_deck` に `build: false` を指定すると、読み取りだけを行います。PDF のエクスポートには Playwright の Chromium（`bunx playwright install chromium`）が必要です。
 
 ### Claude Code
 

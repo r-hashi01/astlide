@@ -22,9 +22,9 @@ Each call names the Astlide project to work on, and uses that project's own `@as
 | `template_layouts` | `templatePath` (`.pptx` / `.potx` / `.thmx`) | The template's layouts: the id to use as `slideLayout`, PowerPoint name and type, title / body / slide-number placeholders, and which built-in layouts (`cover`, `section`, `default`, `two-column`, `code`) are drawn with each; theme colors and fonts |
 | `import_pptx` | `path`, optional `projectRoot`, `deck`, `force`, `includeHtml` | Each slide's title, speaker notes and text as Markdown. With `projectRoot`, also writes an editable deck, like [`astlide import`](/guides/import/) |
 | `check_deck` | `projectRoot`, `deck`, optional `build` | Text and boxes that don't fit, per slide (below) |
-| `render_deck` | `projectRoot`, `deck`, `formats` (`pptx`, `pdf`), optional `outDir`, `build` | The exported files' paths, as [`astlide export`](/guides/export/) writes them |
+| `render_deck` | `projectRoot`, `deck`, `formats` (`pptx`, `pdf`), optional `outDir` (inside the project), `build` | The exported files' paths, as [`astlide export`](/guides/export/) writes them |
 
-`check_deck` and `render_deck` build the site themselves (`check_deck` only when `dist/` is older than the deck), so no dev server is needed. PDF export needs Playwright's Chromium (`bunx playwright install chromium`).
+`check_deck` and `render_deck` build the site themselves (`check_deck` only when `dist/` is older than the deck), so no dev server is needed. Building runs the project's Astro config, so neither tool is marked read-only; `check_deck` with `build: false` only reads. PDF export needs Playwright's Chromium (`bunx playwright install chromium`).
 
 ### Claude Code
 

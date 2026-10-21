@@ -104,7 +104,10 @@ export function createServer(): McpServer {
 					.array(z.enum(["pptx", "pdf"]))
 					.min(1)
 					.describe("Formats to write"),
-				outDir: z.string().optional().describe("Output folder (default: <projectRoot>/exports)"),
+				outDir: z
+					.string()
+					.optional()
+					.describe("Output folder inside the project (default: <projectRoot>/exports)"),
 				build: z
 					.boolean()
 					.optional()
@@ -119,7 +122,7 @@ export function createServer(): McpServer {
 		{
 			title: "Check a deck's layout",
 			description:
-				"Lay out a deck's slides (1920×1080, the same layout engine as the PowerPoint export) and report text and boxes that don't fit: cut off by the slide or an `overflow: hidden` box (text-clipped / box-clipped), spilling out of their box or the slide's content area (text-overflow / box-overflow), or outside the slide (off-slide) — with the slide number and title, the text, and by how many px on which side. Fix each one (shorten the text, split the slide, use a roomier layout) and check again. Builds the site when dist/ is missing or older than the deck's files.",
+				"Lay out a deck's slides (1920×1080, the same layout engine as the PowerPoint export) and report text and boxes that don't fit: cut off by the slide or an `overflow: hidden` box (text-clipped / box-clipped), spilling out of their box or the slide's content area (text-overflow / box-overflow), or outside the slide (off-slide) — with the slide number and title, the text, and by how many px on which side. Fix each one (shorten the text, split the slide, use a roomier layout) and check again. Builds the site when dist/ is missing or older than the deck's files (running the project's Astro config and writing dist/); build: false only reads.",
 			inputSchema: {
 				projectRoot,
 				deck,
@@ -128,7 +131,8 @@ export function createServer(): McpServer {
 					.optional()
 					.describe('Build first: true always, false never, "auto" (default) when out of date'),
 			},
-			annotations: { readOnlyHint: true },
+			// Not read-only: building runs the project's code and writes dist/.
+			annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
 		},
 		(args) =>
 			guarded(async () => {

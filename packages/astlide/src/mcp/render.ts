@@ -6,7 +6,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { deckDir, projectRoot, runAstlide } from "./project";
 
 export type RenderFormat = "pptx" | "pdf";
@@ -15,7 +15,7 @@ export interface RenderOptions {
 	projectRoot: string;
 	deck: string;
 	formats: RenderFormat[];
-	/** Where the files go (default: `<projectRoot>/exports`). */
+	/** Where the files go, inside the project (default: `<projectRoot>/exports`). */
 	outDir?: string;
 	/** Build the site first (default true); false reuses `dist/`. */
 	build?: boolean;
@@ -42,10 +42,22 @@ export function exportArgs(options: RenderOptions, outDir: string): string[] {
 	];
 }
 
+/**
+ * The output folder for a render: `outDir` resolved against the project
+ * root, which it must stay inside — an agent can't write files elsewhere.
+ */
+export function outputDir(root: string, outDir = "exports"): string {
+	const dir = resolve(root, outDir);
+	const rel = relative(root, dir);
+	if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel))
+		throw new Error(`outDir must be inside the project (${root}), not ${dir}`);
+	return dir;
+}
+
 export async function renderDeck(options: RenderOptions): Promise<RenderResult> {
 	const root = projectRoot(options.projectRoot);
 	deckDir(root, options.deck);
-	const outDir = resolve(root, options.outDir ?? "exports");
+	const outDir = outputDir(root, options.outDir);
 	const r = await runAstlide(root, exportArgs(options, outDir));
 	const log = `${r.stdout}${r.stderr}`.trim();
 	if (r.code !== 0) {

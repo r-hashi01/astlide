@@ -16,7 +16,7 @@ import PptxGenJS from "pptxgenjs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { checkSlide, siteView } from "../src/mcp/check";
 import { importPptx, readPptx } from "../src/mcp/import";
-import { exportArgs } from "../src/mcp/render";
+import { exportArgs, outputDir } from "../src/mcp/render";
 import { createServer } from "../src/mcp/server-def";
 import { templateLayouts } from "../src/mcp/template";
 
@@ -202,6 +202,15 @@ describe("render_deck", () => {
 		).toContain("--no-build");
 		expect(() => exportArgs({ projectRoot: "/p", deck: "talk", formats: [] }, "/o")).toThrow();
 	});
+
+	it("keeps the output folder inside the project", () => {
+		expect(outputDir("/p")).toBe(join("/p", "exports"));
+		expect(outputDir("/p", "out/slides")).toBe(join("/p", "out", "slides"));
+		expect(outputDir("/p", "/p/out")).toBe(join("/p", "out"));
+		expect(outputDir("/p", "..data")).toBe(join("/p", "..data"));
+		for (const bad of ["..", "../x", "out/../../x", "/tmp/x", "/p-other/x"])
+			expect(() => outputDir("/p", bad), bad).toThrow(/inside the project/);
+	});
 });
 
 describe("check_deck", () => {
@@ -281,6 +290,21 @@ describe("siteView", () => {
 		writeFileSync(page, '<link rel="stylesheet" href="/_astro/a.css">');
 		expect(siteView(page, dist).dir).toBe(dist);
 	});
+
+	it("links nothing outside its temporary folder", () => {
+		const dist = mkdtempSync(join(tmpdir(), "astlide-mcp-dist-"));
+		mkdirSync(join(dist, "_astro"));
+		writeFileSync(join(dist, "_astro", "a.css"), "body{}");
+		const page = join(dist, "index.html");
+		for (const href of [
+			"/../../escape/_astro/a.css",
+			"/./x/_astro/a.css",
+			"/a\\..\\b/_astro/a.css",
+		]) {
+			writeFileSync(page, `<link rel="stylesheet" href="${href}">`);
+			expect(siteView(page, dist).dir, href).toBe(dist);
+		}
+	});
 });
 
 describe("MCP server", () => {
@@ -309,6 +333,8 @@ describe("MCP server", () => {
 			name: "check_deck",
 			arguments: { projectRoot: dir, deck: "nope" },
 		});
+		const check = tools.find((t) => t.name === "check_deck");
+		expect(check?.annotations?.readOnlyHint).toBe(false);
 		expect(bad.isError).toBe(true);
 		expect(existsSync(join(dir, "dist"))).toBe(false);
 		await client.close();
