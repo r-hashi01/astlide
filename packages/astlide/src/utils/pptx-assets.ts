@@ -14,13 +14,16 @@ import { fileURLToPath } from "node:url";
 /** URL path the files are served under (after Astro's `base`). */
 export const PPTX_ASSET_ROUTE = "/_astlide/pptx";
 
-/** Content types by extension, for the files the importer emits. */
+/**
+ * Content types by extension, for the files the importer emits. No SVG: the
+ * importer inlines SVG pictures, and the route serves nothing that can run
+ * script on the site's origin.
+ */
 export const PPTX_ASSET_TYPES: Record<string, string> = {
 	".png": "image/png",
 	".jpg": "image/jpeg",
 	".jpeg": "image/jpeg",
 	".gif": "image/gif",
-	".svg": "image/svg+xml",
 	".webp": "image/webp",
 	".bmp": "image/bmp",
 	".ttf": "font/ttf",

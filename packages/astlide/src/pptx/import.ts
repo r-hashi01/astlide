@@ -53,6 +53,8 @@ export interface PptxImportOptions {
 	 * Where pictures and embedded fonts go: called once per file, returns the
 	 * URL to use. Default: pictures as inline `data:` URLs (self-contained
 	 * HTML) and embedded fonts left out (they'd be repeated in every slide).
+	 * SVG pictures are always inlined as `data:` URLs: an SVG file served
+	 * from the site would run any script it holds when opened directly.
 	 */
 	media?: (file: { name: string; data: Buffer; type: string }) => string;
 	/** Canvas size in px (default 1920×1080); other slide ratios are letterboxed. */
@@ -421,9 +423,10 @@ export function openPresentation(data: Uint8Array, options: PptxImportOptions = 
 		const type = MIME[ext];
 		let url: string | null = null;
 		if (bytes && type) {
-			url = options.media
-				? options.media({ name: posix.basename(part), data: bytes, type })
-				: `data:${type};base64,${bytes.toString("base64")}`;
+			url =
+				options.media && type !== "image/svg+xml"
+					? options.media({ name: posix.basename(part), data: bytes, type })
+					: `data:${type};base64,${bytes.toString("base64")}`;
 		}
 		mediaUrls.set(part, url);
 		return url;
