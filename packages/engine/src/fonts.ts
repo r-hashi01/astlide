@@ -86,6 +86,38 @@ export function loadFontFaces(fonts: FontRegistry, css: string, dist: string): S
 	return loaded;
 }
 
+/** Largest Google Fonts stylesheet and font file downloaded, in bytes, and how long each may take. */
+const CSS_LIMIT = 1024 * 1024;
+const FONT_LIMIT = 32 * 1024 * 1024;
+const DOWNLOAD_TIMEOUT = 30_000;
+
+/** A response body of at most `limit` bytes, or null (failed, too large, timed out). */
+async function download(url: string, limit: number): Promise<Buffer | null> {
+	try {
+		const res = await fetch(url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT) });
+		if (!res.ok || Number(res.headers.get("content-length") ?? 0) > limit) {
+			await res.body?.cancel();
+			return null;
+		}
+		const chunks: Uint8Array[] = [];
+		let size = 0;
+		const reader = res.body?.getReader();
+		while (reader) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			size += value.byteLength;
+			if (size > limit) {
+				await reader.cancel();
+				return null;
+			}
+			chunks.push(value);
+		}
+		return Buffer.concat(chunks);
+	} catch {
+		return null;
+	}
+}
+
 /**
  * Register `families` from Google Fonts (regular weights + italics where
  * available). Families Google doesn't have are skipped and returned.
@@ -105,15 +137,15 @@ export async function loadGoogleFonts(
 				const file = join(cacheDir, `${family.replace(/\W+/g, "-")}-${w}${italic ? "i" : ""}.ttf`);
 				if (!existsSync(file)) {
 					const axis = italic ? `ital,wght@1,${w}` : `wght@${w}`;
-					const css = await fetch(
+					const css = await download(
 						`https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}:${axis}`,
-					).catch(() => null);
-					if (!css?.ok) continue;
-					const url = (await css.text()).match(/url\((https:[^)]+\.ttf)\)/)?.[1];
+						CSS_LIMIT,
+					);
+					const url = css?.toString("utf-8").match(/url\((https:[^)]+\.ttf)\)/)?.[1];
 					if (!url) continue;
-					const ttf = await fetch(url);
-					if (!ttf.ok) continue;
-					writeFileSync(file, Buffer.from(await ttf.arrayBuffer()));
+					const ttf = await download(url, FONT_LIMIT);
+					if (!ttf) continue;
+					writeFileSync(file, ttf);
 				}
 				// Google returns the nearest weight when one doesn't exist; that's fine.
 				fonts.add(family, w, italic, file);

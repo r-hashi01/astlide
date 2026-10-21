@@ -108,6 +108,14 @@ Notes are hidden from the audience and show in the presenter window (`p`) and th
 
 If a slide has more than one, `<SpeakerNotes>` wins, then frontmatter `notes`, then the trailing comment. `<Notes>` still works as an alias of `<SpeakerNotes>`.
 
+:::caution[Notes are public by default]
+Notes are part of every built page, so anyone who can open the deck can read them: press `n`, open `?presenter`, or view the page source. To keep them to yourself, set `notes: "dev"`: notes are then only included while running `astro dev`, and the deployed deck (and PDF / PPTX exports made from the build) carries none.
+
+```ts
+astlide({ notes: "dev" })
+```
+:::
+
 ## Editing in the browser
 
 While `astro dev` is running, press <kbd>e</kbd> on a slide to open its source file in a panel next to it, and just type: changes are saved a moment after you stop typing (or right away with <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>S</kbd>) and the slide updates **live, without a page reload**: only the parts of the slide you changed are swapped in, so nothing flickers — your caret, the current fragment step, rendered diagrams and things like the camera or a running recording stay as they are. <kbd>Esc</kbd> (or ✕) saves and closes the panel.
@@ -119,7 +127,7 @@ Adding, removing or renaming slide files is picked up live too: every window on 
 The panel stays open as you move between slides and switches to each slide's source.
 
 - Dev server only: the editor and its endpoint don't exist in production builds.
-- It edits slide files (`.mdx`, `.md`, `.html` under `src/`) and nothing else; writes must come from the dev server's own page.
+- It edits slide files (`.mdx`, `.md`, `.html` under `src/`) and nothing else, and only from the dev server's own pages on the machine running it. Open the deck at `localhost` (or `127.0.0.1`): with `astro dev --host`, or through a tunnel or reverse proxy (ngrok, cloudflared, port forwarding), you can still view slides from elsewhere, but the editor neither loads nor saves there.
 - Edits are written to disk as you type — use undo in the panel or your version control to roll back.
 
 ## Hidden slides

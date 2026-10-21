@@ -1,5 +1,5 @@
 import { existsSync, statSync } from "node:fs";
-import { resolve } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
 
 /**
  * The file a root-relative URL of the built site names, in `distDir`. When
@@ -18,8 +18,14 @@ export function distFile(distDir: string, url: string): string | null {
 	const root = resolve(distDir);
 	for (let i = 0; i < segments.length; i++) {
 		const file = resolve(root, ...segments.slice(i));
-		if (!file.startsWith(root)) return null;
+		if (!isInside(root, file)) return null;
 		if (existsSync(file) && statSync(file).isFile()) return file;
 	}
 	return null;
+}
+
+/** Whether `file` is `dir` itself or inside it (not merely a path sharing its prefix, like `dist-old`). */
+export function isInside(dir: string, file: string): boolean {
+	const rel = relative(resolve(dir), resolve(file));
+	return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 }

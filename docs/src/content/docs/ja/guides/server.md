@@ -18,8 +18,11 @@ description: Astlide を HTTP サービスとして動かし、Markdown から P
 
 ```bash
 docker build -f packages/server/Dockerfile -t astlide-server .
-docker run --rm -p 8787:8787 astlide-server
+export ASTLIDE_API_KEY="$(openssl rand -hex 24)"
+docker run --rm -p 8787:8787 -e ASTLIDE_API_KEY astlide-server
 ```
+
+イメージはすべてのインターフェースで待ち受けるので、API キーなしでは起動しません（[セキュリティ](#セキュリティ)を参照）。以下のリクエストには `-H "Authorization: Bearer $ASTLIDE_API_KEY"` を付けてください。`/health` と `/openapi.json` には不要です。
 
 ```bash
 curl localhost:8787/health
@@ -30,7 +33,7 @@ Docker を使わない場合は、リポジトリをクローンして実行し�
 
 ```bash
 bun install
-bun packages/server/src/cli.ts
+bun packages/server/src/cli.ts   # 127.0.0.1 だけで待ち受けます
 ```
 
 ## スライドをレンダリングする
@@ -118,13 +121,17 @@ curl -H 'content-type: application/json' -d '{"url":"https://docs.google.com/pre
 
 | 変数 | デフォルト | |
 | --- | --- | --- |
-| `PORT` / `HOST` | `8787` / `0.0.0.0` | サーバーが待ち受けるポートとホスト。 |
-| `ASTLIDE_API_KEY` | — | 設定すると、リクエストに `Authorization: Bearer <key>`（または `X-API-Key`）が必要になります。`/health` と `/openapi.json` は認証なしで使えます。 |
+| `PORT` / `HOST` | `8787` / `127.0.0.1`（Docker イメージでは `0.0.0.0`） | サーバーが待ち受けるポートとホスト。 |
+| `ASTLIDE_API_KEY` | — | 設定すると、リクエストに `Authorization: Bearer <key>`（または `X-API-Key`）が必要になります。`/health` と `/openapi.json` は認証なしで使えます。`HOST` がループバック以外なら必須です。 |
+| `ASTLIDE_ALLOW_UNAUTHENTICATED` | `0` | `1` にすると、キーなしでもループバック以外で待ち受けます。前段のゲートウェイや閉じたネットワークで呼び出し元を制限している場合だけ使ってください。 |
+| `ASTLIDE_ALLOW_PRIVATE_NETWORK` | `0` | `1` にすると、スライドからサーバー側のネットワークにアクセスできるようになります（[セキュリティ](#セキュリティ)を参照）。 |
 | `PUBLIC_URL` | リクエストから取得 | OpenAPI 仕様の `servers` に入れる URL。 |
-| `MAX_BODY_MB` | `50` | リクエストの最大サイズ（超えると 413）。 |
+| `MAX_BODY_MB` | `50` | リクエストの最大サイズ（超えると 413）。Google スライドからダウンロードするサイズの上限も兼ねます。リクエストは 60 秒以内に送り終える必要があります。 |
 | `MAX_SLIDES` | `200` | 1 回のレンダリングで扱えるスライドの最大数。 |
-| `RENDER_TIMEOUT_MS` | `180000` | これより長くかかるレンダリングは中止されます（504）。 |
-| `CONCURRENCY` / `MAX_QUEUE` | `2` / `16` | 同時に実行するレンダリングの数と、待機できる数。それを超えると 503 になります。 |
+| `MAX_OUTPUT_MB` | `200` | 出力ファイル（PPTX、PDF、PNG の ZIP）の最大サイズ。超えると 422 になります。 |
+| `RENDER_TIMEOUT_MS` | `180000` | これより長くかかるレンダリング（とアップロードされた PowerPoint ファイルの読み込み）は中止されます（504）。 |
+| `CONCURRENCY` / `MAX_QUEUE` | `2` / `16` | 同時に実行するレンダリングの数と、待機できる数。それを超えると、アップロードを読み込む前に 503 を返します。 |
+| `ASTLIDE_CHROMIUM_SANDBOX` | `0` | `1` にすると、PDF / PNG の描画で Chromium のサンドボックスを有効にします（[セキュリティ](#セキュリティ)を参照）。 |
 | `ASTLIDE_WORK_DIR` | `node_modules` と同じ階層の `.astlide-work` | リクエストごとのプロジェクトを作る場所。インストール済みのパッケージと親ディレクトリを共有している必要があります。 |
 
 エラーは JSON `{ "error": "…" }` で返します。入力が不正なら 400 です。入力はビルドを始める前に検査します（スライドのスキーマが受け付けない frontmatter の値など）。ビルドやエクスポートに失敗したときは、ログの末尾を付けて 422 を返します。
@@ -132,5 +139,18 @@ curl -H 'content-type: application/json' -d '{"url":"https://docs.google.com/pre
 ## 制限事項
 
 - レンダリングのたびに Astro のフルビルドが走ります。小さなデッキで 3〜5 秒ほど（PPTX でも PDF でも）、スライドが多ければさらにかかります。
-- Markdown 内の生の HTML はそのまま描画され、PDF / PNG ではスライドを Chromium で読み込みます。サービスは、信頼できる利用者だけが呼び出せる環境（社内ネットワーク内、または `ASTLIDE_API_KEY` で認証をかけた状態）で動かしてください。
 - PPTX エクスポートではスライドが使う Web フォントや画像を取得するため、サーバーからインターネットへの外向きの通信が必要です。
+
+## セキュリティ
+
+リクエストで届くのは他人が書いたスライドです。Markdown 内の生の HTML はそのまま描画され、PDF / PNG ではそれをサーバー上の Chromium で読み込みます。そのため次のようにしています。
+
+- **ループバック以外で待ち受けるには API キーが必要です。** `ASTLIDE_API_KEY` がなければ、`HOST` が `127.0.0.1` / `localhost` でない限り起動しません（前段で呼び出し元を制限しているなら `ASTLIDE_ALLOW_UNAUTHENTICATED=1` で起動できます）。
+- **スライドからサーバー側のネットワークには届きません。** レンダリング中にスライドやエクスポーターが読み込めるのは、デッキ自身、`data:` / `blob:` URL、インターネット上の公開ホストだけです。ループバック、プライベートアドレス（`10/8`、`172.16/12`、`192.168/16`、`fc00::/7` など）、リンクローカル（クラウドのメタデータ `169.254.169.254` を含む）などの予約済みアドレスへの通信は、リダイレクト先も含めて拒否します。WebSocket と Service Worker も止めます。呼び出し元がすべて信頼でき、スライドに社内のリソースが必要な場合だけ `ASTLIDE_ALLOW_PRIVATE_NETWORK=1` を設定してください。
+- 判定はリクエストの直前にホスト名を名前解決して行います。判定とリクエストの間に DNS の応答を変えるホスト（DNS リバインディング）は、すり抜ける可能性があります。信頼できない呼び出し元に公開するなら、コンテナの外向き通信もファイアウォールやエグレスポリシーで公開インターネットだけに絞ってください。
+- 取得する画像は 1 件 20 MB まで、埋め込みのプレビュー用に読むページは 2 MB までです。
+- **画像は URL で指定してください。** ファイルパスを指す Markdown の画像（`![](../x.png)`）は 400 で拒否します。Astro がサーバーのディスクから読み込んでしまうためです。`https:` か `data:` の URL を使ってください。
+- スライドは必ず自前の frontmatter ブロックを付けて書き出します。本文が `---` で始まっていても本文のまま扱われ、frontmatter の検査をすり抜けることはありません。frontmatter では YAML のアンカーとエイリアス（`&a` / `*a`）は使えず、大きさは 1 スライドあたり 256 KB までです。
+- **アップロードされた PowerPoint ファイル**（`/import`、`/templates/layouts`）は、レンダリングと同じキューを通して子プロセスで読み込みます。`RENDER_TIMEOUT_MS` より長くかかれば中止し（504）、結果が `MAX_OUTPUT_MB` を超えれば拒否します（422）。どちらの場合もサーバー本体は止まりません。
+- **Chromium のサンドボックス**は既定では無効です（Playwright が無効にしており、多くのコンテナではサンドボックスに必要なユーザー名前空間が使えません）。使える環境（ユーザー名前空間の `clone` / `unshare` を許す seccomp プロファイル、たとえば Chrome 用のものを指定した Docker など）では `ASTLIDE_CHROMIUM_SANDBOX=1` を設定してください。Chromium のレンダラーに不具合があっても、影響がサンドボックスの中にとどまります。どちらの場合も、描画プロセスに `ASTLIDE_API_KEY` は渡しません。
+- API キーがないリクエストには、`/health`、`/openapi.json`、`/` 以外のすべてのパスで 401 を返します（存在しないパスも含みます）。キーは一定時間で比較します。

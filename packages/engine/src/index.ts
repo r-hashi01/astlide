@@ -11,7 +11,7 @@ import { dirname, join, resolve } from "node:path";
 import type { Element } from "domhandler";
 import { parseDocument } from "htmlparser2";
 import { StyleSheets, UA_CSS, type Viewport } from "./cascade";
-import { distFile } from "./dist";
+import { distFile, isInside } from "./dist";
 import {
 	type Box,
 	intersect,
@@ -30,7 +30,7 @@ export {
 	resolveEsm,
 	svgToPng,
 } from "./diagrams";
-export { distFile } from "./dist";
+export { distFile, isInside } from "./dist";
 export { familiesIn, loadFontFaces, loadGoogleFonts } from "./fonts";
 export type { Box, Rect, SlideLayout, TableBox, TableCellBox, TextLine } from "./layout";
 export { intersect, transformText } from "./layout";
@@ -129,7 +129,8 @@ function documentSheets(
 			const href = el.attribs.href.split(/[?#]/)[0] ?? "";
 			if (/^[a-z]+:|^\/\//i.test(href)) continue;
 			const file = href.startsWith("/") ? distFile(distDir, href) : join(dir, href);
-			if (file && existsSync(file)) sheets.add(readFileSync(file, "utf-8"));
+			if (file && isInside(distDir, file) && existsSync(file))
+				sheets.add(readFileSync(file, "utf-8"));
 		} else if (el.name === "style") {
 			sheets.add(el.children.map((c) => ("data" in c ? c.data : "")).join(""));
 		}
@@ -155,7 +156,7 @@ function frameDocument(
 		: resolve(join(dir, src));
 	if (!page) return null;
 	const base = resolve(page);
-	if (!base.startsWith(resolve(distDir))) return null;
+	if (!isInside(distDir, base)) return null;
 	for (const file of [base, join(base, "index.html"), `${base}.html`]) {
 		if (existsSync(file) && statSync(file).isFile())
 			return { source: readFileSync(file, "utf-8"), dir: dirname(file) };
