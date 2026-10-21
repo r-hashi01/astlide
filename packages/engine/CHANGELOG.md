@@ -1,5 +1,13 @@
 # @astlide/engine
 
+## 0.1.3
+
+### Patch Changes
+
+- [#209](https://github.com/r-hashi01/astlide/pull/209) [`105a216`](https://github.com/r-hashi01/astlide/commit/105a216205a363164b714431ef3d5478cfd54002) Thanks [@r-hashi01](https://github.com/r-hashi01)! - PPTX export lays out a same-site iframe only from a page inside the built site: for an iframe pointing at the site's root folder, the `<dist>.html` file next to it is no longer considered.
+
+  Reading files of the built site (stylesheets, same-site iframe pages) also refuses symlinks inside `dist/` that point elsewhere.
+
 ## 0.1.2
 
 ### Patch Changes

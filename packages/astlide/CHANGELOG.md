@@ -1,5 +1,39 @@
 # @astlide/core
 
+## 2.9.0
+
+### Minor Changes
+
+- [#210](https://github.com/r-hashi01/astlide/pull/210) [`8636ea8`](https://github.com/r-hashi01/astlide/commit/8636ea8a1a6d397694c029e60b70891a5ae5c3b3) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Built deck pages no longer allow `script-src 'unsafe-inline'`: after `astro build`, the inline scripts Astlide and Astro put on pages — and those of MDX slides and their components — are allowed by their SHA-256 hashes in the default CSP. **Behaviour change:** inline `<script>`s in Markdown, HTML and PowerPoint slides no longer run in built pages (the build warns), since that content can come from others; set the new `slideScripts: true` only for decks whose content you fully trust. Inline event-handler attributes (`onclick="…"`) and `javascript:` URLs in slides don't run either. `astro dev` and custom `csp` strings are unchanged. The configuration reference also explains how to send `frame-ancestors` as a header.
+
+  Built pages are emitted without `'unsafe-inline'` for scripts from the start, and the build only adds hashes — a page it doesn't rewrite allows no inline scripts. Template artwork from a `.pptx` counts as slide content.
+
+- [#200](https://github.com/r-hashi01/astlide/pull/200) [`18711e6`](https://github.com/r-hashi01/astlide/commit/18711e6317fd5dd7c004dcdd246c1adf3ec728ef) Thanks [@r-hashi01](https://github.com/r-hashi01)! - The dev slide editor needs a browser enabled through a link `astro dev` prints at startup: a one-time code (works once, for 30 minutes) that sets a cookie for this project and port, derived from a secret kept in `node_modules/.astro/` (delete it to reset). Without it the editor shows how to turn editing on and saves nothing — even for requests relayed to the dev server over a raw port forward. The editor only edits slide files that already exist in `src/content/decks/`.
+
+  Scripts in Markdown, HTML and PowerPoint slides — `<script>`, inline event handlers, `javascript:` URLs — are now removed when the slide is rendered, in `astro dev` and in builds: slide content can come from others. MDX slides keep theirs. The new `slideScripts: true` option keeps them for decks you fully trust.
+
+- [#201](https://github.com/r-hashi01/astlide/pull/201) [`1113d68`](https://github.com/r-hashi01/astlide/commit/1113d68eb9f05ebcf2e6e3504854e14a4c718b0f) Thanks [@r-hashi01](https://github.com/r-hashi01)! - **Speaker notes are no longer published by default.** The `notes` option now defaults to `"dev"`: notes are included while running `astro dev`, but not in pages built with `astro build` — a deployed deck's presenter window says its notes aren't published. To present from the deployed site with notes, set `notes: "public"` (anyone who can open the deck can then read them, as before).
+
+  `astlide export` now builds into its own folder, `node_modules/.astro/astlide-export`, instead of `dist/`. That build always includes speaker notes, so PowerPoint exports keep them, and the `dist/` you deploy is never changed by an export. `--no-build` reuses the last export build (else `dist/`).
+
+  Notes written as a trailing `<!-- … -->` comment are now also taken out of the rendered `.md` and `.html` slides (they were left in the page's HTML as a comment). `ASTLIDE_EXPORT_BUILD` only counts when it names the project's own export folder, and builds never inherit it.
+
+### Patch Changes
+
+- [#198](https://github.com/r-hashi01/astlide/pull/198) [`31dbb98`](https://github.com/r-hashi01/astlide/commit/31dbb98d232658e32ba6d20c21b036ce3e4fa227) Thanks [@r-hashi01](https://github.com/r-hashi01)! - PDF / PNG export runs Chromium with its sandbox on (Playwright turns it off by default). Where the system doesn't allow the user namespaces it needs, the export stops with how to allow them for Chromium alone (an AppArmor profile, documented in the export guide) instead of running unsandboxed; `ASTLIDE_CHROMIUM_SANDBOX=0` opts out.
+
+- [#202](https://github.com/r-hashi01/astlide/pull/202) [`361c664`](https://github.com/r-hashi01/astlide/commit/361c664f7eb248cf344bb1372986603fee84c100) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Public-network-only exports check addresses as they connect: the connection goes to the address that was checked, so a host can't pass with one DNS answer and connect with another. In guarded PDF / PNG renders, Chromium no longer connects to other hosts itself — Astlide makes those requests, following redirects hop by hop (a redirect handed to Chromium was followed without the check) — and anything not routed goes to a dead proxy; WebRTC sends no UDP of its own.
+
+- [#209](https://github.com/r-hashi01/astlide/pull/209) [`105a216`](https://github.com/r-hashi01/astlide/commit/105a216205a363164b714431ef3d5478cfd54002) Thanks [@r-hashi01](https://github.com/r-hashi01)! - PPTX export lays out a same-site iframe only from a page inside the built site: for an iframe pointing at the site's root folder, the `<dist>.html` file next to it is no longer considered.
+
+  Reading files of the built site (stylesheets, same-site iframe pages) also refuses symlinks inside `dist/` that point elsewhere.
+
+- [#208](https://github.com/r-hashi01/astlide/pull/208) [`deefe39`](https://github.com/r-hashi01/astlide/commit/deefe390e3a5cb7010dcd4f0362527367f3bec04) Thanks [@r-hashi01](https://github.com/r-hashi01)! - MCP: the folder the server was started in no longer counts as an allowed project folder when it is the filesystem root or the home folder (or above it) — where clients often start servers. Name the folders with `astlide mcp --root <dir>` (repeatable) or `ASTLIDE_MCP_ROOTS`; clients that send MCP roots (Claude Code) need nothing. The filesystem root never counts as a root. Named folders are the outer limit — client roots only narrow them — and client roots that are the filesystem root, the home folder or a shared temp folder are ignored; empty `--root=` is refused; the project path is resolved once and used as resolved.
+
+- [#211](https://github.com/r-hashi01/astlide/pull/211) [`ce9a51c`](https://github.com/r-hashi01/astlide/commit/ce9a51c8e29dbc4788b624bbe2f197f86f0d10a9) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Pictures and fonts from `.pptx` decks and templates are stored by what their bytes are, not by the name the file gives them; anything that isn't a picture or a font — or a font whose first bytes could start a script — is left out. A build publishes only the `.pptx` assets the site uses (slides that aren't hidden, and templates), not everything in the cache from removed decks or older versions of a file.
+- Updated dependencies [[`105a216`](https://github.com/r-hashi01/astlide/commit/105a216205a363164b714431ef3d5478cfd54002)]:
+  - @astlide/engine@0.1.3
+
 ## 2.8.0
 
 ### Minor Changes

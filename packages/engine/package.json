@@ -1,6 +1,6 @@
 {
 	"name": "@astlide/engine",
-	"version": "0.1.2",
+	"version": "0.1.3",
 	"type": "module",
 	"description": "Lay out HTML + CSS slides without a browser — the layout engine behind Astlide's editable PPTX export",
 	"keywords": [
