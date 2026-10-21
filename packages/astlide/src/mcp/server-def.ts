@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { realPath } from "../utils/real-path";
+import { isWithin, realPath } from "../utils/real-path";
 import { checkDeck } from "./check";
 import { importPptx } from "./import";
 import { isBroadFolder, projectRootWithin } from "./project";
@@ -96,20 +96,39 @@ export function createServer(options: ServerOptions = {}): McpServer {
 			console.error(`astlide mcp: ignoring ${d} as an allowed folder (the filesystem root)`);
 			return false;
 		};
-		let allowed = options.allowedRoots
-			? options.allowedRoots.filter(notFsRoot)
-			: [process.cwd()].filter((d) => !isBroadFolder(d));
+		const named = options.allowedRoots?.filter(notFsRoot);
+		let allowed = named ?? [process.cwd()].filter((d) => !isBroadFolder(d));
 		if (server.server.getClientCapabilities()?.roots) {
+			let uris: string[] = [];
 			try {
-				const { roots } = await server.server.listRoots();
-				const dirs = roots
-					.filter((r) => r.uri.startsWith("file:"))
-					.map((r) => fileURLToPath(r.uri))
-					.filter(notFsRoot);
-				if (dirs.length) allowed = dirs;
+				uris = (await server.server.listRoots()).roots.map((r) => r.uri);
 			} catch {
 				// The client said it has roots but didn't answer: keep the default.
 			}
+			const dirs: string[] = [];
+			for (const uri of uris) {
+				if (!uri.startsWith("file:")) continue;
+				let d: string;
+				try {
+					d = fileURLToPath(uri);
+				} catch {
+					console.error(`astlide mcp: ignoring client root ${uri} (not a local folder)`);
+					continue;
+				}
+				if (isBroadFolder(d)) {
+					console.error(
+						`astlide mcp: ignoring client root ${d} (too broad: name a project folder)`,
+					);
+					continue;
+				}
+				// Folders named with --root / ASTLIDE_MCP_ROOTS are the outer limit: client roots only narrow them.
+				if (named?.length && !named.some((n) => isWithin(d, n))) {
+					console.error(`astlide mcp: ignoring client root ${d} (outside the --root folders)`);
+					continue;
+				}
+				dirs.push(d);
+			}
+			if (dirs.length) allowed = dirs;
 		}
 		return projectRootWithin(dir, allowed);
 	};

@@ -13,7 +13,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deckFolderName } from "../cli/import";
@@ -85,14 +85,19 @@ const HOW_TO_ALLOW =
 	delimiter +
 	"<dir>…], MCP roots from the client, or ASTLIDE_MCP_ANY_PROJECT=1 to allow any folder.";
 
+/** Shared temp folders: anyone on the machine can put a "project" there. */
+const TEMP_FOLDERS = () => [tmpdir(), "/tmp", "/private/tmp", "/var/tmp"];
+
 /**
  * Whether `dir` is too broad to be an allowed folder by default: the
- * filesystem root, the home folder, or a folder above it — what MCP clients
- * often start servers in.
+ * filesystem root, the home folder, a shared temp folder, or a folder above
+ * one of them — what MCP clients often start servers in.
  */
 export function isBroadFolder(dir: string, home: string = homedir()): boolean {
 	const real = realPath(dir);
-	return dirname(real) === real || isWithin(home, real);
+	if (dirname(real) === real) return true;
+	if (isWithin(home, real)) return true;
+	return TEMP_FOLDERS().some((temp) => existsSync(temp) && isWithin(temp, real));
 }
 
 /**
@@ -107,11 +112,13 @@ export function explicitRoots(
 	const roots: string[] = [];
 	for (let i = 0; i < args.length; i++) {
 		const arg = args[i] as string;
-		if (arg === "--root") {
-			const next = args[++i];
-			if (!next) throw new Error("--root needs a folder");
-			roots.push(next);
-		} else if (arg.startsWith("--root=")) roots.push(arg.slice("--root=".length));
+		let dir: string | undefined;
+		if (arg === "--root") dir = args[++i] ?? "";
+		else if (arg.startsWith("--root=")) dir = arg.slice("--root=".length);
+		else continue;
+		// An empty value would mean the working directory; a flag means the folder was left out.
+		if (!dir || dir.startsWith("-")) throw new Error("--root needs a folder: --root <dir>");
+		roots.push(dir);
 	}
 	for (const dir of (env.ASTLIDE_MCP_ROOTS ?? "").split(delimiter)) if (dir) roots.push(dir);
 	return roots.map((dir) => resolve(dir));
@@ -120,10 +127,12 @@ export function explicitRoots(
 /**
  * The project root, checked ({@link projectRoot}) and inside one of
  * `allowed` (symlinks resolved): the MCP server only builds or exports
- * projects under the folders it was given.
+ * projects under the folders it was given. Returns the resolved path that
+ * was checked, so the work happens there even if a symlink on the way
+ * changes afterwards.
  */
 export function projectRootWithin(dir: string, allowed: string[]): string {
-	const root = projectRoot(dir);
+	const root = realPath(projectRoot(dir));
 	if (!allowed.length)
 		throw new Error(`No folders are allowed for projects yet (${root}). ${HOW_TO_ALLOW}`);
 	if (!allowed.some((a) => isWithin(root, a)))

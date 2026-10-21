@@ -277,7 +277,7 @@ describe("projects", () => {
 		for (const dir of [join(allowed, "p"), outside])
 			mkdirSync(join(dir, "src", "content", "decks"), { recursive: true });
 		symlinkSync(outside, join(allowed, "link"));
-		expect(projectRootWithin(join(allowed, "p"), [allowed])).toBe(join(allowed, "p"));
+		expect(projectRootWithin(join(allowed, "p"), [allowed])).toBe(realpathSync(join(allowed, "p")));
 		expect(() => projectRootWithin(outside, [allowed])).toThrow(/outside the folders/);
 		expect(() => projectRootWithin(join(allowed, "link"), [allowed])).toThrow(
 			/outside the folders/,
@@ -510,6 +510,9 @@ describe("allowed folders", () => {
 		expect(isBroadFolder(dirname(home), home)).toBe(true);
 		expect(isBroadFolder(join(home, "work", "talks"), home)).toBe(false);
 		expect(isBroadFolder(homedir())).toBe(true);
+		// Shared temp folders too (anyone can put a project there) — not the folders inside them.
+		expect(isBroadFolder(tmpdir(), home)).toBe(true);
+		expect(isBroadFolder(mkdtempSync(join(tmpdir(), "astlide-mcp-specific-")), home)).toBe(false);
 	});
 
 	it("reads --root folders and ASTLIDE_MCP_ROOTS", () => {
@@ -519,6 +522,11 @@ describe("allowed folders", () => {
 			}),
 		).toEqual(["/a", "/b", "/c", "/d"]);
 		expect(() => explicitRoots(["--root"], {})).toThrow(/needs a folder/);
+		// Empty (would mean the working directory) or a flag where the folder should be.
+		expect(() => explicitRoots(["--root="], {})).toThrow(/needs a folder/);
+		expect(() => explicitRoots(["--root", "--other"], {})).toThrow(/needs a folder/);
+		// Empty entries in the variable are skipped, not taken as the working directory.
+		expect(explicitRoots([], { ASTLIDE_MCP_ROOTS: `${delimiter}/a${delimiter}` })).toEqual(["/a"]);
 	});
 
 	it("allows nothing by default when started in / or the home folder", async () => {
@@ -540,17 +548,64 @@ describe("allowed folders", () => {
 		await client.close();
 	});
 
-	it("uses named folders, and client roots over them", async () => {
+	it("uses named folders; client roots only narrow them", async () => {
+		vi.spyOn(console, "error").mockImplementation(() => {});
 		const named = project("named");
 		const fromClient = project("client");
 		const a = await connect({ allowedRoots: [named] });
 		expect(await a.check(named)).toMatch(/no deck "nope"/);
 		expect(await a.check(fromClient)).toMatch(/outside the folders/);
 		await a.client.close();
+		// A client root outside the named folders is ignored…
 		const b = await connect({ allowedRoots: [named] }, [fromClient]);
-		expect(await b.check(fromClient)).toMatch(/no deck "nope"/);
-		expect(await b.check(named)).toMatch(/outside the folders/);
+		expect(await b.check(fromClient)).toMatch(/outside the folders/);
+		expect(await b.check(named)).toMatch(/no deck "nope"/);
 		await b.client.close();
+		// …one inside narrows them.
+		const inner = join(named, "talks");
+		mkdirSync(join(inner, "src", "content", "decks"), { recursive: true });
+		const c = await connect({ allowedRoots: [named] }, [inner]);
+		expect(await c.check(inner)).toMatch(/no deck "nope"/);
+		expect(await c.check(named)).toMatch(/outside the folders/);
+		await c.client.close();
+		// Without named folders, client roots are used.
+		const d = await connect({}, [fromClient]);
+		expect(await d.check(fromClient)).toMatch(/no deck "nope"/);
+		await d.client.close();
+	});
+
+	it("ignores broad or unreadable client roots, one by one", async () => {
+		const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+		const ok = project("one-ok");
+		const elsewhere = project("one-elsewhere");
+		const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+		vi.spyOn(process, "cwd").mockReturnValue("/");
+		await createServer({}).connect(serverSide);
+		const client = new Client({ name: "test", version: "0" }, { capabilities: { roots: {} } });
+		client.setRequestHandler(ListRootsRequestSchema, () => ({
+			roots: [
+				{ uri: pathToFileURL(homedir()).href },
+				{ uri: "file://other-host/share/x" },
+				{ uri: pathToFileURL(ok).href },
+			],
+		}));
+		await client.connect(clientSide);
+		const check = async (projectRoot: string) =>
+			(
+				(await client.callTool({ name: "check_deck", arguments: { projectRoot, deck: "nope" } }))
+					.content as { text: string }[]
+			)[0]?.text ?? "";
+		expect(await check(ok)).toMatch(/no deck "nope"/);
+		expect(await check(elsewhere)).toMatch(/outside the folders/);
+		expect(errors.mock.calls.flat().join("\n")).toMatch(/too broad/);
+		await client.close();
+	});
+
+	it("works where it checked, not where a symlink points later", () => {
+		const real = project("real");
+		const link = `${real}-link`;
+		symlinkSync(real, link);
+		expect(projectRootWithin(link, [real])).toBe(real);
 	});
 
 	it("never takes the filesystem root as a root", async () => {
