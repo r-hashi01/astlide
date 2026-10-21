@@ -108,15 +108,25 @@ Notes are hidden from the audience and show in the presenter window (`p`) and th
 
 If a slide has more than one, `<SpeakerNotes>` wins, then frontmatter `notes`, then the trailing comment. `<Notes>` still works as an alias of `<SpeakerNotes>`.
 
-:::caution[Notes are public by default]
-Notes are part of every built page, so anyone who can open the deck can read them: press `n`, open `?presenter`, or view the page source. To keep them to yourself, set `notes: "dev"`: notes are then only included while running `astro dev`, and the deployed deck (and PDF / PPTX exports made from the build) carries none.
+:::note[Notes stay off the deployed site]
+By default (`notes: "dev"`) notes are included while running `astro dev` and in the build `astlide export` makes, so PowerPoint exports keep them — but not in pages you build with `astro build` and deploy. A deployed deck's presenter window says its notes aren't published. `astlide export` builds into its own folder (`node_modules/.astro/astlide-export`), so `dist/` never gets the notes.
+
+To present from the deployed site with your notes, include them in every page — which also lets anyone who can open the deck read them (`n`, `?presenter`, the page source):
 
 ```ts
-astlide({ notes: "dev" })
+astlide({ notes: "public" })
 ```
 :::
 
 ## Editing in the browser
+
+Editing is turned on once per browser: when `astro dev` starts, it prints a link —
+
+```
+[astlide] Slide editor: open http://localhost:4321/__astlide/editor?code=… in your browser to enable editing (works once, for 30 minutes)
+```
+
+Open it in the browser you edit in. The code works once and expires after 30 minutes; every start of `astro dev` prints a new one. The browser stays enabled for this project and port — also across restarts — through a cookie derived from a secret kept in `node_modules/.astro/astlide-editor-secret` (delete that file to turn editing off in every browser). Until then the panel says editing is off.
 
 While `astro dev` is running, press <kbd>e</kbd> on a slide to open its source file in a panel next to it, and just type: changes are saved a moment after you stop typing (or right away with <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>S</kbd>) and the slide updates **live, without a page reload**: only the parts of the slide you changed are swapped in, so nothing flickers — your caret, the current fragment step, rendered diagrams and things like the camera or a running recording stay as they are. <kbd>Esc</kbd> (or ✕) saves and closes the panel.
 
@@ -127,7 +137,8 @@ Adding, removing or renaming slide files is picked up live too: every window on 
 The panel stays open as you move between slides and switches to each slide's source.
 
 - Dev server only: the editor and its endpoint don't exist in production builds.
-- It edits slide files (`.mdx`, `.md`, `.html` under `src/`) and nothing else, and only from the dev server's own pages on the machine running it. Open the deck at `localhost` (or `127.0.0.1`): with `astro dev --host`, or through a tunnel or reverse proxy (ngrok, cloudflared, port forwarding), you can still view slides from elsewhere, but the editor neither loads nor saves there.
+- It edits existing slide files in `src/content/decks/` (`.mdx`, `.md`, `.html`) and nothing else — it never creates files — and only from the dev server's own pages on the machine running it. Open the deck at `localhost` (or `127.0.0.1`): with `astro dev --host`, or through a tunnel or reverse proxy (ngrok, cloudflared, port forwarding), you can still view slides from elsewhere, but the editor neither loads nor saves there. Writing also needs a browser enabled through the printed link, which only appears in your terminal — so even a raw port forward (`ssh -R`), which looks like a local browser to the dev server, can't save anything. Don't share that link.
+- Scripts in Markdown, HTML and PowerPoint slides (`<script>`, `onclick` and the like, `javascript:` links) are removed when the slide is rendered — in `astro dev` too — so a slide from someone else can't drive the editor (or anything else) in your browser. MDX slides keep theirs. Set [`slideScripts: true`](/reference/configuration/) only for decks whose content you fully trust.
 - Edits are written to disk as you type — use undo in the panel or your version control to roll back.
 
 ## Hidden slides

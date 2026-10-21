@@ -54,6 +54,8 @@ jobs:
           node-version: 22
       - run: bun install --frozen-lockfile
       - run: bun run test
+      # The connect-time address check, under the runtime the exporter uses.
+      - run: bun packages/astlide/tests/bun/public-request.ts
 
   build:
     name: Build
@@ -165,7 +167,11 @@ jobs:
       - name: Refuses to start in the open without a key
         run: |
           if docker run --rm astlide-server; then echo "started without an API key"; exit 1; fi
-      - run: docker run -d --name astlide-server -p 8787:8787 -e ASTLIDE_API_KEY=ci-key astlide-server
+      # Chromium keeps its sandbox (the default): the seccomp profile lets it
+      # create the namespaces it needs, and the PDF below fails without them.
+      - run: >-
+          docker run -d --name astlide-server -p 8787:8787 -e ASTLIDE_API_KEY=ci-key
+          --security-opt seccomp=packages/server/chromium-seccomp.json astlide-server
       - name: Render through the API
         run: |
           for i in $(seq 1 30); do curl -sf localhost:8787/health && break; sleep 1; done
@@ -180,6 +186,15 @@ jobs:
           done
           file out.pptx | grep -q -i "PowerPoint\|Zip"
           file out.pdf | grep -q PDF
+      - name: Without the profile, PDF fails instead of running unsandboxed
+        run: |
+          docker run -d --name astlide-nosandbox -p 8788:8787 -e ASTLIDE_API_KEY=ci-key astlide-server
+          for i in $(seq 1 30); do curl -sf localhost:8788/health && break; sleep 1; done
+          code=$(curl -s -o nosandbox.json -w '%{http_code}' -H 'content-type: application/json' \
+            -H 'authorization: Bearer ci-key' -d '{"markdown":"# One","format":"pdf"}' localhost:8788/render)
+          cat nosandbox.json; echo
+          test "$code" = 422
+          grep -q "sandbox" nosandbox.json
       - if: failure()
         run: docker logs astlide-server
 

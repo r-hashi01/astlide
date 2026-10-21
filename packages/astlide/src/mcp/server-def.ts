@@ -5,13 +5,15 @@
  */
 
 import { readFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import { isWithin, realPath } from "../utils/real-path";
 import { checkDeck } from "./check";
 import { importPptx } from "./import";
-import { projectRootWithin } from "./project";
+import { isBroadFolder, projectRootWithin } from "./project";
 import { renderDeck } from "./render";
 import { templateLayoutsFromFile } from "./template";
 
@@ -53,8 +55,11 @@ const RUNS_PROJECT_CODE =
 
 export interface ServerOptions {
 	/**
-	 * Folders projects may be in when the client doesn't list roots (default:
-	 * the server's working directory). `ASTLIDE_MCP_ANY_PROJECT=1` lifts the
+	 * Folders projects may be in when the client doesn't list roots — what
+	 * `astlide mcp --root` / `ASTLIDE_MCP_ROOTS` name. Without them: the
+	 * server's working directory, unless that is the filesystem root or the
+	 * home folder (or above it), where clients often start servers — then no
+	 * folder until one is named. `ASTLIDE_MCP_ANY_PROJECT=1` lifts the
 	 * restriction.
 	 */
 	allowedRoots?: string[];
@@ -65,9 +70,10 @@ export interface ServerOptions {
  *
  * Tools that build, export or write a deck (`check_deck`, `render_deck`,
  * `import_pptx` with a project) only work on projects inside the client's
- * MCP roots — or, when the client lists none, inside `allowedRoots` (the
- * server's working directory) — since building runs the project's code.
- * `ASTLIDE_MCP_ANY_PROJECT=1` allows any folder.
+ * MCP roots — or, when the client lists none, inside `allowedRoots` (see
+ * {@link ServerOptions}) — since building runs the project's code. The
+ * filesystem root never counts as a root. `ASTLIDE_MCP_ANY_PROJECT=1` allows
+ * any folder.
  */
 export function createServer(options: ServerOptions = {}): McpServer {
 	const server = new McpServer(
@@ -84,17 +90,45 @@ export function createServer(options: ServerOptions = {}): McpServer {
 	/** The project root, checked against the folders the server may work in. */
 	const allowedProject = async (dir: string): Promise<string> => {
 		if (process.env.ASTLIDE_MCP_ANY_PROJECT === "1") return dir;
-		let allowed = options.allowedRoots ?? [process.cwd()];
+		const notFsRoot = (d: string) => {
+			const real = realPath(d);
+			if (dirname(real) !== real) return true;
+			console.error(`astlide mcp: ignoring ${d} as an allowed folder (the filesystem root)`);
+			return false;
+		};
+		const named = options.allowedRoots?.filter(notFsRoot);
+		let allowed = named ?? [process.cwd()].filter((d) => !isBroadFolder(d));
 		if (server.server.getClientCapabilities()?.roots) {
+			let uris: string[] = [];
 			try {
-				const { roots } = await server.server.listRoots();
-				const dirs = roots
-					.filter((r) => r.uri.startsWith("file:"))
-					.map((r) => fileURLToPath(r.uri));
-				if (dirs.length) allowed = dirs;
+				uris = (await server.server.listRoots()).roots.map((r) => r.uri);
 			} catch {
 				// The client said it has roots but didn't answer: keep the default.
 			}
+			const dirs: string[] = [];
+			for (const uri of uris) {
+				if (!uri.startsWith("file:")) continue;
+				let d: string;
+				try {
+					d = fileURLToPath(uri);
+				} catch {
+					console.error(`astlide mcp: ignoring client root ${uri} (not a local folder)`);
+					continue;
+				}
+				if (isBroadFolder(d)) {
+					console.error(
+						`astlide mcp: ignoring client root ${d} (too broad: name a project folder)`,
+					);
+					continue;
+				}
+				// Folders named with --root / ASTLIDE_MCP_ROOTS are the outer limit: client roots only narrow them.
+				if (named?.length && !named.some((n) => isWithin(d, n))) {
+					console.error(`astlide mcp: ignoring client root ${d} (outside the --root folders)`);
+					continue;
+				}
+				dirs.push(d);
+			}
+			if (dirs.length) allowed = dirs;
 		}
 		return projectRootWithin(dir, allowed);
 	};
@@ -167,7 +201,9 @@ export function createServer(options: ServerOptions = {}): McpServer {
 				build: z
 					.boolean()
 					.optional()
-					.describe("Build the site first (default true); false reuses dist/"),
+					.describe(
+						'Build the site first (default true); false reuses the last export build, else dist/ (then without speaker notes unless notes: "public")',
+					),
 			},
 			annotations: { readOnlyHint: false, destructiveHint: false },
 		},
