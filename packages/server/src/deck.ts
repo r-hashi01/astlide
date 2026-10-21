@@ -8,6 +8,7 @@
 
 import { slideSchema } from "@astlide/core/schema";
 import { load as parseYaml } from "js-yaml";
+import { markdownToHtml } from "satteri";
 
 /** One slide as a client sends it. */
 export interface SlideInput {
@@ -43,6 +44,8 @@ export class BadRequest extends Error {
 }
 
 const KEY = /^[A-Za-z][\w-]*$/;
+/** Largest frontmatter of one slide, written out as YAML, in bytes. */
+const MAX_FRONTMATTER_BYTES = 256 * 1024;
 const SEPARATOR = /^---[ \t]*$/m;
 
 /** A segment that is only YAML `key: value` lines (and their continuations) — a slide's frontmatter. */
@@ -56,7 +59,8 @@ function looksLikeFrontmatter(segment: string): boolean {
 function yamlObject(text: string): Record<string, unknown> {
 	let data: unknown;
 	try {
-		data = parseYaml(text);
+		// No aliases: a few nested ones expand to billions of values ("billion laughs").
+		data = parseYaml(text, { maxAliases: 0 });
 	} catch (e) {
 		throw new BadRequest(`invalid frontmatter: ${(e as Error).message.split("\n")[0]}`);
 	}
@@ -123,16 +127,83 @@ export function slidesFromArray(items: unknown[]): Slide[] {
 	});
 }
 
-/** Parse the `markdown` / `slides` fields of a render request. */
-export function parseSlides(input: { markdown?: unknown; slides?: unknown }): Slide[] {
+/**
+ * Parse the `markdown` / `slides` fields of a render request: at most
+ * `maxSlides` slides (checked before any slide is looked at), each with valid
+ * frontmatter and no images read from the server's disk.
+ */
+export async function parseSlides(
+	input: { markdown?: unknown; slides?: unknown },
+	maxSlides = Number.POSITIVE_INFINITY,
+): Promise<Slide[]> {
 	let slides: Slide[];
-	if (Array.isArray(input.slides)) slides = slidesFromArray(input.slides);
-	else if (typeof input.slides === "string") slides = splitMarkdown(input.slides);
+	if (Array.isArray(input.slides)) {
+		if (input.slides.length > maxSlides)
+			throw new BadRequest(`at most ${maxSlides} slides per render`);
+		slides = slidesFromArray(input.slides);
+	} else if (typeof input.slides === "string") slides = splitMarkdown(input.slides);
 	else if (typeof input.markdown === "string") slides = splitMarkdown(input.markdown);
 	else throw new BadRequest('send "markdown" (a string) or "slides" (an array)');
 	if (slides.length === 0) throw new BadRequest("no slides");
+	if (slides.length > maxSlides) throw new BadRequest(`at most ${maxSlides} slides per render`);
 	slides.forEach(validate);
+	for (const [i, slide] of slides.entries()) await checkImages(slide, i);
 	return slides;
+}
+
+/** Image extensions Astro's Markdown pipeline imports from disk. */
+const IMAGE_FILE = /\.(?:png|jpe?g|gif|webp|avif|svg|tiff?|bmp|ico|heic|heif)(?:[?#].*)?$/i;
+
+/**
+ * Whether Astro reads an image URL from disk: the rule of Astro's Markdown
+ * pipeline (`@astrojs/markdown-satteri`'s image collector) — after
+ * `decodeURI`, anything that isn't an absolute URL and doesn't start with
+ * `/` (a public path) is a file next to the slide. Undecodable URLs count as
+ * local (the build would fail on them anyway).
+ */
+function isLocalPath(url: string): boolean {
+	let decoded: string;
+	try {
+		decoded = decodeURI(url);
+	} catch {
+		return true;
+	}
+	return decoded !== "" && !URL.canParse(decoded) && !decoded.startsWith("/");
+}
+
+/**
+ * Refuse images that point at the server's disk. A Markdown image with a
+ * relative path is read from the file system at build time, so
+ * `![](../../../x.png)` would copy any image the server can read into the
+ * output. Slides only have their own text: images must be URLs (`https:`,
+ * `data:`) or public paths. The body is parsed with the same Markdown parser
+ * Astro uses (linear time, unlike pattern matching), so what counts as an
+ * image here is what the build reads. Reference definitions that look like
+ * image files are refused too. HTML `<img src>` isn't read from disk.
+ */
+async function checkImages(slide: Slide, index: number): Promise<void> {
+	if (slide.kind !== "md") return;
+	const targets: string[] = [];
+	await markdownToHtml(slide.body, {
+		mdastPlugins: [
+			{
+				name: "astlide-server-images",
+				image(node: { url?: string }) {
+					targets.push(node.url ?? "");
+				},
+				definition(node: { url?: string }) {
+					if (IMAGE_FILE.test(node.url ?? "")) targets.push(node.url ?? "");
+				},
+			},
+		],
+		features: { gfm: true, smartPunctuation: true },
+		data: {},
+	});
+	const local = targets.find(isLocalPath);
+	if (local !== undefined)
+		throw new BadRequest(
+			`slide ${index + 1}: image "${local.slice(0, 200)}" is a file path — use an https: or data: URL`,
+		);
 }
 
 /**
@@ -166,7 +237,13 @@ function frontmatterBlock(frontmatter: Record<string, unknown>, index: number): 
 		if (value === undefined) continue;
 		lines.push(`${key}: ${JSON.stringify(value)}`);
 	}
-	return lines.length ? `---\n${lines.join("\n")}\n---\n` : "";
+	if (lines.reduce((n, l) => n + l.length + 1, 0) > MAX_FRONTMATTER_BYTES)
+		throw new BadRequest(
+			`slide ${index + 1}: frontmatter is larger than ${MAX_FRONTMATTER_BYTES / 1024} KB`,
+		);
+	// Always a block, even an empty one: a body that itself starts with `---`
+	// must stay body, not become the (unchecked) frontmatter.
+	return `---\n${lines.length ? lines.join("\n") : "{}"}\n---\n`;
 }
 
 /**

@@ -493,6 +493,8 @@ export function siteView(page: string, dist: string): { dir: string; dispose(): 
 	const path = href?.[1] ?? href?.[2];
 	if (!path || existsSync(join(dist, path))) return same;
 	const segments = path.split("/").filter(Boolean);
+	// Only plain folder names: nothing may be linked outside the temporary folder.
+	if (segments.some((s) => s === "." || s === ".." || s.includes("\\"))) return same;
 	for (let n = 1; n < segments.length; n++) {
 		if (!existsSync(join(dist, ...segments.slice(n)))) continue;
 		const dir = mkdtempSync(join(tmpdir(), "astlide-check-"));
