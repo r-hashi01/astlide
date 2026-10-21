@@ -5,15 +5,21 @@
  * With `ASTLIDE_PUBLIC_NETWORK_ONLY=1` (set by the HTTP render service for
  * every render) they may only reach public addresses: no loopback, private,
  * link-local / cloud-metadata, or other reserved ranges, checked for every
- * address a host name resolves to and on every redirect. Without it, exports
- * may use internal hosts (an intranet image in your own deck). Response
- * sizes are always bounded.
+ * address a host name resolves to and on every redirect. The check happens
+ * when connecting ({@link publicRequest}): the connection goes to the address
+ * that was checked, so a host can't pass with one DNS answer and connect
+ * with another. Without it, exports may use internal hosts (an intranet
+ * image in your own deck). Response sizes are always bounded.
  *
  * @module
  */
 
+import { lookup as lookupCallback } from "node:dns";
 import { lookup } from "node:dns/promises";
-import { isIP } from "node:net";
+import { request as httpRequest, type IncomingMessage } from "node:http";
+import { request as httpsRequest } from "node:https";
+import { isIP, type LookupFunction } from "node:net";
+import { Readable } from "node:stream";
 
 /** Whether exports may only reach public addresses (`ASTLIDE_PUBLIC_NETWORK_ONLY=1`). */
 export function publicNetworkOnly(env: Record<string, string | undefined> = process.env): boolean {
@@ -106,6 +112,98 @@ export async function isPublicUrl(url: string): Promise<boolean> {
 	}
 }
 
+/** A DNS lookup for sockets that only hands out public addresses: every address the name has must be public. */
+const publicLookup: LookupFunction = (hostname, options, callback) => {
+	lookupCallback(hostname, { all: true, verbatim: true }, (err, addresses) => {
+		if (err) return callback(err, "", 0);
+		if (!addresses.length || !addresses.every((a) => isPublicAddress(a.address)))
+			return callback(
+				Object.assign(new Error(`refused: ${hostname} is not public`), { code: "EREFUSED" }),
+				"",
+				0,
+			);
+		if (options.all) return (callback as (e: null, a: typeof addresses) => void)(null, addresses);
+		const first =
+			addresses.find((a) => !options.family || a.family === options.family) ?? addresses[0];
+		callback(null, first?.address ?? "", first?.family ?? 4);
+	});
+};
+
+/** Statuses whose responses have no body. */
+const NO_BODY = new Set([101, 103, 204, 205, 304]);
+
+/**
+ * One HTTP(S) request (no redirects followed) that may only reach public
+ * addresses — checked as the socket connects, so the connection goes to the
+ * address that was checked (no window for a host to change its DNS answer
+ * in between). Asks for an uncompressed body.
+ */
+export async function publicRequest(
+	url: string,
+	init: {
+		method?: string;
+		headers?: Record<string, string>;
+		body?: Buffer;
+		signal?: AbortSignal;
+	} = {},
+): Promise<Response> {
+	const u = new URL(url);
+	if (u.protocol !== "http:" && u.protocol !== "https:")
+		throw new Error(`refused: ${u.protocol} URL`);
+	const host = u.hostname.replace(/^\[|\]$/g, "");
+	// Literal addresses aren't looked up: check them here.
+	if (isIP(host) && !isPublicAddress(host)) throw new Error(`refused: ${host} is not public`);
+	const send = u.protocol === "https:" ? httpsRequest : httpRequest;
+	const res = await new Promise<IncomingMessage>((resolve, reject) => {
+		const req = send(
+			u,
+			{
+				method: init.method ?? "GET",
+				headers: { ...init.headers, "accept-encoding": "identity" },
+				lookup: publicLookup,
+				signal: init.signal,
+			},
+			resolve,
+		);
+		req.on("error", reject);
+		req.end(init.body);
+	});
+	const headers = new Headers();
+	for (const [name, value] of Object.entries(res.headers)) {
+		if (value === undefined) continue;
+		for (const v of Array.isArray(value) ? value : [value]) headers.append(name, v);
+	}
+	const status = res.statusCode ?? 502;
+	if (NO_BODY.has(status)) {
+		res.resume();
+		return new Response(null, { status, headers });
+	}
+	return new Response(Readable.toWeb(res) as ReadableStream, { status, headers });
+}
+
+/** A response's body, refused past `limit` bytes (declared or actual). */
+export async function readBody(res: Response, limit: number): Promise<Buffer> {
+	const declared = Number(res.headers.get("content-length") ?? 0);
+	if (declared > limit) {
+		await res.body?.cancel();
+		throw new Error(`response too large (${declared} bytes)`);
+	}
+	const chunks: Uint8Array[] = [];
+	let size = 0;
+	const reader = res.body?.getReader();
+	while (reader) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		size += value.byteLength;
+		if (size > limit) {
+			await reader.cancel();
+			throw new Error(`response too large (over ${limit} bytes)`);
+		}
+		chunks.push(value);
+	}
+	return Buffer.concat(chunks);
+}
+
 export interface FetchedBody {
 	ok: boolean;
 	status: number;
@@ -144,9 +242,9 @@ export async function exportFetch(url: string, options: ExportFetchOptions): Pro
 	for (let hop = 0; hop <= 5; hop++) {
 		const scheme = new URL(current).protocol;
 		if (scheme !== "http:" && scheme !== "https:") throw new Error(`refused: ${scheme} URL`);
-		if (mustBePublic && !(await isPublicUrl(current)))
-			throw new Error(`refused: ${current} is not public`);
-		const res = await fetch(current, { redirect: "manual", signal, headers: options.headers });
+		const res = mustBePublic
+			? await publicRequest(current, { signal, headers: options.headers })
+			: await fetch(current, { redirect: "manual", signal, headers: options.headers });
 		const location = res.headers.get("location");
 		if (res.status >= 300 && res.status < 400 && location) {
 			await res.body?.cancel();
@@ -155,30 +253,12 @@ export async function exportFetch(url: string, options: ExportFetchOptions): Pro
 			current = new URL(location, current).href;
 			continue;
 		}
-		const declared = Number(res.headers.get("content-length") ?? 0);
-		if (declared > options.limit) {
-			await res.body?.cancel();
-			throw new Error(`response too large (${declared} bytes)`);
-		}
-		const chunks: Uint8Array[] = [];
-		let size = 0;
-		const reader = res.body?.getReader();
-		while (reader) {
-			const { done, value } = await reader.read();
-			if (done) break;
-			size += value.byteLength;
-			if (size > options.limit) {
-				await reader.cancel();
-				throw new Error(`response too large (over ${options.limit} bytes)`);
-			}
-			chunks.push(value);
-		}
 		return {
 			ok: res.ok,
 			status: res.status,
 			url: current,
 			headers: res.headers,
-			body: Buffer.concat(chunks),
+			body: await readBody(res, options.limit),
 		};
 	}
 	throw new Error("too many redirects");

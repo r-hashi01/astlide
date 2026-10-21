@@ -9,7 +9,7 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { isPublicUrl, publicNetworkOnly } from "@astlide/core/utils/network.ts";
+import { publicNetworkOnly, publicRequest, readBody } from "@astlide/core/utils/network.ts";
 import { type BrowserContext, chromium, type Page } from "playwright";
 
 export interface RenderOptions {
@@ -125,18 +125,21 @@ export async function exportDeck(deck: string, options: RenderOptions): Promise<
 	// ASTLIDE_CHROMIUM_SANDBOX=1 keeps Chromium's sandbox on (Playwright turns it
 	// off by default); it needs user namespaces, which containers often deny.
 	const chromiumSandbox = process.env.ASTLIDE_CHROMIUM_SANDBOX === "1";
-	const browser = await chromium.launch({ chromiumSandbox }).catch((err: Error) => {
-		if (/Executable doesn't exist/.test(err.message)) {
-			throw new Error(
-				"PDF / PNG export needs Chromium. Install it once with: bunx playwright install chromium\n" +
-					"(PPTX needs no browser: --pptx)",
-			);
-		}
-		throw err;
-	});
+	const guarded = publicNetworkOnly();
+	const browser = await chromium
+		.launch({ chromiumSandbox, args: guarded ? GUARDED_ARGS : [] })
+		.catch((err: Error) => {
+			if (/Executable doesn't exist/.test(err.message)) {
+				throw new Error(
+					"PDF / PNG export needs Chromium. Install it once with: bunx playwright install chromium\n" +
+						"(PPTX needs no browser: --pptx)",
+				);
+			}
+			throw err;
+		});
 	try {
 		const context = await browser.newContext({ serviceWorkers: "block" });
-		if (publicNetworkOnly()) await guardNetwork(context, options.baseUrl);
+		if (guarded) await guardNetwork(context, options.baseUrl);
 		const slideCount = await getSlideCount(context, options.baseUrl, deck);
 		console.log(`  ${slideCount} slides found`);
 
@@ -185,26 +188,78 @@ async function waitForDiagrams(page: Page): Promise<void> {
 }
 
 /**
+ * Chromium flags for a guarded render: anything that isn't routed (see
+ * {@link guardNetwork}) goes to a proxy that isn't there — Chromium always
+ * bypasses proxies for loopback, where the rendered site is — and WebRTC
+ * sends no UDP of its own.
+ */
+const GUARDED_ARGS = [
+	"--proxy-server=http://127.0.0.1:9",
+	"--force-webrtc-ip-handling-policy",
+	"--webrtc-ip-handling-policy=disable_non_proxied_udp",
+];
+
+/** Largest response a guarded page may load from another host, in bytes. */
+const GUARDED_RESPONSE_LIMIT = 50 * 1024 * 1024;
+
+/** Redirect statuses, followed by {@link guardNetwork} itself. */
+const REDIRECTS = new Set([301, 302, 303, 307, 308]);
+
+/** Request headers not passed on when Astlide makes a request for the page. */
+const HOP_HEADERS = new Set([
+	"host",
+	"connection",
+	"content-length",
+	"accept-encoding",
+	"keep-alive",
+]);
+
+/**
  * With `ASTLIDE_PUBLIC_NETWORK_ONLY=1` (the render service): the slides may
  * load from the site being rendered, `data:` / `blob:` URLs and public
  * http(s) hosts — nothing on the server's own network (loopback, private
  * ranges, cloud metadata), no other schemes, no WebSockets or service
- * workers. Requests to other hosts are made one hop at a time, so a public
- * URL can't redirect into the network either.
+ * workers. Chromium doesn't connect to other hosts itself: Astlide makes
+ * those requests ({@link publicRequest}: checked as it connects) and hands
+ * Chromium the response. Redirects are followed here, each hop checked —
+ * Chromium would follow a redirect it is handed without routing it again.
  */
 export async function guardNetwork(context: BrowserContext, baseUrl: string): Promise<void> {
 	const site = new URL(baseUrl).origin;
 	await context.route("**/*", async (route) => {
-		const url = route.request().url();
+		const request = route.request();
+		const url = request.url();
 		if (url.startsWith("data:") || url.startsWith("blob:")) return route.continue();
 		if (URL.canParse(url) && new URL(url).origin === site) return route.continue();
-		if (!(await isPublicUrl(url))) return route.abort("blockedbyclient");
 		try {
-			// A redirect goes back to the page, whose next request comes through here again.
-			const response = await route.fetch({ maxRedirects: 0, timeout: 30_000 });
-			await route.fulfill({ response });
-		} catch {
-			await route.abort("failed");
+			const headers: Record<string, string> = {};
+			for (const [name, value] of Object.entries(await request.allHeaders()))
+				if (!name.startsWith(":") && !HOP_HEADERS.has(name)) headers[name] = value;
+			const signal = AbortSignal.timeout(30_000);
+			let method = request.method();
+			let body: Buffer | undefined = request.postDataBuffer() ?? undefined;
+			let target = url;
+			let res = await publicRequest(target, { method, headers, body, signal });
+			for (let hop = 0; REDIRECTS.has(res.status) && res.headers.get("location"); hop++) {
+				if (hop === 5) throw new Error("too many redirects");
+				await res.body?.cancel();
+				target = new URL(res.headers.get("location") as string, target).href;
+				// 307 / 308 repeat the request; the others become a GET.
+				if (res.status !== 307 && res.status !== 308) {
+					method = "GET";
+					body = undefined;
+				}
+				res = await publicRequest(target, { method, headers, body, signal });
+			}
+			const content = await readBody(res, GUARDED_RESPONSE_LIMIT);
+			await route.fulfill({
+				status: res.status,
+				headers: Object.fromEntries(res.headers),
+				body: content,
+			});
+		} catch (err) {
+			const refused = err instanceof Error && err.message.startsWith("refused");
+			await route.abort(refused ? "blockedbyclient" : "failed");
 		}
 	});
 	await context.routeWebSocket(/.*/, (ws) => ws.close());
