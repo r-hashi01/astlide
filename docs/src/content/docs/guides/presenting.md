@@ -31,7 +31,7 @@ On touch devices, swipe left / right to navigate.
 Press `p` to open the presenter window. It shows:
 
 - the current slide, a **live preview of the next slide** and how many **steps remain** on this one;
-- speaker notes (font size adjustable with `A−` / `A+` or `Shift+,` / `Shift+.`);
+- speaker notes (font size adjustable with `A−` / `A+` or `Shift+,` / `Shift+.`) — on a deployed deck only with `notes: "public"` (see [Speaker notes](/guides/decks/#speaker-notes));
 - a timer.
 
 The two windows stay in sync over `BroadcastChannel`: slide changes, [fragment and code steps](/guides/fragments/), pen strokes and the laser pointer. Drive the talk from the presenter window; the audience window follows.

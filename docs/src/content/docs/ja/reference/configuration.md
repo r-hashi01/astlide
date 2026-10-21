@@ -21,7 +21,7 @@ export default defineConfig({
       indexable: false,
       injectIndexRoute: undefined,
       drawings: { persist: false },
-      notes: "public",
+      notes: "dev",
     }),
   ],
 });
@@ -35,13 +35,24 @@ export default defineConfig({
 | `shikiTheme` | `string` | `"github-dark"` | コードフェンスに使う Shiki のテーマ。 |
 | `font` | `false \| string \| { href?, preconnect? }` | Google Fonts の Inter + JetBrains Mono | 読み込む Web フォントのスタイルシート。`false` で読み込みません。 |
 | `favicon` | `string \| false` | 自動 | デッキのページと一覧ページのファビコン。デフォルトでは `public/` に `favicon.svg` / `.ico` / `.png` があればそれを使い、なければ空のアイコンを使います（ドメイン直下の `/favicon.ico` へのリクエストは発生しません）。ルート相対パスには Astro の `base` が付きます。`false` でアイコンのリンクを出力しません。 |
-| `csp` | `boolean \| string` | `true` | デフォルトの Content-Security-Policy の meta タグ（スライドのページ、`/[deck]/all`、一覧ページに入り、`base-uri 'self'; form-action 'self'; object-src 'none'` を含みます）を挿入するか、無効にするか、独自のポリシーを指定します。`astro dev` では、Vite のクライアント用に `worker-src 'self' blob:` が（指定がなければ）追加されます。ビルドではポリシーはそのままです。 |
+| `csp` | `boolean \| string` | `true` | デフォルトの Content-Security-Policy の meta タグ（スライドのページ、`/[deck]/all`、一覧ページに入り、`base-uri 'self'; form-action 'self'; object-src 'none'` を含みます）を挿入するか、無効にするか、独自のポリシーを指定します。ビルドでは、デフォルトのポリシーの `script-src` に `'unsafe-inline'` を含めません。Astlide と Astro がページに入れるインラインスクリプトと、MDX のスライドやそのコンポーネントのスクリプト（どちらもコードです）は、`astro build` のあとに追加する SHA-256 のハッシュで許可します。Markdown・HTML・PowerPoint のスライドに書かれたインラインスクリプトは動きません（`slideScripts` を参照）。インラインのイベントハンドラー属性（`onclick="…"`）と `javascript:` URL も動きません。`style-src` には `'unsafe-inline'` を残します（スライドが `style` 属性を使うため）。`astro dev` ではスクリプトは `'unsafe-inline'` のままで、Vite のクライアント用に `worker-src 'self' blob:` が（指定がなければ）追加されます。独自のポリシー文字列を指定した場合は、そのまま使います。[埋め込みの制限とヘッダー](#埋め込みの制限とヘッダー)も参照してください。 |
 | `indexable` | `boolean` | `false` | `false` の場合、ページに `noindex, nofollow` が付きます。 |
 | `injectIndexRoute` | `boolean` | 自動 | `/` にデッキの一覧を挿入します。独自の `src/pages/index.*` がある場合は自動的にスキップされます。 |
 | `drawings.persist` | `boolean` | `false` | ペンの描画を `localStorage` に保存し、再読み込み後も残します。[プレゼンテーション](/ja/guides/presenting/#描画を残す)を参照してください。 |
-| `notes` | `"public" \| "dev"` | `"public"` | スピーカーノートをどこに含めるか。`"public"` はすべてのページに含めるので、URL を知っている人なら誰でも読めます。`"dev"` は `astro dev` のときだけ含め、ビルドしたページ（とそこから作るエクスポート）には含めません。[スピーカーノート](/ja/guides/decks/#スピーカーノート)を参照してください。 |
+| `notes` | `"public" \| "dev"` | `"dev"` | スピーカーノートをどこに含めるか。`"dev"` は `astro dev` のときと、`astlide export` が行うビルドにだけ含めます（PowerPoint の書き出しにはノートが入ります）。`astro build` でビルドしたページには含めません。`"public"` はすべてのページに含めるので、URL を知っている人なら誰でも読めます。[スピーカーノート](/ja/guides/decks/#スピーカーノート)を参照してください。 |
+| `slideScripts` | `boolean` | `false` | Markdown・HTML・PowerPoint のスライドにある `<script>`、イベント属性、`javascript:` の URL を実行するかどうか（`astro dev` でもビルドでも）。オフのときは、スライドを描画するときに取り除きます。スライドの内容は他人から受け取ったものかもしれず、`astro dev` ではスクリプトがスライドエディターと同じページで動いてしまうためです。MDX のスライドのスクリプトは常にそのまま動きます。内容を完全に信頼できるデッキだけオンにしてください。 |
 
 Astro 自体の [`base`](/ja/guides/deploy/) オプションにも従います。
+
+### 埋め込みの制限とヘッダー
+
+`<meta>` の CSP では、デッキを `<iframe>` で埋め込めるサイトを指定できません（`frame-ancestors`）。そのため、どのサイトからでも埋め込めます。ホスティング先でレスポンスヘッダーを設定できるなら、そこで指定してください。たとえば `Content-Security-Policy: frame-ancestors 'self' https://your-site.example` です。
+
+- **Netlify** — `public/_headers` に `/*` と `  Content-Security-Policy: frame-ancestors 'self'` を書く
+- **Cloudflare Pages** — 同じ `public/_headers` ファイル
+- **Vercel** — `vercel.json` に `"headers": [{ "source": "/(.*)", "headers": [{ "key": "Content-Security-Policy", "value": "frame-ancestors 'self'" }] }]`
+
+GitHub Pages ではヘッダーを設定できません。[`<astlide-deck>`](/ja/guides/embed/) でデッキを埋め込むサイトは、許可に含めてください。
 
 ## デッキの `_config.json`
 
