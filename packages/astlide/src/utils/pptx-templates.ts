@@ -12,6 +12,7 @@ import { join, resolve } from "node:path";
 import type { Plugin, ViteDevServer } from "vite";
 import { pptxToTemplate, templateCss } from "../pptx/template";
 import { pptxAssetDir, referencedAssets, storePptxAsset } from "./pptx-assets";
+import { slideScriptsKept, stripSlideScripts } from "./slide-scripts";
 
 /** What a slide needs at render time: artwork per layout, aliases, the master's art. */
 export interface TemplateData {
@@ -45,16 +46,18 @@ export function loadTemplate(
 	mkdirSync(dir, { recursive: true });
 	const cssPath = join(dir, `${theme.replace(/[^\w-]/g, "_")}.css`);
 	writeFileSync(cssPath, `${templateCss(template, theme)}\n`);
+	// A template can come from someone else, like a slide: no scripts in its artwork.
+	const art = (html: string) => (slideScriptsKept() ? html : stripSlideScripts(html));
 	return {
 		theme,
 		source: file,
 		cssPath,
 		data: {
 			layouts: Object.fromEntries(
-				template.layouts.map((l) => [l.id, { art: l.art, slideNumber: !!l.slideNumber }]),
+				template.layouts.map((l) => [l.id, { art: art(l.art), slideNumber: !!l.slideNumber }]),
 			),
 			aliases: template.aliases,
-			master: template.master,
+			master: art(template.master),
 		},
 	};
 }
