@@ -10,7 +10,7 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { basename, extname, join, relative } from "node:path";
+import { basename, extname, join, relative, resolve, sep } from "node:path";
 import { pptxToSlides } from "../pptx/index";
 import { slugify } from "../pptx/slug";
 
@@ -56,12 +56,36 @@ async function readSource(source: string): Promise<{ data: Buffer; name: string 
 /** A YAML double-quoted scalar (frontmatter values). */
 const yaml = (s: string) => JSON.stringify(s);
 
+/** Deck folder names: letters, digits, `_`, `-` and dots, not starting with a dot or `-`. */
+const DECK_NAME = /^[\p{L}\p{N}_][\p{L}\p{N}_.-]{0,99}$/u;
+
+/** A deck folder name, checked: one folder under src/content/decks, never a path. */
+export function deckFolderName(name: string): string {
+	if (!DECK_NAME.test(name) || name.includes(".."))
+		throw new Error(
+			`bad deck name "${name}" — use letters, digits, "-", "_" and ".", like "q3-review"`,
+		);
+	return name;
+}
+
 /** Import a deck; returns the deck folder (relative to the root) and its slide count. */
 export async function importDeck(options: ImportOptions): Promise<{ dir: string; slides: number }> {
+	// A name given is checked before anything is read or fetched.
+	if (options.deck !== undefined) deckFolderName(options.deck);
 	const { data, name } = await readSource(options.source);
-	const deckName = options.deck ?? slugify(basename(name, extname(name)), "imported");
-	const deckDir = join(options.root, "src", "content", "decks", deckName);
-	const assetDir = join(options.root, "public", "pptx", deckName);
+	const deckName = deckFolderName(
+		options.deck ?? slugify(basename(name, extname(name)), "imported"),
+	);
+	const decks = resolve(options.root, "src", "content", "decks");
+	const deckDir = join(decks, deckName);
+	const assetDir = join(resolve(options.root, "public", "pptx"), deckName);
+	// Belt and braces: both stay one level below their folder.
+	for (const [dir, parent] of [
+		[deckDir, decks],
+		[assetDir, resolve(options.root, "public", "pptx")],
+	])
+		if (!resolve(dir).startsWith(parent + sep) || relative(parent, dir).includes(sep))
+			throw new Error(`bad deck name "${deckName}"`);
 	if (existsSync(deckDir)) {
 		if (!options.force)
 			throw new Error(`${relative(options.root, deckDir)} exists — pass --force to replace it`);
