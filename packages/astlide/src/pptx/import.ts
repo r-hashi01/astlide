@@ -306,23 +306,40 @@ export function placeholderOf(shape: Element): Placeholder | undefined {
 /** @internal */
 export const titleTypes = new Set(["title", "ctrTitle"]);
 
+const normType = (t: string) =>
+	t === "ctrTitle" ? "title" : t === "subTitle" || t === "obj" ? "body" : t;
+
+/** Placeholder shapes of a layout / master tree by idx and by type (first one wins), built once per tree. */
+const placeholderIndex = new WeakMap<
+	Element,
+	{ byIdx: Map<string, Element>; byType: Map<string, Element> }
+>();
+
 /** The shape a placeholder inherits from in a layout / master tree. */
 function inherited(
 	tree: Element | undefined,
 	ph: Placeholder,
 	byTypeOnly = false,
 ): Element | undefined {
-	const shapes = kids(tree).filter((c) => c.name === "p:sp" || c.name === "p:pic");
+	if (!tree) return undefined;
+	let index = placeholderIndex.get(tree);
+	if (!index) {
+		index = { byIdx: new Map(), byType: new Map() };
+		for (const s of kids(tree)) {
+			if (s.name !== "p:sp" && s.name !== "p:pic") continue;
+			const p = placeholderOf(s);
+			if (!p) continue;
+			if (p.idx !== undefined && !index.byIdx.has(p.idx)) index.byIdx.set(p.idx, s);
+			const type = normType(p.type);
+			if (!index.byType.has(type)) index.byType.set(type, s);
+		}
+		placeholderIndex.set(tree, index);
+	}
 	if (!byTypeOnly && ph.idx !== undefined) {
-		const byIdx = shapes.find((s) => placeholderOf(s)?.idx === ph.idx);
+		const byIdx = index.byIdx.get(ph.idx);
 		if (byIdx) return byIdx;
 	}
-	const norm = (t: string) =>
-		t === "ctrTitle" ? "title" : t === "subTitle" || t === "obj" ? "body" : t;
-	return shapes.find((s) => {
-		const p = placeholderOf(s);
-		return p !== undefined && norm(p.type) === norm(ph.type);
-	});
+	return index.byType.get(normType(ph.type));
 }
 
 /** Maps EMU coordinates of a (group) child to slide EMU. */

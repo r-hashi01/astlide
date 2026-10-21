@@ -12,10 +12,20 @@ export type { Element };
 
 const isElement = (n: ChildNode): n is Element => n.type === "tag";
 
-/** Parse XML; returns its root element. */
+/** Deepest element nesting accepted (the helpers below recurse; real files stay far below). */
+export const MAX_XML_DEPTH = 256;
+
+/** Parse XML; returns its root element. Throws on nesting deeper than {@link MAX_XML_DEPTH}. */
 export function parseXml(xml: string): Element {
 	const root = parseDocument(xml, { xmlMode: true }).children.find(isElement);
 	if (!root) throw new Error("empty XML document");
+	// Checked without recursion, so a hostile file fails here rather than overflowing the stack later.
+	const stack: [Element, number][] = [[root, 1]];
+	for (let next = stack.pop(); next; next = stack.pop()) {
+		const [el, depth] = next;
+		if (depth > MAX_XML_DEPTH) throw new Error("XML nested too deeply");
+		for (const c of el.children) if (isElement(c)) stack.push([c, depth + 1]);
+	}
 	return root;
 }
 

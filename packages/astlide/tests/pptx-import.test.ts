@@ -233,6 +233,37 @@ describe("untrusted files", () => {
 		});
 		expect(pptxToSlides(pptx).slides).toHaveLength(2);
 	});
+
+	it("refuses XML nested deeper than the helpers can walk", async () => {
+		const depth = 100_000;
+		const pptx = patched(await fixture(), (name, text) =>
+			/^ppt\/slides\/slide1\.xml$/.test(name)
+				? text.replace(
+						"</p:spTree>",
+						`${"<p:grpSp>".repeat(depth)}${"</p:grpSp>".repeat(depth)}</p:spTree>`,
+					)
+				: text,
+		);
+		expect(() => pptxToSlides(pptx)).toThrow(/nested too deeply/);
+	});
+
+	it("matches placeholders against an index, not shape by shape", async () => {
+		// 20 000 placeholders on slide 1 and its layout (BRAND): quadratic matching takes far longer.
+		const shapes = (n: number) =>
+			Array.from(
+				{ length: n },
+				(_, i) =>
+					`<p:sp><p:nvSpPr><p:cNvPr id="${i + 100}" name="p${i}"/><p:cNvSpPr/><p:nvPr><p:ph type="body" idx="${i + 100}"/></p:nvPr></p:nvSpPr><p:spPr/></p:sp>`,
+			).join("");
+		const pptx = patched(await fixture(), (name, text) =>
+			/^ppt\/(slides\/slide1|slideLayouts\/slideLayout2)\.xml$/.test(name)
+				? text.replace("</p:spTree>", `${shapes(20_000)}</p:spTree>`)
+				: text,
+		);
+		const started = performance.now();
+		pptxToSlides(pptx);
+		expect(performance.now() - started).toBeLessThan(4000);
+	});
 });
 
 describe("readZip limits", () => {
