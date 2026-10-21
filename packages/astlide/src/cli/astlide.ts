@@ -100,6 +100,11 @@ function parseExportArgs(args: string[]): Options {
 	};
 	for (let i = 0; i < args.length; i++) {
 		const arg = args[i] as string;
+		// After `--`, everything is a deck name (even one starting with "-").
+		if (arg === "--") {
+			options.decks.push(...args.slice(i + 1));
+			break;
+		}
 		switch (arg) {
 			case "--pdf":
 			case "--png":
