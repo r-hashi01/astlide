@@ -14,14 +14,18 @@
  * reload as before (see `DEV_RELOAD_SCRIPT`).
  *
  * Only slide sources can be read or written: the path must resolve
- * inside the project's `src/` and end in `.mdx`, `.md` or `.html`, and POSTs
- * must come from the dev server's own origin. Registered with `apply: "serve"`,
- * so it never exists in a production build.
+ * inside the project's `src/` (symlinks included) and end in `.mdx`, `.md` or
+ * `.html`. Every request must come from the machine running the dev server
+ * (loopback, even with `astro dev --host`), carry the per-server token the dev
+ * pages are given (`x-astlide-editor-token`), and come from the dev server's
+ * own origin (required for POSTs; for GETs, any cross-site marker refuses).
+ * Registered with `apply: "serve"`, so it never exists in a production build.
  */
 
-import { readFile, writeFile } from "node:fs/promises";
+import { randomBytes, timingSafeEqual } from "node:crypto";
+import { readFile, realpath, writeFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { Plugin } from "vite";
 
 export const EDITOR_ENDPOINT = "/__astlide/source";
@@ -40,6 +44,16 @@ export const DEV_RELOAD_SCRIPT = `if (import.meta.hot) {
 	import.meta.hot.on(${JSON.stringify(SOURCE_SAVED_EVENT)}, reload);
 	import.meta.hot.on(${JSON.stringify(DECK_CHANGED_EVENT)}, reload);
 }`;
+/** Header carrying the dev server's editor token. */
+export const EDITOR_TOKEN_HEADER = "x-astlide-editor-token";
+/** A new random editor token (one per dev server start). */
+export function createEditorToken(): string {
+	return randomBytes(24).toString("hex");
+}
+/** Injected into dev pages: hands the page the token the editor sends with its requests. */
+export function editorTokenScript(token: string): string {
+	return `globalThis.__astlideEditorToken = ${JSON.stringify(token)};`;
+}
 /** How long after a write (or file add/remove) a full reload is considered its echo. */
 const RELOAD_ECHO_MS = 3000;
 const SLIDE_SOURCE = /\.(mdx|md|html)$/i;
@@ -59,6 +73,7 @@ export function resolveSlideSource(root: string, path: unknown): string | null {
 		rel === "" ||
 		rel.startsWith("..") ||
 		rel.startsWith(sep) ||
+		isAbsolute(rel) ||
 		resolve(srcDir, rel) !== absolute
 	) {
 		return null;
@@ -73,6 +88,61 @@ export function isSameOrigin(req: Pick<IncomingMessage, "headers">): boolean {
 	if (!origin || !host) return false;
 	try {
 		return new URL(origin).host === host;
+	} catch {
+		return false;
+	}
+}
+
+/** Whether a socket address is this machine (127.0.0.0/8, ::1, or IPv4-mapped loopback). */
+export function isLoopback(address: string | undefined): boolean {
+	if (!address) return false;
+	const v4 = address.startsWith("::ffff:") ? address.slice(7) : address;
+	return address === "::1" || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(v4);
+}
+
+function sameToken(given: unknown, token: string): boolean {
+	if (typeof given !== "string") return false;
+	const a = Buffer.from(given);
+	const b = Buffer.from(token);
+	return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/**
+ * Why an editor request is refused, or `null` when it may proceed: it must
+ * come over loopback, carry the dev server's token, and come from the dev
+ * server's own origin (POST: Origin required; GET: no foreign Origin and no
+ * cross-site `Sec-Fetch-Site`).
+ */
+export function refuseEditorRequest(
+	req: Pick<IncomingMessage, "headers" | "method"> & {
+		socket?: { remoteAddress?: string | undefined };
+	},
+	token: string,
+): string | null {
+	if (!isLoopback(req.socket?.remoteAddress))
+		return "The slide editor only accepts requests from this machine";
+	if (!sameToken(req.headers[EDITOR_TOKEN_HEADER], token)) return "Missing or wrong editor token";
+	if (req.method === "POST") return isSameOrigin(req) ? null : "Cross-origin write refused";
+	const site = req.headers["sec-fetch-site"];
+	if (site && site !== "same-origin" && site !== "none") return "Cross-origin read refused";
+	if (req.headers.origin && !isSameOrigin(req)) return "Cross-origin read refused";
+	return null;
+}
+
+/**
+ * Whether `file` (which may not exist yet) is really inside `<root>/src/`,
+ * following symlinks: a link under `src/` must not lead elsewhere.
+ */
+async function realInsideSrc(root: string, file: string): Promise<boolean> {
+	try {
+		const srcDir = await realpath(resolve(root, "src"));
+		let target: string;
+		try {
+			target = await realpath(file);
+		} catch {
+			target = join(await realpath(dirname(file)), basename(file));
+		}
+		return target.startsWith(srcDir + sep);
 	} catch {
 		return false;
 	}
@@ -134,7 +204,11 @@ export function interceptReloads(
 	channel.send = wrapped;
 }
 
-export function astlideEditorPlugin(root: string): Plugin {
+/**
+ * @param token The dev server's editor token (see {@link createEditorToken}),
+ *   also given to the pages through {@link editorTokenScript}.
+ */
+export function astlideEditorPlugin(root: string, token: string): Plugin {
 	// The last editor write or slide file add/remove, while its reload echo can
 	// still arrive.
 	let last: { change: PendingChange; at: number } | null = null;
@@ -168,25 +242,30 @@ export function astlideEditorPlugin(root: string): Plugin {
 
 			server.middlewares.use(EDITOR_ENDPOINT, async (req, res) => {
 				try {
+					if (req.method !== "GET" && req.method !== "POST") {
+						res.setHeader("Allow", "GET, POST");
+						return send(res, 405, { error: "Method not allowed" });
+					}
+					const refused = refuseEditorRequest(req, token);
+					if (refused) return send(res, 403, { error: refused });
 					if (req.method === "GET") {
 						const url = new URL(req.url ?? "", "http://localhost");
 						const file = resolveSlideSource(root, url.searchParams.get("path"));
-						if (!file) return send(res, 400, { error: "Not an editable slide source" });
+						if (!file || !(await realInsideSrc(root, file)))
+							return send(res, 400, { error: "Not an editable slide source" });
 						const content = await readFile(file, "utf-8");
 						return send(res, 200, { path: url.searchParams.get("path"), content });
 					}
 					if (req.method === "POST") {
-						if (!isSameOrigin(req)) return send(res, 403, { error: "Cross-origin write refused" });
 						const body = JSON.parse(await readBody(req)) as { path?: unknown; content?: unknown };
 						const file = resolveSlideSource(root, body.path);
-						if (!file || typeof body.content !== "string") {
+						if (!file || typeof body.content !== "string" || !(await realInsideSrc(root, file))) {
 							return send(res, 400, { error: "Not an editable slide source" });
 						}
 						track({ event: SOURCE_SAVED_EVENT, path: String(body.path) });
 						await writeFile(file, body.content, "utf-8");
 						return send(res, 200, { ok: true });
 					}
-					res.setHeader("Allow", "GET, POST");
 					return send(res, 405, { error: "Method not allowed" });
 				} catch (error) {
 					return send(res, 500, { error: (error as Error).message });

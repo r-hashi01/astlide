@@ -30,6 +30,11 @@
 import { trailingSlash } from "@astlide/core/utils/base-path";
 
 const ENDPOINT = "/__astlide/source";
+/** The dev server's editor token, handed to dev pages (see `editorTokenScript`). */
+const authHeaders = (): Record<string, string> => ({
+	"x-astlide-editor-token":
+		(globalThis as { __astlideEditorToken?: string }).__astlideEditorToken ?? "",
+});
 const SOURCE_SAVED_EVENT = "astlide:source-saved";
 const DECK_CHANGED_EVENT = "astlide:deck-changed";
 /** Coalesce the burst of events after the content store committed a change… */
@@ -217,6 +222,7 @@ async function loadSource(): Promise<void> {
 	try {
 		const res = await fetch(`${ENDPOINT}?path=${encodeURIComponent(target.path)}`, {
 			cache: "no-store",
+			headers: authHeaders(),
 		});
 		const body = (await res.json()) as { content?: string; error?: string };
 		if (!res.ok || typeof body.content !== "string") throw new Error(body.error ?? res.statusText);
@@ -246,7 +252,7 @@ async function saveSource(): Promise<void> {
 		try {
 			const res = await fetch(ENDPOINT, {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
+				headers: { "Content-Type": "application/json", ...authHeaders() },
 				body: JSON.stringify({ path, content }),
 			});
 			const body = (await res.json()) as { ok?: boolean; error?: string };
