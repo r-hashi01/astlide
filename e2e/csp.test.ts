@@ -3,7 +3,15 @@
  * are allowed by hash, see utils/csp-hashes): nothing they need is blocked.
  */
 
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, inject, it } from "vitest";
+import { DEFAULT_DECK_CSP } from "../packages/astlide/src/utils/csp";
+import { hashBuiltPages } from "../packages/astlide/src/utils/csp-hashes";
+import { slideContentMarks } from "../packages/astlide/src/utils/slide-mark";
 import { useBrowser } from "./helpers/browser";
 
 const browser = useBrowser();
@@ -75,5 +83,40 @@ describe("CSP", () => {
 		expect(afterNavigation).toEqual([]);
 		expect(console).toEqual([]);
 		await context.close();
+	});
+
+	it("doesn't run a script inside a slide's content unless slideScripts is on", async () => {
+		const mark = "e2etest";
+		const { start, end } = slideContentMarks(mark);
+		const html = `<!DOCTYPE html><html><head><meta http-equiv="Content-Security-Policy" content="${DEFAULT_DECK_CSP}" data-astlide-csp></head><body>
+<script>window.layoutRan = true;</script>
+<section class="slide"><!--${start}--><p>Imported text</p><script>window.slideRan = true;</script><!--${end}--></section>
+</body></html>`;
+		for (const slideScripts of [false, true]) {
+			const dir = mkdtempSync(join(tmpdir(), "astlide-csp-e2e-"));
+			writeFileSync(join(dir, "index.html"), html);
+			const result = await hashBuiltPages(dir, { mark, slideScripts });
+			expect(result.blocked.length).toBe(slideScripts ? 0 : 1);
+			const built = readFileSync(join(dir, "index.html"), "utf8");
+			const server = createServer((_req, res) => {
+				res.setHeader("content-type", "text/html");
+				res.end(built);
+			});
+			await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+			const page = await browser().newPage();
+			const violations: string[] = [];
+			page.on("console", (m) => {
+				if (/Content.Security.Policy/i.test(m.text())) violations.push(m.text());
+			});
+			await page.goto(`http://127.0.0.1:${(server.address() as AddressInfo).port}/`);
+			const ran = await page.evaluate(() => {
+				const w = window as unknown as { layoutRan?: boolean; slideRan?: boolean };
+				return { layout: w.layoutRan === true, slide: w.slideRan === true };
+			});
+			expect(ran).toEqual({ layout: true, slide: slideScripts });
+			expect(violations.length > 0).toBe(!slideScripts);
+			await page.close();
+			server.close();
+		}
 	});
 });

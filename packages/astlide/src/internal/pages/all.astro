@@ -32,6 +32,7 @@ import Math from '@astlide/core/components/Math.astro';
 import YouTube from '@astlide/core/components/YouTube.astro';
 import Tweet from '@astlide/core/components/Tweet.astro';
 import { extractCommentNotes } from '@astlide/core/utils/comment-notes';
+import { slideContentComments } from '@astlide/core/utils/slide-mark';
 import { notesIncluded } from '@astlide/core/utils/notes';
 import { cspFor, cspHashable, DEFAULT_DECK_CSP } from '@astlide/core/utils/csp';
 
@@ -109,7 +110,7 @@ const rendered = await Promise.all(
         totalSlides={totalSlides}
         theme={deckConfig.theme}
       >
-        <Content components={{ Left, Right, ImageSide, TextPanel, Fragment: SlideFragment, Fragments, Notes, SpeakerNotes, Columns, CodeBlock, Math, YouTube, Tweet }} />
+        <Fragment set:html={slideContentComments(slide.filePath).start} /><Content components={{ Left, Right, ImageSide, TextPanel, Fragment: SlideFragment, Fragments, Notes, SpeakerNotes, Columns, CodeBlock, Math, YouTube, Tweet }} /><Fragment set:html={slideContentComments(slide.filePath).end} />
         {/* Frontmatter / comment notes, for exporters (PPTX speaker notes); hidden. */}
         {notesIncluded && notesOf(slide) && <div data-slide-notes="meta" hidden>{notesOf(slide)}</div>}
       </Slide>

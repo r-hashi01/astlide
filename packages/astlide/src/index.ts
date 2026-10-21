@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -49,10 +50,11 @@ export interface AstlideOptions {
 	 * - `string`: use a custom CSP policy string
 	 *
 	 * In a build, the default policy allows inline scripts by hash, not
-	 * `'unsafe-inline'`: after `astro build`, each page's inline `<script>`s
-	 * (Astlide's, Astro's and any a slide brings) are hashed into its
-	 * `script-src`. Inline event-handler attributes and `javascript:` URLs don't
-	 * run. `style-src` keeps `'unsafe-inline'` for `style` attributes. A custom
+	 * `'unsafe-inline'`: after `astro build`, the inline `<script>`s Astlide and
+	 * Astro put on each page, and those of MDX slides and their components
+	 * (code), are hashed into its `script-src`. Inline scripts in Markdown, HTML
+	 * and PowerPoint slides are not (see `slideScripts`), nor are inline
+	 * event-handler attributes or `javascript:` URLs — those don't run. `style-src` keeps `'unsafe-inline'` for `style` attributes. A custom
 	 * policy string is used as is.
 	 *
 	 * During `astro dev`, scripts stay on `'unsafe-inline'`, and
@@ -60,6 +62,17 @@ export interface AstlideOptions {
 	 * Vite's client can reconnect after a server restart.
 	 */
 	csp?: boolean | string;
+	/**
+	 * Let inline `<script>`s in Markdown, HTML and PowerPoint slides run in
+	 * built pages: their hashes join the default CSP. (MDX slides are code; their
+	 * scripts always run.) Default `false` — slide content can come from
+	 * others (an imported `.pptx`, an HTML slide someone sent), and the CSP is
+	 * what stops a script that slipped into it. Turn it on only for decks whose
+	 * content you fully trust (not PowerPoint files from others). For a script
+	 * you want on your slides, prefer an MDX slide or a component. Without a CSP (`csp: false`) slide scripts run
+	 * anyway; in `astro dev` they always do.
+	 */
+	slideScripts?: boolean;
 	/**
 	 * Allow search engines to index the deployed slide deck.
 	 * When `false` (default), a `<meta name="robots" content="noindex, nofollow">` tag is injected.
@@ -318,6 +331,9 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 		...optionDecorators,
 	];
 	const resolved = resolvePlugins(allPlugins);
+	// Marks where slide content starts and ends in a page, for the CSP pass
+	// after the build: random per build, so content can't fake the end mark.
+	const slideMark = randomBytes(16).toString("hex");
 
 	return {
 		name: "astlide",
@@ -441,6 +457,7 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 						define: {
 							// Expose options to injected pages via Vite define
 							__ASTLIDE_CSP__: JSON.stringify(options.csp ?? true),
+							__ASTLIDE_SLIDE_MARK__: JSON.stringify(slideMark),
 							__ASTLIDE_INDEXABLE__: JSON.stringify(options.indexable ?? false),
 							__ASTLIDE_THEME_NAMES__: JSON.stringify([...resolved.themeNames]),
 							__ASTLIDE_LAYOUT_NAMES__: JSON.stringify([...resolved.layoutNames]),
@@ -520,11 +537,21 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 					);
 				}
 			},
-			// Built pages: the default CSP's script-src gets each page's inline-script
-			// hashes in place of 'unsafe-inline' (see utils/csp-hashes).
+			// Built pages: the default CSP's script-src gets the hashes of the inline
+			// scripts Astlide and Astro put on pages, in place of 'unsafe-inline'
+			// (slide scripts only with slideScripts; see utils/csp-hashes).
 			"astro:build:done": async ({ dir, logger }) => {
-				const changed = await hashBuiltPages(fileURLToPath(dir));
-				if (changed) logger.info(`CSP: inline scripts hashed in ${changed} page(s)`);
+				const { pages, blocked } = await hashBuiltPages(fileURLToPath(dir), {
+					mark: slideMark,
+					slideScripts: options.slideScripts,
+				});
+				if (pages) logger.info(`CSP: inline scripts hashed in ${pages} page(s)`);
+				if (blocked.length)
+					logger.warn(
+						`${blocked.length} page(s) have inline <script>s in slides, which won't run in the ` +
+							"built site (CSP). Move them into a component, or set slideScripts: true if you " +
+							`fully trust the decks' content. First: ${blocked[0]?.file}`,
+					);
 			},
 		},
 	};
