@@ -153,8 +153,9 @@ jobs:
             if npm view "$tag" version >/dev/null 2>&1; then
               echo "$tag is already on npm"
             else
-              # --provenance makes npm do the OIDC handshake Trusted Publishing needs.
-              npm publish "release/$file" --access public --provenance --ignore-scripts
+              # "./": a bare "release/x.tgz" reads as a GitHub "user/repo" spec. --provenance
+              # makes npm do the OIDC handshake Trusted Publishing needs.
+              npm publish "./release/$file" --access public --provenance --ignore-scripts
             fi
             # A tag made elsewhere must not get this release's notes.
             if sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --jq .object.sha 2>/dev/null); then
