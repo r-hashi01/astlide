@@ -99,24 +99,45 @@ const ALIASES: Record<string, { types: string[]; name: RegExp }> = {
 /** Placeholders that hold slide content (not date / footer / number / pictures). */
 const CONTENT = new Set(["body", "obj", "subTitle"]);
 
+/** Most masters and layouts read from a template. */
+export const MAX_MASTERS = 64;
+export const MAX_LAYOUTS = 256;
+
+/** The distinct, present values, in order. */
+const unique = (parts: (string | undefined)[]): string[] => [
+	...new Set(parts.filter((p): p is string => !!p)),
+];
+
 /** Read a template's design. Pictures go through `media`, as in {@link pptxToSlides}. */
 export function pptxToTemplate(data: Uint8Array, options: PptxImportOptions = {}): PptxTemplate {
 	const p = openPresentation(data, options);
 	const { pkg } = p;
-	const masters = kids(kid(p.el, "p:sldMasterIdLst"), "p:sldMasterId")
-		.map((m) => pkg.rels(p.part).get(m.attribs["r:id"] ?? "")?.target)
-		.filter((m): m is string => !!m);
+	// Each master / layout part once, and at most MAX_MASTERS / MAX_LAYOUTS: a crafted
+	// file can list one many times, and every layout's art is kept.
+	const masters = unique(
+		kids(kid(p.el, "p:sldMasterIdLst"), "p:sldMasterId").map(
+			(m) => pkg.rels(p.part).get(m.attribs["r:id"] ?? "")?.target,
+		),
+	).slice(0, MAX_MASTERS);
 
 	const layouts: TemplateLayout[] = [];
+	const seenLayouts = new Set<string>();
 	const ids = new Set<string>();
+	/** Next suffix to try per slug, so repeated names don't rescan from 2. */
+	const nextSuffix = new Map<string, number>();
 	let master = "";
 	let first: SlideContext | undefined;
 	for (const masterPart of masters) {
 		const masterEl = pkg.xml(masterPart);
-		const layoutParts = kids(kid(masterEl, "p:sldLayoutIdLst"), "p:sldLayoutId")
-			.map((l) => pkg.rels(masterPart).get(l.attribs["r:id"] ?? "")?.target)
-			.filter((l): l is string => !!l);
+		const layoutParts = unique(
+			kids(kid(masterEl, "p:sldLayoutIdLst"), "p:sldLayoutId").map(
+				(l) => pkg.rels(masterPart).get(l.attribs["r:id"] ?? "")?.target,
+			),
+		);
 		for (const part of layoutParts) {
+			if (seenLayouts.has(part)) continue;
+			if (seenLayouts.size >= MAX_LAYOUTS) break;
+			seenLayouts.add(part);
 			const ctx = contextFor(p, part);
 			if (!first) {
 				first = ctx;
@@ -124,8 +145,14 @@ export function pptxToTemplate(data: Uint8Array, options: PptxImportOptions = {}
 				master = canvas(p, { ...ctx, layout: undefined, layoutPart: undefined });
 			}
 			const name = path(ctx.layout, "p:cSld")?.attribs.name ?? ctx.layout?.attribs.type ?? "layout";
-			let id = slugify(name, "layout");
-			for (let n = 2; ids.has(id); n++) id = `${slugify(name, "layout")}-${n}`;
+			const base = slugify(name, "layout");
+			let id = base;
+			if (ids.has(id)) {
+				let n = nextSuffix.get(base) ?? 2;
+				while (ids.has(`${base}-${n}`)) n++;
+				id = `${base}-${n}`;
+				nextSuffix.set(base, n + 1);
+			}
 			ids.add(id);
 			layouts.push({
 				name,

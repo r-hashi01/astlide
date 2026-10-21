@@ -5,8 +5,8 @@
  * @module
  */
 
-import type { ChildNode, Element } from "domhandler";
-import { parseDocument } from "htmlparser2";
+import { type ChildNode, DomHandler, type Element } from "domhandler";
+import { Parser } from "htmlparser2";
 
 export type { Element };
 
@@ -14,18 +14,36 @@ const isElement = (n: ChildNode): n is Element => n.type === "tag";
 
 /** Deepest element nesting accepted (the helpers below recurse; real files stay far below). */
 export const MAX_XML_DEPTH = 256;
+/** Most elements in one XML document (a dense real slide has a few ten thousand). */
+export const MAX_XML_ELEMENTS = 500_000;
 
-/** Parse XML; returns its root element. Throws on nesting deeper than {@link MAX_XML_DEPTH}. */
-export function parseXml(xml: string): Element {
-	const root = parseDocument(xml, { xmlMode: true }).children.find(isElement);
-	if (!root) throw new Error("empty XML document");
-	// Checked without recursion, so a hostile file fails here rather than overflowing the stack later.
-	const stack: [Element, number][] = [[root, 1]];
-	for (let next = stack.pop(); next; next = stack.pop()) {
-		const [el, depth] = next;
-		if (depth > MAX_XML_DEPTH) throw new Error("XML nested too deeply");
-		for (const c of el.children) if (isElement(c)) stack.push([c, depth + 1]);
+/** A DOM builder that stops as soon as a document is nested too deeply or has too many elements. */
+class BoundedHandler extends DomHandler {
+	private count = 0;
+	private depth = 0;
+
+	override onopentag(name: string, attribs: { [key: string]: string }): void {
+		if (++this.count > MAX_XML_ELEMENTS) throw new Error("XML has too many elements");
+		if (++this.depth > MAX_XML_DEPTH) throw new Error("XML nested too deeply");
+		super.onopentag(name, attribs);
 	}
+
+	override onclosetag(): void {
+		this.depth--;
+		super.onclosetag();
+	}
+}
+
+/**
+ * Parse XML; returns its root element. Throws, while parsing, on nesting
+ * deeper than {@link MAX_XML_DEPTH} or more than {@link MAX_XML_ELEMENTS}
+ * elements — so a hostile file fails before its tree is built.
+ */
+export function parseXml(xml: string): Element {
+	const handler = new BoundedHandler(undefined, { xmlMode: true });
+	new Parser(handler, { xmlMode: true }).end(xml);
+	const root = handler.root.children.find(isElement);
+	if (!root) throw new Error("empty XML document");
 	return root;
 }
 

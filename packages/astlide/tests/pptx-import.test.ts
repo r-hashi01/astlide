@@ -234,6 +234,78 @@ describe("untrusted files", () => {
 		expect(pptxToSlides(pptx).slides).toHaveLength(2);
 	});
 
+	/** The fixture with `xml` added to slide 1's shapes. */
+	async function withShapes(xml: string): Promise<Buffer> {
+		return patched(await fixture(), (name, text) =>
+			name === "ppt/slides/slide1.xml" ? text.replace("</p:spTree>", `${xml}</p:spTree>`) : text,
+		);
+	}
+	/** A text box with one paragraph, `pPr` / `rPr` / `spPr` children as given. */
+	const textBox = (pPr: string, spPr = "", text = "item") =>
+		`<p:sp><p:nvSpPr><p:cNvPr id="900" name="t"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="914400"/></a:xfrm>${spPr}</p:spPr><p:txBody><a:bodyPr/><a:p><a:pPr>${pPr}</a:pPr><a:r><a:t>${text}</a:t></a:r></a:p></p:txBody></p:sp>`;
+
+	it("keeps numbered lists within PowerPoint's range", async () => {
+		const html = async (startAt: string) =>
+			pptxToSlides(
+				await withShapes(textBox(`<a:buAutoNum type="romanUcPeriod" startAt="${startAt}"/>`)),
+			).slides[0]?.html ?? "";
+		expect(await html("4")).toContain("IV.");
+		// Past 3999 there are no roman numerals: plain numbers.
+		expect(await html("5000")).toContain("5000.");
+		expect(await html("1e12")).toContain("32767.");
+		expect(await html("Infinity")).toContain("I.");
+	});
+
+	it("reads each embedded font once, and only so many", async () => {
+		const fonts = Array.from(
+			{ length: 2000 },
+			(_, i) =>
+				`<p:embeddedFont><p:font typeface="F${i % 100}"/><p:regular r:id="rIdF"/></p:embeddedFont>`,
+		).join("");
+		const pptx = patched(
+			await fixture(),
+			(name, text) =>
+				name === "ppt/presentation.xml"
+					? text.replace(
+							"</p:sldIdLst>",
+							`</p:sldIdLst><p:embeddedFontLst>${fonts}</p:embeddedFontLst>`,
+						)
+					: name === "ppt/_rels/presentation.xml.rels"
+						? text.replace(
+								"</Relationships>",
+								'<Relationship Id="rIdF" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="fonts/font1.fntdata"/></Relationships>',
+							)
+						: text,
+			{ "ppt/fonts/font1.fntdata": eotFont() },
+		);
+		let stored = 0;
+		const deck = pptxToSlides(pptx, {
+			media: (f) => {
+				if (f.type === "font/ttf") stored++;
+				return `/assets/${f.name}`;
+			},
+		});
+		expect(stored).toBe(1);
+		expect(deck.slides[0]?.html.match(/@font-face/g)?.length).toBe(32);
+	});
+
+	it("refuses oversized XML parts before parsing them", async () => {
+		const huge = await withShapes(`<a:ext uri="x">${" ".repeat(33 * 1024 * 1024)}</a:ext>`);
+		expect(() => pptxToSlides(huge)).toThrow(/too large/);
+		const many = await withShapes("<a:x/>".repeat(600_000));
+		expect(() => pptxToSlides(many)).toThrow(/too many elements/);
+	});
+
+	it("doesn't trip over names like constructor in the file", async () => {
+		const pptx = await withShapes(
+			textBox(
+				'<a:buFont typeface="Wingdings"/><a:buChar char="constructor"/>',
+				'<a:solidFill><a:prstClr val="constructor"/></a:solidFill><a:ln w="12700"><a:solidFill><a:schemeClr val="constructor"/></a:solidFill><a:prstDash val="constructor"/></a:ln>',
+			) + textBox("", '<a:solidFill><a:schemeClr val="__proto__"/></a:solidFill>'),
+		);
+		expect(pptxToSlides(pptx).slides[0]?.html).toContain("item");
+	});
+
 	it("refuses XML nested deeper than the helpers can walk", async () => {
 		const depth = 100_000;
 		const pptx = patched(await fixture(), (name, text) =>

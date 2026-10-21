@@ -86,6 +86,12 @@ interface Rel {
 	external: boolean;
 }
 
+/** Most embedded font families read from one file. */
+export const MAX_EMBEDDED_FONTS = 32;
+
+/** Largest XML part read, in bytes (real slide, layout and theme parts stay far below). */
+export const MAX_XML_BYTES = 32 * 1024 * 1024;
+
 /** The OOXML package: parts by path, parsed XML and relationships on demand. */
 export class Package {
 	private parsed = new Map<string, Element | null>();
@@ -96,6 +102,8 @@ export class Package {
 		if (!part) return undefined;
 		if (!this.parsed.has(part)) {
 			const data = this.files.get(part);
+			if (data && data.length > MAX_XML_BYTES)
+				throw new Error(`XML part ${part} is too large (${data.length} bytes)`);
 			this.parsed.set(part, data ? parseXml(data.toString("utf-8")) : null);
 		}
 		return this.parsed.get(part) ?? undefined;
@@ -203,7 +211,7 @@ function paraProps(base: TextProps, el: Element | undefined): TextProps {
 		p.bullet = {
 			kind: "num",
 			type: buNum.attribs.type ?? "arabicPeriod",
-			start: num(buNum, "startAt", 1),
+			start: startAt(num(buNum, "startAt", 1)),
 		};
 	const buClr = kid(el, "a:buClr");
 	if (buClr) p.buClr = colorChild(buClr);
@@ -233,8 +241,13 @@ function runProps(base: TextProps, el: Element | undefined): TextProps {
 	return p;
 }
 
-/** Wingdings / Symbol bullet glyphs → Unicode. */
-const SYMBOL_BULLETS: Record<string, string> = {
+/** A numbered list's first number, within PowerPoint's own range (1–32767). */
+function startAt(n: number): number {
+	return Number.isFinite(n) ? Math.min(Math.max(Math.trunc(n), 1), 32767) : 1;
+}
+
+/** Wingdings / Symbol bullet glyphs → Unicode (a null-prototype map: keys come from the file). */
+const SYMBOL_BULLETS: Record<string, string> = Object.assign(Object.create(null), {
 	"§": "▪",
 	q: "❑",
 	Ø: "➢",
@@ -245,7 +258,7 @@ const SYMBOL_BULLETS: Record<string, string> = {
 	"·": "•",
 	o: "○",
 	"": "•",
-};
+});
 
 function autoNumber(type: string, n: number): string {
 	const roman = (v: number) => {
@@ -278,9 +291,9 @@ function autoNumber(type: string, n: number): string {
 		? alpha(n)
 		: /^alphaUc/.test(type)
 			? alpha(n).toUpperCase()
-			: /^romanLc/.test(type)
+			: /^romanLc/.test(type) && n <= 3999
 				? roman(n)
-				: /^romanUc/.test(type)
+				: /^romanUc/.test(type) && n <= 3999
 					? roman(n).toUpperCase()
 					: String(n);
 	if (/ParenBoth$/.test(type)) return `(${body})`;
@@ -439,7 +452,7 @@ export function openPresentation(data: Uint8Array, options: PptxImportOptions = 
 		if (mediaUrls.has(part)) return mediaUrls.get(part) ?? null;
 		const bytes = pkg.files.get(part);
 		const ext = posix.extname(part).slice(1).toLowerCase();
-		const type = MIME[ext];
+		const type = Object.hasOwn(MIME, ext) ? MIME[ext] : undefined;
 		let url: string | null = null;
 		if (bytes && type) {
 			url = options.media
@@ -452,22 +465,40 @@ export function openPresentation(data: Uint8Array, options: PptxImportOptions = 
 
 	const rels = pkg.rels(presentationPart);
 	// Fonts embedded in the file (PowerPoint "Embed fonts"): @font-face rules, when they can be served.
+	// Each family / face once, at most MAX_EMBEDDED_FONTS families, each font part
+	// unpacked once: a crafted file can list one font many times, and the rules go into every slide.
 	let fontCss = "";
 	if (options.media) {
+		const faces = new Set<string>();
+		const families = new Set<string>();
+		const fontUrls = new Map<string, string | null>();
 		for (const ef of kids(kid(presentation, "p:embeddedFontLst"), "p:embeddedFont")) {
 			const family = safeFontName(kid(ef, "p:font")?.attribs.typeface);
 			if (!family) continue;
+			if (!families.has(family) && families.size >= MAX_EMBEDDED_FONTS) break;
+			families.add(family);
 			for (const [slot, weight, style] of [
 				["regular", 400, "normal"],
 				["bold", 700, "normal"],
 				["italic", 400, "italic"],
 				["boldItalic", 700, "italic"],
 			] as const) {
+				if (faces.has(`${family}/${slot}`)) continue;
 				const id = kid(ef, `p:${slot}`)?.attribs["r:id"];
 				const target = id ? rels.get(id)?.target : undefined;
-				const font = target ? fontFromEot(pkg.files.get(target)) : null;
-				if (!font) continue;
-				const url = options.media({ name: `${family}-${slot}.ttf`, data: font, type: "font/ttf" });
+				if (!target) continue;
+				if (!fontUrls.has(target)) {
+					const font = fontFromEot(pkg.files.get(target));
+					fontUrls.set(
+						target,
+						font
+							? options.media({ name: `${family}-${slot}.ttf`, data: font, type: "font/ttf" })
+							: null,
+					);
+				}
+				const url = fontUrls.get(target);
+				if (!url) continue;
+				faces.add(`${family}/${slot}`);
 				fontCss += `@font-face{font-family:'${family}';font-weight:${weight};font-style:${style};src:url('${url.replace(/'/g, "%27")}')}`;
 			}
 		}
@@ -910,7 +941,10 @@ function lineCss(ln: Element | undefined, ctx: SlideContext, styleColor?: Elemen
 	const custom = kids(kid(ln, "a:custDash"), "a:ds");
 	if (custom.length)
 		pattern = custom.flatMap((ds) => [num(ds, "d") / 100000, num(ds, "sp") / 100000]);
-	else pattern = DASHES[kid(ln, "a:prstDash")?.attribs.val ?? "solid"];
+	else {
+		const preset = kid(ln, "a:prstDash")?.attribs.val ?? "solid";
+		pattern = Object.hasOwn(DASHES, preset) ? DASHES[preset] : undefined;
+	}
 	const dash = pattern?.length ? pattern.map((v) => r2(Math.max(0.5, v * width))).join(" ") : null;
 	return { width, color, dash };
 }

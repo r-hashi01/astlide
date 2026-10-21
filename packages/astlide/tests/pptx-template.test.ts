@@ -180,3 +180,30 @@ describe("Office theme files", () => {
 		expect(t.aliases).toMatchObject({ cover: "title-slide", section: "section-header" });
 	});
 });
+
+describe("untrusted templates", () => {
+	it("reads each master and layout once, however often the file lists them", async () => {
+		const { readZip } = await import("../src/pptx/zip");
+		const { ZipWriter } = await import("../src/cli/pptx/ooxml-writer");
+		const original = pptxToTemplate(await fixture());
+		const files = readZip(await fixture());
+		const zip = new ZipWriter();
+		for (const name of files.keys()) {
+			let data: Buffer | string = files.get(name) as Buffer;
+			if (name === "ppt/presentation.xml") {
+				const text = data.toString("utf-8");
+				const first = text.match(/<p:sldMasterId [^>]*\/>/)?.[0] ?? "";
+				data = text.replace("</p:sldMasterIdLst>", `${first.repeat(5000)}</p:sldMasterIdLst>`);
+			} else if (/^ppt\/slideMasters\/slideMaster\d+\.xml$/.test(name)) {
+				const text = data.toString("utf-8");
+				const first = text.match(/<p:sldLayoutId [^>]*\/>/)?.[0] ?? "";
+				data = text.replace("</p:sldLayoutIdLst>", `${first.repeat(100_000)}</p:sldLayoutIdLst>`);
+			}
+			zip.add(name, data);
+		}
+		const started = performance.now();
+		const template = pptxToTemplate(zip.toBuffer());
+		expect(performance.now() - started).toBeLessThan(10_000);
+		expect(template.layouts.map((l) => l.id)).toEqual(original.layouts.map((l) => l.id));
+	});
+});
