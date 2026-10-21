@@ -167,9 +167,30 @@ function naturalSize(svg: string): { width: number; height: number } {
 	return { width, height: vw ? (width * vh) / vw : 150 };
 }
 
-/** Rasterize SVG to PNG `width` px wide, drawing text with `fontFiles`. */
+/** Links an SVG may keep: in-document references and inline raster images. */
+const SAFE_HREF = /^(?:#|data:image\/(?:png|jpe?g|gif|webp)[;,])/i;
+
+/**
+ * `svg` with every other `href` / `xlink:href` emptied. resvg loads an
+ * `<image>` from a file path, so a remote SVG could otherwise pull a local
+ * file into the output (an inline SVG image could do the same, hence raster
+ * only).
+ */
+function withoutExternalRefs(svg: string): string {
+	return svg.replace(
+		/(\s(?:[\w.-]+:)?href\s*=\s*)(?:"([^"]*)"|'([^']*)')/gi,
+		(all, attr: string, double?: string, single?: string) =>
+			SAFE_HREF.test(double ?? single ?? "") ? all : `${attr}""`,
+	);
+}
+
+/**
+ * Rasterize SVG to PNG `width` px wide, drawing text with `fontFiles`. Only
+ * in-document references and inline raster images are drawn (see
+ * {@link withoutExternalRefs}).
+ */
 export function svgToPng(svg: string, width: number, fontFiles: string[]): Buffer {
-	return new Resvg(svg, {
+	return new Resvg(withoutExternalRefs(svg), {
 		fitTo: { mode: "width", value: Math.round(width) },
 		font: { fontFiles, loadSystemFonts: false },
 	})
