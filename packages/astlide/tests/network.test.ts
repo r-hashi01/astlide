@@ -77,6 +77,14 @@ describe("exportFetch", () => {
 		await expect(exportFetch("file:///etc/passwd", { limit: 100 })).rejects.toThrow(/refused/);
 	});
 
+	it("refuses the private network for URLs a remote response chose", async () => {
+		await expect(exportFetch(`${base}/ok`, { limit: 100, source: "remote" })).rejects.toThrow(
+			/not public/,
+		);
+		// The deck's own URL may be internal (an intranet image), redirects included.
+		expect((await exportFetch(`${base}/hop`, { limit: 100 })).body.toString()).toBe("ok");
+	});
+
 	it("refuses the private network with ASTLIDE_PUBLIC_NETWORK_ONLY=1", async () => {
 		vi.stubEnv("ASTLIDE_PUBLIC_NETWORK_ONLY", "1");
 		await expect(exportFetch(`${base}/ok`, { limit: 100 })).rejects.toThrow(/not public/);

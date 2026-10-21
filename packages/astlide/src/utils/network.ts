@@ -115,28 +115,43 @@ export interface FetchedBody {
 	body: Buffer;
 }
 
+export interface ExportFetchOptions {
+	/** Largest body read, in bytes. */
+	limit: number;
+	/** For the whole request, body included (default 10 s). */
+	timeoutMs?: number;
+	headers?: Record<string, string>;
+	/**
+	 * Who chose the URL: the deck's author (`"deck"`, the default) or a remote
+	 * response (`"remote"`: an oEmbed endpoint a page advertises, a thumbnail
+	 * or `og:image` URL). Remote-chosen URLs must always be public.
+	 */
+	source?: "deck" | "remote";
+}
+
 /**
  * GET a URL for an export: at most `limit` bytes of body, redirects followed
- * by hand (at most 5) so each hop is checked, and — with public-network-only
- * on — every hop must go to a public address. Throws on a refused or
- * oversized response.
+ * by hand (at most 5) so each hop is checked. Every hop must go to a public
+ * address when public-network-only is on or the URL came from a remote
+ * response (`source: "remote"`); otherwise a deck's own URL may be internal
+ * (an intranet image), but once a hop is public, the server it redirects to
+ * must be public as well. Throws on a refused or oversized response.
  */
-export async function exportFetch(
-	url: string,
-	options: { limit: number; timeoutMs?: number; headers?: Record<string, string> },
-): Promise<FetchedBody> {
-	const guard = publicNetworkOnly();
+export async function exportFetch(url: string, options: ExportFetchOptions): Promise<FetchedBody> {
+	let mustBePublic = publicNetworkOnly() || options.source === "remote";
 	const signal = AbortSignal.timeout(options.timeoutMs ?? 10_000);
 	let current = url;
 	for (let hop = 0; hop <= 5; hop++) {
 		const scheme = new URL(current).protocol;
 		if (scheme !== "http:" && scheme !== "https:") throw new Error(`refused: ${scheme} URL`);
-		if (guard && !(await isPublicUrl(current)))
+		if (mustBePublic && !(await isPublicUrl(current)))
 			throw new Error(`refused: ${current} is not public`);
 		const res = await fetch(current, { redirect: "manual", signal, headers: options.headers });
 		const location = res.headers.get("location");
 		if (res.status >= 300 && res.status < 400 && location) {
 			await res.body?.cancel();
+			// A public server chooses where its redirect goes: keep it off the private network.
+			if (!mustBePublic && (await isPublicUrl(current))) mustBePublic = true;
 			current = new URL(location, current).href;
 			continue;
 		}

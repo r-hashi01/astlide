@@ -197,16 +197,23 @@ function withoutExternalRefs(svg: string): string {
 	);
 }
 
+/** Most pixels one rasterized SVG may have (its height follows its own aspect ratio). */
+export const MAX_RASTER_PIXELS = 50_000_000;
+
 /**
  * Rasterize SVG to PNG `width` px wide, drawing text with `fontFiles`. Only
  * in-document references and inline raster images are drawn (see
- * {@link withoutExternalRefs}).
+ * {@link withoutExternalRefs}). Throws when the picture would have more than
+ * {@link MAX_RASTER_PIXELS} pixels.
  */
 export function svgToPng(svg: string, width: number, fontFiles: string[]): Buffer {
-	return new Resvg(withoutExternalRefs(svg), {
-		fitTo: { mode: "width", value: Math.round(width) },
+	const target = Math.round(width);
+	const resvg = new Resvg(withoutExternalRefs(svg), {
+		fitTo: { mode: "width", value: target },
 		font: { fontFiles, loadSystemFonts: false },
-	})
-		.render()
-		.asPng();
+	});
+	const height = resvg.width > 0 ? (target * resvg.height) / resvg.width : 0;
+	if (!(target * height <= MAX_RASTER_PIXELS))
+		throw new Error(`SVG too large to rasterize (${target} × ${Math.round(height)} px)`);
+	return resvg.render().asPng();
 }

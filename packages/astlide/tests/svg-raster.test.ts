@@ -51,6 +51,11 @@ describe("svgToPng", () => {
 		for (const svg of dtd) expect(await firstRed(svgToPng(svg, 10, []))).toBe(0);
 	});
 
+	it("refuses pictures beyond the pixel budget", () => {
+		const tall = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 100000" width="1" height="100000"/>`;
+		expect(() => svgToPng(tall, 1920, [])).toThrow(/too large/);
+	});
+
 	it("draws inline raster images", async () => {
 		expect(
 			await firstRed(

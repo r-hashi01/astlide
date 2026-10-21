@@ -13,6 +13,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { exportFetch } from "@astlide/core/utils/network.ts";
+import { Parser } from "htmlparser2";
 
 export interface EmbedInfo {
 	/** The page to open (the watch / pen / file page rather than the player). */
@@ -52,12 +53,27 @@ const PROVIDERS: {
 const TIMEOUT = 10_000;
 /** Largest page / oEmbed response read, in bytes. */
 const PAGE_LIMIT = 2 * 1024 * 1024;
+/** How much of a page is read for its tags (they're in `<head>`). */
+const HEAD_LIMIT = 512 * 1024;
 
-async function getText(url: string): Promise<string | null> {
+/** `url` when it is http(s) — what a link in the exported deck may open. */
+function webUrl(url: string | undefined, base?: string): string | undefined {
+	if (!url) return undefined;
+	try {
+		const u = new URL(url, base);
+		return u.protocol === "http:" || u.protocol === "https:" ? u.href : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/** A page's text; `source` as in {@link exportFetch} (who chose the URL). */
+async function getText(url: string, source: "deck" | "remote"): Promise<string | null> {
 	try {
 		const res = await exportFetch(url, {
 			limit: PAGE_LIMIT,
 			timeoutMs: TIMEOUT,
+			source,
 			headers: { "user-agent": "Mozilla/5.0 (compatible; astlide-export)" },
 		});
 		return res.ok ? res.body.toString("utf-8") : null;
@@ -66,61 +82,84 @@ async function getText(url: string): Promise<string | null> {
 	}
 }
 
-async function oembed(url: string): Promise<{ title?: string; thumbnail?: string } | null> {
-	const text = await getText(url);
+async function oembed(
+	url: string,
+	source: "deck" | "remote",
+): Promise<{ title?: string; thumbnail?: string } | null> {
+	const text = await getText(url, source);
 	if (!text) return null;
 	try {
 		const data = JSON.parse(text) as { title?: unknown; thumbnail_url?: unknown };
 		return {
 			title: typeof data.title === "string" ? data.title : undefined,
-			thumbnail: typeof data.thumbnail_url === "string" ? data.thumbnail_url : undefined,
+			thumbnail: typeof data.thumbnail_url === "string" ? webUrl(data.thumbnail_url) : undefined,
 		};
 	} catch {
 		return null;
 	}
 }
 
-const decode = (s: string) =>
-	s.replace(
-		/&(amp|lt|gt|quot|#39);/g,
-		(_, e: string) => ({ amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'" })[e] ?? "",
+/** What a page's `<head>` says about it: `<meta property|name>` values, its oEmbed link, its title. */
+export function pageTags(html: string): {
+	meta: Map<string, string>;
+	oembed?: string;
+	title?: string;
+} {
+	const meta = new Map<string, string>();
+	let oembed: string | undefined;
+	let title: string | undefined;
+	let inTitle = false;
+	// A parser, not regexes: linear on any input (a page is someone else's).
+	const parser = new Parser(
+		{
+			onopentag(name, attrs) {
+				if (name === "meta") {
+					const key = (attrs.property ?? attrs.name ?? "").toLowerCase();
+					if (key && attrs.content && !meta.has(key)) meta.set(key, attrs.content);
+				} else if (name === "link" && attrs.type?.toLowerCase() === "application/json+oembed")
+					oembed ??= attrs.href;
+				else if (name === "title" && title === undefined) {
+					inTitle = true;
+					title = "";
+				}
+			},
+			ontext(text) {
+				if (inTitle) title += text;
+			},
+			onclosetag(name) {
+				if (name === "title") inTitle = false;
+			},
+		},
+		{ decodeEntities: true },
 	);
-
-/** `content` of a `<meta property|name=…>` tag. */
-function meta(html: string, key: string): string | undefined {
-	for (const tag of html.match(/<meta\b[^>]*>/gi) ?? []) {
-		const name = tag.match(/\b(?:property|name)\s*=\s*["']([^"']+)["']/i)?.[1];
-		if (name?.toLowerCase() !== key) continue;
-		const content = tag.match(/\bcontent\s*=\s*["']([^"']*)["']/i)?.[1];
-		if (content) return decode(content);
-	}
-	return undefined;
+	parser.end(html.slice(0, HEAD_LIMIT));
+	return { meta, oembed, title: title?.trim() || undefined };
 }
 
 async function lookup(src: string): Promise<EmbedInfo> {
 	for (const p of PROVIDERS) {
 		const m = src.match(p.match);
 		if (!m) continue;
-		const page = p.page(m);
-		return { link: page, ...((await oembed(p.oembed(page))) ?? {}) };
+		let page: string | undefined;
+		try {
+			page = webUrl(p.page(m));
+		} catch {}
+		if (!page) return { link: src };
+		return { link: page, ...((await oembed(p.oembed(page), "deck")) ?? {}) };
 	}
 	// Any page: the oEmbed endpoint it advertises, else its Open Graph tags.
-	const html = await getText(src);
+	const html = await getText(src, "deck");
 	if (!html) return { link: src };
-	const endpoint = html
-		.match(/<link\b[^>]*type\s*=\s*["']application\/json\+oembed["'][^>]*>/i)?.[0]
-		.match(/\bhref\s*=\s*["']([^"']+)["']/i)?.[1];
+	const tags = pageTags(html);
+	const endpoint = webUrl(tags.oembed, src);
 	if (endpoint) {
-		const info = await oembed(decode(endpoint));
+		const info = await oembed(endpoint, "remote");
 		if (info?.thumbnail || info?.title) return { link: src, ...info };
 	}
-	const image = meta(html, "og:image") ?? meta(html, "twitter:image");
 	return {
-		link: meta(html, "og:url") ?? src,
-		title:
-			meta(html, "og:title") ??
-			(decode(html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim() ?? "") || undefined),
-		thumbnail: image ? new URL(image, src).href : undefined,
+		link: webUrl(tags.meta.get("og:url"), src) ?? src,
+		title: tags.meta.get("og:title") ?? tags.title,
+		thumbnail: webUrl(tags.meta.get("og:image") ?? tags.meta.get("twitter:image"), src),
 	};
 }
 
@@ -141,7 +180,8 @@ export async function resolveEmbeds(
 				out.set(src, JSON.parse(readFileSync(file, "utf-8")) as EmbedInfo);
 				return;
 			}
-			const info = await lookup(src);
+			// One page failing doesn't stop the others (or the export).
+			const info = await lookup(src).catch((): EmbedInfo => ({ link: src }));
 			out.set(src, info);
 			// Only what was found is cached: offline runs try again next time.
 			if (info.title || info.thumbnail) await writeFile(file, JSON.stringify(info));
