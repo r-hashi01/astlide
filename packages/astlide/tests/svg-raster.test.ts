@@ -35,7 +35,7 @@ describe("svgToPng", () => {
 	it("doesn't load images from the file system", async () => {
 		const links = [
 			`href="${file}"`,
-			`href='${file.replace("'", "&apos;")}'`,
+			`href='${file.replaceAll("'", "&apos;")}'`,
 			`xlink:href="${file}"`,
 			// …nor through an SVG inlined as a data: URL.
 			`href="data:image/svg+xml;base64,${Buffer.from(image(`href="${file}"`)).toString("base64")}"`,
