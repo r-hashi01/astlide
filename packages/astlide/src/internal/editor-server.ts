@@ -4,6 +4,7 @@
  *   GET  /__astlide/source?path=src/content/decks/talk/01-cover.mdx → { path, content }
  *   POST /__astlide/source  { path, content }                        → { ok: true }
  *   GET  /__astlide/editor-token                                     → { token }
+ *   GET  /__astlide/editor?key=<secret>                              → enables this browser
  *
  * Writing the file lets Astro's dev server rebuild the slide. Astro would then
  * tell the browser to do a full page reload; for writes made by the editor we
@@ -23,10 +24,19 @@
  * refuses), and carry the per-server token (`x-astlide-editor-token`). The
  * editor fetches that token from `/__astlide/editor-token`, which answers only
  * such same-origin local requests, so no other site or origin can read it.
+ *
+ * All of that can still be imitated by something that relays raw TCP to the
+ * dev server (`ssh -R`, a port forward): it looks exactly like a local
+ * browser. So editing also needs a browser the developer enabled: `astro dev`
+ * prints a link carrying the project's editor secret (kept in
+ * `node_modules/.astro/`, never served), and opening it once sets an
+ * HttpOnly cookie derived from that secret. Without the cookie the editor
+ * endpoints refuse; the secret only travels through the terminal.
  * Registered with `apply: "serve"`, so it never exists in a production build.
  */
 
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { readFile, realpath, writeFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -35,6 +45,13 @@ import type { Plugin } from "vite";
 export const EDITOR_ENDPOINT = "/__astlide/source";
 /** Where the editor gets the dev server's token (see {@link refuseEditorRequest}). */
 export const EDITOR_TOKEN_ENDPOINT = "/__astlide/editor-token";
+/** Opening this with the project's editor secret (`?key=`) enables editing in that browser. */
+export const EDITOR_UNLOCK_ENDPOINT = "/__astlide/editor";
+/** Cookie marking a browser the developer enabled (see {@link EDITOR_UNLOCK_ENDPOINT}). */
+export const EDITOR_COOKIE = "astlide-editor";
+/** Shown by the editor when this browser hasn't been enabled. */
+export const EDITOR_LOCKED_MESSAGE =
+	"Editing is off in this browser — open the link printed by `astro dev`";
 /** HMR event sent instead of a full reload after an editor write. */
 export const SOURCE_SAVED_EVENT = "astlide:source-saved";
 /** HMR event sent instead of a full reload after a slide file is added or removed. */
@@ -56,6 +73,45 @@ export const EDITOR_TOKEN_HEADER = "x-astlide-editor-token";
 export function createEditorToken(): string {
 	return randomBytes(24).toString("hex");
 }
+
+/**
+ * The project's editor secret: kept in `node_modules/.astro/` (owner-only),
+ * created on first use and stable across restarts, so a browser is enabled
+ * once. When it can't be stored, one for this dev server only.
+ */
+export function loadEditorSecret(root: string): string {
+	const file = join(root, "node_modules", ".astro", "astlide-editor-secret");
+	try {
+		const saved = readFileSync(file, "utf-8").trim();
+		if (/^[0-9a-f]{64}$/.test(saved)) return saved;
+	} catch {
+		// Not there yet.
+	}
+	const secret = randomBytes(32).toString("hex");
+	try {
+		mkdirSync(dirname(file), { recursive: true });
+		writeFileSync(file, secret, { mode: 0o600 });
+		chmodSync(file, 0o600);
+	} catch {
+		// Read-only project: this run's secret only.
+	}
+	return secret;
+}
+
+/** The cookie value for an enabled browser: derived from the secret, never the secret itself. */
+export function editorCookieValue(secret: string): string {
+	return createHmac("sha256", secret).update("astlide-editor-cookie").digest("hex");
+}
+
+/** A cookie's value from a request's `Cookie` header. */
+export function cookieOf(req: Pick<IncomingMessage, "headers">, name: string): string | undefined {
+	for (const part of (req.headers.cookie ?? "").split(";")) {
+		const at = part.indexOf("=");
+		if (at > 0 && part.slice(0, at).trim() === name) return part.slice(at + 1).trim();
+	}
+	return undefined;
+}
+
 /** How long after a write (or file add/remove) a full reload is considered its echo. */
 const RELOAD_ECHO_MS = 3000;
 const SLIDE_SOURCE = /\.(mdx|md|html)$/i;
@@ -163,6 +219,11 @@ function hostOf(origin: string): string | undefined {
 	}
 }
 
+/** Whether this browser was enabled with the project's editor secret. */
+export function isEnabledBrowser(req: Pick<IncomingMessage, "headers">, secret: string): boolean {
+	return !!secret && sameToken(cookieOf(req, EDITOR_COOKIE), editorCookieValue(secret));
+}
+
 function sameToken(given: unknown, token: string): boolean {
 	if (typeof given !== "string") return false;
 	const a = Buffer.from(given);
@@ -172,11 +233,17 @@ function sameToken(given: unknown, token: string): boolean {
 
 /**
  * Why an editor request is refused, or `null` when it may proceed: it must be
- * local and same-origin ({@link refuseNonLocal}) and carry the dev server's token.
+ * local and same-origin ({@link refuseNonLocal}), from a browser enabled with
+ * the project's secret ({@link isEnabledBrowser}), and carry the dev server's token.
  */
-export function refuseEditorRequest(req: EditorRequest, token: string): string | null {
+export function refuseEditorRequest(
+	req: EditorRequest,
+	token: string,
+	secret: string,
+): string | null {
 	const nonLocal = refuseNonLocal(req);
 	if (nonLocal) return nonLocal;
+	if (!isEnabledBrowser(req, secret)) return EDITOR_LOCKED_MESSAGE;
 	if (!sameToken(req.headers[EDITOR_TOKEN_HEADER], token)) return "Missing or wrong editor token";
 	return null;
 }
@@ -198,6 +265,11 @@ async function realInsideSrc(root: string, file: string): Promise<boolean> {
 	} catch {
 		return false;
 	}
+}
+
+/** A refusal; the editor shows {@link EDITOR_LOCKED_MESSAGE} as is. */
+function refuse(res: ServerResponse, error: string): void {
+	send(res, 403, error === EDITOR_LOCKED_MESSAGE ? { error, locked: true } : { error });
 }
 
 function send(res: ServerResponse, status: number, body: unknown): void {
@@ -259,8 +331,15 @@ export function interceptReloads(
 /**
  * @param token The dev server's editor token (see {@link createEditorToken}),
  *   handed to the dev server's own pages at {@link EDITOR_TOKEN_ENDPOINT}.
+ * @param secret The project's editor secret (see {@link loadEditorSecret}).
+ * @param base Astro's `base`: where {@link EDITOR_UNLOCK_ENDPOINT} sends the browser.
  */
-export function astlideEditorPlugin(root: string, token: string): Plugin {
+export function astlideEditorPlugin(
+	root: string,
+	token: string,
+	secret: string,
+	base = "/",
+): Plugin {
 	// The last editor write or slide file add/remove, while its reload echo can
 	// still arrive.
 	let last: { change: PendingChange; at: number } | null = null;
@@ -292,14 +371,35 @@ export function astlideEditorPlugin(root: string, token: string): Plugin {
 			server.watcher.on("add", onDeckFile(false));
 			server.watcher.on("unlink", onDeckFile(true));
 
-			// The token, for the dev server's own pages only (never cached; see refuseNonLocal).
-			server.middlewares.use(EDITOR_TOKEN_ENDPOINT, (req, res) => {
+			// The link `astro dev` prints: enables editing in the browser that opens it.
+			server.middlewares.use(EDITOR_UNLOCK_ENDPOINT, (req, res) => {
 				if (req.method !== "GET") {
 					res.setHeader("Allow", "GET");
 					return send(res, 405, { error: "Method not allowed" });
 				}
 				const refused = refuseNonLocal(req);
-				if (refused) return send(res, 403, { error: refused });
+				if (refused) return refuse(res, refused);
+				const key = new URL(req.url ?? "", "http://localhost").searchParams.get("key");
+				if (!secret || !sameToken(key, secret)) return refuse(res, "Wrong editor key");
+				res.statusCode = 302;
+				res.setHeader(
+					"Set-Cookie",
+					`${EDITOR_COOKIE}=${editorCookieValue(secret)}; Path=/; HttpOnly; SameSite=Strict`,
+				);
+				res.setHeader("Cache-Control", "no-store");
+				res.setHeader("Location", base);
+				res.end();
+			});
+
+			// The token, for the dev server's own pages in an enabled browser (never cached).
+			server.middlewares.use(EDITOR_TOKEN_ENDPOINT, (req, res) => {
+				if (req.method !== "GET") {
+					res.setHeader("Allow", "GET");
+					return send(res, 405, { error: "Method not allowed" });
+				}
+				const refused =
+					refuseNonLocal(req) ?? (isEnabledBrowser(req, secret) ? null : EDITOR_LOCKED_MESSAGE);
+				if (refused) return refuse(res, refused);
 				return send(res, 200, { token });
 			});
 
@@ -309,8 +409,8 @@ export function astlideEditorPlugin(root: string, token: string): Plugin {
 						res.setHeader("Allow", "GET, POST");
 						return send(res, 405, { error: "Method not allowed" });
 					}
-					const refused = refuseEditorRequest(req, token);
-					if (refused) return send(res, 403, { error: refused });
+					const refused = refuseEditorRequest(req, token, secret);
+					if (refused) return refuse(res, refused);
 					if (req.method === "GET") {
 						const url = new URL(req.url ?? "", "http://localhost");
 						const file = resolveSlideSource(root, url.searchParams.get("path"));

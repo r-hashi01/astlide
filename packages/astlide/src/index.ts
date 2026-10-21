@@ -7,6 +7,8 @@ import {
 	astlideEditorPlugin,
 	createEditorToken,
 	DEV_RELOAD_SCRIPT,
+	EDITOR_UNLOCK_ENDPOINT,
+	loadEditorSecret,
 } from "./internal/editor-server";
 import { astlideVirtualPlugin } from "./internal/virtual-plugins";
 import { type AstlidePlugin, BUILT_IN_PLUGIN, resolvePlugins } from "./plugin";
@@ -310,6 +312,8 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 		...optionDecorators,
 	];
 	const resolved = resolvePlugins(allPlugins);
+	// Dev only: the project's editor secret, printed as a link once the server listens.
+	let editorSecret: string | undefined;
 
 	return {
 		name: "astlide",
@@ -360,8 +364,13 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 				// Dev: pages that don't live-update reload on the editor's HMR events.
 				// The editor endpoint only answers requests carrying this server's token,
 				// which only the dev server's own pages on this machine can fetch.
+				// Editing also needs a browser enabled through the link printed below,
+				// whose secret only travels through the terminal.
 				const editorToken = createEditorToken();
-				if (command === "dev") injectScript("page", DEV_RELOAD_SCRIPT);
+				if (command === "dev") {
+					injectScript("page", DEV_RELOAD_SCRIPT);
+					editorSecret = loadEditorSecret(fileURLToPath(config.root));
+				}
 
 				// Optional `mermaid` (```mermaid diagrams): exposed via virtual:astlide/mermaid.
 				const hasMermaid = isPackageInstalled("mermaid", fileURLToPath(config.root));
@@ -403,7 +412,12 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 								loadTemplate(t.theme, t.source, root, config.base),
 							) as never,
 							// Dev-only (apply: "serve"): read/write endpoint for the `e` slide editor.
-							astlideEditorPlugin(fileURLToPath(config.root), editorToken) as never,
+							astlideEditorPlugin(
+								fileURLToPath(config.root),
+								editorToken,
+								editorSecret ?? "",
+								config.base,
+							) as never,
 							// Speaker notes as a trailing `<!-- … -->`: MDX would reject the comment.
 							astlideCommentNotesPlugin() as never,
 						],
@@ -511,6 +525,13 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 							"  src/content/decks/my-deck/01-intro.mdx\n",
 					);
 				}
+			},
+			"astro:server:start": ({ address, logger }) => {
+				if (!editorSecret) return;
+				logger.info(
+					`Slide editor: open http://localhost:${address.port}${EDITOR_UNLOCK_ENDPOINT}?key=${editorSecret} ` +
+						"once in this browser to enable editing",
+				);
 			},
 		},
 	};
