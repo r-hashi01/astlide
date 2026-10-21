@@ -29,6 +29,27 @@ export interface ImportOptions {
 }
 
 const GOOGLE_SLIDES = /^https:\/\/docs\.google\.com\/presentation\/d\/([\w-]+)/;
+/** Largest Google Slides download, in bytes, and how long it may take. */
+const DOWNLOAD_LIMIT = 512 * 1024 * 1024;
+const DOWNLOAD_TIMEOUT = 5 * 60_000;
+
+/** A response's body, refused past `limit` bytes. */
+async function readLimited(res: Response, limit: number): Promise<Buffer> {
+	const chunks: Uint8Array[] = [];
+	let size = 0;
+	const reader = res.body?.getReader();
+	while (reader) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		size += value.byteLength;
+		if (size > limit) {
+			await reader.cancel();
+			throw new Error(`the download is larger than ${limit / 1024 / 1024} MB`);
+		}
+		chunks.push(value);
+	}
+	return Buffer.concat(chunks);
+}
 
 /** The deck's bytes: a local file, or a Google Slides deck exported as PowerPoint. */
 async function readSource(source: string): Promise<{ data: Buffer; name: string }> {
@@ -36,22 +57,32 @@ async function readSource(source: string): Promise<{ data: Buffer; name: string 
 	if (google) {
 		const res = await fetch(`https://docs.google.com/presentation/d/${google[1]}/export/pptx`, {
 			redirect: "follow",
+			signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT),
 		});
-		const data = Buffer.from(await res.arrayBuffer());
+		const data = await readLimited(res, DOWNLOAD_LIMIT);
 		// A private deck answers with a sign-in page, not a ZIP.
-		if (!res.ok || data.readUInt32LE(0) !== 0x04034b50)
+		if (!res.ok || data.length < 4 || data.readUInt32LE(0) !== 0x04034b50)
 			throw new Error(
 				'couldn\'t download the deck — share it as "Anyone with the link" (or File → Download → PowerPoint and import that file)',
 			);
 		const name = res.headers
 			.get("content-disposition")
 			?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)/i)?.[1];
-		return { data, name: name ? decodeURIComponent(name) : `google-slides-${google[1]}.pptx` };
+		return { data, name: (name && decodeName(name)) || `google-slides-${google[1]}.pptx` };
 	}
 	if (!existsSync(source)) throw new Error(`no file ${source}`);
 	if (extname(source).toLowerCase() !== ".pptx")
 		throw new Error(`${source}: only .pptx files (save .ppt / .key / .odp as PowerPoint first)`);
 	return { data: await readFile(source), name: basename(source) };
+}
+
+/** A percent-encoded file name, or undefined when it doesn't decode. */
+function decodeName(name: string): string | undefined {
+	try {
+		return decodeURIComponent(name);
+	} catch {
+		return undefined;
+	}
 }
 
 /** A YAML double-quoted scalar (frontmatter values). */

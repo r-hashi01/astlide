@@ -24,7 +24,7 @@ description: Claude Code、Codex、Gemini CLI にデッキを書かせ、チェ�
 | `check_deck` | `projectRoot`、`deck`、省略可能な `build` | スライドごとの、収まっていないテキストやボックス（後述） |
 | `render_deck` | `projectRoot`、`deck`、`formats`（`pptx`、`pdf`）、省略可能な `outDir`（プロジェクト内）、`build` | [`astlide export`](/ja/guides/export/) と同じように書き出したファイルのパス |
 
-`check_deck` と `render_deck` はサイトを自分でビルドするので（`check_deck` は `dist/` がデッキより古い場合のみ）、開発サーバーは不要です。PDF のエクスポートには Playwright の Chromium（`bunx playwright install chromium`）が必要です。
+`check_deck` と `render_deck` はサイトを自分でビルドするので（`check_deck` は `dist/` がデッキより古い場合のみ）、開発サーバーは不要です。ビルドではプロジェクトの Astro 設定が実行されるため、どちらのツールも読み取り専用とは申告していません。`check_deck` に `build: false` を指定すると、読み取りだけを行います。PDF のエクスポートには Playwright の Chromium（`bunx playwright install chromium`）が必要です。
 
 ビルドとエクスポートでは、プロジェクト自身のコードが実行されます（Astro の設定とインテグレーション、MDX のスライド、`bunfig.toml` の preload、プロジェクトにインストールされた `@astlide/core`）。`projectRoot` を指定した `import_pptx` も、プロジェクトの `astlide` CLI を実行します。そのため、次のようにしています。
 
