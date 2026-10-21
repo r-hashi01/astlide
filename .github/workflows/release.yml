@@ -1,7 +1,8 @@
 name: Release
 
-# Trusted Publishing (OIDC) is configured on npm for both @astlide/core and
-# create-astlide via `npm trust github ... --file release.yml --repo r-hashi01/astlide`.
+# Trusted Publishing (OIDC) is configured on npm for each published package
+# (@astlide/core, @astlide/engine, create-astlide, astlide) via
+# `npm trust github <pkg> --file release.yml --repo r-hashi01/astlide`.
 # No NPM_TOKEN is needed — npm verifies this workflow's id-token at publish time.
 on:
   push:
