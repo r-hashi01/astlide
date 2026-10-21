@@ -46,3 +46,6 @@ docs/.astro/
 
 # astlide-server per-request projects
 .astlide-work/
+
+# Release tarballs (scripts/release-pack.mjs)
+/release/

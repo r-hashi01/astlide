@@ -94,7 +94,9 @@ For every PR that changes `@astlide/core` or `create-astlide` runtime behaviour:
 
 2. When the PR merges to `main`, the **Release** workflow opens (or updates) a "chore: version packages" PR. That PR consumes all pending changesets, bumps versions, regenerates `CHANGELOG.md`, and removes the consumed changeset files.
 
-3. Merging the version PR triggers the same workflow again, which runs `bun run release` — i.e. `changeset publish` — pushing the bumped packages to npm and creating GitHub releases with provenance.
+3. Merging the version PR triggers the workflow again:
+   - **Build packages** builds and packs (`scripts/release-pack.mjs`) every public package whose version isn't on npm yet. It has no publishing rights.
+   - **Publish to npm** waits for approval: the `npm-publish` environment requires a maintainer's review (Actions → the run → *Review deployments* → approve). It then publishes those tarballs with provenance and creates the tags and GitHub releases. It runs none of the repository's code — no checkout, no install — so a compromised dependency can't reach the publishing credentials.
 
 No manual `npm publish` is needed after step 1.
 
@@ -103,9 +105,9 @@ No manual `npm publish` is needed after step 1.
 | Artefact | Location | Owner |
 |---|---|---|
 | npm tarball | `https://www.npmjs.com/package/@astlide/core` | npm |
-| GitHub release | Release tab on the repo | changesets/action |
+| GitHub release | Release tab on the repo | `Publish to npm` job |
 | CHANGELOG.md update | `packages/*/CHANGELOG.md` | changesets |
-| Git tag | `@astlide/core@x.y.z`, `create-astlide@x.y.z` | changesets/action |
+| Git tag | `@astlide/core@x.y.z`, `create-astlide@x.y.z`, `astlide@x.y.z` | `Publish to npm` job |
 
 ## Rolling back
 
@@ -131,7 +133,7 @@ git config --global tag.gpgsign true
 
 Then upload the public key to <https://github.com/settings/ssh/new> as a **Signing Key** (not Authentication Key).
 
-The release-tags ruleset deliberately does not require signatures — `changesets/action` creates tags from inside CI without a configured signing key, and the registry-side provenance attestation already binds each tag to a verified GitHub Actions workflow run.
+The release-tags ruleset deliberately does not require signatures — the publish job creates tags from inside CI without a configured signing key, and the registry-side provenance attestation already binds each tag to a verified GitHub Actions workflow run.
 
 ## Branch protection (recommended)
 

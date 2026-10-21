@@ -1,5 +1,14 @@
 name: Release
 
+# Three jobs, so that nothing that can publish runs code from dependencies:
+#
+#   version  — with pending changesets: opens / updates the "Version Packages" PR.
+#   build    — after that PR is merged: builds and packs every package whose
+#              version isn't on npm yet. No publishing rights.
+#   publish  — publishes those tarballs and tags / releases them. Runs none of
+#              the repository's code (no checkout, no install), and waits for a
+#              maintainer's approval (the `npm-publish` environment).
+#
 # Trusted Publishing (OIDC) is configured on npm for each published package
 # (@astlide/core, @astlide/engine, create-astlide, astlide) via
 # `npm trust github <pkg> --file release.yml --repo r-hashi01/astlide`.
@@ -11,14 +20,17 @@ on:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
+permissions: {}
+
 jobs:
-  release:
-    name: Release
+  version:
+    name: Version PR
     runs-on: ubuntu-latest
     permissions:
-      contents: write       # Required to create the "Version Packages" PR + tags
-      pull-requests: write  # Required to open the Version Packages PR
-      id-token: write       # Required for npm Trusted Publishing (OIDC)
+      contents: write       # the "Version Packages" branch
+      pull-requests: write  # …and its PR
+    outputs:
+      pending: ${{ steps.changesets.outputs.hasChangesets }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -27,6 +39,74 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version-file: package.json
+
+      - run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Create or update the release PR
+        id: changesets
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          version-script: bun run version
+          pr-title: "chore: version packages"
+          commit-message: "chore: version packages"
+        env:
+          # Read by @changesets/changelog-github during `changeset version`.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    name: Build packages
+    needs: version
+    if: needs.version.outputs.pending == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      count: ${{ steps.pack.outputs.count }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v4
+        with:
+          node-version: 24
+
+      - run: bun install --frozen-lockfile --ignore-scripts
+
+      - run: bun run --filter create-astlide build
+
+      - name: Pack what isn't on npm yet
+        id: pack
+        run: |
+          node scripts/release-pack.mjs
+          echo "count=$(jq length release/manifest.json)" >> "$GITHUB_OUTPUT"
+
+      - if: steps.pack.outputs.count != '0'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release
+          path: release/
+          retention-days: 7
+
+  publish:
+    name: Publish to npm
+    needs: build
+    if: needs.build.outputs.count != '0'
+    runs-on: ubuntu-latest
+    # Required reviewers on this environment: publishing waits for approval.
+    environment: npm-publish
+    permissions:
+      contents: write       # tags and GitHub releases
+      id-token: write       # npm Trusted Publishing (OIDC)
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: release
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v4
         with:
@@ -37,25 +117,16 @@ jobs:
           node-version: 24
           registry-url: "https://registry.npmjs.org"
 
-      # This job can publish to npm and push, so it installs exactly the reviewed
-      # lockfile and runs no dependency lifecycle scripts. (Our own packages'
-      # scripts still run: create-astlide builds itself in prepublishOnly.)
-      - run: bun install --frozen-lockfile --ignore-scripts
-
-      - name: Create Release Pull Request or Publish
-        id: changesets
-        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
-        with:
-          version-script: bun run version
-          publish-script: bun run release
-          pr-title: "chore: version packages"
-          commit-message: "chore: version packages"
+      - name: Publish, tag and release
         env:
-          # Read by @changesets/changelog-github during `changeset version`.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # `npm publish --provenance` triggers the OIDC handshake that npm Trusted
-          # Publishing requires. Without it, `changeset publish` calls `npm publish`
-          # in plain mode → registry returns 404 (anonymous). Setting it via env
-          # avoids polluting package.json's publishConfig (which would break local
-          # `npm publish` outside GitHub Actions OIDC).
-          NPM_CONFIG_PROVENANCE: "true"
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          jq -c '.[]' release/manifest.json | while read -r pkg; do
+            name=$(jq -r .name <<<"$pkg")
+            version=$(jq -r .version <<<"$pkg")
+            # --provenance makes npm do the OIDC handshake Trusted Publishing needs.
+            npm publish "release/$(jq -r .file <<<"$pkg")" --access public --provenance
+            jq -r .notes <<<"$pkg" > notes.md
+            gh release create "$name@$version" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "$name@$version" --notes-file notes.md
+          done
