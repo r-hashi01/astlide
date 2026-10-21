@@ -28,6 +28,7 @@ export function publicNetworkOnly(env: Record<string, string | undefined> = proc
 
 const V4_BLOCKED: [number, number][] = [
 	["0.0.0.0", 8],
+	["168.63.129.16", 32], // Azure platform (WireServer, DNS): public address, reachable from inside
 	["10.0.0.0", 8],
 	["100.64.0.0", 10],
 	["127.0.0.0", 8],
@@ -92,7 +93,8 @@ export function isPublicAddress(ip: string): boolean {
 	if (g0 === 0x64 && g1 === 0xff9b)
 		return g.slice(2, 6).every((x) => x === 0) && v4Public(embedded);
 	if (g0 === 0x2002) return v4Public(quad(g1, g2)); // 6to4 carries an IPv4 address
-	if (g0 === 0x2001 && g1 === 0) return false; // Teredo
+	if (g0 === 0x2001 && g1 < 0x200) return false; // IETF protocol assignments 2001::/23 (Teredo, ORCHID, benchmarking …)
+	if (g0 === 0x5f00) return false; // SRv6 SIDs 5f00::/16
 	if (g0 === 0x0100 && g.slice(1, 4).every((x) => x === 0)) return false; // discard-only 100::/64
 	if ((g0 & 0xfe00) === 0xfc00) return false; // unique local fc00::/7
 	if ((g0 & 0xffc0) === 0xfe80) return false; // link-local fe80::/10

@@ -127,7 +127,7 @@ export async function exportDeck(deck: string, options: RenderOptions): Promise<
 	const chromiumSandbox = process.env.ASTLIDE_CHROMIUM_SANDBOX === "1";
 	const guarded = publicNetworkOnly();
 	const browser = await chromium
-		.launch({ chromiumSandbox, args: guarded ? GUARDED_ARGS : [] })
+		.launch({ chromiumSandbox, args: guarded ? guardedChromiumArgs(options.baseUrl) : [] })
 		.catch((err: Error) => {
 			if (/Executable doesn't exist/.test(err.message)) {
 				throw new Error(
@@ -188,22 +188,32 @@ async function waitForDiagrams(page: Page): Promise<void> {
 }
 
 /**
- * Chromium flags for a guarded render: anything that isn't routed (see
- * {@link guardNetwork}) goes to a proxy that isn't there — Chromium always
- * bypasses proxies for loopback, where the rendered site is — and WebRTC
- * sends no UDP of its own.
+ * Chromium flags for a guarded render of the site at `baseUrl`. Everything
+ * goes to a proxy that isn't there, loopback included (`<-loopback>`), except
+ * the rendered site itself: requests that the route in {@link guardNetwork}
+ * doesn't see — shared workers, speculative prefetch / prerender — go
+ * nowhere. WebRTC sends no UDP of its own.
  */
-const GUARDED_ARGS = [
-	"--proxy-server=http://127.0.0.1:9",
-	"--force-webrtc-ip-handling-policy",
-	"--webrtc-ip-handling-policy=disable_non_proxied_udp",
-];
+export function guardedChromiumArgs(baseUrl: string): string[] {
+	const site = new URL(baseUrl);
+	const port = site.port || (site.protocol === "https:" ? "443" : "80");
+	return [
+		"--proxy-server=http://127.0.0.1:9",
+		`--proxy-bypass-list=<-loopback>;${site.hostname}:${port}`,
+		"--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+		"--webrtc-ip-handling-policy=disable_non_proxied_udp",
+	];
+}
 
-/** Largest response a guarded page may load from another host, in bytes. */
-const GUARDED_RESPONSE_LIMIT = 50 * 1024 * 1024;
-
-/** Redirect statuses, followed by {@link guardNetwork} itself. */
-const REDIRECTS = new Set([301, 302, 303, 307, 308]);
+/** Bounds on what a guarded page may load from other hosts. */
+const GUARDED_LIMITS = {
+	/** One response, in bytes. */
+	response: 20 * 1024 * 1024,
+	/** All responses of one render together, in bytes. */
+	total: 200 * 1024 * 1024,
+	/** Requests in flight at once (more wait). */
+	parallel: 6,
+};
 
 /** Request headers not passed on when Astlide makes a request for the page. */
 const HOP_HEADERS = new Set([
@@ -212,6 +222,20 @@ const HOP_HEADERS = new Set([
 	"content-length",
 	"accept-encoding",
 	"keep-alive",
+	"transfer-encoding",
+	"upgrade",
+]);
+
+/** Response headers not handed to Chromium: transport details, and anything that would make it navigate itself. */
+const DROPPED_RESPONSE_HEADERS = new Set([
+	"location",
+	"refresh",
+	"content-encoding",
+	"content-length",
+	"transfer-encoding",
+	"connection",
+	"keep-alive",
+	"alt-svc",
 ]);
 
 /**
@@ -222,15 +246,29 @@ const HOP_HEADERS = new Set([
  * workers. Chromium doesn't connect to other hosts itself: Astlide makes
  * those requests ({@link publicRequest}: checked as it connects) and hands
  * Chromium the response. Redirects are followed here, each hop checked —
- * Chromium would follow a redirect it is handed without routing it again.
+ * Chromium would follow a redirect it is handed without routing it again —
+ * and a page can't load more than {@link GUARDED_LIMITS} allow. Pair it with
+ * {@link guardedChromiumArgs} for what the route doesn't see.
  */
 export async function guardNetwork(context: BrowserContext, baseUrl: string): Promise<void> {
 	const site = new URL(baseUrl).origin;
+	let loaded = 0;
+	let running = 0;
+	const waiting: (() => void)[] = [];
+	const slot = async () => {
+		if (running >= GUARDED_LIMITS.parallel) await new Promise<void>((go) => waiting.push(go));
+		running++;
+	};
+	const release = () => {
+		running--;
+		waiting.shift()?.();
+	};
 	await context.route("**/*", async (route) => {
 		const request = route.request();
 		const url = request.url();
 		if (url.startsWith("data:") || url.startsWith("blob:")) return route.continue();
 		if (URL.canParse(url) && new URL(url).origin === site) return route.continue();
+		await slot();
 		try {
 			const headers: Record<string, string> = {};
 			for (const [name, value] of Object.entries(await request.allHeaders()))
@@ -240,26 +278,44 @@ export async function guardNetwork(context: BrowserContext, baseUrl: string): Pr
 			let body: Buffer | undefined = request.postDataBuffer() ?? undefined;
 			let target = url;
 			let res = await publicRequest(target, { method, headers, body, signal });
-			for (let hop = 0; REDIRECTS.has(res.status) && res.headers.get("location"); hop++) {
+			for (
+				let hop = 0;
+				res.status >= 300 && res.status < 400 && res.headers.get("location");
+				hop++
+			) {
 				if (hop === 5) throw new Error("too many redirects");
 				await res.body?.cancel();
-				target = new URL(res.headers.get("location") as string, target).href;
-				// 307 / 308 repeat the request; the others become a GET.
+				const next = new URL(res.headers.get("location") as string, target);
+				// Credentials stay with the host they were meant for.
+				if (next.origin !== new URL(target).origin) {
+					delete headers.authorization;
+					delete headers.cookie;
+				}
+				// 307 / 308 repeat the request; the others become a GET without a body.
 				if (res.status !== 307 && res.status !== 308) {
 					method = "GET";
 					body = undefined;
+					delete headers["content-type"];
 				}
+				target = next.href;
 				res = await publicRequest(target, { method, headers, body, signal });
 			}
-			const content = await readBody(res, GUARDED_RESPONSE_LIMIT);
-			await route.fulfill({
-				status: res.status,
-				headers: Object.fromEntries(res.headers),
-				body: content,
-			});
+			const encoding = res.headers.get("content-encoding");
+			if (encoding && encoding !== "identity") throw new Error(`compressed response (${encoding})`);
+			const content = await readBody(
+				res,
+				Math.min(GUARDED_LIMITS.response, GUARDED_LIMITS.total - loaded),
+			);
+			loaded += content.length;
+			const passed: Record<string, string> = {};
+			for (const [name, value] of res.headers)
+				if (!DROPPED_RESPONSE_HEADERS.has(name)) passed[name] = value;
+			await route.fulfill({ status: res.status, headers: passed, body: content });
 		} catch (err) {
 			const refused = err instanceof Error && err.message.startsWith("refused");
 			await route.abort(refused ? "blockedbyclient" : "failed");
+		} finally {
+			release();
 		}
 	});
 	await context.routeWebSocket(/.*/, (ws) => ws.close());

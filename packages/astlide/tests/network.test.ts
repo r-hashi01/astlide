@@ -36,6 +36,10 @@ describe("isPublicAddress", () => {
 		"100::1",
 		"fec0::1",
 		"3fff::1",
+		"2001:2::1",
+		"2001:20::1",
+		"5f00::1",
+		"168.63.129.16",
 		"not an ip",
 	])("refuses %s", (ip) => expect(isPublicAddress(ip)).toBe(false));
 

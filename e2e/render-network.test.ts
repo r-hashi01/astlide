@@ -6,8 +6,9 @@
 
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { chromium } from "playwright";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { guardNetwork } from "../packages/astlide/src/cli/render";
+import { guardedChromiumArgs, guardNetwork } from "../packages/astlide/src/cli/render";
 
 // "https://public.test/…" stands in for a public host: /ok answers, /to-internal
 // redirects to the internal service. Everything else goes to the real check.
@@ -103,5 +104,35 @@ describe("guardNetwork", () => {
 		expect(results).toEqual(["public", "blocked"]);
 		expect(hits).toEqual([]);
 		await context.close();
+	});
+
+	it("leaves nothing for requests the route doesn't see (shared workers, speculation rules)", async () => {
+		const target = url(internal);
+		const sneaky = await listen((req, res) => {
+			if (req.url === "/shared.js") {
+				res.setHeader("content-type", "text/javascript");
+				return res.end(
+					`onconnect = (e) => fetch("${target}/shared").then((r) => r.text(), () => "blocked").then((t) => e.ports[0].postMessage(t));`,
+				);
+			}
+			res.setHeader("content-type", "text/html");
+			res.end(`<script type="speculationrules">{"prefetch":[{"source":"list","urls":["${target}/prefetch"]}],"prerender":[{"source":"list","urls":["${target}/prerender"]}]}</script>
+				<script>window.shared = new Promise((done) => { const w = new SharedWorker("/shared.js"); w.port.onmessage = (e) => done(e.data); w.port.start(); setTimeout(() => done("timeout"), 5000); });</script>`);
+		});
+		const guarded = await chromium.launch({ args: guardedChromiumArgs(url(sneaky)) });
+		try {
+			const context = await guarded.newContext({ serviceWorkers: "block" });
+			await guardNetwork(context, url(sneaky));
+			const page = await context.newPage();
+			await page.goto(url(sneaky));
+			expect(await page.evaluate(() => (window as unknown as { shared: unknown }).shared)).toBe(
+				"blocked",
+			);
+			await page.waitForTimeout(1500);
+			expect(hits).toEqual([]);
+		} finally {
+			await guarded.close();
+			sneaky.close();
+		}
 	});
 });

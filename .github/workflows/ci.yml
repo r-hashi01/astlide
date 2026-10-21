@@ -54,6 +54,8 @@ jobs:
           node-version: 22
       - run: bun install --frozen-lockfile
       - run: bun run test
+      # The connect-time address check, under the runtime the exporter uses.
+      - run: bun packages/astlide/tests/bun/public-request.ts
 
   build:
     name: Build
