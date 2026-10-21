@@ -12,6 +12,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { exportFetch } from "@astlide/core/utils/network.ts";
 
 export interface EmbedInfo {
 	/** The page to open (the watch / pen / file page rather than the player). */
@@ -49,14 +50,17 @@ const PROVIDERS: {
 ];
 
 const TIMEOUT = 10_000;
+/** Largest page / oEmbed response read, in bytes. */
+const PAGE_LIMIT = 2 * 1024 * 1024;
 
 async function getText(url: string): Promise<string | null> {
 	try {
-		const res = await fetch(url, {
-			signal: AbortSignal.timeout(TIMEOUT),
+		const res = await exportFetch(url, {
+			limit: PAGE_LIMIT,
+			timeoutMs: TIMEOUT,
 			headers: { "user-agent": "Mozilla/5.0 (compatible; astlide-export)" },
 		});
-		return res.ok ? await res.text() : null;
+		return res.ok ? res.body.toString("utf-8") : null;
 	} catch {
 		return null;
 	}

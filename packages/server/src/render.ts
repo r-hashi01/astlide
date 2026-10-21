@@ -62,6 +62,8 @@ export interface RenderOptions {
 	cli: string;
 	bun: string;
 	timeoutMs: number;
+	/** Let the slides reach the server's own network (see `ServerOptions`). */
+	allowPrivateNetwork?: boolean;
 }
 
 /** Run `astlide export` on the project; resolves with the rendered file. */
@@ -78,7 +80,7 @@ export async function renderProject(
 			cwd: root,
 			detached: process.platform !== "win32",
 			stdio: ["ignore", "pipe", "pipe"],
-			env: { ...process.env, ASTRO_TELEMETRY_DISABLED: "1", FORCE_COLOR: "0", NO_COLOR: "1" },
+			env: renderEnv(options),
 		});
 		let log = "";
 		const collect = (d: Buffer) => {
@@ -124,4 +126,21 @@ export async function renderProject(
 		contentType: CONTENT_TYPES[format],
 		ext: format,
 	};
+}
+
+/** The render's environment: the server's, less its secrets, with exports kept off the internal network. */
+export function renderEnv(
+	options: Pick<RenderOptions, "allowPrivateNetwork">,
+	env: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+	const out: NodeJS.ProcessEnv = {
+		...env,
+		ASTRO_TELEMETRY_DISABLED: "1",
+		FORCE_COLOR: "0",
+		NO_COLOR: "1",
+	};
+	delete out.ASTLIDE_API_KEY;
+	if (options.allowPrivateNetwork) delete out.ASTLIDE_PUBLIC_NETWORK_ONLY;
+	else out.ASTLIDE_PUBLIC_NETWORK_ONLY = "1";
+	return out;
 }

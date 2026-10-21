@@ -197,6 +197,7 @@ export function createHandler(options: ServerOptions) {
 					cli: options.cli,
 					bun: options.bun,
 					timeoutMs: options.renderTimeoutMs,
+					allowPrivateNetwork: options.allowPrivateNetwork,
 				});
 			} finally {
 				await removeProject(root);

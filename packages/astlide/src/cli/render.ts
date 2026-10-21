@@ -5,7 +5,8 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { type Browser, chromium, type Page } from "playwright";
+import { isPublicUrl, publicNetworkOnly } from "@astlide/core/utils/network.ts";
+import { type BrowserContext, chromium, type Page } from "playwright";
 
 export interface RenderOptions {
 	/** Output file (PDF) or directory (PNG). */
@@ -17,8 +18,12 @@ export interface RenderOptions {
 	height: number;
 }
 
-async function getSlideCount(browser: Browser, baseUrl: string, deck: string): Promise<number> {
-	const page = await browser.newPage();
+async function getSlideCount(
+	context: BrowserContext,
+	baseUrl: string,
+	deck: string,
+): Promise<number> {
+	const page = await context.newPage();
 	await page.goto(`${baseUrl}/${deck}/1`);
 	await page.waitForLoadState("networkidle");
 	const count = await page.evaluate(() =>
@@ -35,7 +40,7 @@ const EXPORT_STYLE = `
 `;
 
 async function exportToPDF(
-	browser: Browser,
+	context: BrowserContext,
 	deck: string,
 	slideCount: number,
 	outputPath: string,
@@ -43,7 +48,7 @@ async function exportToPDF(
 	width: number,
 	height: number,
 ): Promise<void> {
-	const page = await browser.newPage();
+	const page = await context.newPage();
 	await page.setViewportSize({ width, height });
 
 	// Navigate to the /[deck]/all route which stacks every slide with page-break-after,
@@ -70,7 +75,7 @@ async function exportToPDF(
 }
 
 async function exportToPNG(
-	browser: Browser,
+	context: BrowserContext,
 	deck: string,
 	slideCount: number,
 	outputDir: string,
@@ -78,7 +83,7 @@ async function exportToPNG(
 	width: number,
 	height: number,
 ): Promise<void> {
-	const page = await browser.newPage();
+	const page = await context.newPage();
 	await page.setViewportSize({ width, height });
 
 	await mkdir(outputDir, { recursive: true });
@@ -120,13 +125,15 @@ export async function exportDeck(deck: string, options: RenderOptions): Promise<
 		throw err;
 	});
 	try {
-		const slideCount = await getSlideCount(browser, options.baseUrl, deck);
+		const context = await browser.newContext({ serviceWorkers: "block" });
+		if (publicNetworkOnly()) await guardNetwork(context, options.baseUrl);
+		const slideCount = await getSlideCount(context, options.baseUrl, deck);
 		console.log(`  ${slideCount} slides found`);
 
 		if (options.format === "png") {
 			const outputDir = options.output || `./dist/${deck}-slides`;
 			await exportToPNG(
-				browser,
+				context,
 				deck,
 				slideCount,
 				outputDir,
@@ -138,7 +145,7 @@ export async function exportDeck(deck: string, options: RenderOptions): Promise<
 		} else {
 			const outputPath = options.output || `./dist/${deck}.pdf`;
 			await exportToPDF(
-				browser,
+				context,
 				deck,
 				slideCount,
 				outputPath,
@@ -165,4 +172,30 @@ async function waitForDiagrams(page: Page): Promise<void> {
 			timeout: 30_000,
 		},
 	);
+}
+
+/**
+ * With `ASTLIDE_PUBLIC_NETWORK_ONLY=1` (the render service): the slides may
+ * load from the site being rendered, `data:` / `blob:` URLs and public
+ * http(s) hosts — nothing on the server's own network (loopback, private
+ * ranges, cloud metadata), no other schemes, no WebSockets or service
+ * workers. Requests to other hosts are made one hop at a time, so a public
+ * URL can't redirect into the network either.
+ */
+export async function guardNetwork(context: BrowserContext, baseUrl: string): Promise<void> {
+	const site = new URL(baseUrl).origin;
+	await context.route("**/*", async (route) => {
+		const url = route.request().url();
+		if (url.startsWith("data:") || url.startsWith("blob:")) return route.continue();
+		if (URL.canParse(url) && new URL(url).origin === site) return route.continue();
+		if (!(await isPublicUrl(url))) return route.abort("blockedbyclient");
+		try {
+			// A redirect goes back to the page, whose next request comes through here again.
+			const response = await route.fetch({ maxRedirects: 0, timeout: 30_000 });
+			await route.fulfill({ response });
+		} catch {
+			await route.abort("failed");
+		}
+	});
+	await context.routeWebSocket(/.*/, (ws) => ws.close());
 }

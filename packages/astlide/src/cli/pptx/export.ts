@@ -7,10 +7,12 @@
  * @module
  */
 
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { mermaidThemeFor } from "@astlide/core/utils/mermaid.ts";
+import { exportFetch } from "@astlide/core/utils/network.ts";
 import type { Box, Scene, SceneItem, TableBox } from "@astlide/engine";
 import type { ChildNode, Element } from "domhandler";
 import { parseDocument } from "htmlparser2";
@@ -157,23 +159,27 @@ function rasterize(
 
 /**
  * Fetch remote images (e.g. video thumbnails) ahead of the export, cached on
- * disk. Offline or failing ones are left out with a warning: their stand-in
+ * disk. Offline, failing, oversized or refused ones (see
+ * {@link exportFetch}) are left out with a warning: their stand-in
  * (background, play button, link) still shows.
  */
+/** Largest remote image an export downloads, in bytes. */
+const IMAGE_LIMIT = 20 * 1024 * 1024;
+
 async function fetchImages(urls: string[], cacheDir: string): Promise<void> {
 	await mkdir(cacheDir, { recursive: true });
 	const failed: string[] = [];
 	await Promise.all(
 		urls.map(async (url) => {
-			const file = join(cacheDir, Buffer.from(url).toString("base64url").slice(0, 200));
+			const file = join(cacheDir, createHash("sha256").update(url).digest("hex"));
 			if (existsSync(file)) {
 				remoteImages.set(url, readFileSync(file));
 				return;
 			}
 			try {
-				const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+				const res = await exportFetch(url, { limit: IMAGE_LIMIT });
 				if (!res.ok) throw new Error(String(res.status));
-				const bytes = Buffer.from(await res.arrayBuffer());
+				const bytes = res.body;
 				await writeFile(file, bytes);
 				remoteImages.set(url, bytes);
 			} catch {

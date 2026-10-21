@@ -31,6 +31,14 @@ export interface ServerOptions {
 	apiKey?: string;
 	/** The server's public URL, for the OpenAPI spec's `servers` (default: from the request). */
 	publicUrl?: string;
+	/**
+	 * Let rendered slides load from the server's own network (loopback,
+	 * private ranges, cloud metadata). Off by default: a deck is someone
+	 * else's HTML, and the render runs inside your network.
+	 */
+	allowPrivateNetwork: boolean;
+	/** Serve without an API key on a non-loopback host (`ASTLIDE_ALLOW_UNAUTHENTICATED=1`). */
+	allowUnauthenticated: boolean;
 }
 
 const positive = (value: string | undefined, fallback: number): number => {
@@ -87,7 +95,29 @@ export function resolveOptions(
 		maxQueued: positive(env.MAX_QUEUE, 16),
 		apiKey: env.ASTLIDE_API_KEY || undefined,
 		publicUrl: (env.PUBLIC_URL && trimTrailingSlashes(env.PUBLIC_URL)) || undefined,
+		allowPrivateNetwork: env.ASTLIDE_ALLOW_PRIVATE_NETWORK === "1",
+		allowUnauthenticated: env.ASTLIDE_ALLOW_UNAUTHENTICATED === "1",
 	};
+}
+
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
+/**
+ * Why the server must not start listening on `host` with these options, or
+ * undefined when it may: without an API key it only listens on loopback,
+ * unless `ASTLIDE_ALLOW_UNAUTHENTICATED=1` says the network in front of it
+ * does the access control.
+ */
+export function exposureError(
+	host: string,
+	options: Pick<ServerOptions, "apiKey" | "allowUnauthenticated">,
+): string | undefined {
+	if (options.apiKey || options.allowUnauthenticated || LOOPBACK.has(host.toLowerCase()))
+		return undefined;
+	return (
+		`refusing to listen on ${host} without an API key: set ASTLIDE_API_KEY, ` +
+		"listen on HOST=127.0.0.1, or set ASTLIDE_ALLOW_UNAUTHENTICATED=1 when something else controls access"
+	);
 }
 
 /** `value` without trailing slashes (a loop: a regex like /\/+$/ backtracks on long runs of slashes). */
