@@ -113,100 +113,80 @@ const EVENT_HANDLER_RE = /^on\w+$/i;
 /**
  * Sanitize an HTML string by removing dangerous elements and attributes.
  *
+ * Works on a parsed tree (htmlparser2), not on regexes, so odd spellings and
+ * unterminated tags can't slip through. Tags in the allowlist are kept with
+ * their allowed attributes; `script`, `iframe`, form controls and similar are
+ * removed with their content; any other tag is dropped and its content kept.
+ * `href` / `src` must be `http(s):`, `mailto:`, `#…` or a `/…` path. Text is
+ * written back escaped, so the output is always well-formed.
+ *
  * Designed for build-time use (Node.js). Does NOT rely on DOM APIs.
  */
 export function sanitizeHTML(html: string): string {
 	if (!html) return "";
-
-	let result = html;
-
-	// 1. Remove tags that should be stripped with their content.
-	for (const tag of STRIP_WITH_CONTENT) {
-		const re = new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}>`, "gi");
-		result = result.replace(re, "");
-		// Also remove self-closing variants
-		const selfClose = new RegExp(`<${tag}\\b[^>]*/?>`, "gi");
-		result = result.replace(selfClose, "");
-	}
-
-	// 2. Process remaining HTML tags — keep allowed, strip others.
-	result = result.replace(
-		/<\/?([a-z][a-z0-9]*)\b([^>]*)?\/?>/gi,
-		(match, tagName: string, attrsStr: string) => {
-			const tag = tagName.toLowerCase();
-			const isClosing = match.startsWith("</");
-
-			if (!ALLOWED_TAGS.has(tag)) {
-				return "";
-			}
-
-			if (isClosing) {
-				return `</${tag}>`;
-			}
-
-			const safeAttrs = sanitizeAttributes(tag, attrsStr || "");
-			const selfClosing = match.trimEnd().endsWith("/>") ? " /" : "";
-			return `<${tag}${safeAttrs}${selfClosing}>`;
-		},
-	);
-
-	return result;
-}
-
-/**
- * Parse and sanitize attributes for a given tag.
- * Removes event handlers, disallowed attributes, and dangerous URLs.
- */
-function sanitizeAttributes(tag: string, attrsStr: string): string {
-	if (!attrsStr.trim()) return "";
-
-	const tagAllowed = TAG_ATTRS[tag];
-	const attrs: string[] = [];
-
-	// Match attribute patterns: name="value", name='value', name=value, name
-	const attrRe = /([a-z][a-z0-9_-]*)\s*(?:=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/gi;
-	let attrMatch = attrRe.exec(attrsStr);
-	while (attrMatch !== null) {
-		const name = attrMatch[1].toLowerCase();
-		const value = attrMatch[2] ?? attrMatch[3] ?? attrMatch[4] ?? "";
-
-		// Block event handlers
-		if (EVENT_HANDLER_RE.test(name)) {
-			attrMatch = attrRe.exec(attrsStr);
-			continue;
-		}
-
-		// Check allowlists
-		const isAllowed = ALLOWED_ATTRS.has(name) || tagAllowed?.has(name);
-		if (!isAllowed) {
-			attrMatch = attrRe.exec(attrsStr);
-			continue;
-		}
-
-		// Validate URL attributes — strip control characters before protocol check
-		if (name === "href" || name === "src") {
-			// biome-ignore lint/suspicious/noControlCharactersInRegex: intentional control char strip
-			const trimmed = value.trim().replace(/[\x00-\x1f]/g, "");
-			if (!SAFE_PROTOCOLS.test(trimmed)) {
-				attrMatch = attrRe.exec(attrsStr);
+	const doc = parseDocument(html, { decodeEntities: true, lowerCaseTags: true });
+	const clean = (nodes: ChildNode[]) => {
+		for (const node of [...nodes]) {
+			if (node.type === "comment" || node.type === "directive" || node.type === "cdata") {
+				removeElement(node);
 				continue;
 			}
+			if (!isTag(node)) continue;
+			const tag = node.name.toLowerCase();
+			if (STRIP_WITH_CONTENT.has(tag)) {
+				removeElement(node);
+				continue;
+			}
+			clean(node.children);
+			if (!ALLOWED_TAGS.has(tag)) {
+				unwrap(node);
+				continue;
+			}
+			node.attribs = sanitizeAttributes(tag, node.attribs);
 		}
-
-		attrs.push(` ${name}="${escapeAttrValue(value)}"`);
-		attrMatch = attrRe.exec(attrsStr);
-	}
-
-	return attrs.join("");
+	};
+	clean(doc.children);
+	return render(doc, { encodeEntities: "utf8", decodeEntities: true });
 }
 
-/** Escape special characters in an attribute value. */
-function escapeAttrValue(value: string): string {
-	return value
-		.replace(/&/g, "&amp;")
-		.replace(/"/g, "&quot;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;");
+/** The attributes of a `tag` that may stay: allowlisted, no event handlers, safe URLs. */
+function sanitizeAttributes(tag: string, attribs: Record<string, string>): Record<string, string> {
+	const tagAllowed = TAG_ATTRS[tag];
+	const out: Record<string, string> = {};
+	for (const [rawName, value] of Object.entries(attribs)) {
+		const name = rawName.toLowerCase();
+		if (EVENT_HANDLER_RE.test(name)) continue;
+		if (!ALLOWED_ATTRS.has(name) && !tagAllowed?.has(name)) continue;
+		if (
+			(name === "href" || name === "src") &&
+			// biome-ignore lint/suspicious/noControlCharactersInRegex: browsers ignore these in a URL scheme, so must we
+			!SAFE_PROTOCOLS.test(value.replace(/[\u0000-\u0020]+/g, ""))
+		)
+			continue;
+		out[name] = value;
+	}
+	return out;
+}
+
+/** Replace an element by its children. */
+function unwrap(node: ChildNode): void {
+	const parent = node.parent;
+	if (!parent || !isTag(node)) {
+		removeElement(node);
+		return;
+	}
+	const i = parent.children.indexOf(node);
+	const kids = node.children;
+	for (const kid of kids) kid.parent = parent;
+	parent.children.splice(i, 1, ...kids);
+	// Re-link siblings around the inserted children.
+	for (let k = Math.max(0, i - 1); k < Math.min(parent.children.length, i + kids.length + 1); k++) {
+		const n = parent.children[k] as ChildNode;
+		n.prev = (parent.children[k - 1] as ChildNode | undefined) ?? null;
+		n.next = (parent.children[k + 1] as ChildNode | undefined) ?? null;
+	}
+	node.parent = node.prev = node.next = null;
+	node.children = [];
 }
 
 /**

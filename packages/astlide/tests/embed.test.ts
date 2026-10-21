@@ -9,10 +9,33 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	AstlideDeckElement,
 	defineAstlideDeck,
+	isDeckUrl,
 	parseDeckMessage,
 	type SlideChangeDetail,
 	slideSrc,
 } from "../src/embed/index";
+
+describe("isDeckUrl", () => {
+	it("accepts http(s) and relative URLs only", () => {
+		for (const ok of [
+			"/talk/",
+			"talk",
+			"../talk",
+			"https://e.com/t/",
+			"http://e.com/t",
+			"//e.com/t",
+		])
+			expect(isDeckUrl(ok)).toBe(true);
+		for (const bad of [
+			"javascript:alert(1)",
+			"JAVASCRIPT:x",
+			"data:text/html,x",
+			"vbscript:x",
+			"file:///etc",
+		])
+			expect(isDeckUrl(bad)).toBe(false);
+	});
+});
 
 describe("slideSrc", () => {
 	it("follows the deck URL's trailing-slash style", () => {
@@ -117,6 +140,22 @@ describe("<astlide-deck>", () => {
 		el.src = "/other";
 		expect(iframeOf(el).getAttribute("src")).toBe("/other/3");
 		expect(iframeOf(el).title).toBe("My talk");
+	});
+
+	it("refuses src URLs that aren't http(s) or relative", () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		for (const src of [
+			"javascript:alert(1)//x",
+			" JavaScript:alert(1)",
+			"data:text/html,<script>1</script>",
+		]) {
+			el.src = src;
+			expect(iframeOf(el).hasAttribute("src")).toBe(false);
+		}
+		expect(warn).toHaveBeenCalled();
+		el.src = "https://example.com/talk/";
+		expect(iframeOf(el).getAttribute("src")).toBe("https://example.com/talk/3/");
+		warn.mockRestore();
 	});
 
 	it("says hello when the frame loads, to the deck's origin only", () => {

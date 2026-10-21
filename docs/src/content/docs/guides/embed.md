@@ -48,7 +48,7 @@ The trailing slash of `src` decides the slide URLs: `…/my-talk/` loads `…/my
 
 | Attribute | | |
 | --- | --- | --- |
-| `src` | required | URL of the deck root, absolute or relative to the page |
+| `src` | required | URL of the deck root, absolute (`http`/`https`) or relative to the page; other schemes such as `javascript:` are ignored |
 | `start` | `1` | Slide shown first. Changing it later moves the deck there |
 | `controls` | off | Show the control bar (previous, counter, next, fullscreen) |
 | `label` | `"Slide deck"` | Accessible name of the frame |

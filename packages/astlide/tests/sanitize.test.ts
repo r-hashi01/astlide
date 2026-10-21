@@ -346,3 +346,38 @@ describe("sanitizeKaTeXOutput", () => {
 		expect(result).not.toContain("vbscript:");
 	});
 });
+
+describe("sanitizeHTML (parse tree)", () => {
+	it("doesn't let an unterminated tag at the end through", () => {
+		const out = sanitizeHTML("<p>hi</p><img src=x onerror=alert(1) ");
+		expect(out).not.toMatch(/<img/i);
+		expect(out).not.toMatch(/onerror/i);
+		// Whatever follows the output can't complete a tag.
+		expect(`<div>${out}</div>`).not.toMatch(/<[a-z]+[^>]*onerror/i);
+	});
+
+	it("drops script URLs however they are spelled", () => {
+		for (const href of [
+			"javascript:alert(1)",
+			"JaVaScRiPt:alert(1)",
+			" javascript:alert(1)",
+			"java\tscript:alert(1)",
+			"&#106;avascript:alert(1)",
+			"&#x6A;avascript:alert(1)",
+			"data:text/html,<script>alert(1)</script>",
+		]) {
+			expect(sanitizeHTML(`<a href="${href}">x</a>`)).toBe("<a>x</a>");
+		}
+		expect(sanitizeHTML('<a href="https://example.com/?a=1&amp;b=2">x</a>')).toBe(
+			'<a href="https://example.com/?a=1&amp;b=2">x</a>',
+		);
+	});
+
+	it("removes odd spellings of dangerous tags and escapes text", () => {
+		expect(sanitizeHTML("<ScRiPt >alert(1)</script ><b>ok</b>")).toBe("<b>ok</b>");
+		expect(sanitizeHTML("<svg><foo>t</foo></svg>")).toBe("t");
+		expect(sanitizeHTML("1 &lt; 2 &amp;&amp; <!-- c --><i>x</i>")).toBe(
+			"1 &lt; 2 &amp;&amp; <i>x</i>",
+		);
+	});
+});
