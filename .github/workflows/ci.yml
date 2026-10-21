@@ -184,6 +184,15 @@ jobs:
           done
           file out.pptx | grep -q -i "PowerPoint\|Zip"
           file out.pdf | grep -q PDF
+      - name: Without the profile, PDF fails instead of running unsandboxed
+        run: |
+          docker run -d --name astlide-nosandbox -p 8788:8787 -e ASTLIDE_API_KEY=ci-key astlide-server
+          for i in $(seq 1 30); do curl -sf localhost:8788/health && break; sleep 1; done
+          code=$(curl -s -o nosandbox.json -w '%{http_code}' -H 'content-type: application/json' \
+            -H 'authorization: Bearer ci-key' -d '{"markdown":"# One","format":"pdf"}' localhost:8788/render)
+          cat nosandbox.json; echo
+          test "$code" = 422
+          grep -q "sandbox" nosandbox.json
       - if: failure()
         run: docker logs astlide-server
 
