@@ -170,15 +170,28 @@ function naturalSize(svg: string): { width: number; height: number } {
 /** Links an SVG may keep: in-document references and inline raster images. */
 const SAFE_HREF = /^(?:#|data:image\/(?:png|jpe?g|gif|webp)[;,])/i;
 
+/** `svg` without its `<!DOCTYPE …>` (and the internal subset, where entities and default attributes live). */
+function withoutDoctype(svg: string): string {
+	const start = svg.search(/<!DOCTYPE/i);
+	if (start < 0) return svg;
+	const close = svg.indexOf(">", start);
+	const open = svg.indexOf("[", start);
+	// An internal subset ends at "]" followed by ">"; scanned with indexOf, so linear.
+	const end =
+		open >= 0 && (close < 0 || open < close) ? svg.indexOf(">", svg.indexOf("]", open)) : close;
+	return end < 0 ? svg.slice(0, start) : svg.slice(0, start) + svg.slice(end + 1);
+}
+
 /**
- * `svg` with every other `href` / `xlink:href` emptied. resvg loads an
+ * `svg` with every other `href` emptied, under any namespace prefix
+ * (`href`, `xlink:href`, `é:href` …), and without a DOCTYPE. resvg loads an
  * `<image>` from a file path, so a remote SVG could otherwise pull a local
  * file into the output (an inline SVG image could do the same, hence raster
  * only).
  */
 function withoutExternalRefs(svg: string): string {
-	return svg.replace(
-		/(\s(?:[\w.-]+:)?href\s*=\s*)(?:"([^"]*)"|'([^']*)')/gi,
+	return withoutDoctype(svg).replace(
+		/(\s(?:[^\s=<>"'/:]+:)?href\s*=\s*)(?:"([^"]*)"|'([^']*)')/gi,
 		(all, attr: string, double?: string, single?: string) =>
 			SAFE_HREF.test(double ?? single ?? "") ? all : `${attr}""`,
 	);

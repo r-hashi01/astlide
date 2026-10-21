@@ -37,10 +37,18 @@ describe("svgToPng", () => {
 			`href="${file}"`,
 			`href='${file.replaceAll("'", "&apos;")}'`,
 			`xlink:href="${file}"`,
+			// Any namespace prefix bound to XLink counts, not just ASCII ones.
+			`xmlns:é="http://www.w3.org/1999/xlink" é:href="${file}"`,
 			// …nor through an SVG inlined as a data: URL.
 			`href="data:image/svg+xml;base64,${Buffer.from(image(`href="${file}"`)).toString("base64")}"`,
 		];
 		for (const link of links) expect(await firstRed(svgToPng(image(link), 10, []))).toBe(0);
+		// …nor through DTD entities or default attributes.
+		const dtd = [
+			`<!DOCTYPE svg [<!ENTITY f "${file}">]>${image('href="&f;"')}`,
+			`<!DOCTYPE svg [<!ATTLIST image href CDATA "${file}">]>${image("")}`,
+		];
+		for (const svg of dtd) expect(await firstRed(svgToPng(svg, 10, []))).toBe(0);
 	});
 
 	it("draws inline raster images", async () => {
