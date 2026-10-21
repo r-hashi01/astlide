@@ -13,6 +13,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, extname, join, relative, resolve, sep } from "node:path";
 import { pptxToSlides } from "../pptx/index";
 import { slugify } from "../pptx/slug";
+import { realPath } from "../utils/real-path";
 
 export { slugify };
 
@@ -86,6 +87,19 @@ export async function importDeck(options: ImportOptions): Promise<{ dir: string;
 	])
 		if (!resolve(dir).startsWith(parent + sep) || relative(parent, dir).includes(sep))
 			throw new Error(`bad deck name "${deckName}"`);
+	// …and the folders themselves are where they seem: a symlinked `src/content/decks` or
+	// `public/pptx` (or a parent) would make --force delete outside the project.
+	const realRoot = realPath(options.root);
+	for (const parts of [
+		["src", "content", "decks"],
+		["public", "pptx"],
+	]) {
+		const where = join(...parts);
+		if (realPath(join(options.root, where, deckName)) !== join(realRoot, where, deckName))
+			throw new Error(
+				`${join(where, deckName)} or a folder above it is a symlink — refusing to write there`,
+			);
+	}
 	if (existsSync(deckDir)) {
 		if (!options.force)
 			throw new Error(`${relative(options.root, deckDir)} exists — pass --force to replace it`);

@@ -24,7 +24,14 @@ description: Claude Code、Codex、Gemini CLI にデッキを書かせ、チェ�
 | `check_deck` | `projectRoot`、`deck`、省略可能な `build` | スライドごとの、収まっていないテキストやボックス（後述） |
 | `render_deck` | `projectRoot`、`deck`、`formats`（`pptx`、`pdf`）、省略可能な `outDir`（プロジェクト内）、`build` | [`astlide export`](/ja/guides/export/) と同じように書き出したファイルのパス |
 
-`check_deck` と `render_deck` はサイトを自分でビルドするので（`check_deck` は `dist/` がデッキより古い場合のみ）、開発サーバーは不要です。ビルドではプロジェクトの Astro 設定が実行されるため、どちらのツールも読み取り専用とは申告していません。`check_deck` に `build: false` を指定すると、読み取りだけを行います。PDF のエクスポートには Playwright の Chromium（`bunx playwright install chromium`）が必要です。
+`check_deck` と `render_deck` はサイトを自分でビルドするので（`check_deck` は `dist/` がデッキより古い場合のみ）、開発サーバーは不要です。PDF のエクスポートには Playwright の Chromium（`bunx playwright install chromium`）が必要です。
+
+ビルドとエクスポートでは、プロジェクト自身のコードが実行されます（Astro の設定とインテグレーション、MDX のスライド、`bunfig.toml` の preload、プロジェクトにインストールされた `@astlide/core`）。`projectRoot` を指定した `import_pptx` も、プロジェクトの `astlide` CLI を実行します。そのため、次のようにしています。
+
+- どのツールも読み取り専用とは申告していません（`check_deck` に `build: false` を指定した場合は読み取りだけです）。`import_pptx` は、`force` でデッキのフォルダーを置き換えるため、破壊的な操作として申告しています。
+- 扱えるのは、クライアントの MCP ルートの中にあるプロジェクトだけです。クライアントがルートを示さない場合は、サーバーを起動したフォルダーの中に限ります。サーバーはプロジェクトのフォルダー（または複数のプロジェクトをまとめた親フォルダー）で起動してください。どのフォルダーでも扱えるようにするには、サーバーの環境変数に `ASTLIDE_MCP_ANY_PROJECT=1` を設定します。
+- ビルドとエクスポートには、必要な環境変数（`PATH`、`HOME`、ロケール、プロキシ、`ASTLIDE_*` など）だけを渡し、トークンやキーは渡しません。
+- デッキ名は普通のフォルダー名に限り、出力先（`outDir`）はシンボリックリンクをたどった先も含めてプロジェクトの中に限ります。
 
 ### Claude Code
 

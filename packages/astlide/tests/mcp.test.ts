@@ -4,18 +4,23 @@ import {
 	mkdtempSync,
 	readdirSync,
 	readFileSync,
+	realpathSync,
+	symlinkSync,
 	writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { FontRegistry, layoutPage } from "@astlide/engine";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { ListRootsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import PptxGenJS from "pptxgenjs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { checkSlide, siteView } from "../src/mcp/check";
 import { importPptx, readPptx } from "../src/mcp/import";
+import { astlideArgs, childEnv, deckDir, projectRootWithin } from "../src/mcp/project";
 import { exportArgs, outputDir } from "../src/mcp/render";
 import { createServer } from "../src/mcp/server-def";
 import { templateLayouts } from "../src/mcp/template";
@@ -213,7 +218,7 @@ describe("render_deck", () => {
 	it("runs astlide export with the formats and output folder", () => {
 		expect(
 			exportArgs({ projectRoot: "/p", deck: "talk", formats: ["pptx", "pdf", "pptx"] }, "/p/out"),
-		).toEqual(["export", "talk", "--pptx", "--pdf", "--out-dir", "/p/out"]);
+		).toEqual(["export", "--pptx", "--pdf", "--out-dir", "/p/out", "--", "talk"]);
 		expect(
 			exportArgs({ projectRoot: "/p", deck: "talk", formats: ["pdf"], build: false }, "/o"),
 		).toContain("--no-build");
@@ -227,6 +232,79 @@ describe("render_deck", () => {
 		expect(outputDir("/p", "..data")).toBe(join("/p", "..data"));
 		for (const bad of ["..", "../x", "out/../../x", "/tmp/x", "/p-other/x"])
 			expect(() => outputDir("/p", bad), bad).toThrow(/inside the project/);
+	});
+
+	it("doesn't follow a symlinked output folder out of the project", () => {
+		const root = mkdtempSync(join(tmpdir(), "astlide-mcp-out-"));
+		const elsewhere = mkdtempSync(join(tmpdir(), "astlide-mcp-elsewhere-"));
+		symlinkSync(elsewhere, join(root, "exports"));
+		expect(() => outputDir(root)).toThrow(/inside the project/);
+		expect(() => outputDir(root, "exports/deep")).toThrow(/inside the project/);
+		mkdirSync(join(root, "out"));
+		expect(outputDir(root, "out")).toBe(join(root, "out"));
+	});
+
+	it("passes the deck after --, and --cwd before it", () => {
+		expect(astlideArgs("/p", ["export", "--pptx", "--", "-o"])).toEqual([
+			"export",
+			"--cwd",
+			"/p",
+			"--pptx",
+			"--",
+			"-o",
+		]);
+	});
+});
+
+describe("projects", () => {
+	it("refuses deck names that look like options or paths", () => {
+		const root = mkdtempSync(join(tmpdir(), "astlide-mcp-decks-"));
+		mkdirSync(join(root, "src", "content", "decks", "-o"), { recursive: true });
+		for (const name of ["-o", "--no-build", "../x", ".hidden"])
+			expect(() => deckDir(root, name), name).toThrow(/bad deck name/);
+	});
+
+	it("only works in projects inside the allowed folders, symlinks resolved", () => {
+		const allowed = mkdtempSync(join(tmpdir(), "astlide-mcp-allowed-"));
+		const outside = mkdtempSync(join(tmpdir(), "astlide-mcp-other-"));
+		for (const dir of [join(allowed, "p"), outside])
+			mkdirSync(join(dir, "src", "content", "decks"), { recursive: true });
+		symlinkSync(outside, join(allowed, "link"));
+		expect(projectRootWithin(join(allowed, "p"), [allowed])).toBe(join(allowed, "p"));
+		expect(() => projectRootWithin(outside, [allowed])).toThrow(/outside the folders/);
+		expect(() => projectRootWithin(join(allowed, "link"), [allowed])).toThrow(
+			/outside the folders/,
+		);
+	});
+
+	it("gives child processes no secrets", () => {
+		const env = childEnv({
+			PATH: "/bin",
+			HOME: "/h",
+			GITHUB_TOKEN: "t",
+			ASTLIDE_API_KEY: "k",
+			AWS_SECRET_ACCESS_KEY: "s",
+			ASTLIDE_PUBLIC_NETWORK_ONLY: "1",
+		});
+		expect(env).toMatchObject({ PATH: "/bin", HOME: "/h", ASTLIDE_PUBLIC_NETWORK_ONLY: "1" });
+		for (const key of ["GITHUB_TOKEN", "ASTLIDE_API_KEY", "AWS_SECRET_ACCESS_KEY"])
+			expect(env[key], key).toBeUndefined();
+	});
+
+	it("doesn't import through a symlinked decks folder", async () => {
+		const outside = mkdtempSync(join(tmpdir(), "astlide-mcp-linked-"));
+		const root = join(outside, "project");
+		const real = join(outside, "real-decks");
+		mkdirSync(join(real, "q3"), { recursive: true });
+		writeFileSync(join(real, "q3", "keep.txt"), "x");
+		mkdirSync(join(root, "src", "content"), { recursive: true });
+		symlinkSync(real, join(root, "src", "content", "decks"));
+		const file = join(root, "q3.pptx");
+		writeFileSync(file, await template());
+		await expect(
+			importPptx({ path: file, projectRoot: root, deck: "q3", force: true }),
+		).rejects.toThrow(/symlink/);
+		expect(readFileSync(join(real, "q3", "keep.txt"), "utf-8")).toBe("x");
 	});
 });
 
@@ -352,8 +430,35 @@ describe("MCP server", () => {
 		});
 		const check = tools.find((t) => t.name === "check_deck");
 		expect(check?.annotations?.readOnlyHint).toBe(false);
+		expect(check?.description).toMatch(/runs the project's own code/);
+		expect(tools.find((t) => t.name === "import_pptx")?.annotations?.destructiveHint).toBe(true);
 		expect(bad.isError).toBe(true);
 		expect(existsSync(join(dir, "dist"))).toBe(false);
+		await client.close();
+	});
+
+	it("works only on projects inside the client's roots", async () => {
+		const allowed = realpathSync(mkdtempSync(join(tmpdir(), "astlide-mcp-root-")));
+		const outside = mkdtempSync(join(tmpdir(), "astlide-mcp-elsewhere-"));
+		for (const dir of [allowed, outside])
+			mkdirSync(join(dir, "src", "content", "decks"), { recursive: true });
+		const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+		// Without roots from the client, the default (here: nothing) would apply.
+		await createServer({ allowedRoots: [] }).connect(serverSide);
+		const client = new Client({ name: "test", version: "0" }, { capabilities: { roots: {} } });
+		client.setRequestHandler(ListRootsRequestSchema, () => ({
+			roots: [{ uri: pathToFileURL(allowed).href }],
+		}));
+		await client.connect(clientSide);
+		const text = async (projectRoot: string) => {
+			const r = await client.callTool({
+				name: "check_deck",
+				arguments: { projectRoot, deck: "nope" },
+			});
+			return (r.content as { text: string }[])[0]?.text ?? "";
+		};
+		expect(await text(outside)).toMatch(/outside the folders/);
+		expect(await text(allowed)).toMatch(/no deck "nope"/);
 		await client.close();
 	});
 });
