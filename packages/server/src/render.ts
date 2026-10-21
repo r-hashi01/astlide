@@ -58,6 +58,21 @@ function summarize(log: string, root: string): string {
 		.join("\n");
 }
 
+/**
+ * Why a render failed, for the client — and, when that would tell the client
+ * about the server itself (Chromium's sandbox couldn't start: how the host
+ * or container is set up), the detail for the server's log instead.
+ */
+export function renderFailure(log: string, root: string): { client: string; server?: string } {
+	const summary = summarize(log, root);
+	if (/couldn't start its sandbox/i.test(log))
+		return {
+			client: "render failed: Chromium couldn't start its sandbox — see the server log",
+			server: `Chromium couldn't start its sandbox:\n${summary}`,
+		};
+	return { client: `render failed:\n${summary}` };
+}
+
 export interface RenderOptions {
 	cli: string;
 	bun: string;
@@ -113,7 +128,11 @@ export async function renderProject(
 					new RenderTimeout(`render took longer than ${Math.round(options.timeoutMs / 1000)}s`),
 				);
 			else if (code === 0) resolve();
-			else reject(new RenderFailed(`render failed:\n${summarize(log, root)}`));
+			else {
+				const failure = renderFailure(log, root);
+				if (failure.server) console.error(`astlide-server: ${failure.server}`);
+				reject(new RenderFailed(failure.client));
+			}
 		});
 	});
 
