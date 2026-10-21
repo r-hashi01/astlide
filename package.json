@@ -23,7 +23,7 @@
 		"docs:dev": "bun run --filter astlide-docs dev",
 		"docs:build": "bun run docs:api && bun run --filter astlide-docs build",
 		"changeset": "changeset",
-		"version": "changeset version && bun install",
+		"version": "changeset version && bun install --ignore-scripts",
 		"release": "changeset publish"
 	},
 	"devDependencies": {

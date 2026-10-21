@@ -37,9 +37,10 @@ jobs:
           node-version: 24
           registry-url: "https://registry.npmjs.org"
 
-      # Release does not modify the repository state, so use a regular install here.
-      # Bun can still re-resolve optional/native packages differently on GitHub runners.
-      - run: bun install
+      # This job can publish to npm and push, so it installs exactly the reviewed
+      # lockfile and runs no dependency lifecycle scripts. (Our own packages'
+      # scripts still run: create-astlide builds itself in prepublishOnly.)
+      - run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Create Release Pull Request or Publish
         id: changesets

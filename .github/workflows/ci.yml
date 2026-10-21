@@ -162,13 +162,18 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: docker build -f packages/server/Dockerfile -t astlide-server .
-      - run: docker run -d --name astlide-server -p 8787:8787 astlide-server
+      - name: Refuses to start in the open without a key
+        run: |
+          if docker run --rm astlide-server; then echo "started without an API key"; exit 1; fi
+      - run: docker run -d --name astlide-server -p 8787:8787 -e ASTLIDE_API_KEY=ci-key astlide-server
       - name: Render through the API
         run: |
           for i in $(seq 1 30); do curl -sf localhost:8787/health && break; sleep 1; done
           curl -sf localhost:8787/openapi.json > /dev/null
+          test "$(curl -s -o /dev/null -w '%{http_code}' -d '{}' localhost:8787/render)" = 401
           for format in pptx pdf; do
             curl -sS --fail-with-body -o "out.$format" -H 'content-type: application/json' \
+              -H 'authorization: Bearer ci-key' \
               -d "{\"markdown\":\"# こんにちは\\n---\\n# Two\",\"format\":\"$format\"}" \
               localhost:8787/render
             file "out.$format"

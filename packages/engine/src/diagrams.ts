@@ -167,12 +167,53 @@ function naturalSize(svg: string): { width: number; height: number } {
 	return { width, height: vw ? (width * vh) / vw : 150 };
 }
 
-/** Rasterize SVG to PNG `width` px wide, drawing text with `fontFiles`. */
+/** Links an SVG may keep: in-document references and inline raster images. */
+const SAFE_HREF = /^(?:#|data:image\/(?:png|jpe?g|gif|webp)[;,])/i;
+
+/** `svg` without its `<!DOCTYPE …>` (and the internal subset, where entities and default attributes live). */
+function withoutDoctype(svg: string): string {
+	const start = svg.search(/<!DOCTYPE/i);
+	if (start < 0) return svg;
+	const close = svg.indexOf(">", start);
+	const open = svg.indexOf("[", start);
+	// An internal subset ends at "]" followed by ">"; scanned with indexOf, so linear.
+	const end =
+		open >= 0 && (close < 0 || open < close) ? svg.indexOf(">", svg.indexOf("]", open)) : close;
+	return end < 0 ? svg.slice(0, start) : svg.slice(0, start) + svg.slice(end + 1);
+}
+
+/**
+ * `svg` with every other `href` emptied, under any namespace prefix
+ * (`href`, `xlink:href`, `é:href` …), and without a DOCTYPE. resvg loads an
+ * `<image>` from a file path, so a remote SVG could otherwise pull a local
+ * file into the output (an inline SVG image could do the same, hence raster
+ * only).
+ */
+function withoutExternalRefs(svg: string): string {
+	return withoutDoctype(svg).replace(
+		/(\s(?:[^\s=<>"'/:]+:)?href\s*=\s*)(?:"([^"]*)"|'([^']*)')/gi,
+		(all, attr: string, double?: string, single?: string) =>
+			SAFE_HREF.test(double ?? single ?? "") ? all : `${attr}""`,
+	);
+}
+
+/** Most pixels one rasterized SVG may have (its height follows its own aspect ratio). */
+export const MAX_RASTER_PIXELS = 50_000_000;
+
+/**
+ * Rasterize SVG to PNG `width` px wide, drawing text with `fontFiles`. Only
+ * in-document references and inline raster images are drawn (see
+ * {@link withoutExternalRefs}). Throws when the picture would have more than
+ * {@link MAX_RASTER_PIXELS} pixels.
+ */
 export function svgToPng(svg: string, width: number, fontFiles: string[]): Buffer {
-	return new Resvg(svg, {
-		fitTo: { mode: "width", value: Math.round(width) },
+	const target = Math.round(width);
+	const resvg = new Resvg(withoutExternalRefs(svg), {
+		fitTo: { mode: "width", value: target },
 		font: { fontFiles, loadSystemFonts: false },
-	})
-		.render()
-		.asPng();
+	});
+	const height = resvg.width > 0 ? (target * resvg.height) / resvg.width : 0;
+	if (!(target * height <= MAX_RASTER_PIXELS))
+		throw new Error(`SVG too large to rasterize (${target} × ${Math.round(height)} px)`);
+	return resvg.render().asPng();
 }

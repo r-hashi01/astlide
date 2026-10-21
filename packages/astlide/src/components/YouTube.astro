@@ -30,7 +30,10 @@ const { id: rawId, title = 'YouTube video', start, class: className } = Astro.pr
 const urlMatch = rawId.match(
 	/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
 );
-const videoId = urlMatch ? urlMatch[1] : rawId;
+const candidate = urlMatch ? urlMatch[1] : rawId.trim();
+// A video id is 11 characters of [A-Za-z0-9_-]; anything else renders nothing.
+const videoId = /^[\w-]{11}$/.test(candidate ?? '') ? candidate : undefined;
+if (!videoId) console.warn(`[astlide] <YouTube>: "${rawId}" is not a YouTube video id or URL`);
 
 const params = new URLSearchParams();
 if (start !== undefined) params.set('start', String(start));
@@ -40,6 +43,7 @@ const watchUrl = `https://www.youtube.com/watch?v=${videoId}${start !== undefine
 const thumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 ---
 
+{videoId && (
 <div class:list={['youtube-embed', className]}>
   <iframe
     src={src}
@@ -56,6 +60,7 @@ const thumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
     </svg>
   </a>
 </div>
+)}
 
 <style>
   .youtube-embed {

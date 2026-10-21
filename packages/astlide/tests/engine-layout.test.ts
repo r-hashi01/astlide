@@ -6,6 +6,7 @@ import {
 	distFile,
 	FontRegistry,
 	familiesIn,
+	isInside,
 	layoutPage,
 	toScene,
 	transformText,
@@ -148,6 +149,19 @@ describe("engine layout", () => {
 		expect(distFile(dist, "/my-repo/demo/_astro/a.css?v=1")).toBe(file);
 		expect(distFile(dist, "/my-repo/missing.css")).toBeNull();
 		expect(distFile(dist, "/../../etc/passwd")).toBeNull();
+	});
+
+	it("doesn't take a sibling folder sharing the dist folder's name for it", () => {
+		const parent = mkdtempSync(join(tmpdir(), "astlide-dist-"));
+		const dist = join(parent, "dist");
+		mkdirSync(dist);
+		mkdirSync(join(parent, "dist-old"));
+		writeFileSync(join(parent, "dist-old", "secret.css"), "x");
+		expect(distFile(dist, "/x/../../dist-old/secret.css")).toBeNull();
+		expect(distFile(dist, "/%2e%2e/dist-old/secret.css")).toBeNull();
+		expect(isInside(dist, join(parent, "dist-old", "secret.css"))).toBe(false);
+		expect(isInside(dist, join(dist, "a", "b.css"))).toBe(true);
+		expect(isInside(dist, dist)).toBe(true);
 	});
 
 	it("places absolute boxes against the nearest positioned ancestor, not their parent", () => {

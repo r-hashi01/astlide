@@ -33,12 +33,18 @@ interface Props {
 	class?: string;
 }
 
-const { url, text, author, handle, date, avatar, class: className } = Astro.props;
+import { httpUrl, imageUrl } from '@astlide/core/utils/safe-url';
+
+const { url, text, author, handle, date, avatar: rawAvatar, class: className } = Astro.props;
+// Only http(s) links and plain image URLs: props may come from generated decks.
+const href = httpUrl(url);
+const avatar = imageUrl(rawAvatar);
+if (url && !href) console.warn(`[astlide] <Tweet>: ignoring url "${url}" (http/https only)`);
 const displayHandle = handle.startsWith('@') ? handle : `@${handle}`;
 ---
 
 <a
-  href={url}
+  href={href}
   target="_blank"
   rel="noopener noreferrer"
   class:list={['tweet-card', className]}

@@ -48,7 +48,7 @@ import DeckEmbed from "@astlide/core/components/DeckEmbed.astro";
 
 | 属性 | | |
 | --- | --- | --- |
-| `src` | 必須 | デッキのルート URL（絶対 URL、またはページからの相対 URL） |
+| `src` | 必須 | デッキのルート URL（`http` / `https` の絶対 URL、またはページからの相対 URL。`javascript:` などほかのスキームは無視します） |
 | `start` | `1` | 最初に表示するスライド。後から変更するとそのスライドへ移動します |
 | `controls` | オフ | コントロールバー（前へ、スライド番号、次へ、フルスクリーン）を表示する |
 | `label` | `"Slide deck"` | フレームのアクセシブルな名前 |

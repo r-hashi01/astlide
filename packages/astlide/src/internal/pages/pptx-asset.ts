@@ -14,17 +14,23 @@ const NAME = /^[0-9a-f]{24}\.[a-z0-9]+$/;
 
 export const getStaticPaths: GetStaticPaths = async () => {
 	const files = await readdir(__ASTLIDE_PPTX_ASSETS__).catch(() => [] as string[]);
-	return files.filter((f) => NAME.test(f)).map((file) => ({ params: { file } }));
+	return files
+		.filter((f) => NAME.test(f) && Object.hasOwn(PPTX_ASSET_TYPES, extname(f)))
+		.map((file) => ({ params: { file } }));
 };
 
 export const GET: APIRoute = async ({ params }) => {
 	const file = params.file ?? "";
-	if (!NAME.test(file)) return new Response("not found", { status: 404 });
+	const type = Object.hasOwn(PPTX_ASSET_TYPES, extname(file))
+		? PPTX_ASSET_TYPES[extname(file)]
+		: undefined;
+	if (!NAME.test(file) || !type) return new Response("not found", { status: 404 });
 	try {
 		const data = await readFile(join(__ASTLIDE_PPTX_ASSETS__, file));
 		return new Response(data, {
 			headers: {
-				"content-type": PPTX_ASSET_TYPES[extname(file)] ?? "application/octet-stream",
+				"content-type": type,
+				"x-content-type-options": "nosniff",
 				"cache-control": "public, max-age=31536000, immutable",
 			},
 		});

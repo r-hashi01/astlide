@@ -6,7 +6,7 @@
  * @module
  */
 
-import { mkdir, mkdtemp, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 /** The deck's folder name inside the project. */
@@ -67,6 +67,7 @@ export async function createProject(
 	options: { workDir: string; nodeModules: string },
 ): Promise<string> {
 	const root = await mkdtemp(join(options.workDir, "render-"));
+	live.add(root);
 	try {
 		const deckDir = join(root, "src", "content", "decks", DECK);
 		await mkdir(deckDir, { recursive: true });
@@ -97,12 +98,35 @@ export async function createProject(
 /** Delete a project (links only — the linked packages are untouched). */
 export async function removeProject(root: string): Promise<void> {
 	await rm(root, { recursive: true, force: true });
+	live.delete(root);
 }
 
-/** Delete projects left behind by a previous run (e.g. after a crash). */
-export async function removeStaleProjects(workDir: string): Promise<void> {
+/** Projects this process created and hasn't deleted yet. */
+const live = new Set<string>();
+
+/** Delete this process's projects (on shutdown, with renders still running). */
+export async function removeLiveProjects(): Promise<void> {
+	await Promise.all([...live].map(removeProject));
+}
+
+/**
+ * Delete projects left behind by an earlier run (e.g. after a crash): those
+ * not touched for `olderThanMs` — another server sharing the work directory
+ * may be using the newer ones.
+ */
+export async function removeStaleProjects(workDir: string, olderThanMs: number): Promise<void> {
 	const entries = await readdir(workDir).catch(() => [] as string[]);
+	const cutoff = Date.now() - olderThanMs;
 	await Promise.all(
-		entries.filter((n) => n.startsWith("render-")).map((n) => removeProject(join(workDir, n))),
+		entries
+			.filter((n) => n.startsWith("render-"))
+			.map(async (n) => {
+				const dir = join(workDir, n);
+				const modified = await stat(dir).then(
+					(s) => s.mtimeMs,
+					() => Number.POSITIVE_INFINITY,
+				);
+				if (modified < cutoff) await removeProject(dir);
+			}),
 	);
 }

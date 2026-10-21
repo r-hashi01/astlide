@@ -18,8 +18,11 @@ The image has everything a render needs: Node and Bun, Chromium for PDF / PNG, a
 
 ```bash
 docker build -f packages/server/Dockerfile -t astlide-server .
-docker run --rm -p 8787:8787 astlide-server
+export ASTLIDE_API_KEY="$(openssl rand -hex 24)"
+docker run --rm -p 8787:8787 -e ASTLIDE_API_KEY astlide-server
 ```
+
+The image listens on all interfaces, so it won't start without an API key (see [Security](#security)). Add `-H "Authorization: Bearer $ASTLIDE_API_KEY"` to the requests below — `/health` and `/openapi.json` need none.
 
 ```bash
 curl localhost:8787/health
@@ -30,7 +33,7 @@ Without Docker, from a clone of the repository (Node 22.12+ and Bun; for PDF / P
 
 ```bash
 bun install
-bun packages/server/src/cli.ts
+bun packages/server/src/cli.ts   # listens on 127.0.0.1 only
 ```
 
 ## Render slides
@@ -118,13 +121,17 @@ Environment variables:
 
 | Variable | Default | |
 | --- | --- | --- |
-| `PORT` / `HOST` | `8787` / `0.0.0.0` | Where the server listens. |
-| `ASTLIDE_API_KEY` | — | When set, requests need `Authorization: Bearer <key>` (or `X-API-Key`). `/health` and `/openapi.json` stay open. |
+| `PORT` / `HOST` | `8787` / `127.0.0.1` (`0.0.0.0` in the Docker image) | Where the server listens. |
+| `ASTLIDE_API_KEY` | — | When set, requests need `Authorization: Bearer <key>` (or `X-API-Key`). `/health` and `/openapi.json` stay open. Required unless `HOST` is loopback. |
+| `ASTLIDE_ALLOW_UNAUTHENTICATED` | `0` | `1` lets the server listen beyond loopback without a key — only when something in front of it (a gateway, a private network) controls who can call it. |
+| `ASTLIDE_ALLOW_PRIVATE_NETWORK` | `0` | `1` lets the slides load from the server's own network (see [Security](#security)). |
 | `PUBLIC_URL` | from the request | The URL put in the OpenAPI spec's `servers`. |
-| `MAX_BODY_MB` | `50` | Largest request (413 beyond). |
+| `MAX_BODY_MB` | `50` | Largest request (413 beyond); also the largest Google Slides download. A request must arrive within 60 seconds. |
 | `MAX_SLIDES` | `200` | Most slides per render. |
-| `RENDER_TIMEOUT_MS` | `180000` | A render taking longer is stopped (504). |
-| `CONCURRENCY` / `MAX_QUEUE` | `2` / `16` | Renders at once, and how many may wait; more get 503. |
+| `MAX_OUTPUT_MB` | `200` | Largest rendered file (PPTX, PDF or PNG ZIP); a bigger one is a 422. |
+| `RENDER_TIMEOUT_MS` | `180000` | A render (or the reading of an uploaded PowerPoint file) taking longer is stopped (504). |
+| `CONCURRENCY` / `MAX_QUEUE` | `2` / `16` | Renders at once, and how many may wait; more get 503 — before their upload is read. |
+| `ASTLIDE_CHROMIUM_SANDBOX` | `0` | `1` keeps Chromium's sandbox on for PDF / PNG (see [Security](#security)). |
 | `ASTLIDE_WORK_DIR` | `.astlide-work` next to `node_modules` | Where per-request projects are made. It must share a parent directory with the installed packages. |
 
 Errors are JSON `{ "error": "…" }`: 400 for bad input (checked before anything is built — e.g. a frontmatter value the slide schema rejects), 422 when the build or export fails, with the end of its log.
@@ -132,5 +139,18 @@ Errors are JSON `{ "error": "…" }`: 400 for bad input (checked before anything
 ## Limits
 
 - Each render is a full Astro build: a small deck takes about 3–5 seconds (PPTX or PDF), more with many slides.
-- Raw HTML in the Markdown is rendered as is, and PDF / PNG load the slides in Chromium. Run the service where its users are trusted (an internal network, or behind `ASTLIDE_API_KEY`).
 - PPTX export fetches web fonts and images the slides use, so the server needs outbound internet access for them.
+
+## Security
+
+A request is someone else's slides: raw HTML in the Markdown is rendered as is, and PDF / PNG load it in Chromium on your server. So:
+
+- **An API key is required** to listen beyond loopback. Without `ASTLIDE_API_KEY` the server refuses to start unless `HOST` is `127.0.0.1` / `localhost` (or you set `ASTLIDE_ALLOW_UNAUTHENTICATED=1` because something else controls access).
+- **Slides can't reach your network.** During a render, the slides and the exporter may load only from the deck itself, `data:` / `blob:` URLs and public internet hosts. Loopback, private ranges (`10/8`, `172.16/12`, `192.168/16`, `fc00::/7` …), link-local addresses (including cloud metadata at `169.254.169.254`) and other reserved ranges are refused, on every redirect too; WebSockets and service workers are blocked. Set `ASTLIDE_ALLOW_PRIVATE_NETWORK=1` only if every caller is trusted and the slides need intranet resources.
+- The check resolves host names before each request; a host that changes its DNS answer between the check and the request (DNS rebinding) can still slip through. For a service exposed to untrusted callers, also restrict the container's outbound traffic (a firewall or egress policy that allows only the public internet).
+- Remote images are capped at 20 MB and pages read for embed previews at 2 MB.
+- **Images must be URLs.** A Markdown image with a file path (`![](../x.png)`) is refused with a 400 — Astro would read it from the server's disk. Use `https:` or `data:` URLs.
+- Slides are written with their own frontmatter block, so a slide body that starts with `---` stays body and can't slip past the frontmatter checks. Frontmatter may not use YAML anchors / aliases (`&a` / `*a`), and is at most 256 KB per slide.
+- **Uploaded PowerPoint files** (`/import`, `/templates/layouts`) are read in a child process, through the same queue as renders: a file that takes longer than `RENDER_TIMEOUT_MS` is stopped (504), an answer over `MAX_OUTPUT_MB` is refused (422), and neither can stall the server itself.
+- **Chromium's sandbox** is off by default (Playwright turns it off; most containers don't allow the user namespaces it needs). Where they are allowed — e.g. Docker with a seccomp profile that permits `clone` / `unshare` of user namespaces, such as Chrome's — set `ASTLIDE_CHROMIUM_SANDBOX=1`: a bug in Chromium's renderer then stays inside the sandbox. Renders never see `ASTLIDE_API_KEY` either way.
+- Without the key, every route but `/health`, `/openapi.json` and `/` answers 401, unknown ones included; the key is compared in constant time.

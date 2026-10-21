@@ -346,3 +346,93 @@ describe("sanitizeKaTeXOutput", () => {
 		expect(result).not.toContain("vbscript:");
 	});
 });
+
+describe("sanitizeHTML (parse tree)", () => {
+	it("doesn't let an unterminated tag at the end through", () => {
+		const out = sanitizeHTML("<p>hi</p><img src=x onerror=alert(1) ");
+		expect(out).not.toMatch(/<img/i);
+		expect(out).not.toMatch(/onerror/i);
+		// Whatever follows the output can't complete a tag.
+		expect(`<div>${out}</div>`).not.toMatch(/<[a-z]+[^>]*onerror/i);
+	});
+
+	it("drops script URLs however they are spelled", () => {
+		for (const href of [
+			"javascript:alert(1)",
+			"JaVaScRiPt:alert(1)",
+			" javascript:alert(1)",
+			"java\tscript:alert(1)",
+			"&#106;avascript:alert(1)",
+			"&#x6A;avascript:alert(1)",
+			"data:text/html,<script>alert(1)</script>",
+		]) {
+			expect(sanitizeHTML(`<a href="${href}">x</a>`)).toBe("<a>x</a>");
+		}
+		expect(sanitizeHTML('<a href="https://example.com/?a=1&amp;b=2">x</a>')).toBe(
+			'<a href="https://example.com/?a=1&amp;b=2">x</a>',
+		);
+	});
+
+	it("removes odd spellings of dangerous tags and escapes text", () => {
+		expect(sanitizeHTML("<ScRiPt >alert(1)</script ><b>ok</b>")).toBe("<b>ok</b>");
+		expect(sanitizeHTML("<svg><foo>t</foo></svg>")).toBe("t");
+		expect(sanitizeHTML("1 &lt; 2 &amp;&amp; <!-- c --><i>x</i>")).toBe(
+			"1 &lt; 2 &amp;&amp; <i>x</i>",
+		);
+	});
+});
+
+describe("sanitizeKaTeXOutput (non-math markup)", () => {
+	it("drops elements and attributes KaTeX never emits", () => {
+		const out = sanitizeKaTeXOutput(
+			[
+				`<noscript><p title="</noscript><img src=x onerror=alert(1)>"></p></noscript>`,
+				`<iframe srcdoc="<script>alert(1)</script>"></iframe>`,
+				`<svg><a><animate attributeName="href" values="javascript:alert(1)"/><text>x</text></a></svg>`,
+				`<meta http-equiv="refresh" content="0;url=https://evil.example">`,
+				`<base href="https://evil.example/">`,
+				`<object data="x.swf"></object><embed src="x.swf">`,
+				`<a href="data:text/html,<script>alert(1)</script>">d</a>`,
+			].join(""),
+		);
+		for (const bad of [
+			"noscript",
+			"onerror",
+			"iframe",
+			"srcdoc",
+			"animate",
+			"javascript:",
+			"<meta",
+			"<base",
+			"<object",
+			"<embed",
+			"data:text",
+		])
+			expect(out).not.toContain(bad);
+	});
+
+	it("keeps KaTeX's own SVG", () => {
+		const svg = `<span class="katex"><svg width="400em" height="0.548em" viewBox="0 0 400000 548"><path d="M0 0h400000v548H0z"></path></svg></span>`;
+		const out = sanitizeKaTeXOutput(svg);
+		expect(out).toContain('viewBox="0 0 400000 548"');
+		expect(out).toContain('<path d="M0 0h400000v548H0z"');
+	});
+});
+
+describe("sanitizeHTML links and ids", () => {
+	it("refuses protocol-relative links", () => {
+		expect(sanitizeHTML('<a href="//evil.example/x">a</a>')).not.toContain("href");
+		expect(sanitizeHTML('<a href="/\\evil.example/x">a</a>')).not.toContain("href");
+		expect(sanitizeHTML('<a href="/deck/2">a</a>')).toContain('href="/deck/2"');
+	});
+
+	it("adds rel=noopener noreferrer when target is kept", () => {
+		expect(
+			sanitizeHTML('<a href="https://x.example" target="_blank" rel="opener">a</a>'),
+		).toContain('rel="noopener noreferrer"');
+	});
+
+	it("drops id attributes (DOM clobbering)", () => {
+		expect(sanitizeHTML('<p id="__astlide_embed_host">x</p>')).toBe("<p>x</p>");
+	});
+});

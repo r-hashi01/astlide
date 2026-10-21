@@ -12,10 +12,10 @@ on:
       - main
   workflow_dispatch:
 
+# The build runs third-party code (dependencies, Astro, TypeDoc), so it only
+# reads; deploying to Pages is the deploy job's alone.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # One deployment at a time; don't cancel an in-flight deploy.
 concurrency:
@@ -48,6 +48,9 @@ jobs:
           path: docs/dist
 
   deploy:
+    permissions:
+      pages: write
+      id-token: write
     name: Deploy
     needs: build
     runs-on: ubuntu-latest

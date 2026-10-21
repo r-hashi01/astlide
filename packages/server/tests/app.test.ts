@@ -75,6 +75,32 @@ describe("routes", () => {
 		expect((await req({ authorization: "Bearer secret" })).status).toBe(400);
 		expect((await req({ "x-api-key": "secret" })).status).toBe(400);
 		expect((await locked(new Request("http://test/health"))).status).toBe(200);
+		// Without the key, not even which routes exist.
+		expect((await locked(new Request("http://test/nope"))).status).toBe(401);
+		expect((await locked(new Request("http://test/render"))).status).toBe(401);
+		expect((await req({ authorization: "Bearer secret-and-more" })).status).toBe(401);
+	});
+
+	it("refuses uploads beyond the queue's room before reading them", async () => {
+		const tight = createHandler({ ...options, concurrency: 1, maxQueued: 0 });
+		// A client that never finishes sending its body holds the only slot.
+		const stalled = tight(
+			new Request("http://test/import", {
+				method: "POST",
+				body: new ReadableStream({ start() {} }),
+				headers: { "content-type": "application/json" },
+				duplex: "half",
+			} as RequestInit),
+		);
+		const res = await tight(
+			new Request("http://test/render", {
+				method: "POST",
+				body: JSON.stringify({ markdown: "# A" }),
+				headers: { "content-type": "application/json" },
+			}),
+		);
+		expect(res.status).toBe(503);
+		void stalled;
 	});
 });
 
@@ -155,5 +181,29 @@ describe("POST /import", () => {
 		expect(res.status).toBe(400);
 		expect((await res.json()).error).toMatch(/Google Slides/);
 		expect((await postJson("/import", {})).status).toBe(400);
+	});
+});
+
+describe("uploaded PowerPoint files are read in a child process", () => {
+	it("stops a read that takes too long (504)", async () => {
+		const slow = createHandler({ ...options, renderTimeoutMs: 1 });
+		const res = await slow(
+			new Request("http://test/import", { method: "POST", body: form({ file: new Blob([deck]) }) }),
+		);
+		expect(res.status).toBe(504);
+		// The server itself keeps answering.
+		expect((await slow(new Request("http://test/health"))).status).toBe(200);
+	});
+
+	it("refuses an answer larger than the output limit (422)", async () => {
+		const small = createHandler({ ...options, maxOutputBytes: 64 });
+		const res = await small(
+			new Request("http://test/templates/layouts", {
+				method: "POST",
+				body: form({ file: new Blob([template]) }),
+			}),
+		);
+		expect(res.status).toBe(422);
+		expect((await res.json()).error).toMatch(/larger than/);
 	});
 });
