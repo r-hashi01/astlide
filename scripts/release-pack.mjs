@@ -19,13 +19,14 @@ const ignored = new Set(
 	JSON.parse(readFileSync(join(root, ".changeset", "config.json"), "utf-8")).ignore,
 );
 
-/** Whether `name@version` is already on npm. */
+/** Whether `name@version` is already on npm. Only "not found" means no — other errors stop the release. */
 function published(name, version) {
 	try {
 		execFileSync("npm", ["view", `${name}@${version}`, "version"], { stdio: "pipe" });
 		return true;
-	} catch {
-		return false;
+	} catch (err) {
+		if (/E404|404 Not Found/.test(String(err.stderr ?? err.message))) return false;
+		throw err;
 	}
 }
 

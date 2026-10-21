@@ -63,24 +63,19 @@ The repository ships v0.1.0 as the initial release, so there is no prior changes
    cd /tmp/astlide-smoke && bun install && bun run build
    ```
 
-## Migrate to Trusted Publishing after v0.1.0
+## Trusted Publishing
 
-After the first publish lands, swap the long-lived `NPM_TOKEN` for npm Trusted Publishing (OIDC). It eliminates token rotation and credentials in repo settings:
+Every published package (`@astlide/core`, `@astlide/engine`, `create-astlide`, `astlide`) publishes through npm Trusted Publishing (OIDC) — no npm token is stored anywhere. Each one trusts this repository's `release.yml` **in the `npm-publish` environment** only, so a modified workflow on another branch, or a job without the approval, can't publish:
 
-1. Visit each package's access page:
-   - <https://www.npmjs.com/package/@astlide/core/access>
-   - <https://www.npmjs.com/package/create-astlide/access>
-2. **Trusted Publishers → Add publisher**:
-   - Repository: `r-hashi01/astlide`
-   - Workflow filename: `release.yml`
-   - Environment: leave empty
-3. Verify `release.yml` already has `id-token: write` permission (it does).
-4. Remove the `NPM_TOKEN` secret from
-   <https://github.com/r-hashi01/astlide/settings/secrets/actions>.
-5. Drop the `NPM_TOKEN` / `NODE_AUTH_TOKEN` env lines from `release.yml`. The workflow then publishes via short-lived OIDC tokens minted at publish time, signed with provenance.
-6. Re-enable the `push: branches: [main]` trigger in `release.yml` (it's currently `workflow_dispatch` only — see the comment in the workflow file).
+```bash
+npm trust github <package> --file release.yml --repo r-hashi01/astlide --env npm-publish --allow-publish
+```
 
-Until step 5 is done, v0.1.1+ continues to use the long-lived granular token.
+The `npm-publish` environment (repository settings → Environments) requires a maintainer's approval and only allows `main`. The `release-tags` ruleset protects the `@astlide/*`, `create-astlide@*` and `astlide@*` tags.
+
+A new package's first version has to be published by hand (Trusted Publishing can only be set up for an existing package): `npm publish --access public` from its folder, then the `npm trust` command above.
+
+What this does not cover: the build job runs the build (and its dependencies) to produce the tarballs, so a compromised build dependency could still change what's inside them. The split keeps such code away from the publishing credentials; review lockfile changes (including in the "version packages" PR) as you would code.
 
 ## Subsequent releases (v0.1.1 onward) — automated
 

@@ -10,8 +10,9 @@ name: Release
 #              maintainer's approval (the `npm-publish` environment).
 #
 # Trusted Publishing (OIDC) is configured on npm for each published package
-# (@astlide/core, @astlide/engine, create-astlide, astlide) via
-# `npm trust github <pkg> --file release.yml --repo r-hashi01/astlide`.
+# (@astlide/core, @astlide/engine, create-astlide, astlide), bound to the
+# environment — so only the approved publish job can publish:
+# `npm trust github <pkg> --file release.yml --repo r-hashi01/astlide --env npm-publish --allow-publish`.
 # No NPM_TOKEN is needed — npm verifies this workflow's id-token at publish time.
 on:
   push:
@@ -62,6 +63,8 @@ jobs:
       contents: read
     outputs:
       count: ${{ steps.pack.outputs.count }}
+      artifact: ${{ steps.upload.outputs.artifact-id }}
+      digest: ${{ steps.pack.outputs.digest }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -84,13 +87,15 @@ jobs:
         run: |
           node scripts/release-pack.mjs
           echo "count=$(jq length release/manifest.json)" >> "$GITHUB_OUTPUT"
+          echo "digest=$(cd release && sha256sum -- * | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       - if: steps.pack.outputs.count != '0'
+        id: upload
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release
           path: release/
-          retention-days: 7
+          retention-days: 30
 
   publish:
     name: Publish to npm
@@ -103,10 +108,16 @@ jobs:
       contents: write       # tags and GitHub releases
       id-token: write       # npm Trusted Publishing (OIDC)
     steps:
+      # Exactly the artifact the build job uploaded, with the contents it hashed.
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: release
+          artifact-ids: ${{ needs.build.outputs.artifact }}
           path: release
+      - name: Check the artifact
+        env:
+          DIGEST: ${{ needs.build.outputs.digest }}
+        run: |
+          test "$(cd release && sha256sum -- * | sha256sum | cut -d' ' -f1)" = "$DIGEST"
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v4
         with:
@@ -121,12 +132,31 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           jq -c '.[]' release/manifest.json | while read -r pkg; do
-            name=$(jq -r .name <<<"$pkg")
-            version=$(jq -r .version <<<"$pkg")
-            # --provenance makes npm do the OIDC handshake Trusted Publishing needs.
-            npm publish "release/$(jq -r .file <<<"$pkg")" --access public --provenance
-            jq -r .notes <<<"$pkg" > notes.md
-            gh release create "$name@$version" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-              --title "$name@$version" --notes-file notes.md
+            file=$(jq -r .file <<<"$pkg")
+            # Only plain tarball names, and the name / version are read from the tarball itself.
+            [[ "$file" =~ ^[A-Za-z0-9._-]+\.tgz$ && -f "release/$file" ]] || { echo "bad file: $file"; exit 1; }
+            meta=$(tar -xOzf "release/$file" package/package.json)
+            name=$(jq -r .name <<<"$meta")
+            version=$(jq -r .version <<<"$meta")
+            case "$name" in @astlide/core|@astlide/engine|create-astlide|astlide) ;; *) echo "unexpected package: $name"; exit 1 ;; esac
+            [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "bad version: $version"; exit 1; }
+            tag="$name@$version"
+            # Reruns pick up where they stopped.
+            if npm view "$tag" version >/dev/null 2>&1; then
+              echo "$tag is already on npm"
+            else
+              # --provenance makes npm do the OIDC handshake Trusted Publishing needs.
+              npm publish "release/$file" --access public --provenance --ignore-scripts
+            fi
+            # A tag made elsewhere must not get this release's notes.
+            if sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --jq .object.sha 2>/dev/null); then
+              [ "$sha" = "$GITHUB_SHA" ] || { echo "$tag exists on $sha, not $GITHUB_SHA"; exit 1; }
+            fi
+            if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              jq -r .notes <<<"$pkg" > notes.md
+              gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+                --title "$tag" --notes-file notes.md
+            fi
           done
