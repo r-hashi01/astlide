@@ -15,7 +15,7 @@ import { timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { extname } from "node:path";
 import { THEMES } from "@astlide/core/schema";
-import type { ServerOptions } from "./config";
+import { type ServerOptions, trimTrailingSlashes } from "./config";
 import { BadRequest, type DeckSettings, deckFiles, parseSlides } from "./deck";
 import { fetchGoogleSlides, parsePptx, TEMPLATE_EXTS } from "./importer";
 import { createProject, removeProject, TEMPLATE_THEME } from "./project";
@@ -42,23 +42,45 @@ const json = (body: unknown, status = 200, headers: Record<string, string> = {})
 		headers: { "content-type": "application/json; charset=utf-8", ...headers },
 	});
 
-/** The request body, refused (413) beyond `max` bytes. */
-async function readBody(req: Request, max: number): Promise<Uint8Array> {
+/** Longest URL path accepted (414 beyond). */
+const MAX_PATH = 2048;
+
+/** How long a client may take to send a request body. */
+export const BODY_TIMEOUT_MS = 60_000;
+
+/**
+ * The request body, refused (413) beyond `max` bytes and (408) when it takes
+ * longer than `timeoutMs` to arrive — enforced here, whatever the runtime's
+ * own request timeouts do, so a slow client can't hold a slot.
+ */
+export async function readBody(
+	req: Request,
+	max: number,
+	timeoutMs = BODY_TIMEOUT_MS,
+): Promise<Uint8Array> {
 	const declared = Number(req.headers.get("content-length") ?? "0");
 	if (declared > max) throw new HttpError(413, `request body over ${max} bytes`);
 	if (!req.body) return new Uint8Array();
 	const chunks: Uint8Array[] = [];
 	let size = 0;
 	const reader = req.body.getReader();
-	for (;;) {
-		const { done, value } = await reader.read();
-		if (done) break;
-		size += value.length;
-		if (size > max) {
-			await reader.cancel();
-			throw new HttpError(413, `request body over ${max} bytes`);
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const deadline = new Promise<never>((_, reject) => {
+		timer = setTimeout(() => reject(new HttpError(408, "request body took too long")), timeoutMs);
+	});
+	try {
+		for (;;) {
+			const { done, value } = await Promise.race([reader.read(), deadline]);
+			if (done) break;
+			size += value.length;
+			if (size > max) throw new HttpError(413, `request body over ${max} bytes`);
+			chunks.push(value);
 		}
-		chunks.push(value);
+	} catch (e) {
+		await reader.cancel().catch(() => {});
+		throw e;
+	} finally {
+		clearTimeout(timer);
 	}
 	return Buffer.concat(chunks);
 }
@@ -291,7 +313,9 @@ export function createHandler(options: ServerOptions) {
 
 	return async function handle(req: Request): Promise<Response> {
 		const { pathname } = new URL(req.url);
-		const path = pathname.replace(/\/+$/, "") || "/";
+		if (pathname.length > MAX_PATH) return json({ error: "URL too long" }, 414);
+		// A loop, not /\/+$/: that regex backtracks on long runs of slashes.
+		const path = trimTrailingSlashes(pathname) || "/";
 		try {
 			if (path === "/") return json({ name: "astlide-server", openapi: "/openapi.json" });
 			// Before anything else: without the key, not even which routes exist.

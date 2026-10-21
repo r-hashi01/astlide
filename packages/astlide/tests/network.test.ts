@@ -1,6 +1,11 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { exportFetch, isPublicAddress, isPublicUrl } from "@astlide/core/utils/network.ts";
+import {
+	exportFetch,
+	FetchBudget,
+	isPublicAddress,
+	isPublicUrl,
+} from "@astlide/core/utils/network.ts";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 describe("isPublicAddress", () => {
@@ -107,5 +112,55 @@ describe("exportFetch", () => {
 	it("refuses the private network with ASTLIDE_PUBLIC_NETWORK_ONLY=1", async () => {
 		vi.stubEnv("ASTLIDE_PUBLIC_NETWORK_ONLY", "1");
 		await expect(exportFetch(`${base}/ok`, { limit: 100 })).rejects.toThrow(/not public/);
+	});
+});
+
+describe("FetchBudget", () => {
+	let server: Server;
+	let base: string;
+	let inFlight = 0;
+	let most = 0;
+	beforeAll(async () => {
+		server = createServer((req, res) => {
+			inFlight++;
+			most = Math.max(most, inFlight);
+			setTimeout(() => {
+				inFlight--;
+				res.end(Buffer.alloc(req.url?.startsWith("/big") ? 1000 : 10));
+			}, 20);
+		});
+		await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+		base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+	});
+	afterAll(() => server.close());
+
+	it("runs a few requests at a time", async () => {
+		const budget = new FetchBudget({ parallel: 2 });
+		most = 0;
+		await Promise.all(
+			Array.from({ length: 8 }, (_, i) => budget.fetch(`${base}/${i}`, { limit: 100 })),
+		);
+		expect(most).toBeLessThanOrEqual(2);
+	});
+
+	it("caps the bytes of all responses together", async () => {
+		const budget = new FetchBudget({ totalBytes: 2500 });
+		const results = await Promise.allSettled(
+			Array.from({ length: 5 }, (_, i) => budget.fetch(`${base}/big${i}`, { limit: 2000 })),
+		);
+		const loaded = results.filter((r) => r.status === "fulfilled").length;
+		expect(loaded).toBeLessThanOrEqual(2);
+		expect(
+			budget.refused.length + results.filter((r) => r.status === "rejected").length,
+		).toBeGreaterThan(0);
+	});
+
+	it("caps the number of distinct URLs", async () => {
+		const budget = new FetchBudget({ maxUrls: 3 });
+		const results = await Promise.allSettled(
+			Array.from({ length: 5 }, (_, i) => budget.fetch(`${base}/u${i}`, { limit: 100 })),
+		);
+		expect(results.filter((r) => r.status === "rejected")).toHaveLength(2);
+		expect(budget.refused).toHaveLength(2);
 	});
 });

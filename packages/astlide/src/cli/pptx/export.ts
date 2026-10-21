@@ -13,7 +13,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { exportSiteDir } from "@astlide/core/utils/export-build.ts";
 import { mermaidThemeFor } from "@astlide/core/utils/mermaid.ts";
-import { exportFetch } from "@astlide/core/utils/network.ts";
+import { FetchBudget } from "@astlide/core/utils/network.ts";
 import type { Box, Scene, SceneItem, TableBox } from "@astlide/engine";
 import type { ChildNode, Element } from "domhandler";
 import { parseDocument } from "htmlparser2";
@@ -182,11 +182,15 @@ const IMAGE_LIMIT = 20 * 1024 * 1024;
 /**
  * Fetch remote images (e.g. video thumbnails) ahead of the export, cached on
  * disk. Offline, failing, oversized or refused ones (see
- * {@link exportFetch}) are left out with a warning: their stand-in
+ * `exportFetch`, or past the {@link FetchBudget}) are left out with a warning: their stand-in
  * (background, play button, link) still shows. `urls` maps each URL to who
  * chose it: the deck, or a remote page (thumbnails).
  */
-async function fetchImages(urls: Map<string, "deck" | "remote">, cacheDir: string): Promise<void> {
+async function fetchImages(
+	urls: Map<string, "deck" | "remote">,
+	cacheDir: string,
+	budget: FetchBudget,
+): Promise<void> {
 	await mkdir(cacheDir, { recursive: true });
 	const failed: string[] = [];
 	await Promise.all(
@@ -197,7 +201,7 @@ async function fetchImages(urls: Map<string, "deck" | "remote">, cacheDir: strin
 				return;
 			}
 			try {
-				const res = await exportFetch(url, { limit: IMAGE_LIMIT, source });
+				const res = await budget.fetch(url, { limit: IMAGE_LIMIT, source });
 				if (!res.ok) throw new Error(String(res.status));
 				const bytes = res.body;
 				await writeFile(file, bytes);
@@ -932,18 +936,30 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 			if (it.kind === "image" && /^https?:\/\//.test(it.src)) remote.set(it.src, "deck");
 			if (it.kind === "embed" && /^https?:\/\//.test(it.src)) embedded.add(it.src);
 		}
+	// Everything this export downloads shares one budget: a few requests at a
+	// time, a total size, and a number of distinct URLs.
+	const budget = new FetchBudget();
 	// Embedded pages of other sites: their title and thumbnail (oEmbed / Open Graph).
 	const embeds = embedded.size
 		? await resolveEmbeds(
 				[...embedded],
 				join(options.root, "node_modules", ".cache", "astlide-embeds"),
+				budget,
 			)
 		: new Map<string, EmbedInfo>();
 	// Thumbnails were chosen by the embedded pages: always public addresses only.
 	for (const info of embeds.values())
 		if (info.thumbnail && !remote.has(info.thumbnail)) remote.set(info.thumbnail, "remote");
 	if (remote.size)
-		await fetchImages(remote, join(options.root, "node_modules", ".cache", "astlide-images"));
+		await fetchImages(
+			remote,
+			join(options.root, "node_modules", ".cache", "astlide-images"),
+			budget,
+		);
+	if (budget.refused.length)
+		console.warn(
+			`  ⚠ ${budget.refused.length} remote file(s) skipped (download limits reached): ${budget.refused.slice(0, 3).join(", ")}${budget.refused.length > 3 ? " …" : ""}`,
+		);
 	const bodyFace = fonts.pick(layouts[0]?.style.get("font-family") ?? "sans-serif", 400, false);
 	layouts.forEach((layout, i) => {
 		// Progress on one line: only where \r rewrites it (a terminal, not a log).

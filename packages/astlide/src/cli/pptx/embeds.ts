@@ -12,7 +12,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { exportFetch } from "@astlide/core/utils/network.ts";
+import { FetchBudget } from "@astlide/core/utils/network.ts";
 import { Parser } from "htmlparser2";
 
 export interface EmbedInfo {
@@ -67,10 +67,14 @@ function webUrl(url: string | undefined, base?: string): string | undefined {
 	}
 }
 
-/** A page's text; `source` as in {@link exportFetch} (who chose the URL). */
-async function getText(url: string, source: "deck" | "remote"): Promise<string | null> {
+/** A page's text; `source`: who chose the URL (see `exportFetch`). */
+async function getText(
+	url: string,
+	source: "deck" | "remote",
+	budget: FetchBudget,
+): Promise<string | null> {
 	try {
-		const res = await exportFetch(url, {
+		const res = await budget.fetch(url, {
 			limit: PAGE_LIMIT,
 			timeoutMs: TIMEOUT,
 			source,
@@ -85,8 +89,9 @@ async function getText(url: string, source: "deck" | "remote"): Promise<string |
 async function oembed(
 	url: string,
 	source: "deck" | "remote",
+	budget: FetchBudget,
 ): Promise<{ title?: string; thumbnail?: string } | null> {
-	const text = await getText(url, source);
+	const text = await getText(url, source, budget);
 	if (!text) return null;
 	try {
 		const data = JSON.parse(text) as { title?: unknown; thumbnail_url?: unknown };
@@ -136,7 +141,7 @@ export function pageTags(html: string): {
 	return { meta, oembed, title: title?.trim() || undefined };
 }
 
-async function lookup(src: string): Promise<EmbedInfo> {
+async function lookup(src: string, budget: FetchBudget): Promise<EmbedInfo> {
 	for (const p of PROVIDERS) {
 		const m = src.match(p.match);
 		if (!m) continue;
@@ -145,15 +150,15 @@ async function lookup(src: string): Promise<EmbedInfo> {
 			page = webUrl(p.page(m));
 		} catch {}
 		if (!page) return { link: src };
-		return { link: page, ...((await oembed(p.oembed(page), "deck")) ?? {}) };
+		return { link: page, ...((await oembed(p.oembed(page), "deck", budget)) ?? {}) };
 	}
 	// Any page: the oEmbed endpoint it advertises, else its Open Graph tags.
-	const html = await getText(src, "deck");
+	const html = await getText(src, "deck", budget);
 	if (!html) return { link: src };
 	const tags = pageTags(html);
 	const endpoint = webUrl(tags.oembed, src);
 	if (endpoint) {
-		const info = await oembed(endpoint, "remote");
+		const info = await oembed(endpoint, "remote", budget);
 		if (info?.thumbnail || info?.title) return { link: src, ...info };
 	}
 	return {
@@ -163,10 +168,14 @@ async function lookup(src: string): Promise<EmbedInfo> {
 	};
 }
 
-/** Look up embedded pages (cached under `cacheDir`). */
+/**
+ * Look up embedded pages (cached under `cacheDir`). Requests count against
+ * `budget` (shared with the export's other downloads).
+ */
 export async function resolveEmbeds(
 	srcs: string[],
 	cacheDir: string,
+	budget: FetchBudget = new FetchBudget(),
 ): Promise<Map<string, EmbedInfo>> {
 	await mkdir(cacheDir, { recursive: true });
 	const out = new Map<string, EmbedInfo>();
@@ -181,7 +190,7 @@ export async function resolveEmbeds(
 				return;
 			}
 			// One page failing doesn't stop the others (or the export).
-			const info = await lookup(src).catch((): EmbedInfo => ({ link: src }));
+			const info = await lookup(src, budget).catch((): EmbedInfo => ({ link: src }));
 			out.set(src, info);
 			// Only what was found is cached: offline runs try again next time.
 			if (info.title || info.thumbnail) await writeFile(file, JSON.stringify(info));

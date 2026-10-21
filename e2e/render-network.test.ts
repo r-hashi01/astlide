@@ -85,6 +85,27 @@ describe("guardNetwork", () => {
 		await context.close();
 	});
 
+	it("keeps the rendered page on its site (no refresh or redirect replaces it)", async () => {
+		const refreshing = await listen((_req, res) => {
+			res.setHeader("content-type", "text/html");
+			res.end(
+				'<!doctype html><meta http-equiv="refresh" content="0;url=https://public.test/ok"><body>the slides</body>',
+			);
+		});
+		const context = await browser().newContext({ serviceWorkers: "block" });
+		try {
+			await guardNetwork(context, url(refreshing));
+			const page = await context.newPage();
+			await page.goto(url(refreshing));
+			await page.waitForTimeout(1000);
+			expect(page.url()).toBe(`${url(refreshing)}/`);
+			expect(await page.textContent("body")).toContain("the slides");
+		} finally {
+			await context.close();
+			refreshing.close();
+		}
+	});
+
 	it("follows a public host's redirect only while it stays public", async () => {
 		redirectTarget.url = `${url(internal)}/redirected`;
 		const context = await browser().newContext({ serviceWorkers: "block" });

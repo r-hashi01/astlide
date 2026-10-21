@@ -37,6 +37,37 @@ describe("renderEnv", () => {
 		expect(env.PATH).toBe("/bin");
 	});
 
+	it("passes on only what a render needs", () => {
+		const env = renderEnv(
+			{},
+			{
+				PATH: "/bin",
+				HOME: "/home/node",
+				LC_ALL: "C.UTF-8",
+				PLAYWRIGHT_BROWSERS_PATH: "/ms-playwright",
+				AWS_SECRET_ACCESS_KEY: "s",
+				DATABASE_URL: "postgres://x",
+				HTTPS_PROXY: "http://proxy:3128",
+				http_proxy: "http://proxy:3128",
+				NODE_OPTIONS: "--require /x.js",
+			},
+		);
+		expect(env).toMatchObject({
+			PATH: "/bin",
+			HOME: "/home/node",
+			LC_ALL: "C.UTF-8",
+			PLAYWRIGHT_BROWSERS_PATH: "/ms-playwright",
+		});
+		for (const key of [
+			"AWS_SECRET_ACCESS_KEY",
+			"DATABASE_URL",
+			"HTTPS_PROXY",
+			"http_proxy",
+			"NODE_OPTIONS",
+		])
+			expect(env[key], key).toBeUndefined();
+	});
+
 	it("lets them reach it when allowed", () => {
 		const env = renderEnv({ allowPrivateNetwork: true }, { ASTLIDE_PUBLIC_NETWORK_ONLY: "1" });
 		expect(env.ASTLIDE_PUBLIC_NETWORK_ONLY).toBeUndefined();
@@ -63,6 +94,15 @@ describe("renderFailure", () => {
 			"render failed: Chromium couldn't start its sandbox — see the server log",
 		);
 		expect(failure.server).toMatch(/seccomp/);
+	});
+
+	it("hides where the server is installed", () => {
+		const failure = renderFailure(
+			"Error: boom at /app/node_modules/astro/dist/core/build.js:12:3\n",
+			"/work/render-1",
+		);
+		expect(failure.client).toContain("<install>/node_modules/astro/dist/core/build.js");
+		expect(failure.client).not.toContain("/app/");
 	});
 
 	it("passes other failures on, without the server's paths", () => {

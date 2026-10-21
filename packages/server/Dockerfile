@@ -7,6 +7,9 @@
 # The seccomp profile is Docker's default plus the namespace calls Chromium's
 # sandbox needs (clone / clone3 / unshare / setns); PDF / PNG renders keep the
 # sandbox on and fail without it (ASTLIDE_CHROMIUM_SANDBOX=0 opts out).
+# Give the container limits of its own as well, e.g. --memory 4g --pids-limit 512:
+# renders are the first to go when memory runs out (oom_score_adj), but a
+# limit keeps them from taking the host down.
 #
 # Node (Astro builds run in Node), Bun (runs the server and the astlide CLI),
 # Playwright's Chromium (PDF / PNG) and Noto CJK fonts (Japanese, Chinese,

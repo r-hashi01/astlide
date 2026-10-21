@@ -216,6 +216,72 @@ export async function readBody(res: Response, limit: number): Promise<Buffer> {
 	return Buffer.concat(chunks);
 }
 
+/** Bounds on what one export may download, all requests together. */
+export interface FetchBudgetLimits {
+	/** Requests in flight at once (more wait). Default 6. */
+	parallel?: number;
+	/** Bytes downloaded in all, in bytes. Default 200 MB. */
+	totalBytes?: number;
+	/** Distinct URLs requested. Default 200. */
+	maxUrls?: number;
+}
+
+/**
+ * {@link exportFetch} with shared bounds: requests run a few at a time, the
+ * bytes of all responses together are capped (each request may read only
+ * what's left), and so is the number of distinct URLs. Past a bound, a
+ * request throws instead of fetching.
+ */
+export class FetchBudget {
+	private readonly parallel: number;
+	private readonly totalBytes: number;
+	private readonly maxUrls: number;
+	private readonly urls = new Set<string>();
+	private used = 0;
+	private reserved = 0;
+	private running = 0;
+	private readonly waiting: (() => void)[] = [];
+	/** URLs refused because a bound was reached. */
+	readonly refused: string[] = [];
+
+	constructor(limits: FetchBudgetLimits = {}) {
+		this.parallel = limits.parallel ?? 6;
+		this.totalBytes = limits.totalBytes ?? 200 * 1024 * 1024;
+		this.maxUrls = limits.maxUrls ?? 200;
+	}
+
+	async fetch(url: string, options: ExportFetchOptions): Promise<FetchedBody> {
+		if (!this.urls.has(url)) {
+			if (this.urls.size >= this.maxUrls) {
+				this.refused.push(url);
+				throw new Error(`refused: more than ${this.maxUrls} remote URLs`);
+			}
+			this.urls.add(url);
+		}
+		if (this.running >= this.parallel) await new Promise<void>((go) => this.waiting.push(go));
+		this.running++;
+		// Reserved up front, so requests in flight together can't overshoot the total.
+		const limit = Math.min(options.limit, this.totalBytes - this.used - this.reserved);
+		try {
+			if (limit <= 0) {
+				this.refused.push(url);
+				throw new Error(`refused: over ${this.totalBytes} bytes downloaded`);
+			}
+			this.reserved += limit;
+			try {
+				const res = await exportFetch(url, { ...options, limit });
+				this.used += res.body.length;
+				return res;
+			} finally {
+				this.reserved -= limit;
+			}
+		} finally {
+			this.running--;
+			this.waiting.shift()?.();
+		}
+	}
+}
+
 export interface FetchedBody {
 	ok: boolean;
 	status: number;
