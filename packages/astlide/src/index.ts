@@ -6,9 +6,11 @@ import type { AstroIntegration } from "astro";
 import {
 	astlideEditorPlugin,
 	createEditorToken,
+	createUnlockCodes,
 	DEV_RELOAD_SCRIPT,
 	EDITOR_UNLOCK_ENDPOINT,
 	loadEditorSecret,
+	UNLOCK_CODE_TTL_MS,
 } from "./internal/editor-server";
 import { astlideVirtualPlugin } from "./internal/virtual-plugins";
 import { type AstlidePlugin, BUILT_IN_PLUGIN, resolvePlugins } from "./plugin";
@@ -18,6 +20,7 @@ import { resolveFavicon } from "./utils/favicon";
 import { astlideMermaid } from "./utils/mermaid";
 import { PPTX_ASSET_ROUTE, pptxAssetDir } from "./utils/pptx-assets";
 import { astlideTemplatesPlugin, type LoadedTemplate, loadTemplate } from "./utils/pptx-templates";
+import { setSlideScripts } from "./utils/slide-scripts";
 
 // Re-export the typed deck/slide metadata API
 export type { DeckContext } from "./context";
@@ -54,6 +57,16 @@ export interface AstlideOptions {
 	 * output gets the policy as is.
 	 */
 	csp?: boolean | string;
+	/**
+	 * Let `<script>`s, inline event handlers (`onclick` …) and `javascript:`
+	 * URLs in Markdown, HTML and PowerPoint slides run — in `astro dev` and in
+	 * built pages. Default `false`: they are removed when the slide is rendered,
+	 * because slide content can come from others (an imported `.pptx`, an HTML
+	 * slide someone sent), and in `astro dev` such a script would run next to
+	 * the slide editor. MDX slides are code and always keep their scripts. Turn
+	 * it on only for decks whose content you fully trust.
+	 */
+	slideScripts?: boolean;
 	/**
 	 * Allow search engines to index the deployed slide deck.
 	 * When `false` (default), a `<meta name="robots" content="noindex, nofollow">` tag is injected.
@@ -312,8 +325,13 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 		...optionDecorators,
 	];
 	const resolved = resolvePlugins(allPlugins);
-	// Dev only: the project's editor secret, printed as a link once the server listens.
+	// Dev only: the project's editor secret, and the one-time codes for the link
+	// printed once the server listens.
 	let editorSecret: string | undefined;
+	const unlockCodes = createUnlockCodes();
+	let devProtocol = "http";
+	// Read by the deck loader, which runs in this process.
+	setSlideScripts(options.slideScripts === true);
 
 	return {
 		name: "astlide",
@@ -370,6 +388,7 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 				if (command === "dev") {
 					injectScript("page", DEV_RELOAD_SCRIPT);
 					editorSecret = loadEditorSecret(fileURLToPath(config.root));
+					if (config.vite?.server?.https) devProtocol = "https";
 				}
 
 				// Optional `mermaid` (```mermaid diagrams): exposed via virtual:astlide/mermaid.
@@ -417,6 +436,14 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 								editorToken,
 								editorSecret ?? "",
 								config.base,
+								unlockCodes,
+								join(
+									config.srcDir instanceof URL
+										? fileURLToPath(config.srcDir)
+										: join(fileURLToPath(config.root), "src"),
+									"content",
+									"decks",
+								),
 							) as never,
 							// Speaker notes as a trailing `<!-- … -->`: MDX would reject the comment.
 							astlideCommentNotesPlugin() as never,
@@ -528,9 +555,11 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 			},
 			"astro:server:start": ({ address, logger }) => {
 				if (!editorSecret) return;
+				// A one-time code, not the secret: the link may end up in scrollback or history.
+				const minutes = Math.round(UNLOCK_CODE_TTL_MS / 60_000);
 				logger.info(
-					`Slide editor: open http://localhost:${address.port}${EDITOR_UNLOCK_ENDPOINT}?key=${editorSecret} ` +
-						"once in this browser to enable editing",
+					`Slide editor: open ${devProtocol}://localhost:${address.port}${EDITOR_UNLOCK_ENDPOINT}?code=${unlockCodes.issue()} ` +
+						`in your browser to enable editing (works once, for ${minutes} minutes)`,
 				);
 			},
 		},

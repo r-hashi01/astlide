@@ -40,6 +40,7 @@ export default defineConfig({
 | `injectIndexRoute` | `boolean` | auto | Inject the deck index at `/`. Auto-skipped when you have your own `src/pages/index.*`. |
 | `drawings.persist` | `boolean` | `false` | Keep pen drawings in `localStorage` across reloads — see [Presenting](/guides/presenting/#keeping-drawings). |
 | `notes` | `"public" \| "dev"` | `"public"` | Where speaker notes are included. `"public"`: every page, so anyone with the URL can read them. `"dev"`: only in `astro dev`; built pages (and exports made from them) carry no notes — see [Speaker notes](/guides/decks/#speaker-notes). |
+| `slideScripts` | `boolean` | `false` | Let `<script>`s, inline event handlers and `javascript:` URLs in Markdown, HTML and PowerPoint slides run (in `astro dev` and in builds). Off, they are removed when the slide is rendered: slide content can come from others, and in `astro dev` a script would run next to the slide editor. MDX slides always keep their scripts. Turn it on only for decks whose content you fully trust. |
 
 Astro's own [`base`](/guides/deploy/) option is honoured as well.
 

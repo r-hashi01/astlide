@@ -4,7 +4,7 @@
  *   GET  /__astlide/source?path=src/content/decks/talk/01-cover.mdx → { path, content }
  *   POST /__astlide/source  { path, content }                        → { ok: true }
  *   GET  /__astlide/editor-token                                     → { token }
- *   GET  /__astlide/editor?key=<secret>                              → enables this browser
+ *   GET  /__astlide/editor?code=<one-time code>                      → enables this browser
  *
  * Writing the file lets Astro's dev server rebuild the slide. Astro would then
  * tell the browser to do a full page reload; for writes made by the editor we
@@ -15,9 +15,10 @@
  * soft-navigate to the new deck instead. Pages that don't handle these events
  * reload as before (see `DEV_RELOAD_SCRIPT`).
  *
- * Only slide sources can be read or written: the path must resolve
- * inside the project's `src/` (symlinks included) and end in `.mdx`, `.md` or
- * `.html`. Every request must be local — from this machine (loopback, even with
+ * Only existing slide sources can be read or written: the path must end in
+ * `.mdx`, `.md` or `.html` and name a file that already exists inside the
+ * decks folder (`src/content/decks`, symlinks followed) — no new files, nothing
+ * under `src/pages` or elsewhere. Every request must be local — from this machine (loopback, even with
  * `astro dev --host`), addressed to a loopback host name (`localhost`,
  * `127.0.0.1` …) and not relayed by a proxy or tunnel — come from the dev
  * server's own origin (required for POSTs; for GETs, any cross-site marker
@@ -28,30 +29,33 @@
  * All of that can still be imitated by something that relays raw TCP to the
  * dev server (`ssh -R`, a port forward): it looks exactly like a local
  * browser. So editing also needs a browser the developer enabled: `astro dev`
- * prints a link carrying the project's editor secret (kept in
- * `node_modules/.astro/`, never served), and opening it once sets an
- * HttpOnly cookie derived from that secret. Without the cookie the editor
- * endpoints refuse; the secret only travels through the terminal.
+ * prints a link with a one-time code (single use, expires after
+ * {@link UNLOCK_CODE_TTL_MS}), and opening it sets an HttpOnly cookie for this
+ * project and port, derived from the project's editor secret (kept in
+ * `node_modules/.astro/`, never served or printed). Without the cookie the
+ * editor endpoints refuse.
  * Registered with `apply: "serve"`, so it never exists in a production build.
  */
 
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { readFile, realpath, writeFile } from "node:fs/promises";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFile, realpath, stat, writeFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { Plugin } from "vite";
 
 export const EDITOR_ENDPOINT = "/__astlide/source";
 /** Where the editor gets the dev server's token (see {@link refuseEditorRequest}). */
 export const EDITOR_TOKEN_ENDPOINT = "/__astlide/editor-token";
-/** Opening this with the project's editor secret (`?key=`) enables editing in that browser. */
+/** Opening this with a one-time code (`?code=`) enables editing in that browser. */
 export const EDITOR_UNLOCK_ENDPOINT = "/__astlide/editor";
-/** Cookie marking a browser the developer enabled (see {@link EDITOR_UNLOCK_ENDPOINT}). */
-export const EDITOR_COOKIE = "astlide-editor";
+/** Start of the cookie marking an enabled browser (see {@link editorCookie}). */
+export const EDITOR_COOKIE_PREFIX = "astlide-editor";
+/** How long the link `astro dev` prints stays valid (it also works only once). */
+export const UNLOCK_CODE_TTL_MS = 30 * 60 * 1000;
 /** Shown by the editor when this browser hasn't been enabled. */
 export const EDITOR_LOCKED_MESSAGE =
-	"Editing is off in this browser — open the link printed by `astro dev`";
+	"Editing is off in this browser — open the link printed by `astro dev` (restart it for a new one)";
 /** HMR event sent instead of a full reload after an editor write. */
 export const SOURCE_SAVED_EVENT = "astlide:source-saved";
 /** HMR event sent instead of a full reload after a slide file is added or removed. */
@@ -76,31 +80,100 @@ export function createEditorToken(): string {
 
 /**
  * The project's editor secret: kept in `node_modules/.astro/` (owner-only),
- * created on first use and stable across restarts, so a browser is enabled
- * once. When it can't be stored, one for this dev server only.
+ * created on first use and stable across restarts, so an enabled browser
+ * stays enabled. Delete the file to reset it (every browser then needs a new
+ * link). A file that is a symlink, isn't the user's or is readable by others
+ * isn't trusted; then, as when it can't be stored, this dev server uses a
+ * secret of its own.
  */
 export function loadEditorSecret(root: string): string {
 	const file = join(root, "node_modules", ".astro", "astlide-editor-secret");
-	try {
+	const read = (): string | undefined => {
+		const info = lstatSync(file);
+		if (!info.isFile()) return undefined;
+		if (process.platform !== "win32") {
+			if (typeof process.getuid === "function" && info.uid !== process.getuid()) return undefined;
+			if (info.mode & 0o077) return undefined;
+		}
 		const saved = readFileSync(file, "utf-8").trim();
-		if (/^[0-9a-f]{64}$/.test(saved)) return saved;
+		return /^[0-9a-f]{64}$/.test(saved) ? saved : undefined;
+	};
+	try {
+		return read() ?? randomBytes(32).toString("hex");
 	} catch {
 		// Not there yet.
 	}
 	const secret = randomBytes(32).toString("hex");
 	try {
 		mkdirSync(dirname(file), { recursive: true });
-		writeFileSync(file, secret, { mode: 0o600 });
-		chmodSync(file, 0o600);
-	} catch {
+		// "wx": never through an existing file or link; if another dev server just made it, use theirs.
+		writeFileSync(file, secret, { mode: 0o600, flag: "wx" });
+		return secret;
+	} catch (err) {
+		if ((err as NodeJS.ErrnoException).code === "EEXIST") {
+			try {
+				return read() ?? secret;
+			} catch {
+				// Gone again: this run's secret.
+			}
+		}
 		// Read-only project: this run's secret only.
+		return secret;
 	}
-	return secret;
 }
 
-/** The cookie value for an enabled browser: derived from the secret, never the secret itself. */
-export function editorCookieValue(secret: string): string {
-	return createHmac("sha256", secret).update("astlide-editor-cookie").digest("hex");
+/**
+ * The cookie of a browser enabled for this project on the port in `host`: its
+ * name carries the project and the port (cookies are shared by every port of a
+ * host), its value is derived from the secret and bound to the port — never
+ * the secret itself.
+ */
+export function editorCookie(
+	secret: string,
+	root: string,
+	host: string | undefined,
+): { name: string; value: string } | null {
+	let port: string;
+	try {
+		const url = new URL(`http://${host ?? ""}`);
+		port = url.port || "80";
+	} catch {
+		return null;
+	}
+	const project = createHash("sha256").update(resolve(root)).digest("hex").slice(0, 12);
+	return {
+		name: `${EDITOR_COOKIE_PREFIX}-${project}-${port}`,
+		value: createHmac("sha256", secret).update(`astlide-editor-cookie:${port}`).digest("hex"),
+	};
+}
+
+/** One-time codes for the link `astro dev` prints: each works once, until it expires. */
+export interface UnlockCodes {
+	/** A new code. */
+	issue(): string;
+	/** Whether `code` is a live one; it can't be used again either way. */
+	redeem(code: unknown): boolean;
+}
+
+export function createUnlockCodes(ttlMs = UNLOCK_CODE_TTL_MS, now = () => Date.now()): UnlockCodes {
+	const live = new Map<string, number>();
+	return {
+		issue() {
+			const code = randomBytes(16).toString("hex");
+			live.set(code, now() + ttlMs);
+			return code;
+		},
+		redeem(code) {
+			let found: string | undefined;
+			for (const [candidate, expires] of live) {
+				if (expires <= now()) live.delete(candidate);
+				else if (sameToken(code, candidate)) found = candidate;
+			}
+			if (found === undefined) return false;
+			live.delete(found);
+			return true;
+		},
+	};
 }
 
 /** A cookie's value from a request's `Cookie` header. */
@@ -219,9 +292,14 @@ function hostOf(origin: string): string | undefined {
 	}
 }
 
-/** Whether this browser was enabled with the project's editor secret. */
-export function isEnabledBrowser(req: Pick<IncomingMessage, "headers">, secret: string): boolean {
-	return !!secret && sameToken(cookieOf(req, EDITOR_COOKIE), editorCookieValue(secret));
+/** Whether this browser was enabled for this project and the port it's talking to. */
+export function isEnabledBrowser(
+	req: Pick<IncomingMessage, "headers">,
+	secret: string,
+	root: string,
+): boolean {
+	const cookie = secret ? editorCookie(secret, root, req.headers.host) : null;
+	return !!cookie && sameToken(cookieOf(req, cookie.name), cookie.value);
 }
 
 function sameToken(given: unknown, token: string): boolean {
@@ -240,30 +318,34 @@ export function refuseEditorRequest(
 	req: EditorRequest,
 	token: string,
 	secret: string,
+	root: string,
 ): string | null {
 	const nonLocal = refuseNonLocal(req);
 	if (nonLocal) return nonLocal;
-	if (!isEnabledBrowser(req, secret)) return EDITOR_LOCKED_MESSAGE;
+	if (!isEnabledBrowser(req, secret, root)) return EDITOR_LOCKED_MESSAGE;
 	if (!sameToken(req.headers[EDITOR_TOKEN_HEADER], token)) return "Missing or wrong editor token";
 	return null;
 }
 
 /**
- * Whether `file` (which may not exist yet) is really inside `<root>/src/`,
- * following symlinks: a link under `src/` must not lead elsewhere.
+ * The real path of the slide source `path` names, or `null` unless it is an
+ * existing file inside `decksDir` once symlinks are followed (see
+ * {@link resolveSlideSource} for the name rules). The editor only ever edits
+ * slides that exist: it never creates a file.
  */
-async function realInsideSrc(root: string, file: string): Promise<boolean> {
+export async function editableSource(
+	root: string,
+	decksDir: string,
+	path: unknown,
+): Promise<string | null> {
+	const file = resolveSlideSource(root, path);
+	if (!file) return null;
 	try {
-		const srcDir = await realpath(resolve(root, "src"));
-		let target: string;
-		try {
-			target = await realpath(file);
-		} catch {
-			target = join(await realpath(dirname(file)), basename(file));
-		}
-		return target.startsWith(srcDir + sep);
+		const [real, decks] = await Promise.all([realpath(file), realpath(decksDir)]);
+		if (!real.startsWith(decks + sep) || !SLIDE_SOURCE.test(real)) return null;
+		return (await stat(real)).isFile() ? real : null;
 	} catch {
-		return false;
+		return null;
 	}
 }
 
@@ -333,12 +415,16 @@ export function interceptReloads(
  *   handed to the dev server's own pages at {@link EDITOR_TOKEN_ENDPOINT}.
  * @param secret The project's editor secret (see {@link loadEditorSecret}).
  * @param base Astro's `base`: where {@link EDITOR_UNLOCK_ENDPOINT} sends the browser.
+ * @param unlock The one-time codes `astro dev` prints (see {@link createUnlockCodes}).
+ * @param decksDir The folder whose slide files the editor may edit.
  */
 export function astlideEditorPlugin(
 	root: string,
 	token: string,
 	secret: string,
 	base = "/",
+	unlock: UnlockCodes = createUnlockCodes(),
+	decksDir = join(root, "src", "content", "decks"),
 ): Plugin {
 	// The last editor write or slide file add/remove, while its reload echo can
 	// still arrive.
@@ -379,12 +465,14 @@ export function astlideEditorPlugin(
 				}
 				const refused = refuseNonLocal(req);
 				if (refused) return refuse(res, refused);
-				const key = new URL(req.url ?? "", "http://localhost").searchParams.get("key");
-				if (!secret || !sameToken(key, secret)) return refuse(res, "Wrong editor key");
+				const code = new URL(req.url ?? "", "http://localhost").searchParams.get("code");
+				const cookie = secret ? editorCookie(secret, root, req.headers.host) : null;
+				if (!cookie || !unlock.redeem(code))
+					return refuse(res, "This link was already used or has expired — restart `astro dev`");
 				res.statusCode = 302;
 				res.setHeader(
 					"Set-Cookie",
-					`${EDITOR_COOKIE}=${editorCookieValue(secret)}; Path=/; HttpOnly; SameSite=Strict`,
+					`${cookie.name}=${cookie.value}; Path=/; Max-Age=${60 * 60 * 24 * 30}; HttpOnly; SameSite=Strict`,
 				);
 				res.setHeader("Cache-Control", "no-store");
 				res.setHeader("Location", base);
@@ -398,7 +486,8 @@ export function astlideEditorPlugin(
 					return send(res, 405, { error: "Method not allowed" });
 				}
 				const refused =
-					refuseNonLocal(req) ?? (isEnabledBrowser(req, secret) ? null : EDITOR_LOCKED_MESSAGE);
+					refuseNonLocal(req) ??
+					(isEnabledBrowser(req, secret, root) ? null : EDITOR_LOCKED_MESSAGE);
 				if (refused) return refuse(res, refused);
 				return send(res, 200, { token });
 			});
@@ -409,20 +498,19 @@ export function astlideEditorPlugin(
 						res.setHeader("Allow", "GET, POST");
 						return send(res, 405, { error: "Method not allowed" });
 					}
-					const refused = refuseEditorRequest(req, token, secret);
+					const refused = refuseEditorRequest(req, token, secret, root);
 					if (refused) return refuse(res, refused);
 					if (req.method === "GET") {
 						const url = new URL(req.url ?? "", "http://localhost");
-						const file = resolveSlideSource(root, url.searchParams.get("path"));
-						if (!file || !(await realInsideSrc(root, file)))
-							return send(res, 400, { error: "Not an editable slide source" });
+						const file = await editableSource(root, decksDir, url.searchParams.get("path"));
+						if (!file) return send(res, 400, { error: "Not an editable slide source" });
 						const content = await readFile(file, "utf-8");
 						return send(res, 200, { path: url.searchParams.get("path"), content });
 					}
 					if (req.method === "POST") {
 						const body = JSON.parse(await readBody(req)) as { path?: unknown; content?: unknown };
-						const file = resolveSlideSource(root, body.path);
-						if (!file || typeof body.content !== "string" || !(await realInsideSrc(root, file))) {
+						const file = await editableSource(root, decksDir, body.path);
+						if (!file || typeof body.content !== "string") {
 							return send(res, 400, { error: "Not an editable slide source" });
 						}
 						track({ event: SOURCE_SAVED_EVENT, path: String(body.path) });
