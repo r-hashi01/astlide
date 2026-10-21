@@ -27,6 +27,11 @@ export class Queue {
 		return { running: this.running, waiting: this.waiting.length };
 	}
 
+	/** Whether {@link Queue.run} would refuse a job now. */
+	get full(): boolean {
+		return this.running >= this.concurrency && this.waiting.length >= this.maxQueued;
+	}
+
 	async run<T>(job: () => Promise<T>): Promise<T> {
 		if (this.running >= this.concurrency) {
 			if (this.waiting.length >= this.maxQueued) throw new QueueFull();

@@ -11,14 +11,15 @@
  * @module
  */
 
+import { timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { extname } from "node:path";
 import { THEMES } from "@astlide/core/schema";
 import type { ServerOptions } from "./config";
 import { BadRequest, type DeckSettings, deckFiles, parseSlides } from "./deck";
-import { fetchGoogleSlides, importDeck, TEMPLATE_EXTS, templateLayouts } from "./importer";
+import { fetchGoogleSlides, parsePptx, TEMPLATE_EXTS } from "./importer";
 import { createProject, removeProject, TEMPLATE_THEME } from "./project";
-import { Queue } from "./queue";
+import { Queue, QueueFull } from "./queue";
 import { FORMATS, type Format, renderProject } from "./render";
 
 const readJson = (path: string) =>
@@ -144,6 +145,7 @@ function slidesField(value: unknown): unknown {
 function downloadName(title: string | undefined, ext: string): string {
 	const base =
 		(title ?? "")
+			.slice(0, 200)
 			.normalize("NFKD")
 			.replace(/[^\w.-]+/g, "-")
 			.replace(/^-+|-+$/g, "")
@@ -156,6 +158,8 @@ export function createHandler(options: ServerOptions) {
 	const queue = new Queue(options.concurrency, options.maxQueued);
 
 	async function render(req: Request): Promise<Response> {
+		// Refuse before reading the body: a full queue shouldn't buffer more uploads.
+		if (queue.full) throw new QueueFull();
 		const { fields, files } = await parseInput(req, options.maxBodyBytes);
 		const format = (optionalString(fields, "format") ?? "pptx") as Format;
 		if (!FORMATS.includes(format))
@@ -164,9 +168,10 @@ export function createHandler(options: ServerOptions) {
 		if (output !== "file" && output !== "base64")
 			throw new BadRequest('"output" must be "file" or "base64"');
 
-		const slides = parseSlides({ markdown: fields.markdown, slides: slidesField(fields.slides) });
-		if (slides.length > options.maxSlides)
-			throw new BadRequest(`at most ${options.maxSlides} slides per render`);
+		const slides = await parseSlides(
+			{ markdown: fields.markdown, slides: slidesField(fields.slides) },
+			options.maxSlides,
+		);
 
 		const settings: DeckSettings = {
 			title: optionalString(fields, "title"),
@@ -197,6 +202,10 @@ export function createHandler(options: ServerOptions) {
 					cli: options.cli,
 					bun: options.bun,
 					timeoutMs: options.renderTimeoutMs,
+					allowPrivateNetwork: options.allowPrivateNetwork,
+					maxSlides: options.maxSlides,
+					maxOutputBytes: options.maxOutputBytes,
+					chromiumSandbox: options.chromiumSandbox,
 				});
 			} finally {
 				await removeProject(root);
@@ -224,19 +233,27 @@ export function createHandler(options: ServerOptions) {
 		});
 	}
 
+	/** Uploaded PowerPoint files are read in a child process, through the render queue. */
+	const parseOptions = {
+		bun: options.bun,
+		timeoutMs: options.renderTimeoutMs,
+		maxOutputBytes: options.maxOutputBytes,
+	};
+
 	async function importRoute(req: Request): Promise<Response> {
 		const { fields, files } = await parseInput(req, options.maxBodyBytes);
 		const url = optionalString(fields, "url");
-		const data = files.file?.data ?? (url ? await fetchGoogleSlides(url) : undefined);
+		const data =
+			files.file?.data ?? (url ? await fetchGoogleSlides(url, options.maxBodyBytes) : undefined);
 		if (!data) throw new BadRequest('send a .pptx as "file", or a Google Slides "url"');
-		return json(importDeck(data));
+		return json(await queue.run(() => parsePptx("deck", data, parseOptions)));
 	}
 
 	async function layoutsRoute(req: Request): Promise<Response> {
 		const { files } = await parseInput(req, options.maxBodyBytes);
 		const file = files.file ?? files.template;
 		if (!file) throw new BadRequest('send the template as "file"');
-		return json(templateLayouts(file.data));
+		return json(await queue.run(() => parsePptx("layouts", file.data, parseOptions)));
 	}
 
 	function openapi(req: Request): Response {
@@ -255,24 +272,43 @@ export function createHandler(options: ServerOptions) {
 	};
 	const open = new Set(["/health", "/openapi.json"]);
 
+	const key = options.apiKey ? Buffer.from(options.apiKey) : undefined;
+
 	function authorized(req: Request): boolean {
-		if (!options.apiKey) return true;
+		if (!key) return true;
 		const bearer = req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
-		return (bearer ?? req.headers.get("x-api-key")) === options.apiKey;
+		const sent = bearer ?? req.headers.get("x-api-key");
+		if (sent == null) return false;
+		const got = Buffer.from(sent);
+		// Constant time over the key's bytes (only a wrong length is told apart, and keys are random).
+		if (got.length !== key.length) return !timingSafeEqual(key, key);
+		return timingSafeEqual(got, key);
 	}
+
+	/** Requests reading a body or holding a parsed upload; beyond the queue's room they get 503. */
+	let busy = 0;
+	const heavy = new Set(["/render", "/import", "/templates/layouts"]);
 
 	return async function handle(req: Request): Promise<Response> {
 		const { pathname } = new URL(req.url);
 		const path = pathname.replace(/\/+$/, "") || "/";
 		try {
 			if (path === "/") return json({ name: "astlide-server", openapi: "/openapi.json" });
+			// Before anything else: without the key, not even which routes exist.
+			if (!open.has(path) && !authorized(req)) throw new HttpError(401, "missing or wrong API key");
 			const route = routes[path];
 			if (!route) throw new HttpError(404, "not found");
 			const method = req.method === "HEAD" ? "GET" : req.method;
 			const fn = route[method];
 			if (!fn) throw new HttpError(405, `use ${Object.keys(route).join(" / ")}`);
-			if (!open.has(path) && !authorized(req)) throw new HttpError(401, "missing or wrong API key");
-			return await fn(req);
+			if (!heavy.has(path)) return await fn(req);
+			if (busy >= options.concurrency + options.maxQueued) throw new QueueFull();
+			busy++;
+			try {
+				return await fn(req);
+			} finally {
+				busy--;
+			}
 		} catch (e) {
 			const status = (e as { status?: number }).status;
 			if (typeof status === "number" && status >= 400 && status < 600)

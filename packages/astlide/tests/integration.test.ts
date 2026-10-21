@@ -177,6 +177,30 @@ describe("astlide integration", () => {
 		});
 	});
 
+	// ── Speaker notes ──
+
+	describe("notes option", () => {
+		const notesDefine = (options?: Parameters<typeof astlide>[0], command = "build") => {
+			const integration = astlide(options);
+			const args = createMockHookArgs();
+			(integration.hooks["astro:config:setup"] as HookFn)({
+				...args,
+				command,
+				injectScript: () => {},
+			});
+			return args.updateConfig.mock.calls[0][0].vite.define.__ASTLIDE_NOTES__;
+		};
+
+		it("includes notes everywhere by default", () => {
+			expect(notesDefine()).toBe("true");
+		});
+
+		it('leaves notes out of builds with notes: "dev"', () => {
+			expect(notesDefine({ notes: "dev" }, "build")).toBe("false");
+			expect(notesDefine({ notes: "dev" }, "dev")).toBe("true");
+		});
+	});
+
 	// ── Shiki theme ──
 
 	describe("Shiki theme configuration", () => {
