@@ -1,5 +1,11 @@
 # @astlide/engine
 
+## 0.1.4
+
+### Patch Changes
+
+- [#221](https://github.com/r-hashi01/astlide/pull/221) [`38777de`](https://github.com/r-hashi01/astlide/commit/38777de971f937ae7843f465f7f3e75862f0d796) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Exports are bounded further: PPTX downloads (images and embed previews) share one budget — 6 at a time, 200 MB and 200 distinct URLs in all; same-site iframes are laid out at most 32 documents per slide and never inside themselves; Google Fonts are limited to 12 families per export, cached under content hashes (written atomically, one file per download, the cache kept under 512 MB). Guarded PDF / PNG renders keep the page on its site (a refresh or redirect doesn't replace it), bound renderer processes and heap, disable DNS prefetch, and hold the download total exactly.
+
 ## 0.1.3
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @astlide/core
 
+## 2.9.1
+
+### Patch Changes
+
+- [#220](https://github.com/r-hashi01/astlide/pull/220) [`8bec7f4`](https://github.com/r-hashi01/astlide/commit/8bec7f460a59be4714fa0de30b186c405e1382a7) Thanks [@r-hashi01](https://github.com/r-hashi01)! - MCP: `template_layouts` and `import_pptx` only read files inside the folders the server may work in (regular files, the right extension, at most 256 MB, symlinks resolved). Projects must be one of those folders or directly in one — a deeper project needs its own `--root`. `import_pptx` names and checks the deck itself, and projects with an `@astlide/core` older than 2.8.0 are written with the server's own CLI. `/Users/Shared` and `C:\Users\Public` count as too broad, like the home and temp folders.
+
+- [#221](https://github.com/r-hashi01/astlide/pull/221) [`38777de`](https://github.com/r-hashi01/astlide/commit/38777de971f937ae7843f465f7f3e75862f0d796) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Exports are bounded further: PPTX downloads (images and embed previews) share one budget — 6 at a time, 200 MB and 200 distinct URLs in all; same-site iframes are laid out at most 32 documents per slide and never inside themselves; Google Fonts are limited to 12 families per export, cached under content hashes (written atomically, one file per download, the cache kept under 512 MB). Guarded PDF / PNG renders keep the page on its site (a refresh or redirect doesn't replace it), bound renderer processes and heap, disable DNS prefetch, and hold the download total exactly.
+
+- [#222](https://github.com/r-hashi01/astlide/pull/222) [`ff6b4e9`](https://github.com/r-hashi01/astlide/commit/ff6b4e9b30b588032c2ff89a568d27c2487566da) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Scripts in Markdown, HTML and PowerPoint slides (and template artwork) are found with a spec-compliant HTML parser (parse5), so slide markup is read the way browsers read it, and they are also removed from the final pages — `astro dev` responses and built pages — which covers what Astro adds after loading (image placeholders keep only image options). Slides cached by an earlier version, or with `slideScripts` set differently, are rendered again. Trailing-comment speaker notes are removed from rendered Markdown wherever the comment ends up (before footnotes, inside lists). The dev slide editor only mounts in the layout's own host element.
+- Updated dependencies [[`38777de`](https://github.com/r-hashi01/astlide/commit/38777de971f937ae7843f465f7f3e75862f0d796)]:
+  - @astlide/engine@0.1.4
+
 ## 2.9.0
 
 ### Minor Changes

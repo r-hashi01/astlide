@@ -1,5 +1,11 @@
 # create-astlide
 
+## 0.2.6
+
+### Patch Changes
+
+- [#220](https://github.com/r-hashi01/astlide/pull/220) [`8bec7f4`](https://github.com/r-hashi01/astlide/commit/8bec7f460a59be4714fa0de30b186c405e1382a7) Thanks [@r-hashi01](https://github.com/r-hashi01)! - New projects' `.gitignore` also leaves out `.env` files.
+
 ## 0.2.5
 
 ### Patch Changes
