@@ -18,6 +18,7 @@ describe("stripSlideScripts", () => {
 			`<object data="x.html"></object><embed src="x.html"><base href="https://evil.example/">`,
 			`<meta http-equiv="refresh" content="0;url=https://evil.example/">`,
 			`<form action="javascript:steal()"><button formaction="javascript:steal()">go</button></form>`,
+			`<a href="data:text/html,<script>steal()</script>">data</a><img src="data:image/png;base64,AAAA">`,
 		].join("\n");
 		const out = stripSlideScripts(html);
 		expect(out).not.toMatch(
@@ -29,6 +30,8 @@ describe("stripSlideScripts", () => {
 		expect(out).toContain("<a>link</a>");
 		expect(out).toContain("<text>x</text>");
 		expect(out).toContain("<button>go</button>");
+		expect(out).toContain("<a>data</a>");
+		expect(out).toContain('<img src="data:image/png;base64,AAAA">');
 	});
 
 	it("leaves script-free HTML exactly as it is", () => {

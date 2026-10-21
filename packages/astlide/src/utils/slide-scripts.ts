@@ -58,11 +58,18 @@ const URL_ATTRIBUTES = new Set([
 	"by",
 ]);
 
-/** Whether a URL attribute's value runs script (`javascript:` / `vbscript:`, however spelled). */
+/**
+ * Whether a URL attribute's value can run script: `javascript:` / `vbscript:`
+ * (however spelled), or a `data:` URL other than an image (`data:text/html` …).
+ */
 function scriptUrl(value: string): boolean {
 	// biome-ignore lint/suspicious/noControlCharactersInRegex: browsers ignore these in a scheme
 	const compact = value.replace(/[\u0000- ]/g, "").toLowerCase();
-	return compact.startsWith("javascript:") || compact.startsWith("vbscript:");
+	return (
+		compact.startsWith("javascript:") ||
+		compact.startsWith("vbscript:") ||
+		(compact.startsWith("data:") && !compact.startsWith("data:image/"))
+	);
 }
 
 /** Whether an attribute (name lower-cased) is one this module removes. */
