@@ -431,7 +431,11 @@ export function astlideEditorPlugin(
 					}
 					return send(res, 405, { error: "Method not allowed" });
 				} catch (error) {
-					return send(res, 500, { error: (error as Error).message });
+					// Details (paths included) go to the terminal, not to the page.
+					server.config.logger.error(`[astlide] slide editor: ${(error as Error).message}`);
+					return send(res, 500, {
+						error: "Couldn't read or save the slide source (see the dev server log)",
+					});
 				}
 			});
 		},
