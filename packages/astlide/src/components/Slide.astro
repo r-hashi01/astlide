@@ -4,6 +4,7 @@ import { withBaseIfRootRelative } from '@astlide/core/utils/base-path';
 import { layouts as pluginLayouts } from 'virtual:astlide/layouts';
 import { decorators as slideDecorators } from 'virtual:astlide/decorators';
 import { templates } from 'virtual:astlide/templates';
+import { slideContentComments } from '@astlide/core/utils/slide-mark';
 
 interface Props {
   layout?: string;
@@ -87,7 +88,8 @@ const decoratorProps = { layout, transition, slideNumber, totalSlides };
     aria-roledescription="slide"
     aria-label={slideNumber && totalSlides ? `Slide ${slideNumber} of ${totalSlides}` : undefined}
   >
-    {templateArt && <div class="astlide-tpl-art" set:html={templateArt} />}
+    {/* Template artwork comes from a .pptx (possibly someone else's): marked like slide content, so the build's CSP doesn't allow scripts in it. */}
+    {templateArt && <div class="astlide-tpl-art" set:html={`${slideContentComments(undefined).start}${templateArt}${slideContentComments(undefined).end}`} />}
     <div class="slide-content">
       <slot />
     </div>

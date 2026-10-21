@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { astlideDeckLoader } from "../src/loader";
+import { astlideDeckLoader, withoutMarkdownNotes } from "../src/loader";
 import { slideSchema } from "../src/schema";
 
 /** Minimal in-memory DataStore matching the subset the loader uses. */
@@ -107,5 +107,40 @@ describe("astlideDeckLoader — HTML slides", () => {
 		rmSync(htmlPath);
 		await astlideDeckLoader().load(ctx);
 		expect(store.has("deck-a/03-temp")).toBe(false);
+	});
+});
+
+describe("speaker notes in a trailing comment", () => {
+	it("stay out of a .html slide's rendered HTML (read from the body)", async () => {
+		const root = mkdtempSync(join(tmpdir(), "astlide-loader-notes-"));
+		const deckDir = join(root, "src", "content", "decks", "deck-a");
+		mkdirSync(deckDir, { recursive: true });
+		writeFileSync(join(deckDir, "01.html"), "<h1>Hi</h1>\n<!--\nSecret plan\n-->\n");
+		const store = createStore();
+		await astlideDeckLoader().load(createContext(root, store));
+		const entry = store.get("deck-a/01") as { rendered: { html: string }; body: string };
+		expect(entry.rendered.html).toContain("<h1>Hi</h1>");
+		expect(entry.rendered.html).not.toContain("Secret plan");
+		expect(entry.body).toContain("Secret plan");
+		rmSync(root, { recursive: true, force: true });
+	});
+
+	it("stay out of rendered Markdown, also when an older build cached them", () => {
+		const store = createStore();
+		const wrapped = withoutMarkdownNotes(createContext("/tmp", store)).store;
+		wrapped.set({
+			id: "a",
+			data: {},
+			body: "# Hi\n\n<!-- Secret plan -->",
+			digest: "d1",
+			rendered: { html: "<h1>Hi</h1>\n<!-- Secret plan -->\n" },
+		});
+		const stored = store.get("a") as { rendered: { html: string }; digest: string };
+		expect(stored.rendered.html).not.toContain("Secret plan");
+		// The loader compares the file's digest with what get() shows: unchanged → skipped.
+		expect(wrapped.get("a")?.digest).toBe("d1");
+		// An entry cached with the comment still in is rendered again.
+		store.set({ id: "b", digest: "d2", rendered: { html: "<p>x</p><!-- old notes -->" } } as never);
+		expect(wrapped.get("b")?.digest).toBeUndefined();
 	});
 });

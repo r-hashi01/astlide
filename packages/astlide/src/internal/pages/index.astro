@@ -6,7 +6,7 @@ import { deckConfigSchema } from '@astlide/core/schema';
 import { pageUrl } from '@astlide/core/utils/base-path';
 import Favicon from '@astlide/core/internal/Favicon.astro';
 import FontLinks from '@astlide/core/internal/FontLinks.astro';
-import { cspFor, DEFAULT_INDEX_CSP } from '@astlide/core/utils/csp';
+import { cspFor, cspHashable, DEFAULT_INDEX_CSP } from '@astlide/core/utils/csp';
 
 declare const __ASTLIDE_CSP__: boolean | string;
 
@@ -70,7 +70,7 @@ const decks = await Promise.all(
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    {cspContent && <meta http-equiv="Content-Security-Policy" content={cspContent} />}
+    {cspContent && <meta http-equiv="Content-Security-Policy" content={cspContent} data-astlide-csp={cspHashable(cspOption) || undefined} />}
     <title>Slide Decks</title>
     <Favicon />
     <FontLinks />

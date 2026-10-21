@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -210,6 +210,52 @@ describe("engine layout", () => {
 			{ x: 0, y: 0, w: 200, h: 30 },
 			{ x: 0, y: 0, w: 200, h: 30 },
 		]);
+	});
+
+	it("lays out same-site iframes only from pages inside the built site", () => {
+		const parent = mkdtempSync(join(tmpdir(), "astlide-frames-"));
+		const dist = join(parent, "dist");
+		mkdirSync(join(dist, "deck", "1"), { recursive: true });
+		mkdirSync(join(dist, "card"));
+		writeFileSync(join(dist, "card", "index.html"), "<body>card</body>");
+		// Next to dist/, not in it: `${dist}.html`.
+		writeFileSync(join(parent, "dist.html"), "<body>outside</body>");
+		const file = join(dist, "deck", "1", "index.html");
+		writeFileSync(
+			file,
+			`<html><head><style>body{font-family:T;font-size:20px}.slide{width:1000px;height:500px;display:flex;flex-direction:column}iframe{border:0;width:300px;height:100px}</style></head><body><section class="slide"><iframe src="../../card/"></iframe><iframe src="../.."></iframe></section></body></html>`,
+		);
+		const fonts = new FontRegistry();
+		fonts.add("T", 400, false, FONT);
+		const [slide] = layoutPage(file, dist, fonts, { width: 1000, height: 500, media: "screen" });
+		const texts = slide?.lines.map((l) => l.text) ?? [];
+		expect(texts).toContain("card");
+		expect(texts).not.toContain("outside");
+	});
+
+	it("doesn't follow symlinks in dist/ to files elsewhere", () => {
+		const parent = mkdtempSync(join(tmpdir(), "astlide-links-"));
+		const dist = join(parent, "dist");
+		const outside = join(parent, "outside");
+		mkdirSync(join(dist, "deck", "1"), { recursive: true });
+		mkdirSync(outside);
+		writeFileSync(join(outside, "index.html"), "<body>secret</body>");
+		writeFileSync(join(outside, "secret.css"), ".slide{background:red}");
+		// A committed dist/ (someone else's project) with links pointing out of it.
+		symlinkSync(outside, join(dist, "leak"));
+		symlinkSync(join(outside, "secret.css"), join(dist, "s.css"));
+		expect(distFile(dist, "/s.css")).toBeNull();
+		expect(distFile(dist, "/leak/secret.css")).toBeNull();
+		expect(isInside(dist, join(dist, "s.css"))).toBe(false);
+		const file = join(dist, "deck", "1", "index.html");
+		writeFileSync(
+			file,
+			`<html><head><link rel="stylesheet" href="/s.css"><style>body{font-family:T;font-size:20px}.slide{width:1000px;height:500px;display:flex;flex-direction:column}iframe{border:0;width:300px;height:100px}</style></head><body><section class="slide"><iframe src="/leak/"></iframe><iframe src="../../leak/"></iframe></section></body></html>`,
+		);
+		const fonts = new FontRegistry();
+		fonts.add("T", 400, false, FONT);
+		const [slide] = layoutPage(file, dist, fonts, { width: 1000, height: 500, media: "screen" });
+		expect(slide?.lines.map((l) => l.text) ?? []).not.toContain("secret");
 	});
 
 	it("lays out a srcdoc iframe into the slide, clipped to the frame", () => {

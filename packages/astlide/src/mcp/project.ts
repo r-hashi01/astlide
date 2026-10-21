@@ -13,10 +13,11 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join, resolve } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deckFolderName } from "../cli/import";
-import { isWithin } from "../utils/real-path";
+import { isWithin, realPath } from "../utils/real-path";
 
 export interface RunResult {
 	code: number;
@@ -34,11 +35,15 @@ const CHILD_ENV =
 /** Never passed on, even when {@link CHILD_ENV} matches (e.g. ASTLIDE_API_KEY). */
 const SECRET = /KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL/i;
 
+/** Set by the CLI itself for its own builds only (notes, export folder) — never inherited. */
+const CLI_ONLY = new Set(["ASTLIDE_EXPORT_BUILD", "ASTLIDE_NOTES"]);
+
 /** The environment for a child process: the variables in {@link CHILD_ENV} only, no secrets. */
 export function childEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
 	const out: NodeJS.ProcessEnv = {};
 	for (const [key, value] of Object.entries(env))
-		if (value !== undefined && CHILD_ENV.test(key) && !SECRET.test(key)) out[key] = value;
+		if (value !== undefined && CHILD_ENV.test(key) && !SECRET.test(key) && !CLI_ONLY.has(key))
+			out[key] = value;
 	return { ...out, FORCE_COLOR: "0", NO_COLOR: "1" };
 }
 
@@ -77,18 +82,66 @@ export function projectRoot(dir: string): string {
 	return root;
 }
 
+/** How to name the folders the MCP server may work in (part of its refusals). */
+const HOW_TO_ALLOW =
+	"Building or exporting runs the project's code, so name the folders it may work in: " +
+	"`astlide mcp --root <dir>` (repeatable) or ASTLIDE_MCP_ROOTS=<dir>[" +
+	delimiter +
+	"<dir>…], MCP roots from the client, or ASTLIDE_MCP_ANY_PROJECT=1 to allow any folder.";
+
+/** Shared temp folders: anyone on the machine can put a "project" there. */
+const TEMP_FOLDERS = () => [tmpdir(), "/tmp", "/private/tmp", "/var/tmp"];
+
+/**
+ * Whether `dir` is too broad to be an allowed folder by default: the
+ * filesystem root, the home folder, a shared temp folder, or a folder above
+ * one of them — what MCP clients often start servers in.
+ */
+export function isBroadFolder(dir: string, home: string = homedir()): boolean {
+	const real = realPath(dir);
+	if (dirname(real) === real) return true;
+	if (isWithin(home, real)) return true;
+	return TEMP_FOLDERS().some((temp) => existsSync(temp) && isWithin(temp, real));
+}
+
+/**
+ * Folders named for `astlide mcp`: every `--root <dir>` / `--root=<dir>` in
+ * `args`, then the entries of `ASTLIDE_MCP_ROOTS` (separated like PATH),
+ * resolved against the working directory.
+ */
+export function explicitRoots(
+	args: string[],
+	env: Record<string, string | undefined> = process.env,
+): string[] {
+	const roots: string[] = [];
+	for (let i = 0; i < args.length; i++) {
+		const arg = args[i] as string;
+		let dir: string | undefined;
+		if (arg === "--root") dir = args[++i] ?? "";
+		else if (arg.startsWith("--root=")) dir = arg.slice("--root=".length);
+		else continue;
+		// An empty value would mean the working directory; a flag means the folder was left out.
+		if (!dir || dir.startsWith("-")) throw new Error("--root needs a folder: --root <dir>");
+		roots.push(dir);
+	}
+	for (const dir of (env.ASTLIDE_MCP_ROOTS ?? "").split(delimiter)) if (dir) roots.push(dir);
+	return roots.map((dir) => resolve(dir));
+}
+
 /**
  * The project root, checked ({@link projectRoot}) and inside one of
  * `allowed` (symlinks resolved): the MCP server only builds or exports
- * projects under the client's roots or its own working directory.
+ * projects under the folders it was given. Returns the resolved path that
+ * was checked, so the work happens there even if a symlink on the way
+ * changes afterwards.
  */
 export function projectRootWithin(dir: string, allowed: string[]): string {
-	const root = projectRoot(dir);
+	const root = realPath(projectRoot(dir));
+	if (!allowed.length)
+		throw new Error(`No folders are allowed for projects yet (${root}). ${HOW_TO_ALLOW}`);
 	if (!allowed.some((a) => isWithin(root, a)))
 		throw new Error(
-			`${root} is outside the folders this server may work in (${allowed.join(", ")}). ` +
-				"Building or exporting runs the project's code; start the server in the project " +
-				"(or a parent folder), or set ASTLIDE_MCP_ANY_PROJECT=1 to allow any folder.",
+			`${root} is outside the folders this server may work in (${allowed.join(", ")}). ${HOW_TO_ALLOW}`,
 		);
 	return root;
 }
