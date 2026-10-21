@@ -292,9 +292,17 @@ describe("projects", () => {
 			ASTLIDE_API_KEY: "k",
 			AWS_SECRET_ACCESS_KEY: "s",
 			ASTLIDE_PUBLIC_NETWORK_ONLY: "1",
+			ASTLIDE_EXPORT_BUILD: "/p/dist",
+			ASTLIDE_NOTES: "public",
 		});
 		expect(env).toMatchObject({ PATH: "/bin", HOME: "/h", ASTLIDE_PUBLIC_NETWORK_ONLY: "1" });
-		for (const key of ["GITHUB_TOKEN", "ASTLIDE_API_KEY", "AWS_SECRET_ACCESS_KEY"])
+		for (const key of [
+			"GITHUB_TOKEN",
+			"ASTLIDE_API_KEY",
+			"AWS_SECRET_ACCESS_KEY",
+			"ASTLIDE_EXPORT_BUILD",
+			"ASTLIDE_NOTES",
+		])
 			expect(env[key], key).toBeUndefined();
 	});
 

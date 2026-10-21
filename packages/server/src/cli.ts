@@ -34,6 +34,10 @@ const server = await serve(createHandler(options), {
 console.log(`astlide-server listening on ${server.url} (OpenAPI: ${server.url}/openapi.json)`);
 if (!options.apiKey)
 	console.log("  no ASTLIDE_API_KEY set: the API is open to anyone who can reach it");
+if (!options.chromiumSandbox)
+	console.warn(
+		"  ASTLIDE_CHROMIUM_SANDBOX=0: Chromium renders without its sandbox — only for slides you trust",
+	);
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
 	process.once(signal, async () => {

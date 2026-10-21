@@ -16,8 +16,11 @@
  * it), so comments elsewhere stay comments. Works in `.md`, `.mdx` and `.html`
  * slides. Priority: `<SpeakerNotes>` > frontmatter `notes` > trailing comment.
  *
- * MDX doesn't allow HTML comments, so {@link astlideCommentNotesPlugin} removes
- * the trailing one from `.mdx` sources before they are compiled.
+ * The comment is always taken out of what the slide renders — the notes are
+ * read from the raw body and only reach pages when notes are included (see
+ * `utils/notes`): {@link astlideCommentNotesPlugin} removes it from `.mdx`
+ * sources (MDX doesn't allow HTML comments anyway), and the deck loader from
+ * rendered `.md` and `.html` slides.
  *
  * @module
  */

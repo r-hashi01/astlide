@@ -6,14 +6,16 @@
  *   astlide export --all --pdf --pptx
  *   astlide import talk.pptx [--deck my-talk]
  *
- * Every format starts from the built site. PDF and PNG are rendered by a
- * browser: unless `--base-url` points at a running server, dist/ is served on
- * a free port for the export, then stopped. PPTX needs no browser: the built
- * slides are laid out by @astlide/engine.
+ * Every format starts from the built site — a build of its own, in
+ * node_modules/.astro/astlide-export (never dist/), with speaker notes. PDF
+ * and PNG are rendered by a browser: unless `--base-url` points at a running
+ * server, that build is served on a free port for the export, then stopped.
+ * PPTX needs no browser: the built slides are laid out by @astlide/engine.
  */
 
 import { existsSync, readdirSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
+import { exportBuildDir } from "@astlide/core/utils/export-build";
 import { getDecks } from "./pptx/export";
 
 type Format = "pdf" | "png" | "pptx";
@@ -62,7 +64,8 @@ Options:
   -a, --all             Export every deck
   -o, --output <path>   Output file / directory (one deck and one format only)
   --out-dir <dir>       Where exports go (default: ./exports)
-  --no-build            Use the existing dist/ instead of building first
+  --no-build            Reuse the last export build (else dist/, without notes
+                        unless notes: "public") instead of building first
   --base-url <url>      PDF / PNG: render from a running dev / preview server
                         (include Astro's base, e.g. http://localhost:4321/my-repo)
   --width <px>          PDF / PNG: slide width (default: 1920)
@@ -235,7 +238,7 @@ async function runExport(options: Options): Promise<void> {
 			await exportPptx(deck, {
 				root: options.cwd,
 				output: outputFor(options, deck, "pptx"),
-				// Build once; later decks (and PDF / PNG) reuse dist/.
+				// Build once; later decks (and PDF / PNG) reuse that build.
 				build: options.build && n === 0,
 			});
 		}
@@ -250,10 +253,14 @@ async function runExport(options: Options): Promise<void> {
 	let server: { url: string; stop(): Promise<void> } | undefined;
 	let baseUrl = options.baseUrl;
 	if (!baseUrl) {
-		if (!options.build && !existsSync(join(options.cwd, "dist"))) {
-			fail("--no-build needs an existing dist/ (run astro build first)");
+		if (
+			!options.build &&
+			!existsSync(exportBuildDir(options.cwd)) &&
+			!existsSync(join(options.cwd, "dist"))
+		) {
+			fail("--no-build needs an earlier export build or a dist/ (run astro build first)");
 		}
-		console.log(options.build ? "\nBuilding the site…" : "\nServing dist/…");
+		console.log(options.build ? "\nBuilding the site…" : "\nServing the built site…");
 		const { startSite } = await import("./site-server");
 		server = await startSite({ root: options.cwd, build: options.build });
 		baseUrl = server.url;

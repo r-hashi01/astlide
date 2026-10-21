@@ -35,11 +35,15 @@ const CHILD_ENV =
 /** Never passed on, even when {@link CHILD_ENV} matches (e.g. ASTLIDE_API_KEY). */
 const SECRET = /KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL/i;
 
+/** Set by the CLI itself for its own builds only (notes, export folder) — never inherited. */
+const CLI_ONLY = new Set(["ASTLIDE_EXPORT_BUILD", "ASTLIDE_NOTES"]);
+
 /** The environment for a child process: the variables in {@link CHILD_ENV} only, no secrets. */
 export function childEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
 	const out: NodeJS.ProcessEnv = {};
 	for (const [key, value] of Object.entries(env))
-		if (value !== undefined && CHILD_ENV.test(key) && !SECRET.test(key)) out[key] = value;
+		if (value !== undefined && CHILD_ENV.test(key) && !SECRET.test(key) && !CLI_ONLY.has(key))
+			out[key] = value;
 	return { ...out, FORCE_COLOR: "0", NO_COLOR: "1" };
 }
 
