@@ -22,7 +22,7 @@ import {
 	type ThemeColors,
 } from "./color";
 import { type Element, find, kid, kids, num, parseXml, path, textOf } from "./xml";
-import { readZip } from "./zip";
+import { readZip, type ZipFiles } from "./zip";
 
 export interface ImportedSlide {
 	/** 1-based position in the presentation. */
@@ -90,7 +90,7 @@ interface Rel {
 export class Package {
 	private parsed = new Map<string, Element | null>();
 	private relsCache = new Map<string, Map<string, Rel>>();
-	constructor(readonly files: Map<string, Buffer>) {}
+	constructor(readonly files: ZipFiles) {}
 
 	xml(part: string | undefined): Element | undefined {
 		if (!part) return undefined;
@@ -129,6 +129,9 @@ export class Package {
 		return undefined;
 	}
 }
+
+/** Most slides read from one presentation. */
+export const MAX_SLIDES = 2000;
 
 /** @internal */
 export const esc = (s: string) =>
@@ -225,7 +228,8 @@ function runProps(base: TextProps, el: Element | undefined): TextProps {
 	const fill = kid(el, "a:solidFill");
 	if (fill) p.color = colorChild(fill);
 	const latin = kid(el, "a:latin") ?? kid(el, "a:ea");
-	if (latin?.attribs.typeface) p.font = latin.attribs.typeface;
+	const face = safeFontName(latin?.attribs.typeface);
+	if (face) p.font = face;
 	return p;
 }
 
@@ -434,7 +438,7 @@ export function openPresentation(data: Uint8Array, options: PptxImportOptions = 
 	let fontCss = "";
 	if (options.media) {
 		for (const ef of kids(kid(presentation, "p:embeddedFontLst"), "p:embeddedFont")) {
-			const family = kid(ef, "p:font")?.attribs.typeface;
+			const family = safeFontName(kid(ef, "p:font")?.attribs.typeface);
 			if (!family) continue;
 			for (const [slot, weight, style] of [
 				["regular", 400, "normal"],
@@ -447,7 +451,7 @@ export function openPresentation(data: Uint8Array, options: PptxImportOptions = 
 				const font = target ? fontFromEot(pkg.files.get(target)) : null;
 				if (!font) continue;
 				const url = options.media({ name: `${family}-${slot}.ttf`, data: font, type: "font/ttf" });
-				fontCss += `@font-face{font-family:'${family.replace(/['\\]/g, "")}';font-weight:${weight};font-style:${style};src:url('${url.replace(/'/g, "%27")}')}`;
+				fontCss += `@font-face{font-family:'${family}';font-weight:${weight};font-style:${style};src:url('${url.replace(/'/g, "%27")}')}`;
 			}
 		}
 	}
@@ -462,9 +466,14 @@ export function openPresentation(data: Uint8Array, options: PptxImportOptions = 
 		offsetY: (canvas.height - height * scale) / 2,
 		media,
 		fontCss,
-		slideParts: kids(kid(presentation, "p:sldIdLst"), "p:sldId")
-			.map((s) => rels.get(s.attribs["r:id"] ?? "")?.target)
-			.filter((p): p is string => !!p),
+		// Each slide part once (a crafted file can list one many times), and at most MAX_SLIDES.
+		slideParts: [
+			...new Set(
+				kids(kid(presentation, "p:sldIdLst"), "p:sldId")
+					.map((s) => rels.get(s.attribs["r:id"] ?? "")?.target)
+					.filter((p): p is string => !!p),
+			),
+		].slice(0, MAX_SLIDES),
 	};
 }
 
@@ -499,10 +508,10 @@ export function contextFor(p: Presentation, part: string, slideNumber = 0): Slid
 		master,
 		colors: { theme: themeColors(theme), map },
 		fonts: {
-			major: path(fontScheme, "a:majorFont", "a:latin")?.attribs.typeface,
-			minor: path(fontScheme, "a:minorFont", "a:latin")?.attribs.typeface,
-			majorEa: path(fontScheme, "a:majorFont", "a:ea")?.attribs.typeface || undefined,
-			minorEa: path(fontScheme, "a:minorFont", "a:ea")?.attribs.typeface || undefined,
+			major: safeFontName(path(fontScheme, "a:majorFont", "a:latin")?.attribs.typeface),
+			minor: safeFontName(path(fontScheme, "a:minorFont", "a:latin")?.attribs.typeface),
+			majorEa: safeFontName(path(fontScheme, "a:majorFont", "a:ea")?.attribs.typeface),
+			minorEa: safeFontName(path(fontScheme, "a:minorFont", "a:ea")?.attribs.typeface),
 		},
 		masterStyles: {
 			title: kid(txStyles, "p:titleStyle"),
@@ -614,15 +623,34 @@ function themeColors(theme: Element | undefined): ThemeColors {
 		const v = kids(c)[0];
 		if (!v) continue;
 		const hex = v.name === "a:sysClr" ? v.attribs.lastClr : v.attribs.val;
-		if (hex) out[name] = hex.toLowerCase();
+		// Only real colors: the values end up in CSS.
+		if (hex && /^[0-9a-f]{6}$/i.test(hex)) out[name] = hex.toLowerCase();
 	}
 	return out;
 }
 
 /** @internal */
 export function fontStack(face: string): string {
-	// Single quotes: this goes inside style="…".
-	return `'${face.replace(/['"\\]/g, "")}', sans-serif`;
+	// Single quotes: this goes inside style="…". The name is already safe (resolveFont).
+	const name = safeFontName(face);
+	return name ? `'${name}', sans-serif` : "sans-serif";
+}
+
+/**
+ * @internal A font name from a PowerPoint file, made safe to put anywhere in
+ * CSS or HTML (a quoted CSS string, a style attribute, a <style> element):
+ * letters, digits, marks, spaces and `-_.+` only — every real font name
+ * ("Calibri Light", "游ゴシック", "Noto Sans JP") — at most 64 characters.
+ * Undefined when nothing is left.
+ */
+export function safeFontName(name: string | undefined): string | undefined {
+	const clean = (name ?? "")
+		.replace(/[^\p{L}\p{N}\p{M} \-_.+]/gu, "")
+		.replace(/ {2,}/g, " ")
+		.trim()
+		.slice(0, 64)
+		.trim();
+	return clean || undefined;
 }
 
 /** @internal */

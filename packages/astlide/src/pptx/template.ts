@@ -22,6 +22,7 @@ import {
 	resolveFont,
 	type SlideContext,
 	STYLE,
+	safeFontName,
 	schemeEl,
 	sources,
 	spTree,
@@ -237,10 +238,12 @@ function regionOf(
 
 /** A font-family list: the theme font, its East Asian font, then generic fallbacks. */
 function fontFamily(face: string, ea?: string): string {
-	const quote = (f: string) => `"${f.replace(/["\\]/g, "")}"`;
-	return [quote(face), ...(ea && ea !== face ? [quote(ea)] : []), "system-ui", "sans-serif"].join(
-		", ",
-	);
+	// Names come from the template: only safe characters reach the CSS.
+	const names = [face, ea && ea !== face ? ea : undefined]
+		.map((f) => safeFontName(f))
+		.filter((f): f is string => !!f)
+		.map((f) => `"${f}"`);
+	return [...names, "system-ui", "sans-serif"].join(", ");
 }
 
 /** Canvas size the regions are measured on. */
