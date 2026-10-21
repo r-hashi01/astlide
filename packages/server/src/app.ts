@@ -11,7 +11,7 @@
  * @module
  */
 
-import { createHash, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { extname } from "node:path";
 import { THEMES } from "@astlide/core/schema";
@@ -272,15 +272,17 @@ export function createHandler(options: ServerOptions) {
 	};
 	const open = new Set(["/health", "/openapi.json"]);
 
-	const digest = (s: string) => createHash("sha256").update(s).digest();
-	const keyDigest = options.apiKey ? digest(options.apiKey) : undefined;
+	const key = options.apiKey ? Buffer.from(options.apiKey) : undefined;
 
 	function authorized(req: Request): boolean {
-		if (!keyDigest) return true;
+		if (!key) return true;
 		const bearer = req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
 		const sent = bearer ?? req.headers.get("x-api-key");
-		// Compared as digests, in constant time: the key's length and bytes don't leak.
-		return sent != null && timingSafeEqual(digest(sent), keyDigest);
+		if (sent == null) return false;
+		const got = Buffer.from(sent);
+		// Constant time over the key's bytes (only a wrong length is told apart, and keys are random).
+		if (got.length !== key.length) return !timingSafeEqual(key, key);
+		return timingSafeEqual(got, key);
 	}
 
 	/** Requests reading a body or holding a parsed upload; beyond the queue's room they get 503. */
