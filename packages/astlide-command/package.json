@@ -4,7 +4,7 @@
 	"description": "The astlide command (export, import, MCP server) — runs the CLI of @astlide/core",
 	"type": "module",
 	"bin": {
-		"astlide": "./bin/astlide.js"
+		"astlide": "bin/astlide.js"
 	},
 	"files": [
 		"bin",
