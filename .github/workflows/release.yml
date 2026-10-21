@@ -31,7 +31,9 @@ jobs:
       contents: write       # the "Version Packages" branch
       pull-requests: write  # …and its PR
     outputs:
-      pending: ${{ steps.changesets.outputs.hasChangesets }}
+      # Pending changesets (counted here: changesets/action sets no output when
+      # there are none and it has no publish script).
+      pending: ${{ steps.pending.outputs.count }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -42,6 +44,10 @@ jobs:
           bun-version-file: package.json
 
       - run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Count pending changesets
+        id: pending
+        run: echo "count=$(find .changeset -maxdepth 1 -name '*.md' ! -name README.md | wc -l | tr -d ' ')" >> "$GITHUB_OUTPUT"
 
       - name: Create or update the release PR
         id: changesets
@@ -57,7 +63,7 @@ jobs:
   build:
     name: Build packages
     needs: version
-    if: needs.version.outputs.pending == 'false'
+    if: needs.version.outputs.pending == '0'
     runs-on: ubuntu-latest
     permissions:
       contents: read
