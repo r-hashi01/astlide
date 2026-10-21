@@ -1,5 +1,5 @@
-import { existsSync, statSync } from "node:fs";
-import { isAbsolute, relative, resolve } from "node:path";
+import { existsSync, realpathSync, statSync } from "node:fs";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 /**
  * The file a root-relative URL of the built site names, in `distDir`. When
@@ -24,8 +24,25 @@ export function distFile(distDir: string, url: string): string | null {
 	return null;
 }
 
-/** Whether `file` is `dir` itself or inside it (not merely a path sharing its prefix, like `dist-old`). */
-export function isInside(dir: string, file: string): boolean {
-	const rel = relative(resolve(dir), resolve(file));
+/** `path` with symlinks resolved, as far as it exists (the rest appended as is). */
+function realPath(path: string): string {
+	const abs = resolve(path);
+	if (existsSync(abs)) return realpathSync.native(abs);
+	const parent = dirname(abs);
+	return parent === abs ? abs : join(realPath(parent), relative(parent, abs));
+}
+
+const within = (dir: string, file: string) => {
+	const rel = relative(dir, file);
 	return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+};
+
+/**
+ * Whether `file` is `dir` itself or inside it (not merely a path sharing its
+ * prefix, like `dist-old`) — also once symlinks are followed, so a link in
+ * `dist/` (say, in a committed build of someone else's project) can't point
+ * reads at files elsewhere.
+ */
+export function isInside(dir: string, file: string): boolean {
+	return within(resolve(dir), resolve(file)) && within(realPath(dir), realPath(file));
 }
