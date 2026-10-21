@@ -7,6 +7,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { DECK } from "./project";
@@ -43,11 +44,25 @@ export class RenderTimeout extends Error {
 const MAX_LOG = 64 * 1024;
 
 /** The useful end of the CLI's output, without the server's paths. */
+/** `line` with paths into an install's `node_modules` cut to `<install>/node_modules/…` (indexOf, no regex). */
+function hideInstallPaths(line: string): string {
+	return line
+		.split(" ")
+		.map((word) => {
+			const at = word.indexOf("node_modules");
+			if (at <= 0) return word;
+			const start = word.search(/[/\\]/);
+			return start >= 0 && start < at ? `${word.slice(0, start)}<install>/${word.slice(at)}` : word;
+		})
+		.join(" ");
+}
+
 function summarize(log: string, root: string): string {
 	const lines = log
 		.split(root)
 		.join("<project>")
 		.split("\n")
+		.map(hideInstallPaths)
 		.map((l) => l.trimEnd())
 		.filter((l) => l && !/^\s*(Slide|Rendering) \d/.test(l));
 	// Stack traces point into the server's install, not at the slides.
@@ -103,6 +118,7 @@ export async function renderProject(
 			stdio: ["ignore", "pipe", "pipe"],
 			env: renderEnv(options),
 		});
+		preferForOom(child.pid);
 		let log = "";
 		const collect = (d: Buffer) => {
 			log = (log + d.toString()).slice(-MAX_LOG);
@@ -159,6 +175,20 @@ export async function renderProject(
 }
 
 /** Kill a render's process group (the CLI and everything it started). */
+/**
+ * On Linux, make the render (and Chromium, Astro … — children inherit it) the
+ * first thing the kernel kills when memory runs out, before the server.
+ * Best effort: without /proc or the right, nothing changes.
+ */
+function preferForOom(pid: number | undefined): void {
+	if (!pid || process.platform !== "linux") return;
+	try {
+		writeFileSync(`/proc/${pid}/oom_score_adj`, "800");
+	} catch {
+		// Not allowed here.
+	}
+}
+
 function killGroup(pid: number | undefined): void {
 	if (!pid || process.platform === "win32") return;
 	try {
@@ -168,18 +198,44 @@ function killGroup(pid: number | undefined): void {
 	}
 }
 
-/** The render's environment: the server's, less its secrets, with exports kept off the internal network. */
+/** Environment variables a render keeps from the server's (besides `LC_*`). */
+const RENDER_ENV = new Set([
+	"PATH",
+	"HOME",
+	"TMPDIR",
+	"TMP",
+	"TEMP",
+	"LANG",
+	"LANGUAGE",
+	"TZ",
+	"PLAYWRIGHT_BROWSERS_PATH",
+	"BUN_INSTALL",
+	// Windows
+	"SYSTEMROOT",
+	"WINDIR",
+	"COMSPEC",
+	"PATHEXT",
+	"USERPROFILE",
+	"APPDATA",
+	"LOCALAPPDATA",
+]);
+
+/**
+ * The render's environment: only the parts of the server's it needs (an
+ * allowlist — no secrets, cloud credentials or proxy settings), with exports
+ * kept off the internal network and the sandbox setting stated.
+ */
 export function renderEnv(
 	options: Pick<RenderOptions, "allowPrivateNetwork" | "maxSlides" | "chromiumSandbox">,
 	env: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
-	const out: NodeJS.ProcessEnv = {
-		...env,
-		ASTRO_TELEMETRY_DISABLED: "1",
-		FORCE_COLOR: "0",
-		NO_COLOR: "1",
-	};
-	delete out.ASTLIDE_API_KEY;
+	// Only what a build and Chromium need — not the server's own secrets,
+	// cloud credentials or proxy settings.
+	const out: NodeJS.ProcessEnv = {};
+	for (const [key, value] of Object.entries(env))
+		if (value !== undefined && (RENDER_ENV.has(key.toUpperCase()) || /^LC_/i.test(key)))
+			out[key] = value;
+	Object.assign(out, { ASTRO_TELEMETRY_DISABLED: "1", FORCE_COLOR: "0", NO_COLOR: "1" });
 	if (options.maxSlides) out.ASTLIDE_MAX_SLIDES = String(options.maxSlides);
 	out.ASTLIDE_CHROMIUM_SANDBOX = options.chromiumSandbox === false ? "0" : "1";
 	if (options.allowPrivateNetwork) delete out.ASTLIDE_PUBLIC_NETWORK_ONLY;

@@ -75,9 +75,14 @@ type AstlideWindow = Window & {
 	__astlide_pending_step?: { slide: number; step: number } | null;
 };
 
-/** Where the panel lives: a `transition:persist` host so it survives refreshes. */
+/**
+ * Where the panel lives: the layout's `transition:persist` host, so it
+ * survives refreshes — never an element of that id inside the slides, which
+ * a slide's own markup could put there.
+ */
 function host(): HTMLElement {
-	return document.getElementById("astlide-editor-host") ?? document.body;
+	const hosts = document.querySelectorAll<HTMLElement>('[id="astlide-editor-host"]');
+	return [...hosts].find((el) => !el.closest(".presentation")) ?? document.body;
 }
 
 function sourcePath(): string | null {

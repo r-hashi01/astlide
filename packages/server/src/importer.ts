@@ -37,6 +37,8 @@ export async function fetchGoogleSlides(url: string, limit: number): Promise<Uin
 		res = await exportFetch(`https://docs.google.com/presentation/d/${id}/export/pptx`, {
 			limit,
 			timeoutMs: 60_000,
+			// The address is fixed, but the server only ever fetches public hosts.
+			source: "remote",
 		});
 	} catch (e) {
 		throw new BadRequest(`couldn't download the deck: ${(e as Error).message}`);

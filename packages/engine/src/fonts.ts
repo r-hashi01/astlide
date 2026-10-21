@@ -6,8 +6,18 @@
  * cached on disk.
  */
 
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { createHash, randomBytes } from "node:crypto";
+import {
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	renameSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
+import { basename, join } from "node:path";
 import { distFile } from "./dist";
 import type { FontRegistry } from "./text";
 
@@ -118,9 +128,47 @@ async function download(url: string, limit: number): Promise<Buffer | null> {
 	}
 }
 
+/** Bounds on the Google Fonts cache: families per call, and the cache folder's size. */
+export const GOOGLE_FONT_LIMITS = {
+	families: 12,
+	cacheBytes: 512 * 1024 * 1024,
+};
+
+const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
+
+/** Write `data` to `file` whole or not at all (another process may be reading the cache). */
+function writeAtomic(file: string, data: string | Buffer): void {
+	const tmp = `${file}.${process.pid}.${randomBytes(4).toString("hex")}.tmp`;
+	writeFileSync(tmp, data);
+	renameSync(tmp, file);
+}
+
+/** Delete the least recently written font files until the cache is under `max` bytes. */
+function pruneCache(dir: string, max: number): void {
+	const files = readdirSync(dir)
+		.filter((name) => name.endsWith(".ttf"))
+		.map((name) => {
+			const st = statSync(join(dir, name));
+			return { file: join(dir, name), size: st.size, at: st.mtimeMs };
+		})
+		.sort((x, y) => x.at - y.at);
+	let total = files.reduce((n, f) => n + f.size, 0);
+	for (const f of files) {
+		if (total <= max) break;
+		rmSync(f.file, { force: true });
+		total -= f.size;
+	}
+}
+
 /**
  * Register `families` from Google Fonts (regular weights + italics where
- * available). Families Google doesn't have are skipped and returned.
+ * available). Families Google doesn't have are skipped and returned, and so
+ * are families past {@link GOOGLE_FONT_LIMITS} (the slides' CSS decides
+ * which families are asked for).
+ *
+ * The cache is safe to share between processes: a face is stored once per
+ * download URL (Google answers several weights with the same file), under a
+ * hash of it, written atomically, and the folder is kept under a size cap.
  */
 export async function loadGoogleFonts(
 	fonts: FontRegistry,
@@ -129,13 +177,16 @@ export async function loadGoogleFonts(
 	weights = [400, 500, 600, 700],
 ): Promise<string[]> {
 	mkdirSync(cacheDir, { recursive: true });
-	const missing: string[] = [];
-	for (const family of families) {
+	pruneCache(cacheDir, GOOGLE_FONT_LIMITS.cacheBytes);
+	const missing = families.slice(GOOGLE_FONT_LIMITS.families);
+	for (const family of families.slice(0, GOOGLE_FONT_LIMITS.families)) {
 		let found = false;
 		for (const w of weights) {
 			for (const italic of [false, true]) {
-				const file = join(cacheDir, `${family.replace(/\W+/g, "-")}-${w}${italic ? "i" : ""}.ttf`);
-				if (!existsSync(file)) {
+				// Which file this face is: a small reference, so faces sharing a file share it.
+				const ref = join(cacheDir, `${sha256(`${family}\n${w}\n${italic}`)}.ref`);
+				let file = existsSync(ref) ? join(cacheDir, readFileSync(ref, "utf-8").trim()) : undefined;
+				if (!file || !/^[0-9a-f]{64}\.ttf$/.test(basename(file)) || !existsSync(file)) {
 					const axis = italic ? `ital,wght@1,${w}` : `wght@${w}`;
 					const css = await download(
 						`https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}:${axis}`,
@@ -143,9 +194,14 @@ export async function loadGoogleFonts(
 					);
 					const url = css?.toString("utf-8").match(/url\((https:[^)]+\.ttf)\)/)?.[1];
 					if (!url) continue;
-					const ttf = await download(url, FONT_LIMIT);
-					if (!ttf) continue;
-					writeFileSync(file, ttf);
+					const name = `${sha256(url)}.ttf`;
+					file = join(cacheDir, name);
+					if (!existsSync(file)) {
+						const ttf = await download(url, FONT_LIMIT);
+						if (!ttf) continue;
+						writeAtomic(file, ttf);
+					}
+					writeAtomic(ref, name);
 				}
 				// Google returns the nearest weight when one doesn't exist; that's fine.
 				fonts.add(family, w, italic, file);

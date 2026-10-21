@@ -30,12 +30,12 @@
     },
     "packages/astlide": {
       "name": "@astlide/core",
-      "version": "2.7.1",
+      "version": "2.9.0",
       "bin": {
         "astlide": "./src/cli/astlide.ts",
       },
       "dependencies": {
-        "@astlide/engine": "^0.1.1",
+        "@astlide/engine": "^0.1.3",
         "@astrojs/mdx": "^8.1.0",
         "@modelcontextprotocol/sdk": "^1.32.1",
         "dom-serializer": "^3.1.1",
@@ -44,6 +44,7 @@
         "htmlparser2": "^12.0.0",
         "js-yaml": "^5.5.0",
         "katex": "^0.19.0",
+        "parse5": "^8.0.1",
         "rehype-stringify": "^10.0.0",
         "remark-parse": "^11.0.0",
         "remark-rehype": "^11.0.0",
@@ -85,7 +86,7 @@
     },
     "packages/create-astlide": {
       "name": "create-astlide",
-      "version": "0.2.4",
+      "version": "0.2.5",
       "bin": {
         "create-astlide": "./dist/index.js",
       },
@@ -96,7 +97,7 @@
     },
     "packages/engine": {
       "name": "@astlide/engine",
-      "version": "0.1.1",
+      "version": "0.1.3",
       "dependencies": {
         "@resvg/resvg-js": "^2.6.2",
         "css-select": "^7.0.0",

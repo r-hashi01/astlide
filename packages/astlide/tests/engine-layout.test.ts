@@ -233,6 +233,40 @@ describe("engine layout", () => {
 		expect(texts).not.toContain("outside");
 	});
 
+	it("lays out a bounded number of frames, never a page inside itself", () => {
+		const dist = mkdtempSync(join(tmpdir(), "astlide-fanout-"));
+		const css =
+			"<style>body{font-family:T;font-size:20px}.slide{width:1000px;height:500px}iframe{border:0;width:50px;height:20px}</style>";
+		const frames = (src: string) => `<iframe src="${src}"></iframe>`.repeat(10);
+		// 10 frames of a page with 10 frames of a page with 10 frames: 1110 documents unbounded.
+		for (const [name, inner] of [
+			["a", frames("/b/")],
+			["b", frames("/c/")],
+			["c", "leaf"],
+		] as const) {
+			mkdirSync(join(dist, name));
+			writeFileSync(
+				join(dist, name, "index.html"),
+				`<html><head>${css}</head><body>${inner}</body></html>`,
+			);
+		}
+		mkdirSync(join(dist, "deck"));
+		const file = join(dist, "deck", "index.html");
+		writeFileSync(
+			file,
+			`<html><head>${css}</head><body><section class="slide">${frames("/a/")}<iframe src="/deck/"></iframe>self</section></body></html>`,
+		);
+		const fonts = new FontRegistry();
+		fonts.add("T", 400, false, FONT);
+		const started = performance.now();
+		const [slide] = layoutPage(file, dist, fonts, { width: 1000, height: 500, media: "screen" });
+		const texts = slide?.lines.map((l) => l.text) ?? [];
+		expect(texts.filter((t) => t === "leaf").length).toBeLessThanOrEqual(32);
+		// The page doesn't lay itself out again inside its own frame.
+		expect(texts.filter((t) => t === "self")).toHaveLength(1);
+		expect(performance.now() - started).toBeLessThan(5000);
+	});
+
 	it("doesn't follow symlinks in dist/ to files elsewhere", () => {
 		const parent = mkdtempSync(join(tmpdir(), "astlide-links-"));
 		const dist = join(parent, "dist");

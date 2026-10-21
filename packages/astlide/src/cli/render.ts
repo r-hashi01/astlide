@@ -191,6 +191,10 @@ export function guardedChromiumArgs(baseUrl: string): string[] {
 		`--proxy-bypass-list=<-loopback>;${site.hostname}:${port}`,
 		"--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
 		"--webrtc-ip-handling-policy=disable_non_proxied_udp",
+		"--dns-prefetch-disable",
+		// Memory: a few renderer processes, each with a bounded JavaScript heap.
+		"--renderer-process-limit=4",
+		"--js-flags=--max-old-space-size=512",
 	];
 }
 
@@ -242,6 +246,7 @@ const DROPPED_RESPONSE_HEADERS = new Set([
 export async function guardNetwork(context: BrowserContext, baseUrl: string): Promise<void> {
 	const site = new URL(baseUrl).origin;
 	let loaded = 0;
+	let reserved = 0;
 	let running = 0;
 	const waiting: (() => void)[] = [];
 	const slot = async () => {
@@ -255,8 +260,13 @@ export async function guardNetwork(context: BrowserContext, baseUrl: string): Pr
 	await context.route("**/*", async (route) => {
 		const request = route.request();
 		const url = request.url();
+		const sameSite = URL.canParse(url) && new URL(url).origin === site;
+		// The page itself stays on the site: no redirect, refresh or link replaces what is
+		// rendered (a 204 leaves the current document in place; an abort would show an error page).
+		if (!sameSite && request.isNavigationRequest() && isMainFrame(request))
+			return route.fulfill({ status: 204 });
 		if (url.startsWith("data:") || url.startsWith("blob:")) return route.continue();
-		if (URL.canParse(url) && new URL(url).origin === site) return route.continue();
+		if (sameSite) return route.continue();
 		await slot();
 		try {
 			const headers: Record<string, string> = {};
@@ -291,10 +301,16 @@ export async function guardNetwork(context: BrowserContext, baseUrl: string): Pr
 			}
 			const encoding = res.headers.get("content-encoding");
 			if (encoding && encoding !== "identity") throw new Error(`compressed response (${encoding})`);
-			const content = await readBody(
-				res,
-				Math.min(GUARDED_LIMITS.response, GUARDED_LIMITS.total - loaded),
-			);
+			// Reserved before reading, so responses read at once can't overshoot the total.
+			const limit = Math.min(GUARDED_LIMITS.response, GUARDED_LIMITS.total - loaded - reserved);
+			if (limit <= 0) throw new Error("over the render's download budget");
+			reserved += limit;
+			let content: Buffer;
+			try {
+				content = await readBody(res, limit);
+			} finally {
+				reserved -= limit;
+			}
 			loaded += content.length;
 			const passed: Record<string, string> = {};
 			for (const [name, value] of res.headers)
@@ -308,6 +324,16 @@ export async function guardNetwork(context: BrowserContext, baseUrl: string): Pr
 		}
 	});
 	await context.routeWebSocket(/.*/, (ws) => ws.close());
+}
+
+/** Whether `request` loads a page's top-level document (not a frame's, nor a worker's). */
+function isMainFrame(request: import("playwright").Request): boolean {
+	try {
+		return request.frame().parentFrame() === null;
+	} catch {
+		// Requests of service workers have no frame.
+		return false;
+	}
 }
 
 /** Whether Chromium keeps its sandbox: on unless `ASTLIDE_CHROMIUM_SANDBOX=0`. */

@@ -20,11 +20,13 @@
  * read from the raw body and only reach pages when notes are included (see
  * `utils/notes`): {@link astlideCommentNotesPlugin} removes it from `.mdx`
  * sources (MDX doesn't allow HTML comments anyway), and the deck loader from
- * rendered `.md` and `.html` slides.
+ * rendered `.md` and `.html` slides ({@link withoutNotesComment}) — wherever
+ * the comment ends up in the rendered HTML (before footnotes, in a list).
  *
  * @module
  */
 
+import { type DefaultTreeAdapterMap, parseFragment } from "parse5";
 import type { Plugin } from "vite";
 
 /** The last `<!-- … -->` in the text, followed only by whitespace. */
@@ -65,6 +67,39 @@ export function stripTrailingComment(source: string): string | null {
 	const match = TRAILING_COMMENT.exec(source);
 	if (!match) return null;
 	return source.slice(0, match.index) + match[0].replace(/[^\n]/g, "");
+}
+
+type Node = DefaultTreeAdapterMap["childNode"];
+type ParentNode = DefaultTreeAdapterMap["parentNode"];
+
+/**
+ * `html` without the comment(s) holding `notes` — the comment nodes a
+ * browser would see whose text is the notes — or `null` when there is none.
+ * Everything else is kept byte for byte.
+ */
+export function withoutNotesComment(html: string, notes: string): string | null {
+	const ranges: [number, number][] = [];
+	const walk = (parent: ParentNode) => {
+		for (const node of parent.childNodes as Node[]) {
+			if (node.nodeName === "#comment") {
+				const data = (node as DefaultTreeAdapterMap["commentNode"]).data;
+				const at = node.sourceCodeLocation;
+				if (at && dedent(data).trim() === notes) ranges.push([at.startOffset, at.endOffset]);
+			} else if ("childNodes" in node) {
+				walk(node as ParentNode);
+				if ("content" in node) walk((node as DefaultTreeAdapterMap["template"]).content);
+			}
+		}
+	};
+	walk(parseFragment(html, { sourceCodeLocationInfo: true, scriptingEnabled: true }));
+	if (!ranges.length) return null;
+	let out = "";
+	let at = 0;
+	for (const [start, end] of ranges.sort((a, b) => a[0] - b[0])) {
+		out += html.slice(at, start);
+		at = end;
+	}
+	return out + html.slice(at);
 }
 
 /**
