@@ -21,7 +21,7 @@ export default defineConfig({
       indexable: false,
       injectIndexRoute: undefined,
       drawings: { persist: false },
-      notes: "public",
+      notes: "dev",
     }),
   ],
 });
@@ -36,11 +36,11 @@ export default defineConfig({
 | `font` | `false \| string \| { href?, preconnect? }` | Google Fonts の Inter + JetBrains Mono | 読み込む Web フォントのスタイルシート。`false` で読み込みません。 |
 | `favicon` | `string \| false` | 自動 | デッキのページと一覧ページのファビコン。デフォルトでは `public/` に `favicon.svg` / `.ico` / `.png` があればそれを使い、なければ空のアイコンを使います（ドメイン直下の `/favicon.ico` へのリクエストは発生しません）。ルート相対パスには Astro の `base` が付きます。`false` でアイコンのリンクを出力しません。 |
 | `csp` | `boolean \| string` | `true` | デフォルトの Content-Security-Policy の meta タグ（スライドのページ、`/[deck]/all`、一覧ページに入り、`base-uri 'self'; form-action 'self'; object-src 'none'` を含みます）を挿入するか、無効にするか、独自のポリシーを指定します。ビルドでは、デフォルトのポリシーの `script-src` に `'unsafe-inline'` を含めません。Astlide と Astro がページに入れるインラインスクリプトと、MDX のスライドやそのコンポーネントのスクリプト（どちらもコードです）は、`astro build` のあとに追加する SHA-256 のハッシュで許可します。Markdown・HTML・PowerPoint のスライドに書かれたインラインスクリプトは動きません（`slideScripts` を参照）。インラインのイベントハンドラー属性（`onclick="…"`）と `javascript:` URL も動きません。`style-src` には `'unsafe-inline'` を残します（スライドが `style` 属性を使うため）。`astro dev` ではスクリプトは `'unsafe-inline'` のままで、Vite のクライアント用に `worker-src 'self' blob:` が（指定がなければ）追加されます。独自のポリシー文字列を指定した場合は、そのまま使います。[埋め込みの制限とヘッダー](#埋め込みの制限とヘッダー)も参照してください。 |
-| `slideScripts` | `boolean` | `false` | Markdown・HTML・PowerPoint のスライドに書かれたインラインの `<script>` を、ビルドしたページでも動かします（そのハッシュをデフォルトの CSP に加えます）。既定はオフです。こうした内容は他人から来ることがあり（取り込んだ `.pptx`、もらった HTML スライドなど）、紛れ込んだスクリプトを止めるのが CSP の役目だからです。内容を完全に信頼できるデッキでだけ有効にしてください。自分のスライドでスクリプトを使うなら、MDX のスライドかコンポーネントにするのがおすすめです。スライドのスクリプトを除外したときは、ビルド時に警告を出します。 |
 | `indexable` | `boolean` | `false` | `false` の場合、ページに `noindex, nofollow` が付きます。 |
 | `injectIndexRoute` | `boolean` | 自動 | `/` にデッキの一覧を挿入します。独自の `src/pages/index.*` がある場合は自動的にスキップされます。 |
 | `drawings.persist` | `boolean` | `false` | ペンの描画を `localStorage` に保存し、再読み込み後も残します。[プレゼンテーション](/ja/guides/presenting/#描画を残す)を参照してください。 |
-| `notes` | `"public" \| "dev"` | `"public"` | スピーカーノートをどこに含めるか。`"public"` はすべてのページに含めるので、URL を知っている人なら誰でも読めます。`"dev"` は `astro dev` のときだけ含め、ビルドしたページ（とそこから作るエクスポート）には含めません。[スピーカーノート](/ja/guides/decks/#スピーカーノート)を参照してください。 |
+| `notes` | `"public" \| "dev"` | `"dev"` | スピーカーノートをどこに含めるか。`"dev"` は `astro dev` のときと、`astlide export` が行うビルドにだけ含めます（PowerPoint の書き出しにはノートが入ります）。`astro build` でビルドしたページには含めません。`"public"` はすべてのページに含めるので、URL を知っている人なら誰でも読めます。[スピーカーノート](/ja/guides/decks/#スピーカーノート)を参照してください。 |
+| `slideScripts` | `boolean` | `false` | Markdown・HTML・PowerPoint のスライドにある `<script>`、イベント属性、`javascript:` の URL を実行するかどうか（`astro dev` でもビルドでも）。オフのときは、スライドを描画するときに取り除きます。スライドの内容は他人から受け取ったものかもしれず、`astro dev` ではスクリプトがスライドエディターと同じページで動いてしまうためです。MDX のスライドのスクリプトは常にそのまま動きます。内容を完全に信頼できるデッキだけオンにしてください。 |
 
 Astro 自体の [`base`](/ja/guides/deploy/) オプションにも従います。
 

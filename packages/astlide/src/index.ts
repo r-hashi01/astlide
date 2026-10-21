@@ -1,23 +1,29 @@
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import mdx from "@astrojs/mdx";
 import type { AstroIntegration } from "astro";
 import {
 	astlideEditorPlugin,
 	createEditorToken,
+	createUnlockCodes,
 	DEV_RELOAD_SCRIPT,
+	EDITOR_UNLOCK_ENDPOINT,
+	loadEditorSecret,
+	UNLOCK_CODE_TTL_MS,
 } from "./internal/editor-server";
 import { astlideVirtualPlugin } from "./internal/virtual-plugins";
 import { type AstlidePlugin, BUILT_IN_PLUGIN, resolvePlugins } from "./plugin";
 import { astlideCodeHighlight } from "./utils/code-highlight";
 import { astlideCommentNotesPlugin } from "./utils/comment-notes";
 import { hashBuiltPages } from "./utils/csp-hashes";
+import { EXPORT_BUILD_ENV, requestedExportBuild } from "./utils/export-build";
 import { resolveFavicon } from "./utils/favicon";
 import { astlideMermaid } from "./utils/mermaid";
 import { PPTX_ASSET_ROUTE, pptxAssetDir } from "./utils/pptx-assets";
 import { astlideTemplatesPlugin, type LoadedTemplate, loadTemplate } from "./utils/pptx-templates";
+import { setSlideScripts } from "./utils/slide-scripts";
 
 // Re-export the typed deck/slide metadata API
 export type { DeckContext } from "./context";
@@ -63,14 +69,15 @@ export interface AstlideOptions {
 	 */
 	csp?: boolean | string;
 	/**
-	 * Let inline `<script>`s in Markdown, HTML and PowerPoint slides run in
-	 * built pages: their hashes join the default CSP. (MDX slides are code; their
-	 * scripts always run.) Default `false` — slide content can come from
-	 * others (an imported `.pptx`, an HTML slide someone sent), and the CSP is
-	 * what stops a script that slipped into it. Turn it on only for decks whose
-	 * content you fully trust (not PowerPoint files from others). For a script
-	 * you want on your slides, prefer an MDX slide or a component. Without a CSP (`csp: false`) slide scripts run
-	 * anyway; in `astro dev` they always do.
+	 * Let `<script>`s, inline event handlers (`onclick` …) and `javascript:`
+	 * URLs in Markdown, HTML and PowerPoint slides run — in `astro dev` and in
+	 * built pages, where their hashes join the default CSP. Default `false`:
+	 * they are removed when the slide is rendered (and the CSP wouldn't allow
+	 * them either), because slide content can come from others (an imported
+	 * `.pptx`, an HTML slide someone sent), and in `astro dev` such a script
+	 * would run next to the slide editor. MDX slides are code and always keep
+	 * their scripts. Turn it on only for decks whose content you fully trust;
+	 * for a script you want on your slides, prefer an MDX slide or a component.
 	 */
 	slideScripts?: boolean;
 	/**
@@ -203,15 +210,17 @@ export interface AstlideOptions {
 	drawings?: DrawingsOption;
 	/**
 	 * Where speaker notes are included.
-	 * - `"public"` (default): in every page, built ones too. Anyone with the
-	 *   deck's URL can read them (press `n`, open `?presenter`, view source).
-	 * - `"dev"`: only while running `astro dev`. Built pages carry no notes, so
-	 *   the presenter window of a deployed deck shows none — and neither do
-	 *   PDF / PPTX exports made from the build.
+	 * - `"dev"` (default): while running `astro dev`, and in the build
+	 *   `astlide export` makes (so PowerPoint exports keep them). Pages you
+	 *   build with `astro build` and deploy carry no notes; the presenter
+	 *   window of a deployed deck says so.
+	 * - `"public"`: in every page, built ones too — to present from the
+	 *   deployed site with notes. Anyone with the deck's URL can then read
+	 *   them (press `n`, open `?presenter`, view source).
 	 *
 	 * @example
 	 * ```ts
-	 * astlide({ notes: "dev" })
+	 * astlide({ notes: "public" })
 	 * ```
 	 */
 	notes?: "public" | "dev";
@@ -331,6 +340,13 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 		...optionDecorators,
 	];
 	const resolved = resolvePlugins(allPlugins);
+	// Dev only: the project's editor secret, and the one-time codes for the link
+	// printed once the server listens.
+	let editorSecret: string | undefined;
+	const unlockCodes = createUnlockCodes();
+	let devProtocol = "http";
+	// Read by the deck loader, which runs in this process.
+	setSlideScripts(options.slideScripts === true);
 	// Marks where slide content starts and ends in a page, for the CSP pass
 	// after the build: random per build, so content can't fake the end mark.
 	const slideMark = randomBytes(16).toString("hex");
@@ -384,8 +400,14 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 				// Dev: pages that don't live-update reload on the editor's HMR events.
 				// The editor endpoint only answers requests carrying this server's token,
 				// which only the dev server's own pages on this machine can fetch.
+				// Editing also needs a browser enabled through the link printed below,
+				// whose secret only travels through the terminal.
 				const editorToken = createEditorToken();
-				if (command === "dev") injectScript("page", DEV_RELOAD_SCRIPT);
+				if (command === "dev") {
+					injectScript("page", DEV_RELOAD_SCRIPT);
+					editorSecret = loadEditorSecret(fileURLToPath(config.root));
+					if (config.vite?.server?.https) devProtocol = "https";
+				}
 
 				// Optional `mermaid` (```mermaid diagrams): exposed via virtual:astlide/mermaid.
 				const hasMermaid = isPackageInstalled("mermaid", fileURLToPath(config.root));
@@ -395,9 +417,17 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 					fileURLToPath(config.publicDir ?? new URL("public/", config.root)),
 				);
 
+				// `astlide export` builds into (and previews from) its own folder — see utils/export-build.
+				const { dir: exportBuild, ignored } = requestedExportBuild(fileURLToPath(config.root));
+				if (ignored)
+					logger.warn(
+						`${EXPORT_BUILD_ENV}=${ignored} ignored: only astlide export sets it (to this project's export folder)`,
+					);
+
 				// Merge all config updates into a single call
 				updateConfig({
 					...(hasMdx ? {} : { integrations: [mdx()] }),
+					...(exportBuild ? { outDir: pathToFileURL(`${exportBuild}/`) } : {}),
 					markdown: {
 						shikiConfig: {
 							theme: options.shikiTheme ?? "github-dark",
@@ -427,7 +457,20 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 								loadTemplate(t.theme, t.source, root, config.base),
 							) as never,
 							// Dev-only (apply: "serve"): read/write endpoint for the `e` slide editor.
-							astlideEditorPlugin(fileURLToPath(config.root), editorToken) as never,
+							astlideEditorPlugin(
+								fileURLToPath(config.root),
+								editorToken,
+								editorSecret ?? "",
+								config.base,
+								unlockCodes,
+								join(
+									config.srcDir instanceof URL
+										? fileURLToPath(config.srcDir)
+										: join(fileURLToPath(config.root), "src"),
+									"content",
+									"decks",
+								),
+							) as never,
 							// Speaker notes as a trailing `<!-- … -->`: MDX would reject the comment.
 							astlideCommentNotesPlugin() as never,
 						],
@@ -473,7 +516,9 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 										(config.build?.format ?? "directory") === "directory"),
 							),
 							__ASTLIDE_DRAWINGS_PERSIST__: JSON.stringify(options.drawings?.persist ?? false),
-							__ASTLIDE_NOTES__: JSON.stringify(options.notes !== "dev" || command === "dev"),
+							__ASTLIDE_NOTES__: JSON.stringify(
+								options.notes === "public" || command === "dev" || Boolean(exportBuild),
+							),
 						},
 					},
 				});
@@ -536,6 +581,15 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 							"  src/content/decks/my-deck/01-intro.mdx\n",
 					);
 				}
+			},
+			"astro:server:start": ({ address, logger }) => {
+				if (!editorSecret) return;
+				// A one-time code, not the secret: the link may end up in scrollback or history.
+				const minutes = Math.round(UNLOCK_CODE_TTL_MS / 60_000);
+				logger.info(
+					`Slide editor: open ${devProtocol}://localhost:${address.port}${EDITOR_UNLOCK_ENDPOINT}?code=${unlockCodes.issue()} ` +
+						`in your browser to enable editing (works once, for ${minutes} minutes)`,
+				);
 			},
 			// Built pages: the default CSP's script-src gets the hashes of the inline
 			// scripts Astlide and Astro put on pages, in place of 'unsafe-inline'

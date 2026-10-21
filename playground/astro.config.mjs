@@ -26,6 +26,8 @@ export default defineConfig({
 			],
 			slideDecorators: ["./src/components/DeckFooter.astro"],
 			drawings: { persist: true },
+			// The demo (astlide.dev/demo) shows the presenter window with notes.
+			notes: "public",
 			// A PowerPoint template as a theme (used by the from-template deck).
 			templates: { brand: "./templates/brand.pptx" },
 		}),
