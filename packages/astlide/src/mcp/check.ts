@@ -515,6 +515,8 @@ export async function checkDeck(options: CheckDeckOptions): Promise<CheckDeckRes
 	if (mode === true || (mode === "auto" && stale)) await buildSite(root);
 	if (!existsSync(page))
 		throw new Error(`no built deck at ${page} — build the site (astro build) first`);
+	// The layout check reads dist/ (a plain `astro build`): it needs no speaker
+	// notes, so it doesn't use the export's own build (utils/export-build).
 	const dist = join(root, "dist");
 	const view = siteView(page, dist);
 	let result: Awaited<ReturnType<typeof layoutBuiltPage>>;

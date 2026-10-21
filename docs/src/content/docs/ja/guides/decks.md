@@ -109,7 +109,7 @@ hidden: false
 1 枚のスライドに複数の書き方が含まれている場合は、`<SpeakerNotes>`、frontmatter の `notes`、末尾のコメントの順に優先されます。`<Notes>` も `<SpeakerNotes>` の別名として引き続き使えます。
 
 :::note[ノートは公開サイトには載りません]
-既定（`notes: "dev"`）では、ノートが入るのは `astro dev` で動かしているときと、`astlide export` が行うビルドだけです。PowerPoint に書き出すとノートも入りますが、`astro build` でビルドして公開したページには含まれません。公開したデッキの発表者ウィンドウには、ノートが公開されていないことが表示されます（`astlide export` も `dist/` にビルドするので、そのフォルダーを公開するときは `astro build` をやり直してください）。
+既定（`notes: "dev"`）では、ノートが入るのは `astro dev` で動かしているときと、`astlide export` が行うビルドだけです。PowerPoint に書き出すとノートも入りますが、`astro build` でビルドして公開したページには含まれません。公開したデッキの発表者ウィンドウには、ノートが公開されていないことが表示されます。`astlide export` は専用のフォルダー（`node_modules/.astro/astlide-export`）にビルドするので、`dist/` にノートが入ることはありません。
 
 公開したサイトからノートを見ながら発表したい場合は、すべてのページにノートを含めます。そうすると、デッキを開ける人なら誰でも（`n` キー、`?presenter`、ページのソースから）ノートを読めるようになります。
 

@@ -11,6 +11,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { exportSiteDir } from "@astlide/core/utils/export-build.ts";
 import { mermaidThemeFor } from "@astlide/core/utils/mermaid.ts";
 import { exportFetch } from "@astlide/core/utils/network.ts";
 import type { Box, Scene, SceneItem, TableBox } from "@astlide/engine";
@@ -34,10 +35,10 @@ import { type SvgNode, svgToShapes } from "./svg-shapes";
 import { getTheme } from "./theme-map";
 
 export interface PptxOptions {
-	/** Project root (built into <root>/dist). */
+	/** Project root (built into the export's own folder, see utils/export-build). */
 	root: string;
 	output: string;
-	/** Skip `astro build` and use the existing dist/. */
+	/** Skip the build: use the export's last build, else the existing dist/. */
 	build?: boolean;
 }
 
@@ -875,7 +876,10 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 		const { buildSite } = await import("../site-server");
 		await buildSite(options.root);
 	}
-	const dist = join(options.root, "dist");
+	const site = exportSiteDir(options.root);
+	if (!site.own)
+		console.log('  (using dist/: speaker notes only if it was built with notes: "public")');
+	const dist = site.dir;
 	const html = join(dist, deck, "all", "index.html");
 	if (!existsSync(html)) throw new Error(`no print view at ${html}`);
 

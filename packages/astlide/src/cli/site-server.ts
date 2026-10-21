@@ -10,10 +10,13 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { createServer } from "node:net";
 import { dirname, join } from "node:path";
+import { EXPORT_BUILD_ENV, exportBuildDir, exportSiteDir } from "@astlide/core/utils/export-build";
 
 export interface SiteServer {
 	/** Site URL including Astro's `base`, without a trailing slash. */
 	url: string;
+	/** Whether it serves the export's own build (with speaker notes), not `dist/`. */
+	own: boolean;
 	stop(): Promise<void>;
 }
 
@@ -50,18 +53,13 @@ function runAstro(root: string, args: string[], env: Record<string, string> = {}
 }
 
 /**
- * Run `astro build` (unless `build` is false, reusing `dist/`), then
- * `astro preview` on a free port. The URL — including Astro's `base` — is
- * read from the preview server's own output.
- */
-/**
- * Run `astro build` for the project (in a child Node process), for an
- * export: speaker notes are included whatever the `notes` option says, so
- * PowerPoint exports keep them — which means `dist/` then has them too.
+ * Run `astro build` for an export (in a child Node process): into the
+ * export's own folder ({@link exportBuildDir}), not `dist/`, with speaker
+ * notes included whatever the `notes` option says.
  */
 export async function buildSite(root: string): Promise<void> {
 	await new Promise<void>((resolve, reject) => {
-		const child = runAstro(root, ["build"], { ASTLIDE_NOTES: "public" });
+		const child = runAstro(root, ["build"], { [EXPORT_BUILD_ENV]: exportBuildDir(root) });
 		let log = "";
 		child.stdout?.on("data", (d) => {
 			log += d;
@@ -74,26 +72,26 @@ export async function buildSite(root: string): Promise<void> {
 			code === 0 ? resolve() : reject(new Error(`astro build failed (exit ${code}):\n${log}`)),
 		);
 	});
-	console.log(
-		"  dist/ was built with speaker notes for the export — run astro build before deploying it",
-	);
 }
 
+/**
+ * Build for the export (unless `build` is false: then its last build, else
+ * `dist/`), then `astro preview` it on a free port. The URL — including
+ * Astro's `base` — is read from the preview server's own output.
+ */
 export async function startSite(options: { root: string; build: boolean }): Promise<SiteServer> {
 	if (options.build) await buildSite(options.root);
+	const site = exportSiteDir(options.root);
 
 	const port = await freePort();
 	// --ignore-lock: a one-off foreground server. Without it Astro may start the
 	// preview as a tracked background daemon (e.g. when run by a coding agent),
 	// and it shouldn't take the project's preview lock either.
-	const child = runAstro(options.root, [
-		"preview",
-		"--host",
-		"127.0.0.1",
-		"--port",
-		String(port),
-		"--ignore-lock",
-	]);
+	const child = runAstro(
+		options.root,
+		["preview", "--host", "127.0.0.1", "--port", String(port), "--ignore-lock"],
+		site.own ? { [EXPORT_BUILD_ENV]: site.dir } : {},
+	);
 	const url = await new Promise<string>((resolve, reject) => {
 		let log = "";
 		const timer = setTimeout(() => {
@@ -122,6 +120,7 @@ export async function startSite(options: { root: string; build: boolean }): Prom
 
 	return {
 		url,
+		own: site.own,
 		stop: () =>
 			new Promise<void>((resolve) => {
 				if (child.exitCode !== null) return resolve();

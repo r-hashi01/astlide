@@ -2,4 +2,6 @@
 "@astlide/core": minor
 ---
 
-**Speaker notes are no longer published by default.** The `notes` option now defaults to `"dev"`: notes are included while running `astro dev` and in the build `astlide export` makes (so PowerPoint exports keep them), but not in pages built with `astro build` — a deployed deck's presenter window says its notes aren't published. To present from the deployed site with notes, set `notes: "public"` (anyone who can open the deck can then read them, as before).
+**Speaker notes are no longer published by default.** The `notes` option now defaults to `"dev"`: notes are included while running `astro dev`, but not in pages built with `astro build` — a deployed deck's presenter window says its notes aren't published. To present from the deployed site with notes, set `notes: "public"` (anyone who can open the deck can then read them, as before).
+
+`astlide export` now builds into its own folder, `node_modules/.astro/astlide-export`, instead of `dist/`. That build always includes speaker notes, so PowerPoint exports keep them, and the `dist/` you deploy is never changed by an export. `--no-build` reuses the last export build (else `dist/`).

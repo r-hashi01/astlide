@@ -17,7 +17,9 @@ Projects created with `bun create astlide` also have it as a script: `bun run ex
 A deck can also be given as a path (`src/content/decks/my-talk`, `dist/my-talk`, …); the project is found from it, as it is when you run the command in any folder inside the project.
 
 - **PDF / PNG** are rendered in a headless browser ([Playwright](https://playwright.dev); run `bunx playwright install chromium` once). `astlide export` builds your site and serves it on a free port for the export, so there's no server to start, and Astro's [`base`](/guides/deploy/) is picked up automatically. Every slide is shown in its final state (all fragment / code steps applied), and diagrams finish rendering first.
-- **PPTX** needs no browser: the built slides are laid out by Astlide's own CSS layout engine and written as native shapes and editable text boxes. The fonts your theme loads are embedded in the file, so PowerPoint shows the slides in them without the fonts installed (fonts whose license forbids embedding are left out). Tables become PowerPoint tables, and boxes, CSS `::before` / `::after` text and simple inline SVG drawings (rectangles, circles, lines and arrows, paths, text) become shapes you can edit. Mermaid diagrams are rendered without a browser too (the project's `mermaid` install) and placed as pictures, as are SVG drawings that use more than that (gradients, arcs …); PNG and SVG images are included. Speaker notes go into PowerPoint's notes pane (the build `astlide export` runs includes them; with `--no-build`, the existing `dist/` must have them — see [Speaker notes](/guides/decks/#speaker-notes)). Japanese (and other East Asian) text is given an East Asian font — the CJK font your CSS names, else Yu Gothic, which comes with Office — and is laid out with a Japanese font, so lines break as in the browser.
+- **PPTX** needs no browser: the built slides are laid out by Astlide's own CSS layout engine and written as native shapes and editable text boxes. The fonts your theme loads are embedded in the file, so PowerPoint shows the slides in them without the fonts installed (fonts whose license forbids embedding are left out). Tables become PowerPoint tables, and boxes, CSS `::before` / `::after` text and simple inline SVG drawings (rectangles, circles, lines and arrows, paths, text) become shapes you can edit. Mermaid diagrams are rendered without a browser too (the project's `mermaid` install) and placed as pictures, as are SVG drawings that use more than that (gradients, arcs …); PNG and SVG images are included. Speaker notes go into PowerPoint's notes pane. Japanese (and other East Asian) text is given an East Asian font — the CJK font your CSS names, else Yu Gothic, which comes with Office — and is laid out with a Japanese font, so lines break as in the browser.
+
+Exports start from a build of their own, in `node_modules/.astro/astlide-export` rather than `dist/`. It includes speaker notes (they go into the PPTX) whatever the [`notes` option](/guides/decks/#speaker-notes) says, and leaves the `dist/` you deploy untouched.
 
 | Option | |
 |---|---|
@@ -25,7 +27,7 @@ A deck can also be given as a path (`src/content/decks/my-talk`, `dist/my-talk`,
 | `--all` | Every deck |
 | `--out-dir <dir>` | Where exports go (default `exports/`) |
 | `-o, --output <path>` | Exact output path (one deck, one format) |
-| `--no-build` | Use the existing `dist/` instead of building first |
+| `--no-build` | Reuse the last export build instead of building first (else `dist/`, which has speaker notes only with `notes: "public"`) |
 | `--base-url <url>` | PDF / PNG: render from a dev / preview server you already run (include the `base`, e.g. `http://localhost:4321/my-repo`) |
 | `--width` / `--height` | PDF / PNG: slide size in px (default 1920×1080) |
 

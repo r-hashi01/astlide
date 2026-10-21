@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import mdx from "@astrojs/mdx";
 import type { AstroIntegration } from "astro";
 import {
@@ -12,6 +12,7 @@ import { astlideVirtualPlugin } from "./internal/virtual-plugins";
 import { type AstlidePlugin, BUILT_IN_PLUGIN, resolvePlugins } from "./plugin";
 import { astlideCodeHighlight } from "./utils/code-highlight";
 import { astlideCommentNotesPlugin } from "./utils/comment-notes";
+import { EXPORT_BUILD_ENV } from "./utils/export-build";
 import { resolveFavicon } from "./utils/favicon";
 import { astlideMermaid } from "./utils/mermaid";
 import { PPTX_ASSET_ROUTE, pptxAssetDir } from "./utils/pptx-assets";
@@ -373,9 +374,13 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 					fileURLToPath(config.publicDir ?? new URL("public/", config.root)),
 				);
 
+				// `astlide export` builds into (and previews from) its own folder — see utils/export-build.
+				const exportBuild = process.env[EXPORT_BUILD_ENV];
+
 				// Merge all config updates into a single call
 				updateConfig({
 					...(hasMdx ? {} : { integrations: [mdx()] }),
+					...(exportBuild ? { outDir: pathToFileURL(`${exportBuild}/`) } : {}),
 					markdown: {
 						shikiConfig: {
 							theme: options.shikiTheme ?? "github-dark",
@@ -451,10 +456,7 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 							),
 							__ASTLIDE_DRAWINGS_PERSIST__: JSON.stringify(options.drawings?.persist ?? false),
 							__ASTLIDE_NOTES__: JSON.stringify(
-								options.notes === "public" ||
-									command === "dev" ||
-									// The build `astlide export` runs for itself (see cli/site-server).
-									process.env.ASTLIDE_NOTES === "public",
+								options.notes === "public" || command === "dev" || Boolean(exportBuild),
 							),
 						},
 					},

@@ -202,13 +202,33 @@ describe("astlide integration", () => {
 			expect(notesDefine({ notes: "public" }, "dev")).toBe("true");
 		});
 
-		it("includes notes in the build astlide export makes", () => {
-			process.env.ASTLIDE_NOTES = "public";
+		it("builds an export into its own folder, with notes", () => {
+			process.env.ASTLIDE_EXPORT_BUILD = "/p/node_modules/.astro/astlide-export";
 			try {
 				expect(notesDefine(undefined, "build")).toBe("true");
+				const integration = astlide();
+				const args = createMockHookArgs();
+				(integration.hooks["astro:config:setup"] as HookFn)({
+					...args,
+					command: "build",
+					injectScript: () => {},
+				});
+				const { outDir } = args.updateConfig.mock.calls[0][0];
+				expect(String(outDir)).toBe("file:///p/node_modules/.astro/astlide-export/");
 			} finally {
-				delete process.env.ASTLIDE_NOTES;
+				delete process.env.ASTLIDE_EXPORT_BUILD;
 			}
+		});
+
+		it("leaves outDir alone for other builds", () => {
+			const integration = astlide();
+			const args = createMockHookArgs();
+			(integration.hooks["astro:config:setup"] as HookFn)({
+				...args,
+				command: "build",
+				injectScript: () => {},
+			});
+			expect(args.updateConfig.mock.calls[0][0].outDir).toBeUndefined();
 		});
 	});
 

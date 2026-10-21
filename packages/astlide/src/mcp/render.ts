@@ -18,7 +18,7 @@ export interface RenderOptions {
 	formats: RenderFormat[];
 	/** Where the files go, inside the project (default: `<projectRoot>/exports`). */
 	outDir?: string;
-	/** Build the site first (default true); false reuses `dist/`. */
+	/** Build the site first (default true); false reuses the last export build, else `dist/`. */
 	build?: boolean;
 }
 

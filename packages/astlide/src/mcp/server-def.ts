@@ -167,7 +167,9 @@ export function createServer(options: ServerOptions = {}): McpServer {
 				build: z
 					.boolean()
 					.optional()
-					.describe("Build the site first (default true); false reuses dist/"),
+					.describe(
+						'Build the site first (default true); false reuses the last export build, else dist/ (then without speaker notes unless notes: "public")',
+					),
 			},
 			annotations: { readOnlyHint: false, destructiveHint: false },
 		},
