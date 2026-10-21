@@ -19,6 +19,19 @@
  * policies Astlide emitted by default are rewritten (their `<meta>` carries
  * {@link CSP_HASH_MARKER}); a `csp` string you set is used as is.
  *
+ * Limits, by design:
+ * - The allowlist is shared, and `'self'` stays allowed: slide content can't
+ *   bring a script of its own, but it can re-run one that's already allowed
+ *   (the same text as an allowed inline script, a bundled `/_astro` chunk,
+ *   an Astro island with props it chooses). It narrows what injected markup
+ *   can do; it doesn't make it harmless.
+ * - Each page's `define:vars` script differs, so every page carries roughly
+ *   one hash per page in the build.
+ * - Pages are parsed with htmlparser2, not a browser's parser. Where the two
+ *   disagree (comments like `<!-->`, raw-text elements), content can at most
+ *   hide the end of a slide mark — later scripts then count as slide content
+ *   and are blocked. It fails towards blocking, never towards allowing.
+ *
  * @module
  */
 
@@ -100,21 +113,53 @@ export function withScriptHashes(policy: string, hashes: string[]): string {
 }
 
 /**
- * A built page with its marked CSP `<meta>` rewritten: `'unsafe-inline'` in
- * `script-src` becomes `hashes`, and the marker is removed. Pages without a
- * marked `<meta>` come back unchanged.
+ * Where a page's marked CSP `<meta>` is: in `<head>`, with
+ * {@link CSP_HASH_MARKER} as an attribute — not merely that text somewhere in
+ * the page. Undefined when there is none.
+ */
+export function markedCspMeta(html: string): { start: number; end: number } | undefined {
+	let found: { start: number; end: number } | undefined;
+	let inHead = true;
+	const parser = new Parser(
+		{
+			onopentag(name, attribs) {
+				if (name === "body") inHead = false;
+				if (
+					inHead &&
+					!found &&
+					name === "meta" &&
+					CSP_HASH_MARKER in attribs &&
+					attribs["http-equiv"]?.toLowerCase() === "content-security-policy"
+				)
+					found = { start: parser.startIndex, end: parser.endIndex };
+			},
+			onclosetag(name) {
+				if (name === "head") inHead = false;
+			},
+		},
+		{ lowerCaseTags: true, lowerCaseAttributeNames: true },
+	);
+	parser.end(html);
+	return found;
+}
+
+/**
+ * A built page with its marked CSP `<meta>` (see {@link markedCspMeta})
+ * rewritten: `script-src` gets `hashes` (and loses any `'unsafe-inline'`),
+ * and the marker is removed. Pages without one come back unchanged.
  */
 export function withPageHashes(html: string, hashes: Iterable<string>): string {
-	if (!html.includes(CSP_HASH_MARKER)) return html;
+	const at = markedCspMeta(html);
+	if (!at) return html;
 	const sources = [...new Set(hashes)];
-	return html.replace(new RegExp(`<meta\\b[^>]*\\b${CSP_HASH_MARKER}\\b[^>]*>`, "gi"), (tag) =>
-		tag
-			.replace(/\scontent="([^"]*)"/i, (_, policy: string) => {
-				const decoded = policy.replaceAll("&#39;", "'").replaceAll("&amp;", "&");
-				return ` content="${withScriptHashes(decoded, sources).replaceAll("&", "&amp;")}"`;
-			})
-			.replace(new RegExp(`\\s${CSP_HASH_MARKER}(?:="[^"]*")?`, "i"), ""),
-	);
+	const tag = html
+		.slice(at.start, at.end + 1)
+		.replace(/\scontent="([^"]*)"/i, (_, policy: string) => {
+			const decoded = policy.replaceAll("&#39;", "'").replaceAll("&amp;", "&");
+			return ` content="${withScriptHashes(decoded, sources).replaceAll("&", "&amp;")}"`;
+		})
+		.replace(new RegExp(`\\s${CSP_HASH_MARKER}(?:="[^"]*")?`, "i"), "");
+	return html.slice(0, at.start) + tag + html.slice(at.end + 1);
 }
 
 export interface HashOptions {
@@ -138,7 +183,7 @@ export async function hashBuiltPages(
 		if (!entry.isFile() || !entry.name.endsWith(".html")) continue;
 		const file = join(entry.parentPath, entry.name);
 		const html = await readFile(file, "utf8");
-		if (html.includes(CSP_HASH_MARKER)) pages.set(file, html);
+		if (markedCspMeta(html)) pages.set(file, html);
 	}
 	const allowed = new Set<string>();
 	const blocked: { file: string; scripts: number }[] = [];

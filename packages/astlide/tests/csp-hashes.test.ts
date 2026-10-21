@@ -6,6 +6,7 @@ import { cspHashable, DEFAULT_DECK_CSP } from "@astlide/core/utils/csp.ts";
 import {
 	hashBuiltPages,
 	inlineScripts,
+	markedCspMeta,
 	withPageHashes,
 	withScriptHashes,
 } from "@astlide/core/utils/csp-hashes.ts";
@@ -76,6 +77,18 @@ describe("withPageHashes", () => {
 		const html = page(meta("script-src 'unsafe-inline'", false), "<script>go()</script>");
 		expect(withPageHashes(html, [sha("go()")])).toBe(html);
 	});
+
+	it("only counts a marked <meta> in <head>, not the marker as text or a <meta> in the body", () => {
+		const text = page(
+			meta("script-src 'self'", false),
+			`<pre>&lt;meta data-astlide-csp&gt; data-astlide-csp</pre>`,
+		);
+		expect(markedCspMeta(text)).toBeUndefined();
+		expect(withPageHashes(text, [sha("x")])).toBe(text);
+		const inBody = page("", meta("script-src 'self'"));
+		expect(markedCspMeta(inBody)).toBeUndefined();
+		expect(markedCspMeta(page(meta(DEFAULT_DECK_CSP), ""))).toBeDefined();
+	});
 });
 
 describe("hashBuiltPages", () => {
@@ -134,5 +147,17 @@ describe("cspHashable", () => {
 		expect(cspHashable("true")).toBe(true);
 		expect(cspHashable(false)).toBe(false);
 		expect(cspHashable("default-src 'self'")).toBe(false);
+	});
+});
+
+describe("template artwork", () => {
+	it("is marked like slide content, so its scripts aren't hashed", () => {
+		const { start: open, end: close } = slideContentComments(undefined);
+		// Slide.astro wraps template art in the build's marks; with this test's mark:
+		expect(open).toMatch(/^<!--astlide-slide:/);
+		const art = `<div class="astlide-tpl-art"><!--${start}--><script>fromTemplate()</script><!--${end}--></div>`;
+		const scripts = inlineScripts(page("", `<section class="slide">${art}</section>`), MARK);
+		expect(scripts).toEqual([{ hash: sha("fromTemplate()"), inSlide: true }]);
+		expect(close).toMatch(/^<!--\/astlide-slide:/);
 	});
 });
