@@ -245,6 +245,9 @@ async function main() {
 	console.log();
 }
 
+/** A deck folder name: letters, digits, `_`, `.`, `-`, not starting with `.` or `-`. */
+const DECK_NAME = /^[\p{L}\p{N}_][\p{L}\p{N}_.-]{0,99}$/u;
+
 /** Slide bodies for a fresh deck, keyed by format. Cover / content / end. */
 function deckSlideTemplates(
 	title: string,
@@ -298,8 +301,14 @@ async function scaffoldDeck(args: string[]): Promise<void> {
 	const positional = args.find((a) => !a.startsWith("--"));
 	const rawName = positional ?? (await ask("Deck name", "my-deck"));
 	const deckName = path.basename(rawName.replace(/[\\/]+$/, ""));
-	if (!deckName || deckName === "." || deckName === "..") {
-		console.log(red(`\n  Error: Invalid deck name "${rawName}".`));
+	// The same rule as `astlide import`: a plain folder name. Its title goes into the
+	// slides as is, so nothing that means something in HTML / MDX gets through.
+	if (!DECK_NAME.test(deckName) || deckName.includes("..")) {
+		console.log(
+			red(
+				`\n  Error: Invalid deck name "${rawName}" — use letters, digits, "-", "_" and ".", like "q3-review".`,
+			),
+		);
 		process.exit(1);
 	}
 
