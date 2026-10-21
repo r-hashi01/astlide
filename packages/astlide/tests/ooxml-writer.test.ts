@@ -103,6 +103,10 @@ describe("esc", () => {
 		expect(esc("a'b")).toBe("a&apos;b");
 	});
 
+	it("drops characters XML can't hold, keeps tab and newlines", () => {
+		expect(esc("a\u0001b\u000bc\ufffed\te\nf\rg")).toBe("abcd\te\nf\rg");
+	});
+
 	it("handles multiple special chars", () => {
 		expect(esc('<a href="x">&')).toBe("&lt;a href=&quot;x&quot;&gt;&amp;");
 	});

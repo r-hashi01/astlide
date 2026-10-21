@@ -14,12 +14,17 @@
  * Priority: <SpeakerNotes> > frontmatter `notes` > trailing comment.
  *
  * `<Notes>` is an alias kept for compatibility.
+ *
+ * With the integration's `notes: "dev"` option, built pages leave the notes out.
  */
+import { notesIncluded } from '@astlide/core/utils/notes';
 ---
 
-<div class="slide-notes" data-slide-notes aria-hidden="true">
-  <slot />
-</div>
+{notesIncluded && (
+  <div class="slide-notes" data-slide-notes aria-hidden="true">
+    <slot />
+  </div>
+)}
 
 <style>
   /* Hidden from normal view — picked up by DeckLayout JS */

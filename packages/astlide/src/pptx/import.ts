@@ -22,7 +22,7 @@ import {
 	type ThemeColors,
 } from "./color";
 import { type Element, find, kid, kids, num, parseXml, path, textOf } from "./xml";
-import { readZip } from "./zip";
+import { readZip, type ZipFiles } from "./zip";
 
 export interface ImportedSlide {
 	/** 1-based position in the presentation. */
@@ -53,6 +53,8 @@ export interface PptxImportOptions {
 	 * Where pictures and embedded fonts go: called once per file, returns the
 	 * URL to use. Default: pictures as inline `data:` URLs (self-contained
 	 * HTML) and embedded fonts left out (they'd be repeated in every slide).
+	 * SVG pictures are always inlined as `data:` URLs: an SVG file served
+	 * from the site would run any script it holds when opened directly.
 	 */
 	media?: (file: { name: string; data: Buffer; type: string }) => string;
 	/** Canvas size in px (default 1920×1080); other slide ratios are letterboxed. */
@@ -86,16 +88,24 @@ interface Rel {
 	external: boolean;
 }
 
+/** Most embedded font families read from one file. */
+export const MAX_EMBEDDED_FONTS = 32;
+
+/** Largest XML part read, in bytes (real slide, layout and theme parts stay far below). */
+export const MAX_XML_BYTES = 32 * 1024 * 1024;
+
 /** The OOXML package: parts by path, parsed XML and relationships on demand. */
 export class Package {
 	private parsed = new Map<string, Element | null>();
 	private relsCache = new Map<string, Map<string, Rel>>();
-	constructor(readonly files: Map<string, Buffer>) {}
+	constructor(readonly files: ZipFiles) {}
 
 	xml(part: string | undefined): Element | undefined {
 		if (!part) return undefined;
 		if (!this.parsed.has(part)) {
 			const data = this.files.get(part);
+			if (data && data.length > MAX_XML_BYTES)
+				throw new Error(`XML part ${part} is too large (${data.length} bytes)`);
 			this.parsed.set(part, data ? parseXml(data.toString("utf-8")) : null);
 		}
 		return this.parsed.get(part) ?? undefined;
@@ -129,6 +139,9 @@ export class Package {
 		return undefined;
 	}
 }
+
+/** Most slides read from one presentation. */
+export const MAX_SLIDES = 2000;
 
 /** @internal */
 export const esc = (s: string) =>
@@ -200,7 +213,7 @@ function paraProps(base: TextProps, el: Element | undefined): TextProps {
 		p.bullet = {
 			kind: "num",
 			type: buNum.attribs.type ?? "arabicPeriod",
-			start: num(buNum, "startAt", 1),
+			start: startAt(num(buNum, "startAt", 1)),
 		};
 	const buClr = kid(el, "a:buClr");
 	if (buClr) p.buClr = colorChild(buClr);
@@ -225,12 +238,18 @@ function runProps(base: TextProps, el: Element | undefined): TextProps {
 	const fill = kid(el, "a:solidFill");
 	if (fill) p.color = colorChild(fill);
 	const latin = kid(el, "a:latin") ?? kid(el, "a:ea");
-	if (latin?.attribs.typeface) p.font = latin.attribs.typeface;
+	const face = safeFontName(latin?.attribs.typeface);
+	if (face) p.font = face;
 	return p;
 }
 
-/** Wingdings / Symbol bullet glyphs → Unicode. */
-const SYMBOL_BULLETS: Record<string, string> = {
+/** A numbered list's first number, within PowerPoint's own range (1–32767). */
+function startAt(n: number): number {
+	return Number.isFinite(n) ? Math.min(Math.max(Math.trunc(n), 1), 32767) : 1;
+}
+
+/** Wingdings / Symbol bullet glyphs → Unicode (a null-prototype map: keys come from the file). */
+const SYMBOL_BULLETS: Record<string, string> = Object.assign(Object.create(null), {
 	"§": "▪",
 	q: "❑",
 	Ø: "➢",
@@ -241,7 +260,7 @@ const SYMBOL_BULLETS: Record<string, string> = {
 	"·": "•",
 	o: "○",
 	"": "•",
-};
+});
 
 function autoNumber(type: string, n: number): string {
 	const roman = (v: number) => {
@@ -274,9 +293,9 @@ function autoNumber(type: string, n: number): string {
 		? alpha(n)
 		: /^alphaUc/.test(type)
 			? alpha(n).toUpperCase()
-			: /^romanLc/.test(type)
+			: /^romanLc/.test(type) && n <= 3999
 				? roman(n)
-				: /^romanUc/.test(type)
+				: /^romanUc/.test(type) && n <= 3999
 					? roman(n).toUpperCase()
 					: String(n);
 	if (/ParenBoth$/.test(type)) return `(${body})`;
@@ -302,23 +321,40 @@ export function placeholderOf(shape: Element): Placeholder | undefined {
 /** @internal */
 export const titleTypes = new Set(["title", "ctrTitle"]);
 
+const normType = (t: string) =>
+	t === "ctrTitle" ? "title" : t === "subTitle" || t === "obj" ? "body" : t;
+
+/** Placeholder shapes of a layout / master tree by idx and by type (first one wins), built once per tree. */
+const placeholderIndex = new WeakMap<
+	Element,
+	{ byIdx: Map<string, Element>; byType: Map<string, Element> }
+>();
+
 /** The shape a placeholder inherits from in a layout / master tree. */
 function inherited(
 	tree: Element | undefined,
 	ph: Placeholder,
 	byTypeOnly = false,
 ): Element | undefined {
-	const shapes = kids(tree).filter((c) => c.name === "p:sp" || c.name === "p:pic");
+	if (!tree) return undefined;
+	let index = placeholderIndex.get(tree);
+	if (!index) {
+		index = { byIdx: new Map(), byType: new Map() };
+		for (const s of kids(tree)) {
+			if (s.name !== "p:sp" && s.name !== "p:pic") continue;
+			const p = placeholderOf(s);
+			if (!p) continue;
+			if (p.idx !== undefined && !index.byIdx.has(p.idx)) index.byIdx.set(p.idx, s);
+			const type = normType(p.type);
+			if (!index.byType.has(type)) index.byType.set(type, s);
+		}
+		placeholderIndex.set(tree, index);
+	}
 	if (!byTypeOnly && ph.idx !== undefined) {
-		const byIdx = shapes.find((s) => placeholderOf(s)?.idx === ph.idx);
+		const byIdx = index.byIdx.get(ph.idx);
 		if (byIdx) return byIdx;
 	}
-	const norm = (t: string) =>
-		t === "ctrTitle" ? "title" : t === "subTitle" || t === "obj" ? "body" : t;
-	return shapes.find((s) => {
-		const p = placeholderOf(s);
-		return p !== undefined && norm(p.type) === norm(ph.type);
-	});
+	return index.byType.get(normType(ph.type));
 }
 
 /** Maps EMU coordinates of a (group) child to slide EMU. */
@@ -418,12 +454,13 @@ export function openPresentation(data: Uint8Array, options: PptxImportOptions = 
 		if (mediaUrls.has(part)) return mediaUrls.get(part) ?? null;
 		const bytes = pkg.files.get(part);
 		const ext = posix.extname(part).slice(1).toLowerCase();
-		const type = MIME[ext];
+		const type = Object.hasOwn(MIME, ext) ? MIME[ext] : undefined;
 		let url: string | null = null;
 		if (bytes && type) {
-			url = options.media
-				? options.media({ name: posix.basename(part), data: bytes, type })
-				: `data:${type};base64,${bytes.toString("base64")}`;
+			url =
+				options.media && type !== "image/svg+xml"
+					? options.media({ name: posix.basename(part), data: bytes, type })
+					: `data:${type};base64,${bytes.toString("base64")}`;
 		}
 		mediaUrls.set(part, url);
 		return url;
@@ -431,23 +468,41 @@ export function openPresentation(data: Uint8Array, options: PptxImportOptions = 
 
 	const rels = pkg.rels(presentationPart);
 	// Fonts embedded in the file (PowerPoint "Embed fonts"): @font-face rules, when they can be served.
+	// Each family / face once, at most MAX_EMBEDDED_FONTS families, each font part
+	// unpacked once: a crafted file can list one font many times, and the rules go into every slide.
 	let fontCss = "";
 	if (options.media) {
+		const faces = new Set<string>();
+		const families = new Set<string>();
+		const fontUrls = new Map<string, string | null>();
 		for (const ef of kids(kid(presentation, "p:embeddedFontLst"), "p:embeddedFont")) {
-			const family = kid(ef, "p:font")?.attribs.typeface;
+			const family = safeFontName(kid(ef, "p:font")?.attribs.typeface);
 			if (!family) continue;
+			if (!families.has(family) && families.size >= MAX_EMBEDDED_FONTS) break;
+			families.add(family);
 			for (const [slot, weight, style] of [
 				["regular", 400, "normal"],
 				["bold", 700, "normal"],
 				["italic", 400, "italic"],
 				["boldItalic", 700, "italic"],
 			] as const) {
+				if (faces.has(`${family}/${slot}`)) continue;
 				const id = kid(ef, `p:${slot}`)?.attribs["r:id"];
 				const target = id ? rels.get(id)?.target : undefined;
-				const font = target ? fontFromEot(pkg.files.get(target)) : null;
-				if (!font) continue;
-				const url = options.media({ name: `${family}-${slot}.ttf`, data: font, type: "font/ttf" });
-				fontCss += `@font-face{font-family:'${family.replace(/['\\]/g, "")}';font-weight:${weight};font-style:${style};src:url('${url.replace(/'/g, "%27")}')}`;
+				if (!target) continue;
+				if (!fontUrls.has(target)) {
+					const font = fontFromEot(pkg.files.get(target));
+					fontUrls.set(
+						target,
+						font
+							? options.media({ name: `${family}-${slot}.ttf`, data: font, type: "font/ttf" })
+							: null,
+					);
+				}
+				const url = fontUrls.get(target);
+				if (!url) continue;
+				faces.add(`${family}/${slot}`);
+				fontCss += `@font-face{font-family:'${family}';font-weight:${weight};font-style:${style};src:url('${url.replace(/'/g, "%27")}')}`;
 			}
 		}
 	}
@@ -462,9 +517,14 @@ export function openPresentation(data: Uint8Array, options: PptxImportOptions = 
 		offsetY: (canvas.height - height * scale) / 2,
 		media,
 		fontCss,
-		slideParts: kids(kid(presentation, "p:sldIdLst"), "p:sldId")
-			.map((s) => rels.get(s.attribs["r:id"] ?? "")?.target)
-			.filter((p): p is string => !!p),
+		// Each slide part once (a crafted file can list one many times), and at most MAX_SLIDES.
+		slideParts: [
+			...new Set(
+				kids(kid(presentation, "p:sldIdLst"), "p:sldId")
+					.map((s) => rels.get(s.attribs["r:id"] ?? "")?.target)
+					.filter((p): p is string => !!p),
+			),
+		].slice(0, MAX_SLIDES),
 	};
 }
 
@@ -499,10 +559,10 @@ export function contextFor(p: Presentation, part: string, slideNumber = 0): Slid
 		master,
 		colors: { theme: themeColors(theme), map },
 		fonts: {
-			major: path(fontScheme, "a:majorFont", "a:latin")?.attribs.typeface,
-			minor: path(fontScheme, "a:minorFont", "a:latin")?.attribs.typeface,
-			majorEa: path(fontScheme, "a:majorFont", "a:ea")?.attribs.typeface || undefined,
-			minorEa: path(fontScheme, "a:minorFont", "a:ea")?.attribs.typeface || undefined,
+			major: safeFontName(path(fontScheme, "a:majorFont", "a:latin")?.attribs.typeface),
+			minor: safeFontName(path(fontScheme, "a:minorFont", "a:latin")?.attribs.typeface),
+			majorEa: safeFontName(path(fontScheme, "a:majorFont", "a:ea")?.attribs.typeface),
+			minorEa: safeFontName(path(fontScheme, "a:minorFont", "a:ea")?.attribs.typeface),
 		},
 		masterStyles: {
 			title: kid(txStyles, "p:titleStyle"),
@@ -614,15 +674,34 @@ function themeColors(theme: Element | undefined): ThemeColors {
 		const v = kids(c)[0];
 		if (!v) continue;
 		const hex = v.name === "a:sysClr" ? v.attribs.lastClr : v.attribs.val;
-		if (hex) out[name] = hex.toLowerCase();
+		// Only real colors: the values end up in CSS.
+		if (hex && /^[0-9a-f]{6}$/i.test(hex)) out[name] = hex.toLowerCase();
 	}
 	return out;
 }
 
 /** @internal */
 export function fontStack(face: string): string {
-	// Single quotes: this goes inside style="…".
-	return `'${face.replace(/['"\\]/g, "")}', sans-serif`;
+	// Single quotes: this goes inside style="…". The name is already safe (resolveFont).
+	const name = safeFontName(face);
+	return name ? `'${name}', sans-serif` : "sans-serif";
+}
+
+/**
+ * @internal A font name from a PowerPoint file, made safe to put anywhere in
+ * CSS or HTML (a quoted CSS string, a style attribute, a <style> element):
+ * letters, digits, marks, spaces and `-_.+` only — every real font name
+ * ("Calibri Light", "游ゴシック", "Noto Sans JP") — at most 64 characters.
+ * Undefined when nothing is left.
+ */
+export function safeFontName(name: string | undefined): string | undefined {
+	const clean = (name ?? "")
+		.replace(/[^\p{L}\p{N}\p{M} \-_.+]/gu, "")
+		.replace(/ {2,}/g, " ")
+		.trim()
+		.slice(0, 64)
+		.trim();
+	return clean || undefined;
 }
 
 /** @internal */
@@ -865,7 +944,10 @@ function lineCss(ln: Element | undefined, ctx: SlideContext, styleColor?: Elemen
 	const custom = kids(kid(ln, "a:custDash"), "a:ds");
 	if (custom.length)
 		pattern = custom.flatMap((ds) => [num(ds, "d") / 100000, num(ds, "sp") / 100000]);
-	else pattern = DASHES[kid(ln, "a:prstDash")?.attribs.val ?? "solid"];
+	else {
+		const preset = kid(ln, "a:prstDash")?.attribs.val ?? "solid";
+		pattern = Object.hasOwn(DASHES, preset) ? DASHES[preset] : undefined;
+	}
 	const dash = pattern?.length ? pattern.map((v) => r2(Math.max(0.5, v * width))).join(" ") : null;
 	return { width, color, dash };
 }

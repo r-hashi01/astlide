@@ -180,6 +180,20 @@ export interface AstlideOptions {
 	 * ```
 	 */
 	drawings?: DrawingsOption;
+	/**
+	 * Where speaker notes are included.
+	 * - `"public"` (default): in every page, built ones too. Anyone with the
+	 *   deck's URL can read them (press `n`, open `?presenter`, view source).
+	 * - `"dev"`: only while running `astro dev`. Built pages carry no notes, so
+	 *   the presenter window of a deployed deck shows none — and neither do
+	 *   PDF / PPTX exports made from the build.
+	 *
+	 * @example
+	 * ```ts
+	 * astlide({ notes: "dev" })
+	 * ```
+	 */
+	notes?: "public" | "dev";
 }
 
 /** Options for pen drawings. */
@@ -434,6 +448,7 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 										(config.build?.format ?? "directory") === "directory"),
 							),
 							__ASTLIDE_DRAWINGS_PERSIST__: JSON.stringify(options.drawings?.persist ?? false),
+							__ASTLIDE_NOTES__: JSON.stringify(options.notes !== "dev" || command === "dev"),
 						},
 					},
 				});

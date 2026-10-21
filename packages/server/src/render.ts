@@ -7,7 +7,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { DECK } from "./project";
 import { zip } from "./zip";
@@ -62,6 +62,14 @@ export interface RenderOptions {
 	cli: string;
 	bun: string;
 	timeoutMs: number;
+	/** Let the slides reach the server's own network (see `ServerOptions`). */
+	allowPrivateNetwork?: boolean;
+	/** Most slides rendered to PDF / PNG (a deck's script can't make it render more). */
+	maxSlides?: number;
+	/** Largest rendered file, in bytes. */
+	maxOutputBytes?: number;
+	/** Keep Chromium's sandbox on. */
+	chromiumSandbox?: boolean;
 }
 
 /** Run `astlide export` on the project; resolves with the rendered file. */
@@ -73,12 +81,12 @@ export async function renderProject(
 	const out = join(root, "out");
 	const args = [options.cli, "export", DECK, `--${format}`, "--cwd", root, "--out-dir", out];
 	await new Promise<void>((resolve, reject) => {
-		// Its own process group: on timeout, Astro / Chromium children go too.
+		// Its own process group: when it ends (or times out), Astro / Chromium children go too.
 		const child = spawn(options.bun, args, {
 			cwd: root,
 			detached: process.platform !== "win32",
 			stdio: ["ignore", "pipe", "pipe"],
-			env: { ...process.env, ASTRO_TELEMETRY_DISABLED: "1", FORCE_COLOR: "0", NO_COLOR: "1" },
+			env: renderEnv(options),
 		});
 		let log = "";
 		const collect = (d: Buffer) => {
@@ -89,12 +97,8 @@ export async function renderProject(
 		let timedOut = false;
 		const timer = setTimeout(() => {
 			timedOut = true;
-			try {
-				if (child.pid && process.platform !== "win32") process.kill(-child.pid, "SIGKILL");
-				else child.kill("SIGKILL");
-			} catch {
-				// Already gone.
-			}
+			killGroup(child.pid);
+			child.kill("SIGKILL");
 		}, options.timeoutMs);
 		child.on("error", (e) => {
 			clearTimeout(timer);
@@ -102,6 +106,8 @@ export async function renderProject(
 		});
 		child.on("exit", (code) => {
 			clearTimeout(timer);
+			// Whatever the CLI left running (a preview server, Chromium) goes with it.
+			killGroup(child.pid);
 			if (timedOut)
 				reject(
 					new RenderTimeout(`render took longer than ${Math.round(options.timeoutMs / 1000)}s`),
@@ -111,17 +117,54 @@ export async function renderProject(
 		});
 	});
 
+	const limit = options.maxOutputBytes ?? Number.POSITIVE_INFINITY;
+	const tooLarge = () =>
+		new RenderFailed(`the rendered file is over ${Math.round(limit / 1024 / 1024)} MB`);
 	if (format === "png") {
 		const dir = join(out, `${DECK}-slides`);
 		const names = (await readdir(dir)).filter((n) => n.endsWith(".png")).sort();
+		const sizes = await Promise.all(names.map(async (n) => (await stat(join(dir, n))).size));
+		if (sizes.reduce((a, b) => a + b, 0) > limit) throw tooLarge();
 		const files = await Promise.all(
 			names.map(async (name) => ({ name, data: await readFile(join(dir, name)) })),
 		);
 		return { data: zip(files), contentType: CONTENT_TYPES.png, ext: "zip" };
 	}
+	const file = join(out, `${DECK}.${format}`);
+	if ((await stat(file)).size > limit) throw tooLarge();
 	return {
-		data: await readFile(join(out, `${DECK}.${format}`)),
+		data: await readFile(file),
 		contentType: CONTENT_TYPES[format],
 		ext: format,
 	};
+}
+
+/** Kill a render's process group (the CLI and everything it started). */
+function killGroup(pid: number | undefined): void {
+	if (!pid || process.platform === "win32") return;
+	try {
+		process.kill(-pid, "SIGKILL");
+	} catch {
+		// Already gone.
+	}
+}
+
+/** The render's environment: the server's, less its secrets, with exports kept off the internal network. */
+export function renderEnv(
+	options: Pick<RenderOptions, "allowPrivateNetwork" | "maxSlides" | "chromiumSandbox">,
+	env: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+	const out: NodeJS.ProcessEnv = {
+		...env,
+		ASTRO_TELEMETRY_DISABLED: "1",
+		FORCE_COLOR: "0",
+		NO_COLOR: "1",
+	};
+	delete out.ASTLIDE_API_KEY;
+	if (options.maxSlides) out.ASTLIDE_MAX_SLIDES = String(options.maxSlides);
+	if (options.chromiumSandbox) out.ASTLIDE_CHROMIUM_SANDBOX = "1";
+	else delete out.ASTLIDE_CHROMIUM_SANDBOX;
+	if (options.allowPrivateNetwork) delete out.ASTLIDE_PUBLIC_NETWORK_ONLY;
+	else out.ASTLIDE_PUBLIC_NETWORK_ONLY = "1";
+	return out;
 }

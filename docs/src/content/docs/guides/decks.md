@@ -108,6 +108,14 @@ Notes are hidden from the audience and show in the presenter window (`p`) and th
 
 If a slide has more than one, `<SpeakerNotes>` wins, then frontmatter `notes`, then the trailing comment. `<Notes>` still works as an alias of `<SpeakerNotes>`.
 
+:::caution[Notes are public by default]
+Notes are part of every built page, so anyone who can open the deck can read them: press `n`, open `?presenter`, or view the page source. To keep them to yourself, set `notes: "dev"`: notes are then only included while running `astro dev`, and the deployed deck (and PDF / PPTX exports made from the build) carries none.
+
+```ts
+astlide({ notes: "dev" })
+```
+:::
+
 ## Editing in the browser
 
 While `astro dev` is running, press <kbd>e</kbd> on a slide to open its source file in a panel next to it, and just type: changes are saved a moment after you stop typing (or right away with <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>S</kbd>) and the slide updates **live, without a page reload**: only the parts of the slide you changed are swapped in, so nothing flickers — your caret, the current fragment step, rendered diagrams and things like the camera or a running recording stay as they are. <kbd>Esc</kbd> (or ✕) saves and closes the panel.

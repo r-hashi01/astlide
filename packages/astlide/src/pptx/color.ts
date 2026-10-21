@@ -29,6 +29,11 @@ export const DEFAULT_COLOR_MAP: ColorMap = {
 	folHlink: "folHlink",
 };
 
+/** `obj[key]` when it is the object's own entry: keys come from the file, so `constructor` etc. must miss. */
+function own<T>(obj: Record<string, T>, key: string | undefined): T | undefined {
+	return key !== undefined && Object.hasOwn(obj, key) ? obj[key] : undefined;
+}
+
 const PRESET: Record<string, string> = {
 	black: "000000",
 	white: "ffffff",
@@ -96,12 +101,12 @@ export function colorOf(
 			hex = el.attribs.lastClr ?? (el.attribs.val === "window" ? "ffffff" : "000000");
 			break;
 		case "a:prstClr":
-			hex = PRESET[el.attribs.val ?? ""];
+			hex = own(PRESET, el.attribs.val);
 			break;
 		case "a:schemeClr": {
 			const name = el.attribs.val ?? "";
 			if (name === "phClr") hex = ctx.placeholder;
-			else hex = ctx.theme[ctx.map[name] ?? name] ?? ctx.theme[name];
+			else hex = own(ctx.theme, own(ctx.map, name) ?? name) ?? own(ctx.theme, name);
 			break;
 		}
 		case "a:scrgbClr":

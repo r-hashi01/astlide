@@ -28,7 +28,7 @@ export {
 	slideMarkdown,
 } from "./import";
 export { type RenderFormat, type RenderOptions, type RenderResult, renderDeck } from "./render";
-export { createServer } from "./server-def";
+export { createServer, type ServerOptions } from "./server-def";
 export {
 	type TemplateLayoutInfo,
 	type TemplateLayoutsResult,

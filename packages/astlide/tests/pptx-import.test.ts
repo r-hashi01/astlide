@@ -1,10 +1,13 @@
+import { deflateRawSync } from "node:zlib";
 import PptxGenJS from "pptxgenjs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { toEot } from "../src/cli/pptx/eot";
+import { ZipWriter } from "../src/cli/pptx/ooxml-writer";
 import { colorOf } from "../src/pptx/color";
-import { fontFromEot, type ImportedDeck, pptxToSlides } from "../src/pptx/import";
+import { fontFromEot, type ImportedDeck, pptxToSlides, safeFontName } from "../src/pptx/import";
+import { pptxToTemplate, templateCss } from "../src/pptx/template";
 import { parseXml } from "../src/pptx/xml";
-import { readZip } from "../src/pptx/zip";
+import { readZip, ZIP_LIMITS } from "../src/pptx/zip";
 
 /** 1×1 red PNG. */
 const PNG =
@@ -122,6 +125,29 @@ describe("pptxToSlides", () => {
 		expect(withFiles.slides[1]?.html).toMatch(/<img src="\/assets\/[^"]+\.png"/);
 	});
 
+	it("inlines SVG pictures instead of handing them to the media callback", async () => {
+		// The fixture's picture, swapped for an SVG holding a script.
+		const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><script>alert(1)</script><rect width="10" height="10"/></svg>`;
+		const files = readZip(await fixture());
+		const zip = new ZipWriter();
+		for (const name of files.keys()) {
+			const data = files.get(name) as Buffer;
+			if (/^ppt\/media\/.*\.png$/.test(name)) zip.add(name.replace(/\.png$/, ".svg"), svg);
+			else if (name.endsWith(".rels") || name === "[Content_Types].xml")
+				zip.add(name, data.toString("utf-8").replace(/(media\/[^"]+)\.png"/g, '$1.svg"'));
+			else zip.add(name, data);
+		}
+		const handed: string[] = [];
+		const deck = pptxToSlides(zip.toBuffer(), {
+			media: (f) => {
+				handed.push(f.type);
+				return `/assets/${f.name}`;
+			},
+		});
+		expect(handed).not.toContain("image/svg+xml");
+		expect(deck.slides[1]?.html).toMatch(/<img src="data:image\/svg\+xml;base64,/);
+	});
+
 	it("rejects files that aren't PowerPoint", () => {
 		expect(() => pptxToSlides(Buffer.from("not a zip"))).toThrow(/ZIP/);
 	});
@@ -132,6 +158,255 @@ describe("readZip", () => {
 		const files = readZip(await fixture());
 		expect(files.get("ppt/presentation.xml")?.toString("utf-8")).toContain("p:presentation");
 		expect([...files.keys()].some((k) => k.endsWith("/"))).toBe(false);
+	});
+});
+
+/** A copy of a .pptx with some parts replaced (text in, text out). */
+function patched(
+	pptx: Buffer,
+	edit: (name: string, text: string) => string,
+	extra: Record<string, Buffer> = {},
+): Buffer {
+	const files = readZip(pptx);
+	const zip = new ZipWriter();
+	for (const name of files.keys()) {
+		const data = files.get(name) as Buffer;
+		zip.add(name, /\.(xml|rels)$/.test(name) ? edit(name, data.toString("utf-8")) : data);
+	}
+	for (const [name, data] of Object.entries(extra)) zip.add(name, data);
+	return zip.toBuffer();
+}
+
+/** A minimal sfnt wrapped as an EOT, as PowerPoint embeds fonts. */
+function eotFont(): Buffer {
+	const font = Buffer.alloc(12 + 3 * 16 + 86 + 54 + 6);
+	font.writeUInt32BE(0x00010000, 0);
+	font.writeUInt16BE(3, 4);
+	const tables: [string, number, number][] = [
+		["OS/2", 60, 86],
+		["head", 146, 54],
+		["name", 200, 6],
+	];
+	tables.forEach(([tag, offset, length], i) => {
+		font.write(tag, 12 + i * 16, "latin1");
+		font.writeUInt32BE(offset, 12 + i * 16 + 8);
+		font.writeUInt32BE(length, 12 + i * 16 + 12);
+	});
+	font.writeUInt16BE(6, 200 + 4);
+	return toEot(font);
+}
+
+describe("untrusted files", () => {
+	it("keeps font names to safe characters", () => {
+		expect(safeFontName("Calibri Light")).toBe("Calibri Light");
+		expect(safeFontName("游ゴシック")).toBe("游ゴシック");
+		expect(safeFontName("Noto Sans JP")).toBe("Noto Sans JP");
+		expect(safeFontName("x</style><script>alert(1)</script>")).toBe("xstylescriptalert1script");
+		expect(safeFontName("a';}body{x:y")).toBe("abodyxy");
+		expect(safeFontName("<>{}")).toBeUndefined();
+	});
+
+	it("can't break out of the style element with an embedded font's name", async () => {
+		const evil = "x&lt;/style&gt;&lt;img src=x onerror=alert(1)&gt;";
+		const pptx = patched(
+			await fixture(),
+			(name, text) =>
+				name === "ppt/presentation.xml"
+					? text.replace(
+							"</p:sldIdLst>",
+							`</p:sldIdLst><p:embeddedFontLst><p:embeddedFont><p:font typeface="${evil}"/><p:regular r:id="rIdEvilFont"/></p:embeddedFont></p:embeddedFontLst>`,
+						)
+					: name === "ppt/_rels/presentation.xml.rels"
+						? text.replace(
+								"</Relationships>",
+								'<Relationship Id="rIdEvilFont" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="fonts/font1.fntdata"/></Relationships>',
+							)
+						: text,
+			{ "ppt/fonts/font1.fntdata": eotFont() },
+		);
+		const deck = pptxToSlides(pptx, { media: (f) => `/assets/${f.name.replace(/[^\w.-]/g, "")}` });
+		const html = deck.slides[0]?.html ?? "";
+		expect(html).toContain("@font-face{font-family:'xstyleimg srcx onerroralert1'");
+		expect(html).not.toContain("<img src=x");
+		expect(html.match(/<\/style>/g)?.length).toBe(2); // the reset and the font rules, nothing else
+	});
+
+	it("only takes real colors from a template's theme into its CSS", async () => {
+		const pptx = patched(await fixture(), (name, text) =>
+			/ppt\/theme\/theme\d+\.xml$/.test(name)
+				? text.replace(
+						/<a:lt1>[\s\S]*?<\/a:lt1>/,
+						'<a:lt1><a:srgbClr val="fff}*{display:none}x{"/></a:lt1>',
+					)
+				: text,
+		);
+		const template = pptxToTemplate(pptx);
+		expect(template.colors.lt1).toBeUndefined();
+		const css = templateCss(template, "brand");
+		expect(css).not.toContain("display:none");
+		// The bad value is dropped: the default stands in.
+		expect(css).toContain("--color-background:#ffffff");
+	});
+
+	it("reads each slide once, however often the file lists it", async () => {
+		const pptx = patched(await fixture(), (name, text) => {
+			if (name !== "ppt/presentation.xml") return text;
+			const first = text.match(/<p:sldId [^>]*\/>/)?.[0] ?? "";
+			return text.replace("</p:sldIdLst>", `${first.repeat(500)}</p:sldIdLst>`);
+		});
+		expect(pptxToSlides(pptx).slides).toHaveLength(2);
+	});
+
+	/** The fixture with `xml` added to slide 1's shapes. */
+	async function withShapes(xml: string): Promise<Buffer> {
+		return patched(await fixture(), (name, text) =>
+			name === "ppt/slides/slide1.xml" ? text.replace("</p:spTree>", `${xml}</p:spTree>`) : text,
+		);
+	}
+	/** A text box with one paragraph, `pPr` / `rPr` / `spPr` children as given. */
+	const textBox = (pPr: string, spPr = "", text = "item") =>
+		`<p:sp><p:nvSpPr><p:cNvPr id="900" name="t"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="914400"/></a:xfrm>${spPr}</p:spPr><p:txBody><a:bodyPr/><a:p><a:pPr>${pPr}</a:pPr><a:r><a:t>${text}</a:t></a:r></a:p></p:txBody></p:sp>`;
+
+	it("keeps numbered lists within PowerPoint's range", async () => {
+		const html = async (startAt: string) =>
+			pptxToSlides(
+				await withShapes(textBox(`<a:buAutoNum type="romanUcPeriod" startAt="${startAt}"/>`)),
+			).slides[0]?.html ?? "";
+		expect(await html("4")).toContain("IV.");
+		// Past 3999 there are no roman numerals: plain numbers.
+		expect(await html("5000")).toContain("5000.");
+		expect(await html("1e12")).toContain("32767.");
+		expect(await html("Infinity")).toContain("I.");
+	});
+
+	it("reads each embedded font once, and only so many", async () => {
+		const fonts = Array.from(
+			{ length: 2000 },
+			(_, i) =>
+				`<p:embeddedFont><p:font typeface="F${i % 100}"/><p:regular r:id="rIdF"/></p:embeddedFont>`,
+		).join("");
+		const pptx = patched(
+			await fixture(),
+			(name, text) =>
+				name === "ppt/presentation.xml"
+					? text.replace(
+							"</p:sldIdLst>",
+							`</p:sldIdLst><p:embeddedFontLst>${fonts}</p:embeddedFontLst>`,
+						)
+					: name === "ppt/_rels/presentation.xml.rels"
+						? text.replace(
+								"</Relationships>",
+								'<Relationship Id="rIdF" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="fonts/font1.fntdata"/></Relationships>',
+							)
+						: text,
+			{ "ppt/fonts/font1.fntdata": eotFont() },
+		);
+		let stored = 0;
+		const deck = pptxToSlides(pptx, {
+			media: (f) => {
+				if (f.type === "font/ttf") stored++;
+				return `/assets/${f.name}`;
+			},
+		});
+		expect(stored).toBe(1);
+		expect(deck.slides[0]?.html.match(/@font-face/g)?.length).toBe(32);
+	});
+
+	it("refuses oversized XML parts before parsing them", async () => {
+		const huge = await withShapes(`<a:ext uri="x">${" ".repeat(33 * 1024 * 1024)}</a:ext>`);
+		expect(() => pptxToSlides(huge)).toThrow(/too large/);
+		const many = await withShapes("<a:x/>".repeat(600_000));
+		expect(() => pptxToSlides(many)).toThrow(/too many elements/);
+	});
+
+	it("doesn't trip over names like constructor in the file", async () => {
+		const pptx = await withShapes(
+			textBox(
+				'<a:buFont typeface="Wingdings"/><a:buChar char="constructor"/>',
+				'<a:solidFill><a:prstClr val="constructor"/></a:solidFill><a:ln w="12700"><a:solidFill><a:schemeClr val="constructor"/></a:solidFill><a:prstDash val="constructor"/></a:ln>',
+			) + textBox("", '<a:solidFill><a:schemeClr val="__proto__"/></a:solidFill>'),
+		);
+		expect(pptxToSlides(pptx).slides[0]?.html).toContain("item");
+	});
+
+	it("refuses XML nested deeper than the helpers can walk", async () => {
+		const depth = 1000;
+		const pptx = patched(await fixture(), (name, text) =>
+			/^ppt\/slides\/slide1\.xml$/.test(name)
+				? text.replace(
+						"</p:spTree>",
+						`${"<p:grpSp>".repeat(depth)}${"</p:grpSp>".repeat(depth)}</p:spTree>`,
+					)
+				: text,
+		);
+		expect(() => pptxToSlides(pptx)).toThrow(/nested too deeply/);
+	});
+
+	it("matches placeholders against an index, not shape by shape", async () => {
+		// 20 000 placeholders on slide 1 and its layout (BRAND): quadratic matching takes far longer.
+		const shapes = (n: number) =>
+			Array.from(
+				{ length: n },
+				(_, i) =>
+					`<p:sp><p:nvSpPr><p:cNvPr id="${i + 100}" name="p${i}"/><p:cNvSpPr/><p:nvPr><p:ph type="body" idx="${i + 100}"/></p:nvPr></p:nvSpPr><p:spPr/></p:sp>`,
+			).join("");
+		const pptx = patched(await fixture(), (name, text) =>
+			/^ppt\/(slides\/slide1|slideLayouts\/slideLayout2)\.xml$/.test(name)
+				? text.replace("</p:spTree>", `${shapes(20_000)}</p:spTree>`)
+				: text,
+		);
+		const started = performance.now();
+		pptxToSlides(pptx);
+		expect(performance.now() - started).toBeLessThan(4000);
+	});
+});
+
+describe("readZip limits", () => {
+	/** A one-entry archive whose central directory claims `declared` bytes. */
+	function archive(data: Buffer, declared: number, copies = 1): Buffer {
+		const compressed = deflateRawSync(data);
+		const name = Buffer.from("a.xml");
+		const local = Buffer.alloc(30);
+		local.writeUInt32LE(0x04034b50, 0);
+		local.writeUInt16LE(8, 8);
+		local.writeUInt32LE(compressed.length, 18);
+		local.writeUInt32LE(declared, 22);
+		local.writeUInt16LE(name.length, 26);
+		const central: Buffer[] = [];
+		for (let i = 0; i < copies; i++) {
+			const c = Buffer.alloc(46);
+			c.writeUInt32LE(0x02014b50, 0);
+			c.writeUInt16LE(8, 10);
+			c.writeUInt32LE(compressed.length, 20);
+			c.writeUInt32LE(declared, 24);
+			c.writeUInt16LE(name.length + 1, 28);
+			c.writeUInt32LE(0, 42);
+			central.push(c, Buffer.concat([Buffer.from(`${i}`), name]));
+		}
+		const cd = Buffer.concat(central);
+		const body = Buffer.concat([local, name, compressed]);
+		const end = Buffer.alloc(22);
+		end.writeUInt32LE(0x06054b50, 0);
+		end.writeUInt16LE(copies, 8);
+		end.writeUInt16LE(copies, 10);
+		end.writeUInt32LE(cd.length, 12);
+		end.writeUInt32LE(body.length, 16);
+		return Buffer.concat([body, cd, end]);
+	}
+
+	it("inflates no more than an entry declares", () => {
+		const bomb = archive(Buffer.alloc(64 * 1024 * 1024), 100);
+		const files = readZip(bomb);
+		expect(() => files.get("0a.xml")).toThrow();
+	});
+
+	it("refuses entries over the size limit without inflating them", () => {
+		const files = readZip(archive(Buffer.from("x"), ZIP_LIMITS.entryBytes + 1));
+		expect(() => files.get("0a.xml")).toThrow(/too large/);
+	});
+
+	it("refuses entries that share data", () => {
+		expect(() => readZip(archive(Buffer.from("<x/>"), 4, 3))).toThrow(/share data/);
 	});
 });
 

@@ -5,7 +5,7 @@ An HTTP render service for [Astlide](https://github.com/r-hashi01/astlide): Mark
 ```bash
 # From the repository root
 docker build -f packages/server/Dockerfile -t astlide-server .
-docker run --rm -p 8787:8787 astlide-server
+docker run --rm -p 8787:8787 -e ASTLIDE_API_KEY="$(openssl rand -hex 24)" astlide-server
 ```
 
 Guide: https://astlide.dev/guides/server/
