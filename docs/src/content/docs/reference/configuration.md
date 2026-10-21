@@ -35,13 +35,23 @@ export default defineConfig({
 | `shikiTheme` | `string` | `"github-dark"` | Shiki theme for code fences. |
 | `font` | `false \| string \| { href?, preconnect? }` | Inter + JetBrains Mono from Google Fonts | Web font stylesheet to inject, or `false` for none. |
 | `favicon` | `string \| false` | auto | Favicon for deck pages and the index. Default: `favicon.svg` / `.ico` / `.png` from `public/` if present, else an empty icon (no request to `/favicon.ico` at the domain root). A root-relative path gets Astro's `base`. `false`: no icon link. |
-| `csp` | `boolean \| string` | `true` | Inject a default Content-Security-Policy meta tag (on slide pages, `/[deck]/all` and the index; it includes `base-uri 'self'; form-action 'self'; object-src 'none'`), disable it, or provide your own policy. In `astro dev`, `worker-src 'self' blob:` is added (unless set) for Vite's client; the build keeps the policy as is. |
+| `csp` | `boolean \| string` | `true` | Inject a default Content-Security-Policy meta tag (on slide pages, `/[deck]/all` and the index; it includes `base-uri 'self'; form-action 'self'; object-src 'none'`), disable it, or provide your own policy. In a build, the default policy's `script-src` has no `'unsafe-inline'`: each page's inline scripts — Astlide's, Astro's and any a slide brings — are allowed by their SHA-256 hashes, added after `astro build`. Inline event-handler attributes (`onclick="…"`) and `javascript:` URLs don't run. `style-src` keeps `'unsafe-inline'` (slides use `style` attributes). In `astro dev`, scripts stay on `'unsafe-inline'` and `worker-src 'self' blob:` is added (unless set) for Vite's client. A policy string of your own is used as is. See [Framing and headers](#framing-and-headers). |
 | `indexable` | `boolean` | `false` | When `false`, pages carry `noindex, nofollow`. |
 | `injectIndexRoute` | `boolean` | auto | Inject the deck index at `/`. Auto-skipped when you have your own `src/pages/index.*`. |
 | `drawings.persist` | `boolean` | `false` | Keep pen drawings in `localStorage` across reloads — see [Presenting](/guides/presenting/#keeping-drawings). |
 | `notes` | `"public" \| "dev"` | `"public"` | Where speaker notes are included. `"public"`: every page, so anyone with the URL can read them. `"dev"`: only in `astro dev`; built pages (and exports made from them) carry no notes — see [Speaker notes](/guides/decks/#speaker-notes). |
 
 Astro's own [`base`](/guides/deploy/) option is honoured as well.
+
+### Framing and headers
+
+A `<meta>` CSP can't say who may put your deck in an `<iframe>` (`frame-ancestors`), so any site can embed it. Where your host lets you set response headers, add it there — for example `Content-Security-Policy: frame-ancestors 'self' https://your-site.example`:
+
+- **Netlify** — `public/_headers`: `/*` then `  Content-Security-Policy: frame-ancestors 'self'`
+- **Cloudflare Pages** — the same `public/_headers` file
+- **Vercel** — `vercel.json`: `"headers": [{ "source": "/(.*)", "headers": [{ "key": "Content-Security-Policy", "value": "frame-ancestors 'self'" }] }]`
+
+GitHub Pages can't set headers. Allow the sites that use [`<astlide-deck>`](/guides/embed/) to embed your decks.
 
 ## Deck `_config.json`
 

@@ -12,6 +12,7 @@ import { astlideVirtualPlugin } from "./internal/virtual-plugins";
 import { type AstlidePlugin, BUILT_IN_PLUGIN, resolvePlugins } from "./plugin";
 import { astlideCodeHighlight } from "./utils/code-highlight";
 import { astlideCommentNotesPlugin } from "./utils/comment-notes";
+import { hashBuiltPages } from "./utils/csp-hashes";
 import { resolveFavicon } from "./utils/favicon";
 import { astlideMermaid } from "./utils/mermaid";
 import { PPTX_ASSET_ROUTE, pptxAssetDir } from "./utils/pptx-assets";
@@ -47,9 +48,16 @@ export interface AstlideOptions {
 	 * - `false`: disable CSP entirely
 	 * - `string`: use a custom CSP policy string
 	 *
-	 * During `astro dev`, `worker-src 'self' blob:` is added (unless the policy sets
-	 * `worker-src`) so Vite's client can reconnect after a server restart. Built
-	 * output gets the policy as is.
+	 * In a build, the default policy allows inline scripts by hash, not
+	 * `'unsafe-inline'`: after `astro build`, each page's inline `<script>`s
+	 * (Astlide's, Astro's and any a slide brings) are hashed into its
+	 * `script-src`. Inline event-handler attributes and `javascript:` URLs don't
+	 * run. `style-src` keeps `'unsafe-inline'` for `style` attributes. A custom
+	 * policy string is used as is.
+	 *
+	 * During `astro dev`, scripts stay on `'unsafe-inline'`, and
+	 * `worker-src 'self' blob:` is added (unless the policy sets `worker-src`) so
+	 * Vite's client can reconnect after a server restart.
 	 */
 	csp?: boolean | string;
 	/**
@@ -511,6 +519,12 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 							"  src/content/decks/my-deck/01-intro.mdx\n",
 					);
 				}
+			},
+			// Built pages: the default CSP's script-src gets each page's inline-script
+			// hashes in place of 'unsafe-inline' (see utils/csp-hashes).
+			"astro:build:done": async ({ dir, logger }) => {
+				const changed = await hashBuiltPages(fileURLToPath(dir));
+				if (changed) logger.info(`CSP: inline scripts hashed in ${changed} page(s)`);
 			},
 		},
 	};

@@ -15,7 +15,13 @@ const DEV_WORKER_SRC = "worker-src 'self' blob:";
 /** Directives every default policy ends with: no `<base>` / form / plugin tricks. */
 const HARDENING = ["base-uri 'self'", "form-action 'self'", "object-src 'none'"];
 
-/** Default policy of deck pages (slides, `/[deck]/all`). */
+/**
+ * Default policy of deck pages (slides, `/[deck]/all`). `'unsafe-inline'` in
+ * `script-src` is for `astro dev` only: in a build it is replaced by the
+ * hashes of each page's inline scripts (see `utils/csp-hashes`). Styles keep
+ * `'unsafe-inline'`: slides set `style` attributes throughout, which hashes
+ * can't allow.
+ */
 export const DEFAULT_DECK_CSP = [
 	"default-src 'self'",
 	"script-src 'self' 'unsafe-inline'",
@@ -40,6 +46,17 @@ export const DEFAULT_INDEX_CSP = [
 	"frame-src 'self'",
 	...HARDENING,
 ].join("; ");
+
+/**
+ * Whether a page's policy is one of the defaults, whose `script-src` gets the
+ * page's inline-script hashes at build: true unless `csp` is `false` or a
+ * policy string of your own.
+ *
+ * @param option - The `csp` integration option.
+ */
+export function cspHashable(option: boolean | string): boolean {
+	return option !== false && !(typeof option === "string" && option !== "true");
+}
 
 /**
  * The CSP a page emits for the integration's `csp` option: `false` → none,
