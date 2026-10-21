@@ -1,6 +1,10 @@
 /**
  * PDF / PNG rendering of a deck from a running site (dev, preview or the
  * temporary server `astlide export` starts).
+ *
+ * The render service sets: `ASTLIDE_PUBLIC_NETWORK_ONLY=1` (slides reach only
+ * public hosts), `ASTLIDE_MAX_SLIDES` (most slides rendered) and, when asked,
+ * `ASTLIDE_CHROMIUM_SANDBOX=1` (Chromium keeps its sandbox).
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
@@ -30,7 +34,10 @@ async function getSlideCount(
 		parseInt((document.body as HTMLElement).dataset.totalSlides || "0", 10),
 	);
 	await page.close();
-	return count;
+	// The page says how many slides it has; a deck's own script could claim more.
+	const max = Number(process.env.ASTLIDE_MAX_SLIDES);
+	const n = Number.isFinite(count) && count > 0 ? count : 0;
+	return max > 0 ? Math.min(n, max) : n;
 }
 
 const EXPORT_STYLE = `
@@ -115,7 +122,10 @@ export async function exportDeck(deck: string, options: RenderOptions): Promise<
 	console.log(`\nExporting: ${deck}`);
 
 	// Launch a single browser instance shared across slide-count detection and export
-	const browser = await chromium.launch().catch((err: Error) => {
+	// ASTLIDE_CHROMIUM_SANDBOX=1 keeps Chromium's sandbox on (Playwright turns it
+	// off by default); it needs user namespaces, which containers often deny.
+	const chromiumSandbox = process.env.ASTLIDE_CHROMIUM_SANDBOX === "1";
+	const browser = await chromium.launch({ chromiumSandbox }).catch((err: Error) => {
 		if (/Executable doesn't exist/.test(err.message)) {
 			throw new Error(
 				"PDF / PNG export needs Chromium. Install it once with: bunx playwright install chromium\n" +

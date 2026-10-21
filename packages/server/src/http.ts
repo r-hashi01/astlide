@@ -32,7 +32,12 @@ function toRequest(req: IncomingMessage): Request {
 
 export function serve(
 	handler: (req: Request) => Promise<Response>,
-	options: { port: number; hostname?: string },
+	options: {
+		port: number;
+		hostname?: string;
+		/** Time a client has to send its whole request — headers and body (ms). */
+		requestTimeoutMs?: number;
+	},
 ): Promise<RunningServer> {
 	const server = createServer(async (req, res) => {
 		try {
@@ -46,8 +51,10 @@ export function serve(
 			res.end('{"error":"internal error"}');
 		}
 	});
-	// Renders can take minutes.
-	server.requestTimeout = 0;
+	// Only receiving the request is timed (a slow sender can't hold a body
+	// buffer forever); the response — a render — can take minutes.
+	server.requestTimeout = options.requestTimeoutMs ?? 60_000;
+	server.headersTimeout = Math.min(server.requestTimeout, 30_000);
 	return new Promise((resolve, reject) => {
 		server.once("error", reject);
 		server.listen(options.port, options.hostname, () => {

@@ -94,7 +94,7 @@ describe("deckFiles", () => {
 		expect(files["01-slide.md"]).toBe(
 			'---\nslideLayout: "cover"\nnotes: "Say \\"hi\\"\\n: ok"\n---\n# A\n',
 		);
-		expect(files["02-slide.html"]).toBe("<p>B</p>\n");
+		expect(files["02-slide.html"]).toBe("---\n{}\n---\n<p>B</p>\n");
 		expect(JSON.parse(files["_config.json"] as string)).toEqual({ title: "Deck", theme: "dark" });
 	});
 
@@ -134,5 +134,35 @@ describe("Queue", () => {
 		expect(await first).toBe("first");
 		expect(await second).toBe("second");
 		expect(queue.size).toEqual({ running: 0, waiting: 0 });
+	});
+});
+
+describe("input that could escape the slide", () => {
+	it("keeps a body that starts with --- as body, not frontmatter", () => {
+		const evil = "---\nslideLayout: 42\nfoo: bar\n---\n# Hi";
+		const files = deckFiles(parseSlides({ slides: [evil, { html: evil }] }), {});
+		expect(files["01-slide.md"]).toBe(`---\n{}\n---\n${evil}\n`);
+		expect(files["02-slide.html"]).toBe(`---\n{}\n---\n${evil}\n`);
+	});
+
+	it("refuses Markdown images that are file paths", () => {
+		for (const markdown of [
+			"![x](../../../../etc/secret.png)",
+			"![x](<./a b.png>)",
+			'![x](img.jpg "title")',
+			"![x][a]\n\n[a]: ../../x.svg",
+		])
+			expect(() => parseSlides({ markdown }), markdown).toThrow(/file path/);
+	});
+
+	it("allows image URLs, and links to relative pages", () => {
+		for (const markdown of [
+			"![x](https://example.com/a.png)",
+			"![x](data:image/png;base64,AAAA)",
+			"![x](/public.png)",
+			"[docs](../guide.html)",
+			'<img src="../x.png">',
+		])
+			expect(() => parseSlides({ markdown }), markdown).not.toThrow();
 	});
 });

@@ -13,7 +13,7 @@
 			"post": {
 				"operationId": "renderSlides",
 				"summary": "Render Markdown slides to PPTX, PDF or PNG",
-				"description": "Builds the slides with Astlide and exports them. Send the slides as one Markdown string (`markdown`; slides separated by lines that are exactly `---`, each optionally starting with a frontmatter block) or as an array (`slides`). Style them with a built-in `theme`, or upload a PowerPoint template (`template`: .pptx / .potx / .thmx) whose layouts can then be chosen per slide with `slideLayout` (see /templates/layouts). By default the file itself is returned; with `output: base64` a JSON object carrying the file as base64.",
+				"description": "Builds the slides with Astlide and exports them. Send the slides as one Markdown string (`markdown`; slides separated by lines that are exactly `---`, each optionally starting with a frontmatter block) or as an array (`slides`). Style them with a built-in `theme`, or upload a PowerPoint template (`template`: .pptx / .potx / .thmx) whose layouts can then be chosen per slide with `slideLayout` (see /templates/layouts). Images must be `https:` or `data:` URLs (a Markdown image with a file path is refused). By default the file itself is returned; with `output: base64` a JSON object carrying the file as base64.",
 				"requestBody": {
 					"required": true,
 					"content": {

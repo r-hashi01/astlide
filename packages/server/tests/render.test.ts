@@ -103,4 +103,18 @@ describe("POST /render (end to end)", () => {
 		expect(res.status, body.toString()).toBe(200);
 		expect(body.subarray(0, 5).toString()).toBe("%PDF-");
 	}, 180_000);
+
+	it("refuses a rendered file over MAX_OUTPUT_MB", async () => {
+		const small = createHandler({ ...options, maxOutputBytes: 1000 });
+		const res = await small(
+			new Request("http://test/render", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ markdown: "# A" }),
+			}),
+		);
+		expect(res.status).toBe(422);
+		expect((await res.json()).error).toMatch(/over/);
+		expect(projects()).toEqual([]);
+	}, 180_000);
 });

@@ -6,6 +6,7 @@
  */
 
 import { pptxToSlides, pptxToTemplate, type TemplateRegion } from "@astlide/core/pptx";
+import { exportFetch } from "@astlide/core/utils/network.ts";
 import { BadRequest } from "./deck";
 
 /** Template / deck file extensions accepted. */
@@ -20,19 +21,25 @@ export function isZip(data: Uint8Array): boolean {
 
 /**
  * A Google Slides deck exported as PowerPoint. Only docs.google.com
- * presentation URLs are fetched; the deck must be shared as "Anyone with the link".
+ * presentation URLs are fetched (at most `limit` bytes, within 60 s); the deck
+ * must be shared as "Anyone with the link".
  */
-export async function fetchGoogleSlides(url: string): Promise<Uint8Array> {
+export async function fetchGoogleSlides(url: string, limit: number): Promise<Uint8Array> {
 	const id = url.match(GOOGLE_SLIDES)?.[1];
 	if (!id)
 		throw new BadRequest(
 			"url must be a Google Slides URL (https://docs.google.com/presentation/d/…)",
 		);
-	const res = await fetch(`https://docs.google.com/presentation/d/${id}/export/pptx`, {
-		redirect: "follow",
-		signal: AbortSignal.timeout(60_000),
-	});
-	const data = new Uint8Array(await res.arrayBuffer());
+	let res: Awaited<ReturnType<typeof exportFetch>>;
+	try {
+		res = await exportFetch(`https://docs.google.com/presentation/d/${id}/export/pptx`, {
+			limit,
+			timeoutMs: 60_000,
+		});
+	} catch (e) {
+		throw new BadRequest(`couldn't download the deck: ${(e as Error).message}`);
+	}
+	const data = new Uint8Array(res.body);
 	// A private deck answers with a sign-in page, not a ZIP.
 	if (!res.ok || !isZip(data))
 		throw new BadRequest('couldn\'t download the deck — share it as "Anyone with the link"');

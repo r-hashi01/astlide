@@ -132,7 +132,40 @@ export function parseSlides(input: { markdown?: unknown; slides?: unknown }): Sl
 	else throw new BadRequest('send "markdown" (a string) or "slides" (an array)');
 	if (slides.length === 0) throw new BadRequest("no slides");
 	slides.forEach(validate);
+	slides.forEach(checkImages);
 	return slides;
+}
+
+/** Image extensions Astro's Markdown pipeline imports from disk. */
+const IMAGE_FILE = /\.(?:png|jpe?g|gif|webp|avif|svg|tiff?|bmp|ico|heic|heif)(?:[?#].*)?$/i;
+
+/** A URL that names a file on the server: not `scheme:`, `//host`, `/public-path` or `#…`. */
+const isLocalPath = (url: string) => !/^(?:[a-z][a-z\d+.-]*:|\/|#)/i.test(url.trim());
+
+/**
+ * Refuse images that point at the server's disk. A Markdown image with a
+ * relative path is read from the file system at build time, so
+ * `![](../../../x.png)` would copy any image the server can read into the
+ * output. Slides only have their own text: images must be URLs (`https:`,
+ * `data:`) — HTML `<img src>` isn't read from disk and is left alone.
+ */
+function checkImages(slide: Slide, index: number): void {
+	if (slide.kind !== "md") return;
+	const targets = [
+		// ![alt](target "title") and ![alt](<target>)
+		...[...slide.body.matchAll(/!\[[^\]]*\]\(\s*(?:<([^>]*)>|(\S+?))(?:\s+["'(][^)]*)?\s*\)/g)].map(
+			(m) => m[1] ?? m[2] ?? "",
+		),
+		// [id]: target — definitions images may use (![alt][id])
+		...[...slide.body.matchAll(/^ {0,3}\[[^\]]+\]:\s*<?([^\s>]+)>?/gm)]
+			.map((m) => m[1] ?? "")
+			.filter((t) => IMAGE_FILE.test(t)),
+	];
+	const local = targets.find(isLocalPath);
+	if (local !== undefined)
+		throw new BadRequest(
+			`slide ${index + 1}: image "${local}" is a file path — use an https: or data: URL`,
+		);
 }
 
 /**
@@ -166,7 +199,9 @@ function frontmatterBlock(frontmatter: Record<string, unknown>, index: number): 
 		if (value === undefined) continue;
 		lines.push(`${key}: ${JSON.stringify(value)}`);
 	}
-	return lines.length ? `---\n${lines.join("\n")}\n---\n` : "";
+	// Always a block, even an empty one: a body that itself starts with `---`
+	// must stay body, not become the (unchecked) frontmatter.
+	return `---\n${lines.length ? lines.join("\n") : "{}"}\n---\n`;
 }
 
 /**

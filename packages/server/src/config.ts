@@ -27,6 +27,10 @@ export interface ServerOptions {
 	concurrency: number;
 	/** Renders waiting; more are refused with 503. */
 	maxQueued: number;
+	/** Largest rendered file (PPTX, PDF or PNG zip), in bytes; a bigger one is a 422. */
+	maxOutputBytes: number;
+	/** Keep Chromium's sandbox on for PDF / PNG (`ASTLIDE_CHROMIUM_SANDBOX=1`; needs user namespaces). */
+	chromiumSandbox: boolean;
 	/** When set, requests need `Authorization: Bearer <key>` (or `X-API-Key: <key>`). */
 	apiKey?: string;
 	/** The server's public URL, for the OpenAPI spec's `servers` (default: from the request). */
@@ -93,6 +97,8 @@ export function resolveOptions(
 		renderTimeoutMs: positive(env.RENDER_TIMEOUT_MS, 180_000),
 		concurrency: positive(env.CONCURRENCY, 2),
 		maxQueued: positive(env.MAX_QUEUE, 16),
+		maxOutputBytes: positive(env.MAX_OUTPUT_MB, 200) * 1024 * 1024,
+		chromiumSandbox: env.ASTLIDE_CHROMIUM_SANDBOX === "1",
 		apiKey: env.ASTLIDE_API_KEY || undefined,
 		publicUrl: (env.PUBLIC_URL && trimTrailingSlashes(env.PUBLIC_URL)) || undefined,
 		allowPrivateNetwork: env.ASTLIDE_ALLOW_PRIVATE_NETWORK === "1",

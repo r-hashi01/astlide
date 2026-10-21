@@ -75,6 +75,32 @@ describe("routes", () => {
 		expect((await req({ authorization: "Bearer secret" })).status).toBe(400);
 		expect((await req({ "x-api-key": "secret" })).status).toBe(400);
 		expect((await locked(new Request("http://test/health"))).status).toBe(200);
+		// Without the key, not even which routes exist.
+		expect((await locked(new Request("http://test/nope"))).status).toBe(401);
+		expect((await locked(new Request("http://test/render"))).status).toBe(401);
+		expect((await req({ authorization: "Bearer secret-and-more" })).status).toBe(401);
+	});
+
+	it("refuses uploads beyond the queue's room before reading them", async () => {
+		const tight = createHandler({ ...options, concurrency: 1, maxQueued: 0 });
+		// A client that never finishes sending its body holds the only slot.
+		const stalled = tight(
+			new Request("http://test/import", {
+				method: "POST",
+				body: new ReadableStream({ start() {} }),
+				headers: { "content-type": "application/json" },
+				duplex: "half",
+			} as RequestInit),
+		);
+		const res = await tight(
+			new Request("http://test/render", {
+				method: "POST",
+				body: JSON.stringify({ markdown: "# A" }),
+				headers: { "content-type": "application/json" },
+			}),
+		);
+		expect(res.status).toBe(503);
+		void stalled;
 	});
 });
 

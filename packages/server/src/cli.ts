@@ -16,7 +16,7 @@
 import { createHandler } from "./app";
 import { exposureError, resolveOptions } from "./config";
 import { serve } from "./http";
-import { removeStaleProjects } from "./project";
+import { removeLiveProjects, removeStaleProjects } from "./project";
 
 const options = resolveOptions();
 const hostname = process.env.HOST ?? "127.0.0.1";
@@ -25,7 +25,8 @@ if (refused) {
 	console.error(`astlide-server: ${refused}`);
 	process.exit(1);
 }
-await removeStaleProjects(options.workDir);
+// A render never lives longer than its timeout: older projects are leftovers.
+await removeStaleProjects(options.workDir, options.renderTimeoutMs * 2);
 const server = await serve(createHandler(options), {
 	port: Number(process.env.PORT ?? 8787),
 	hostname,
@@ -37,7 +38,7 @@ if (!options.apiKey)
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
 	process.once(signal, async () => {
 		await server.close();
-		await removeStaleProjects(options.workDir);
+		await removeLiveProjects();
 		process.exit(0);
 	});
 }

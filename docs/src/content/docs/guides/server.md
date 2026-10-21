@@ -126,10 +126,12 @@ Environment variables:
 | `ASTLIDE_ALLOW_UNAUTHENTICATED` | `0` | `1` lets the server listen beyond loopback without a key — only when something in front of it (a gateway, a private network) controls who can call it. |
 | `ASTLIDE_ALLOW_PRIVATE_NETWORK` | `0` | `1` lets the slides load from the server's own network (see [Security](#security)). |
 | `PUBLIC_URL` | from the request | The URL put in the OpenAPI spec's `servers`. |
-| `MAX_BODY_MB` | `50` | Largest request (413 beyond). |
+| `MAX_BODY_MB` | `50` | Largest request (413 beyond); also the largest Google Slides download. A request must arrive within 60 seconds. |
 | `MAX_SLIDES` | `200` | Most slides per render. |
+| `MAX_OUTPUT_MB` | `200` | Largest rendered file (PPTX, PDF or PNG ZIP); a bigger one is a 422. |
 | `RENDER_TIMEOUT_MS` | `180000` | A render taking longer is stopped (504). |
-| `CONCURRENCY` / `MAX_QUEUE` | `2` / `16` | Renders at once, and how many may wait; more get 503. |
+| `CONCURRENCY` / `MAX_QUEUE` | `2` / `16` | Renders at once, and how many may wait; more get 503 — before their upload is read. |
+| `ASTLIDE_CHROMIUM_SANDBOX` | `0` | `1` keeps Chromium's sandbox on for PDF / PNG (see [Security](#security)). |
 | `ASTLIDE_WORK_DIR` | `.astlide-work` next to `node_modules` | Where per-request projects are made. It must share a parent directory with the installed packages. |
 
 Errors are JSON `{ "error": "…" }`: 400 for bad input (checked before anything is built — e.g. a frontmatter value the slide schema rejects), 422 when the build or export fails, with the end of its log.
@@ -147,3 +149,7 @@ A request is someone else's slides: raw HTML in the Markdown is rendered as is, 
 - **Slides can't reach your network.** During a render, the slides and the exporter may load only from the deck itself, `data:` / `blob:` URLs and public internet hosts. Loopback, private ranges (`10/8`, `172.16/12`, `192.168/16`, `fc00::/7` …), link-local addresses (including cloud metadata at `169.254.169.254`) and other reserved ranges are refused, on every redirect too; WebSockets and service workers are blocked. Set `ASTLIDE_ALLOW_PRIVATE_NETWORK=1` only if every caller is trusted and the slides need intranet resources.
 - The check resolves host names before each request; a host that changes its DNS answer between the check and the request (DNS rebinding) can still slip through. For a service exposed to untrusted callers, also restrict the container's outbound traffic (a firewall or egress policy that allows only the public internet).
 - Remote images are capped at 20 MB and pages read for embed previews at 2 MB.
+- **Images must be URLs.** A Markdown image with a file path (`![](../x.png)`) is refused with a 400 — Astro would read it from the server's disk. Use `https:` or `data:` URLs.
+- Slides are written with their own frontmatter block, so a slide body that starts with `---` stays body and can't slip past the frontmatter checks.
+- **Chromium's sandbox** is off by default (Playwright turns it off; most containers don't allow the user namespaces it needs). Where they are allowed — e.g. Docker with a seccomp profile that permits `clone` / `unshare` of user namespaces, such as Chrome's — set `ASTLIDE_CHROMIUM_SANDBOX=1`: a bug in Chromium's renderer then stays inside the sandbox. Renders never see `ASTLIDE_API_KEY` either way.
+- Without the key, every route but `/health`, `/openapi.json` and `/` answers 401, unknown ones included; the key is compared in constant time.

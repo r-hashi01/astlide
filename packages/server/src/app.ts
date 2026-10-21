@@ -11,6 +11,7 @@
  * @module
  */
 
+import { createHash, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { extname } from "node:path";
 import { THEMES } from "@astlide/core/schema";
@@ -18,7 +19,7 @@ import type { ServerOptions } from "./config";
 import { BadRequest, type DeckSettings, deckFiles, parseSlides } from "./deck";
 import { fetchGoogleSlides, importDeck, TEMPLATE_EXTS, templateLayouts } from "./importer";
 import { createProject, removeProject, TEMPLATE_THEME } from "./project";
-import { Queue } from "./queue";
+import { Queue, QueueFull } from "./queue";
 import { FORMATS, type Format, renderProject } from "./render";
 
 const readJson = (path: string) =>
@@ -156,6 +157,8 @@ export function createHandler(options: ServerOptions) {
 	const queue = new Queue(options.concurrency, options.maxQueued);
 
 	async function render(req: Request): Promise<Response> {
+		// Refuse before reading the body: a full queue shouldn't buffer more uploads.
+		if (queue.full) throw new QueueFull();
 		const { fields, files } = await parseInput(req, options.maxBodyBytes);
 		const format = (optionalString(fields, "format") ?? "pptx") as Format;
 		if (!FORMATS.includes(format))
@@ -198,6 +201,9 @@ export function createHandler(options: ServerOptions) {
 					bun: options.bun,
 					timeoutMs: options.renderTimeoutMs,
 					allowPrivateNetwork: options.allowPrivateNetwork,
+					maxSlides: options.maxSlides,
+					maxOutputBytes: options.maxOutputBytes,
+					chromiumSandbox: options.chromiumSandbox,
 				});
 			} finally {
 				await removeProject(root);
@@ -228,7 +234,8 @@ export function createHandler(options: ServerOptions) {
 	async function importRoute(req: Request): Promise<Response> {
 		const { fields, files } = await parseInput(req, options.maxBodyBytes);
 		const url = optionalString(fields, "url");
-		const data = files.file?.data ?? (url ? await fetchGoogleSlides(url) : undefined);
+		const data =
+			files.file?.data ?? (url ? await fetchGoogleSlides(url, options.maxBodyBytes) : undefined);
 		if (!data) throw new BadRequest('send a .pptx as "file", or a Google Slides "url"');
 		return json(importDeck(data));
 	}
@@ -256,24 +263,41 @@ export function createHandler(options: ServerOptions) {
 	};
 	const open = new Set(["/health", "/openapi.json"]);
 
+	const digest = (s: string) => createHash("sha256").update(s).digest();
+	const keyDigest = options.apiKey ? digest(options.apiKey) : undefined;
+
 	function authorized(req: Request): boolean {
-		if (!options.apiKey) return true;
+		if (!keyDigest) return true;
 		const bearer = req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
-		return (bearer ?? req.headers.get("x-api-key")) === options.apiKey;
+		const sent = bearer ?? req.headers.get("x-api-key");
+		// Compared as digests, in constant time: the key's length and bytes don't leak.
+		return sent != null && timingSafeEqual(digest(sent), keyDigest);
 	}
+
+	/** Requests reading a body or holding a parsed upload; beyond the queue's room they get 503. */
+	let busy = 0;
+	const heavy = new Set(["/render", "/import", "/templates/layouts"]);
 
 	return async function handle(req: Request): Promise<Response> {
 		const { pathname } = new URL(req.url);
 		const path = pathname.replace(/\/+$/, "") || "/";
 		try {
 			if (path === "/") return json({ name: "astlide-server", openapi: "/openapi.json" });
+			// Before anything else: without the key, not even which routes exist.
+			if (!open.has(path) && !authorized(req)) throw new HttpError(401, "missing or wrong API key");
 			const route = routes[path];
 			if (!route) throw new HttpError(404, "not found");
 			const method = req.method === "HEAD" ? "GET" : req.method;
 			const fn = route[method];
 			if (!fn) throw new HttpError(405, `use ${Object.keys(route).join(" / ")}`);
-			if (!open.has(path) && !authorized(req)) throw new HttpError(401, "missing or wrong API key");
-			return await fn(req);
+			if (!heavy.has(path)) return await fn(req);
+			if (busy >= options.concurrency + options.maxQueued) throw new QueueFull();
+			busy++;
+			try {
+				return await fn(req);
+			} finally {
+				busy--;
+			}
 		} catch (e) {
 			const status = (e as { status?: number }).status;
 			if (typeof status === "number" && status >= 400 && status < 600)
