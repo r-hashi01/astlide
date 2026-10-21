@@ -7,8 +7,9 @@
 declare const __ASTLIDE_NOTES__: boolean;
 
 /**
- * True unless `notes: "dev"` is set and this is a build: pages then leave
- * speaker notes out.
+ * Whether pages carry speaker notes: in `astro dev`, with `notes: "public"`,
+ * and in the build `astlide export` makes; not in other builds (the default
+ * `notes: "dev"`). True outside Astro (no define), e.g. in tests.
  */
 export const notesIncluded: boolean =
 	typeof __ASTLIDE_NOTES__ !== "undefined" ? __ASTLIDE_NOTES__ : true;

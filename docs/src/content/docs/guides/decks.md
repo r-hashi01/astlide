@@ -108,11 +108,13 @@ Notes are hidden from the audience and show in the presenter window (`p`) and th
 
 If a slide has more than one, `<SpeakerNotes>` wins, then frontmatter `notes`, then the trailing comment. `<Notes>` still works as an alias of `<SpeakerNotes>`.
 
-:::caution[Notes are public by default]
-Notes are part of every built page, so anyone who can open the deck can read them: press `n`, open `?presenter`, or view the page source. To keep them to yourself, set `notes: "dev"`: notes are then only included while running `astro dev`, and the deployed deck (and PDF / PPTX exports made from the build) carries none.
+:::note[Notes stay off the deployed site]
+By default (`notes: "dev"`) notes are included while running `astro dev` and in the build `astlide export` makes, so PowerPoint exports keep them — but not in pages you build with `astro build` and deploy. A deployed deck's presenter window says its notes aren't published. (`astlide export` builds into `dist/` too: run `astro build` again before deploying that folder.)
+
+To present from the deployed site with your notes, include them in every page — which also lets anyone who can open the deck read them (`n`, `?presenter`, the page source):
 
 ```ts
-astlide({ notes: "dev" })
+astlide({ notes: "public" })
 ```
 :::
 

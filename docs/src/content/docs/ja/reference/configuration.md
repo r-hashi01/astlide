@@ -21,7 +21,7 @@ export default defineConfig({
       indexable: false,
       injectIndexRoute: undefined,
       drawings: { persist: false },
-      notes: "public",
+      notes: "dev",
     }),
   ],
 });
@@ -39,7 +39,7 @@ export default defineConfig({
 | `indexable` | `boolean` | `false` | `false` の場合、ページに `noindex, nofollow` が付きます。 |
 | `injectIndexRoute` | `boolean` | 自動 | `/` にデッキの一覧を挿入します。独自の `src/pages/index.*` がある場合は自動的にスキップされます。 |
 | `drawings.persist` | `boolean` | `false` | ペンの描画を `localStorage` に保存し、再読み込み後も残します。[プレゼンテーション](/ja/guides/presenting/#描画を残す)を参照してください。 |
-| `notes` | `"public" \| "dev"` | `"public"` | スピーカーノートをどこに含めるか。`"public"` はすべてのページに含めるので、URL を知っている人なら誰でも読めます。`"dev"` は `astro dev` のときだけ含め、ビルドしたページ（とそこから作るエクスポート）には含めません。[スピーカーノート](/ja/guides/decks/#スピーカーノート)を参照してください。 |
+| `notes` | `"public" \| "dev"` | `"dev"` | スピーカーノートをどこに含めるか。`"dev"` は `astro dev` のときと、`astlide export` が行うビルドにだけ含めます（PowerPoint の書き出しにはノートが入ります）。`astro build` でビルドしたページには含めません。`"public"` はすべてのページに含めるので、URL を知っている人なら誰でも読めます。[スピーカーノート](/ja/guides/decks/#スピーカーノート)を参照してください。 |
 
 Astro 自体の [`base`](/ja/guides/deploy/) オプションにも従います。
 

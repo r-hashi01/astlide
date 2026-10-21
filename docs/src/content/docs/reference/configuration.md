@@ -21,7 +21,7 @@ export default defineConfig({
       indexable: false,
       injectIndexRoute: undefined,
       drawings: { persist: false },
-      notes: "public",
+      notes: "dev",
     }),
   ],
 });
@@ -39,7 +39,7 @@ export default defineConfig({
 | `indexable` | `boolean` | `false` | When `false`, pages carry `noindex, nofollow`. |
 | `injectIndexRoute` | `boolean` | auto | Inject the deck index at `/`. Auto-skipped when you have your own `src/pages/index.*`. |
 | `drawings.persist` | `boolean` | `false` | Keep pen drawings in `localStorage` across reloads — see [Presenting](/guides/presenting/#keeping-drawings). |
-| `notes` | `"public" \| "dev"` | `"public"` | Where speaker notes are included. `"public"`: every page, so anyone with the URL can read them. `"dev"`: only in `astro dev`; built pages (and exports made from them) carry no notes — see [Speaker notes](/guides/decks/#speaker-notes). |
+| `notes` | `"public" \| "dev"` | `"dev"` | Where speaker notes are included. `"dev"`: in `astro dev` and in the build `astlide export` makes (PowerPoint exports keep them); pages built with `astro build` carry none. `"public"`: every page, so anyone with the URL can read them — see [Speaker notes](/guides/decks/#speaker-notes). |
 
 Astro's own [`base`](/guides/deploy/) option is honoured as well.
 

@@ -191,13 +191,24 @@ describe("astlide integration", () => {
 			return args.updateConfig.mock.calls[0][0].vite.define.__ASTLIDE_NOTES__;
 		};
 
-		it("includes notes everywhere by default", () => {
-			expect(notesDefine()).toBe("true");
+		it("leaves notes out of builds by default, keeps them in dev", () => {
+			expect(notesDefine(undefined, "build")).toBe("false");
+			expect(notesDefine(undefined, "dev")).toBe("true");
+			expect(notesDefine({ notes: "dev" }, "build")).toBe("false");
 		});
 
-		it('leaves notes out of builds with notes: "dev"', () => {
-			expect(notesDefine({ notes: "dev" }, "build")).toBe("false");
-			expect(notesDefine({ notes: "dev" }, "dev")).toBe("true");
+		it('includes notes everywhere with notes: "public"', () => {
+			expect(notesDefine({ notes: "public" }, "build")).toBe("true");
+			expect(notesDefine({ notes: "public" }, "dev")).toBe("true");
+		});
+
+		it("includes notes in the build astlide export makes", () => {
+			process.env.ASTLIDE_NOTES = "public";
+			try {
+				expect(notesDefine(undefined, "build")).toBe("true");
+			} finally {
+				delete process.env.ASTLIDE_NOTES;
+			}
 		});
 	});
 

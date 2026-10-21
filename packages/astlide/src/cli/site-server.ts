@@ -41,11 +41,11 @@ function astroBin(root: string): string {
 	return join(dirname(require.resolve("astro/package.json")), "bin", "astro.mjs");
 }
 
-function runAstro(root: string, args: string[]): ChildProcess {
+function runAstro(root: string, args: string[], env: Record<string, string> = {}): ChildProcess {
 	return spawn("node", [astroBin(root), ...args, "--root", root], {
 		cwd: root,
 		stdio: ["ignore", "pipe", "pipe"],
-		env: { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1" },
+		env: { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1", ...env },
 	});
 }
 
@@ -54,10 +54,14 @@ function runAstro(root: string, args: string[]): ChildProcess {
  * `astro preview` on a free port. The URL — including Astro's `base` — is
  * read from the preview server's own output.
  */
-/** Run `astro build` for the project (in a child Node process). */
+/**
+ * Run `astro build` for the project (in a child Node process), for an
+ * export: speaker notes are included whatever the `notes` option says, so
+ * PowerPoint exports keep them — which means `dist/` then has them too.
+ */
 export async function buildSite(root: string): Promise<void> {
 	await new Promise<void>((resolve, reject) => {
-		const child = runAstro(root, ["build"]);
+		const child = runAstro(root, ["build"], { ASTLIDE_NOTES: "public" });
 		let log = "";
 		child.stdout?.on("data", (d) => {
 			log += d;
@@ -70,6 +74,9 @@ export async function buildSite(root: string): Promise<void> {
 			code === 0 ? resolve() : reject(new Error(`astro build failed (exit ${code}):\n${log}`)),
 		);
 	});
+	console.log(
+		"  dist/ was built with speaker notes for the export — run astro build before deploying it",
+	);
 }
 
 export async function startSite(options: { root: string; build: boolean }): Promise<SiteServer> {

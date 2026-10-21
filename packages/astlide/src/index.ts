@@ -182,15 +182,17 @@ export interface AstlideOptions {
 	drawings?: DrawingsOption;
 	/**
 	 * Where speaker notes are included.
-	 * - `"public"` (default): in every page, built ones too. Anyone with the
-	 *   deck's URL can read them (press `n`, open `?presenter`, view source).
-	 * - `"dev"`: only while running `astro dev`. Built pages carry no notes, so
-	 *   the presenter window of a deployed deck shows none — and neither do
-	 *   PDF / PPTX exports made from the build.
+	 * - `"dev"` (default): while running `astro dev`, and in the build
+	 *   `astlide export` makes (so PowerPoint exports keep them). Pages you
+	 *   build with `astro build` and deploy carry no notes; the presenter
+	 *   window of a deployed deck says so.
+	 * - `"public"`: in every page, built ones too — to present from the
+	 *   deployed site with notes. Anyone with the deck's URL can then read
+	 *   them (press `n`, open `?presenter`, view source).
 	 *
 	 * @example
 	 * ```ts
-	 * astlide({ notes: "dev" })
+	 * astlide({ notes: "public" })
 	 * ```
 	 */
 	notes?: "public" | "dev";
@@ -448,7 +450,12 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 										(config.build?.format ?? "directory") === "directory"),
 							),
 							__ASTLIDE_DRAWINGS_PERSIST__: JSON.stringify(options.drawings?.persist ?? false),
-							__ASTLIDE_NOTES__: JSON.stringify(options.notes !== "dev" || command === "dev"),
+							__ASTLIDE_NOTES__: JSON.stringify(
+								options.notes === "public" ||
+									command === "dev" ||
+									// The build `astlide export` runs for itself (see cli/site-server).
+									process.env.ASTLIDE_NOTES === "public",
+							),
 						},
 					},
 				});
