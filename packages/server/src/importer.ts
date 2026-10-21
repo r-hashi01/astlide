@@ -5,6 +5,8 @@
  * @module
  */
 
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { pptxToSlides, pptxToTemplate, type TemplateRegion } from "@astlide/core/pptx";
 import { exportFetch } from "@astlide/core/utils/network.ts";
 import { BadRequest } from "./deck";
@@ -97,4 +99,80 @@ export function templateLayouts(data: Uint8Array) {
 			slideNumber: box(l.slideNumber),
 		})),
 	};
+}
+
+/** The parse didn't finish in time: HTTP 504. */
+export class ParseTimeout extends Error {
+	status = 504;
+}
+
+/** The answer would be larger than allowed: HTTP 422. */
+export class ParseTooLarge extends Error {
+	status = 422;
+}
+
+const WORKER = fileURLToPath(new URL("./import-worker.ts", import.meta.url));
+
+/**
+ * {@link importDeck} (`"deck"`) or {@link templateLayouts} (`"layouts"`) in a
+ * child process (`import-worker.ts`): an uploaded file can't stall or crash
+ * the server, the parse is stopped after `timeoutMs`, and an answer over
+ * `maxOutputBytes` is refused.
+ */
+export function parsePptx(
+	mode: "deck" | "layouts",
+	data: Uint8Array,
+	options: { bun: string; timeoutMs: number; maxOutputBytes: number },
+): Promise<unknown> {
+	return new Promise((resolve, reject) => {
+		const child = spawn(options.bun, [WORKER, mode], {
+			stdio: ["pipe", "pipe", "ignore"],
+			env: { PATH: process.env.PATH ?? "", NO_COLOR: "1" },
+		});
+		const chunks: Buffer[] = [];
+		let size = 0;
+		let failure: Error | undefined;
+		const stop = (error: Error) => {
+			failure ??= error;
+			child.kill("SIGKILL");
+		};
+		const timer = setTimeout(
+			() =>
+				stop(
+					new ParseTimeout(
+						`reading the file took longer than ${Math.round(options.timeoutMs / 1000)}s`,
+					),
+				),
+			options.timeoutMs,
+		);
+		child.stdout.on("data", (chunk: Buffer) => {
+			size += chunk.length;
+			if (size > options.maxOutputBytes)
+				stop(
+					new ParseTooLarge(
+						`the result is larger than ${Math.round(options.maxOutputBytes / 1024 / 1024)} MB`,
+					),
+				);
+			else chunks.push(chunk);
+		});
+		child.stdin.on("error", () => {}); // the child may exit before reading everything
+		child.stdin.end(data);
+		child.on("error", (e) => {
+			clearTimeout(timer);
+			reject(e);
+		});
+		child.on("close", (code) => {
+			clearTimeout(timer);
+			if (failure) return reject(failure);
+			let answer: unknown;
+			try {
+				answer = JSON.parse(Buffer.concat(chunks).toString("utf-8"));
+			} catch {
+				return reject(new BadRequest("not a readable PowerPoint file (the reader stopped)"));
+			}
+			if (code === 0) return resolve(answer);
+			const message = (answer as { error?: string })?.error ?? "the reader failed";
+			reject(code === 2 ? new BadRequest(message) : new Error(message));
+		});
+	});
 }

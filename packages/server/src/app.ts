@@ -17,7 +17,7 @@ import { extname } from "node:path";
 import { THEMES } from "@astlide/core/schema";
 import type { ServerOptions } from "./config";
 import { BadRequest, type DeckSettings, deckFiles, parseSlides } from "./deck";
-import { fetchGoogleSlides, importDeck, TEMPLATE_EXTS, templateLayouts } from "./importer";
+import { fetchGoogleSlides, parsePptx, TEMPLATE_EXTS } from "./importer";
 import { createProject, removeProject, TEMPLATE_THEME } from "./project";
 import { Queue, QueueFull } from "./queue";
 import { FORMATS, type Format, renderProject } from "./render";
@@ -145,6 +145,7 @@ function slidesField(value: unknown): unknown {
 function downloadName(title: string | undefined, ext: string): string {
 	const base =
 		(title ?? "")
+			.slice(0, 200)
 			.normalize("NFKD")
 			.replace(/[^\w.-]+/g, "-")
 			.replace(/^-+|-+$/g, "")
@@ -167,9 +168,10 @@ export function createHandler(options: ServerOptions) {
 		if (output !== "file" && output !== "base64")
 			throw new BadRequest('"output" must be "file" or "base64"');
 
-		const slides = parseSlides({ markdown: fields.markdown, slides: slidesField(fields.slides) });
-		if (slides.length > options.maxSlides)
-			throw new BadRequest(`at most ${options.maxSlides} slides per render`);
+		const slides = await parseSlides(
+			{ markdown: fields.markdown, slides: slidesField(fields.slides) },
+			options.maxSlides,
+		);
 
 		const settings: DeckSettings = {
 			title: optionalString(fields, "title"),
@@ -231,20 +233,27 @@ export function createHandler(options: ServerOptions) {
 		});
 	}
 
+	/** Uploaded PowerPoint files are read in a child process, through the render queue. */
+	const parseOptions = {
+		bun: options.bun,
+		timeoutMs: options.renderTimeoutMs,
+		maxOutputBytes: options.maxOutputBytes,
+	};
+
 	async function importRoute(req: Request): Promise<Response> {
 		const { fields, files } = await parseInput(req, options.maxBodyBytes);
 		const url = optionalString(fields, "url");
 		const data =
 			files.file?.data ?? (url ? await fetchGoogleSlides(url, options.maxBodyBytes) : undefined);
 		if (!data) throw new BadRequest('send a .pptx as "file", or a Google Slides "url"');
-		return json(importDeck(data));
+		return json(await queue.run(() => parsePptx("deck", data, parseOptions)));
 	}
 
 	async function layoutsRoute(req: Request): Promise<Response> {
 		const { files } = await parseInput(req, options.maxBodyBytes);
 		const file = files.file ?? files.template;
 		if (!file) throw new BadRequest('send the template as "file"');
-		return json(templateLayouts(file.data));
+		return json(await queue.run(() => parsePptx("layouts", file.data, parseOptions)));
 	}
 
 	function openapi(req: Request): Response {
