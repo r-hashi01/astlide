@@ -10,7 +10,7 @@
  * node_modules/.astro/astlide-export (never dist/), with speaker notes. PDF
  * and PNG are rendered by a browser: unless `--base-url` points at a running
  * server, that build is served on a free port for the export, then stopped.
- * PPTX needs no browser: the built slides are laid out by @astlide/engine.
+ * PPTX needs no browser: the built slides are laid out by the layout engine (src/engine).
  */
 
 import { existsSync, readdirSync } from "node:fs";

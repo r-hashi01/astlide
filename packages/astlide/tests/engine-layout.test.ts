@@ -10,7 +10,7 @@ import {
 	layoutPage,
 	toScene,
 	transformText,
-} from "@astlide/engine";
+} from "@astlide/core/engine";
 import { describe, expect, it } from "vitest";
 
 /** A font every install has (KaTeX ships TrueType), for text tests. */

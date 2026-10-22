@@ -228,5 +228,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v4
         with:
           node-version: 22
+          # The scaffolded project installs the newest Astro, which may need the newest Node 22.
+          check-latest: true
       - run: bun install --frozen-lockfile
       - run: node scripts/test-template.mjs
