@@ -1,6 +1,6 @@
 /**
  * Render a project's deck with the `astlide export` CLI (in a child process,
- * so a render can be stopped on timeout): PPTX by @astlide/engine, PDF / PNG
+ * so a render can be stopped on timeout): PPTX by the layout engine in @astlide/core, PDF / PNG
  * by Playwright's Chromium.
  *
  * @module

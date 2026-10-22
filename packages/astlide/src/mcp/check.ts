@@ -1,6 +1,6 @@
 /**
  * `check_deck`: find text and boxes that don't fit, from the same layout the
- * PowerPoint export uses (@astlide/engine — no browser), so an agent can
+ * PowerPoint export uses (the layout engine in `engine/` — no browser), so an agent can
  * shorten text or split a slide before exporting.
  *
  * Problems found, per slide:
@@ -29,7 +29,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import type { Box, FontRegistry, Rect, SlideLayout, TextLine } from "@astlide/engine";
+import type { Box, FontRegistry, Rect, SlideLayout, TextLine } from "@astlide/core/engine";
 import type { Element } from "domhandler";
 import { buildSite, deckDir, printView, projectRoot } from "./project";
 
@@ -417,7 +417,7 @@ export async function layoutBuiltPage(
 	dist: string,
 	cacheDir: string,
 ): Promise<{ layouts: SlideLayout[]; warnings: string[] }> {
-	const engine = await import("@astlide/engine");
+	const engine = await import("@astlide/core/engine");
 	const fonts: FontRegistry = new engine.FontRegistry();
 	const css = engine.pageCss(html, dist);
 	const local = engine.loadFontFaces(fonts, css, dist);

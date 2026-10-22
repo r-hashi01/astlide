@@ -1,4 +1,4 @@
-import { parseLinearGradient, parseStripes } from "@astlide/engine";
+import { parseLinearGradient, parseStripes } from "@astlide/core/engine";
 import { describe, expect, it } from "vitest";
 import { stripePreset } from "../src/cli/pptx/export";
 

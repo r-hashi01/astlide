@@ -39,7 +39,6 @@ WORKDIR /app
 # dependencies are installed.
 COPY package.json bun.lock bunfig.toml ./
 COPY packages/astlide/package.json packages/astlide/
-COPY packages/engine/package.json packages/engine/
 COPY packages/server/package.json packages/server/
 COPY packages/create-astlide/package.json packages/create-astlide/
 COPY playground/package.json playground/
@@ -51,7 +50,6 @@ RUN node node_modules/playwright/cli.js install --with-deps chromium \
 	&& rm -rf /var/lib/apt/lists/*
 
 COPY packages/astlide/src packages/astlide/src
-COPY packages/engine/src packages/engine/src
 COPY packages/server/src packages/server/src
 COPY packages/server/openapi.json packages/server/
 

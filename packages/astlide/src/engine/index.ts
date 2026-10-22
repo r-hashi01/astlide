@@ -1,5 +1,6 @@
 /**
- * @astlide/engine — lay out HTML + CSS slides without a browser (spike).
+ * The layout engine — lay out HTML + CSS slides without a browser (PPTX
+ * export and `check_deck`; exported as `@astlide/core/engine`).
  *
  * Pipeline: HTML (htmlparser2) → cascade (cascade.ts) → Yoga box layout +
  * font-metric line breaking (layout.ts, text.ts) → boxes and text lines in

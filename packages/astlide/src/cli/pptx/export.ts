@@ -1,7 +1,7 @@
 /**
- * PPTX export: the built print view (`/<deck>/all`) is laid out by
- * @astlide/engine — CSS cascade, flexbox and font-metric line breaking, no
- * browser — and each slide's paint items become native PowerPoint shapes,
+ * PPTX export: the built print view (`/<deck>/all`) is laid out by the
+ * layout engine (`@astlide/core/engine`) — CSS cascade, flexbox and
+ * font-metric line breaking, no browser — and each slide's paint items become native PowerPoint shapes,
  * text boxes and pictures.
  *
  * @module
@@ -11,10 +11,10 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import type { Box, Scene, SceneItem, TableBox } from "@astlide/core/engine";
 import { exportSiteDir } from "@astlide/core/utils/export-build.ts";
 import { mermaidThemeFor } from "@astlide/core/utils/mermaid.ts";
 import { FetchBudget } from "@astlide/core/utils/network.ts";
-import type { Box, Scene, SceneItem, TableBox } from "@astlide/engine";
 import type { ChildNode, Element } from "domhandler";
 import { parseDocument } from "htmlparser2";
 import { type EmbedInfo, resolveEmbeds } from "./embeds";
@@ -84,7 +84,7 @@ function fontFor(family: string, weight: number): { face: string; bold: boolean 
 const hex = (c: { hex: string }) => c.hex.toUpperCase();
 
 type TextItem = Extract<SceneItem, { kind: "text" }>;
-type Engine = typeof import("@astlide/engine");
+type Engine = typeof import("@astlide/core/engine");
 
 /** Pixels per CSS px when rasterizing vector images (sharp at full-screen size). */
 const RASTER_SCALE = 2;
@@ -804,7 +804,7 @@ const DEFAULT_EA_FONT = "Yu Gothic";
 
 /** A Google Fonts family's regular face (downloaded into the project's font cache), or null. */
 async function googleFontFile(
-	engine: typeof import("@astlide/engine"),
+	engine: typeof import("@astlide/core/engine"),
 	family: string,
 	root: string,
 ): Promise<string | null> {
@@ -875,7 +875,7 @@ function plainText(el: Element): string {
 }
 
 export async function exportPptx(deck: string, options: PptxOptions): Promise<void> {
-	const engine = await import("@astlide/engine");
+	const engine = await import("@astlide/core/engine");
 	if (options.build !== false) {
 		const { buildSite } = await import("../site-server");
 		await buildSite(options.root);
