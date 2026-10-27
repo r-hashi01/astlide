@@ -158,6 +158,13 @@ const rendered = await Promise.all(
   body > .slide {
     animation: none !important;
   }
+  /* Printed by a browser on smaller paper (or one that ignores @page size):
+     each slide shrinks to the page (see --astlide-print-scale in base.css). */
+  @media print {
+    body > .slide {
+      zoom: var(--astlide-print-scale, 1);
+    }
+  }
   /* No navigation runtime here, so render every step in its final state:
      all <Fragment>s revealed and code highlight steps on their last segment. */
   body > .slide [data-fragment] {
