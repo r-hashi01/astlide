@@ -419,10 +419,38 @@ cite::before {
 
 /* Print mode */
 @media print {
+	/* How much a slide shrinks to fit the printed page: 1 where the browser
+	   honours `@page { size: 1920px 1080px }` (Chromium, so \`astlide export\`
+	   output is unchanged), less on other paper or where \`@page\` size is
+	   ignored (Safari). tan(atan2(a, b)) is a / b as a plain number. */
+	:root {
+		--astlide-print-scale: min(
+			1,
+			tan(atan2(100vw, var(--slide-width, 1920px))),
+			tan(atan2(100vh, var(--slide-height, 1080px)))
+		);
+	}
+
+	/* !important: slide-level rules (`.slide[data-transition]`) outrank `*`. */
 	*,
 	*::before,
 	*::after {
-		animation: none;
-		transition: none;
+		/* biome-ignore lint/complexity/noImportantStyles: must beat the slide-level animation rules */
+		animation: none !important;
+		/* biome-ignore lint/complexity/noImportantStyles: must beat the slide-level animation rules */
+		transition: none !important;
+	}
+
+	/* A slide change in flight is a View Transition: the old slide's snapshot
+	   would print over the new one (doubled, slightly scaled text). */
+	::view-transition-group(*),
+	::view-transition-image-pair(*),
+	::view-transition-old(*),
+	::view-transition-new(*) {
+		/* biome-ignore lint/complexity/noImportantStyles: must beat the per-transition rules above */
+		animation: none !important;
+	}
+	::view-transition-old(*) {
+		display: none;
 	}
 }
