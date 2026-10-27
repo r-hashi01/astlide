@@ -453,4 +453,12 @@ cite::before {
 	::view-transition-old(*) {
 		display: none;
 	}
+
+	/* The slide container takes focus on load (keyboard navigation): its focus
+	   ring would print as a line around the slide. */
+	:focus,
+	:focus-visible {
+		outline: none;
+		box-shadow: none;
+	}
 }

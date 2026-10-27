@@ -42,6 +42,16 @@ describe("printing", () => {
 			expect(box.fits).toBe(true);
 			// Scaled down to the page width, not shrunk to nothing.
 			expect(box.width).toBeGreaterThan(LETTER.width * 0.95);
+			// No UI chrome on paper: the focused slide container's ring, the progress bar.
+			const chrome = await page.evaluate(() => {
+				const focused = getComputedStyle(document.activeElement ?? document.body);
+				const bar = document.querySelector(".progress-bar");
+				return {
+					outline: focused.outlineStyle,
+					bar: bar ? getComputedStyle(bar).display : "none",
+				};
+			});
+			expect(chrome).toEqual({ outline: "none", bar: "none" });
 			// No horizontal overflow onto a second sheet.
 			expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
 				LETTER.width,
