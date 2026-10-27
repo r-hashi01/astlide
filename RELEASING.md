@@ -26,7 +26,7 @@ cd packages/<package> && npm pack --dry-run
 
 ## Trusted Publishing
 
-Every published package (`@astlide/core`, `@astlide/engine`, `create-astlide`, `astlide`) publishes through npm Trusted Publishing (OIDC) — no npm token is stored anywhere. Each one trusts this repository's `release.yml` **in the `npm-publish` environment** only, so a modified workflow on another branch, or a job without the approval, can't publish:
+Every published package (`@astlide/core`, `create-astlide`, `astlide`) publishes through npm Trusted Publishing (OIDC) — no npm token is stored anywhere. Each one trusts this repository's `release.yml` **in the `npm-publish` environment** only, so a modified workflow on another branch, or a job without the approval, can't publish:
 
 ```bash
 npm trust github <package> --file release.yml --repo r-hashi01/astlide --env npm-publish --allow-publish

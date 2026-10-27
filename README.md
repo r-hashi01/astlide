@@ -14,7 +14,7 @@ Astlide is an [Astro](https://astro.build) integration for presentations. Every 
 ## Why Astlide
 
 - **Many decks, one site.** Decks are content, not projects: every folder under `src/content/decks/` is a deck, with an index page out of the box. A year of talks, a team's reports or a product's training decks share themes, components and one deploy — where most slide tools build one deck per project.
-- **An SDK, not an app.** `astlide()` goes into any Astro site — your blog, your Starlight docs, a portal of your own design. The pieces work on their own too: the deck loader, PowerPoint import / templates (`@astlide/core/pptx`) and the layout engine (`@astlide/engine`).
+- **An SDK, not an app.** `astlide()` goes into any Astro site — your blog, your Starlight docs, a portal of your own design. The pieces work on their own too: the deck loader, PowerPoint import / templates (`@astlide/core/pptx`) and the layout engine (`@astlide/core/engine`).
 - **Your PowerPoint template, editable PPTX out.** Register a `.pptx` / `.potx` template as a theme and Markdown slides come out in its design. `astlide export --pptx` writes real text boxes, tables and shapes with speaker notes — laid out by Astlide's own engine, no browser or LibreOffice.
 - **PowerPoint & Google Slides in.** Drop a `.pptx` into a deck folder, or `astlide import` it into editable HTML slides.
 - **React, Vue & Svelte inside.** Slides are Astro, so components from any framework work on them — interactive while you present.
@@ -583,12 +583,12 @@ packages/
 │   │   ├── components/   # Slide, Fragment, Notes, Columns, Left, Right, ImageSide, TextPanel
 │   │   ├── internal/     # DeckLayout, virtual modules, injected pages (incl. /[deck]/all)
 │   │   ├── styles/       # base.css + themes/
+│   │   ├── engine/       # HTML + CSS layout without a browser (PPTX export, check_deck)
 │   │   └── cli/          # astlide export
 │   └── package.json
 ├── create-astlide/       # CLI scaffolder (bun create astlide)
 │   ├── src/index.ts
 │   └── template/
-├── engine/               # @astlide/engine — HTML + CSS layout for PPTX export
 └── server/               # HTTP render service (OpenAPI, Dockerfile)
 ```
 
@@ -604,6 +604,10 @@ bun run lint       # Run Biome linter
 bun run lint:fix   # Auto-fix lint issues
 bun run format     # Format with Biome
 ```
+
+## Contact
+
+Questions and feedback: [hello@astlide.dev](mailto:hello@astlide.dev), or [GitHub Discussions](https://github.com/r-hashi01/astlide/discussions). Security issues: see [SECURITY.md](SECURITY.md).
 
 ## License
 

@@ -19,7 +19,8 @@ ARG BUN_VERSION=1.4.0
 
 FROM oven/bun:${BUN_VERSION}-debian AS bun
 
-FROM node:22-bookworm-slim
+# Pinned to a patched Node release (Dependabot keeps it current).
+FROM node:22.23.4-bookworm-slim@sha256:de170b39439eb0e5a3444ad7d60b015614a381e10fecae2e30ec9e735122f38d
 
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 
@@ -39,7 +40,6 @@ WORKDIR /app
 # dependencies are installed.
 COPY package.json bun.lock bunfig.toml ./
 COPY packages/astlide/package.json packages/astlide/
-COPY packages/engine/package.json packages/engine/
 COPY packages/server/package.json packages/server/
 COPY packages/create-astlide/package.json packages/create-astlide/
 COPY playground/package.json playground/
@@ -51,7 +51,6 @@ RUN node node_modules/playwright/cli.js install --with-deps chromium \
 	&& rm -rf /var/lib/apt/lists/*
 
 COPY packages/astlide/src packages/astlide/src
-COPY packages/engine/src packages/engine/src
 COPY packages/server/src packages/server/src
 COPY packages/server/openapi.json packages/server/
 

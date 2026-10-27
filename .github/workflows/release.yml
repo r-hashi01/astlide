@@ -10,7 +10,7 @@ name: Release
 #              maintainer's approval (the `npm-publish` environment).
 #
 # Trusted Publishing (OIDC) is configured on npm for each published package
-# (@astlide/core, @astlide/engine, create-astlide, astlide), bound to the
+# (@astlide/core, create-astlide, astlide), bound to the
 # environment — so only the approved publish job can publish:
 # `npm trust github <pkg> --file release.yml --repo r-hashi01/astlide --env npm-publish --allow-publish`.
 # No NPM_TOKEN is needed — npm verifies this workflow's id-token at publish time.
@@ -92,7 +92,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v4
         with:
-          node-version: 24
+          node-version: 24.22.1 # a patched Node 24 (npm 11.5+ for Trusted Publishing)
 
       - run: bun install --frozen-lockfile --ignore-scripts
 
@@ -157,7 +157,7 @@ jobs:
           # 11.5.1+ for the OIDC handshake. Node 22 ships with npm 10 and
           # silently falls back to anonymous publish → 404. See
           # https://github.com/npm/cli/issues/8976
-          node-version: 24
+          node-version: 24.22.1 # a patched Node 24 (npm 11.5+ for Trusted Publishing)
           registry-url: "https://registry.npmjs.org"
 
       - name: Publish, tag and release
@@ -172,7 +172,7 @@ jobs:
             meta=$(tar -xOzf "release/$file" package/package.json)
             name=$(jq -r .name <<<"$meta")
             version=$(jq -r .version <<<"$meta")
-            case "$name" in @astlide/core|@astlide/engine|create-astlide|astlide) ;; *) echo "unexpected package: $name"; exit 1 ;; esac
+            case "$name" in @astlide/core|create-astlide|astlide) ;; *) echo "unexpected package: $name"; exit 1 ;; esac
             [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "bad version: $version"; exit 1; }
             # None of the packages has install scripts; one appearing means the build was tampered with.
             if jq -e '(.scripts // {}) | has("preinstall") or has("install") or has("postinstall")' <<<"$meta" >/dev/null; then

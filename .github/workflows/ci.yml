@@ -11,10 +11,11 @@ on:
 permissions:
   contents: read
 
-# Astro 7 requires Node.js >=22.12. Bun ships its own Node-compat runtime,
-# but `bunx astro check` and `astro build` shell into the system `node` for
-# child processes — so every job that runs Astro needs setup-node@v4 with
-# node-version: 22 alongside setup-bun.
+# Astro needs a system Node.js: Bun ships its own Node-compat runtime, but
+# `bunx astro check` and `astro build` shell into `node` for child processes —
+# so every job that runs Astro sets up Node next to Bun. The version is pinned
+# in .node-version (a patched Node 22 release; raise it with Node security
+# releases).
 jobs:
   lint:
     name: Lint
@@ -41,7 +42,7 @@ jobs:
           bun-version-file: package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v4
         with:
-          node-version: 22
+          node-version-file: .node-version
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
 
@@ -57,7 +58,7 @@ jobs:
           bun-version-file: package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v4
         with:
-          node-version: 22
+          node-version-file: .node-version
       - run: bun install --frozen-lockfile
       - run: bun run test
       # The connect-time address check, under the runtime the exporter uses.
@@ -75,7 +76,7 @@ jobs:
           bun-version-file: package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v4
         with:
-          node-version: 22
+          node-version-file: .node-version
       - run: bun install --frozen-lockfile
       - run: bun run build
       # Sub-path deployments (Astro `base`, e.g. GitHub Pages): every internal
@@ -98,7 +99,7 @@ jobs:
           bun-version-file: package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v4
         with:
-          node-version: 22
+          node-version-file: .node-version
       - run: bun install --frozen-lockfile
       - run: bunx playwright install --with-deps chromium
       - run: bun run build
@@ -137,7 +138,7 @@ jobs:
           bun-version-file: package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v4
         with:
-          node-version: 22
+          node-version-file: .node-version
       - run: bun install --frozen-lockfile
       - name: Override Astro version
         run: |
@@ -227,6 +228,6 @@ jobs:
           bun-version-file: package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v4
         with:
-          node-version: 22
+          node-version-file: .node-version
       - run: bun install --frozen-lockfile
       - run: node scripts/test-template.mjs

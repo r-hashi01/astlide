@@ -9,7 +9,7 @@ Astlide は、スライドを Web サイトの一部として管理したいけ�
 
 **デッキはサイトのコンテンツの 1 つです。** 多くのスライドツールは、1 つのプロジェクトで 1 つのデッキを作ります。Astlide では、`src/content/decks/` 以下のフォルダが 1 つずつ Astro のコンテンツコレクションのデッキになり、サイトにはその一覧が表示されます。1 年分の登壇資料も、チームの週次報告も、製品の研修資料も、1 つのリポジトリに置き、同じテーマとコンポーネントを使い、1 回のデプロイで公開できます。
 
-**アプリではなく SDK です。** Astlide の本体は `astro.config.mjs` に書く `astlide()` だけなので、ブログでも Starlight のドキュメントでも独自のナビゲーションを持つポータルでも、作ったサイトにそのまま組み込めます。部品は単体でも使えます。デッキローダー（`astlideDeckLoader`）、PowerPoint の取り込みとテンプレート（`@astlide/core/pptx`）、PPTX エクスポートの裏で動くレイアウトエンジン（`@astlide/engine`）です。
+**アプリではなく SDK です。** Astlide の本体は `astro.config.mjs` に書く `astlide()` だけなので、ブログでも Starlight のドキュメントでも独自のナビゲーションを持つポータルでも、作ったサイトにそのまま組み込めます。部品は単体でも使えます。デッキローダー（`astlideDeckLoader`）、PowerPoint の取り込みとテンプレート（`@astlide/core/pptx`）、PPTX エクスポートの裏で動くレイアウトエンジン（`@astlide/core/engine`）です。
 
 **自社の PowerPoint テンプレートを使い、編集できる PowerPoint を出力できます。** `.pptx` / `.potx` / `.thmx` の[テンプレートをテーマとして](/ja/guides/templates/)登録すると、Markdown のスライドにテンプレートの背景、フォント、色、プレースホルダーの位置が反映されます。[エクスポート](/ja/guides/export/)すると、PowerPoint のテキストボックス・表・図形として、スピーカーノートも付けて書き出され、そのまま編集できます。配置の計算は Astlide 独自のエンジンが行い、ブラウザも LibreOffice も使いません。Node が動く環境ならどこでも実行できます。
 

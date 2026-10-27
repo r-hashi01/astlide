@@ -5,7 +5,6 @@ bun workspaces モノレポ。パッケージマネージャーは **bun**。
 ```
 packages/astlide/          — @astlide/core (Astro Integration)
 packages/create-astlide/   — create-astlide (CLI scaffolder)
-packages/engine/           — @astlide/engine (ブラウザなしの HTML/CSS レイアウト、PPTX export が使用)
 skills/astlide/            — エージェント用スキル (SKILL.md)
 playground/                — 開発用 Astro プロジェクト
 docs/                      — ドキュメントサイト (Starlight) → https://astlide.dev/

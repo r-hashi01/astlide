@@ -17,6 +17,17 @@ updates:
     commit-message:
       prefix: "chore(actions)"
 
+  # The render service image's base (Node security releases).
+  - package-ecosystem: "docker"
+    directory: "/packages/server"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "deps"
+    commit-message:
+      prefix: "chore(docker)"
+
   # One entry for the whole bun workspace (root, packages/*, playground, tools/*):
   # the "bun" ecosystem updates every workspace manifest together with bun.lock.
   # Per-directory entries are not needed and produced lockfile-less duplicate PRs.

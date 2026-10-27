@@ -2,7 +2,7 @@ import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { FontRegistry, GOOGLE_FONT_LIMITS, loadGoogleFonts } from "@astlide/engine";
+import { FontRegistry, GOOGLE_FONT_LIMITS, loadGoogleFonts } from "@astlide/core/engine";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 /** A real TrueType font (KaTeX ships some) to stand in for downloads. */

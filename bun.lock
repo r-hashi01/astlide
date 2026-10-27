@@ -30,31 +30,39 @@
     },
     "packages/astlide": {
       "name": "@astlide/core",
-      "version": "2.9.0",
+      "version": "2.9.1",
       "bin": {
         "astlide": "./src/cli/astlide.ts",
       },
       "dependencies": {
-        "@astlide/engine": "^0.1.3",
         "@astrojs/mdx": "^8.1.0",
         "@modelcontextprotocol/sdk": "^1.32.1",
+        "@resvg/resvg-js": "^2.6.2",
+        "css-select": "^7.0.0",
+        "css-what": "^8.0.0",
         "dom-serializer": "^3.1.1",
         "domhandler": "^6.0.1",
         "entities": "^8.1.0",
+        "fontkit": "^2.0.4",
         "htmlparser2": "^12.0.0",
         "js-yaml": "^5.5.0",
+        "jsdom": "^30.1.3",
         "katex": "^0.19.0",
         "parse5": "^8.0.1",
+        "postcss": "^8.5.30",
         "rehype-stringify": "^10.0.0",
         "remark-parse": "^11.0.0",
         "remark-rehype": "^11.0.0",
+        "svgdom": "^0.1.29",
         "unified": "^11.0.0",
+        "yoga-layout": "^3.2.1",
         "zod": "^4.6.7",
       },
       "devDependencies": {
+        "@types/fontkit": "^2.0.9",
+        "@types/jsdom": "^30.0.0",
         "@types/react": "^19.3.0",
         "@types/react-dom": "^19.3.0",
-        "jsdom": "^30.1.3",
         "react": "^19.3.1",
         "react-dom": "^19.3.1",
         "typedoc": "^0.28.20",
@@ -86,34 +94,13 @@
     },
     "packages/create-astlide": {
       "name": "create-astlide",
-      "version": "0.2.5",
+      "version": "0.2.6",
       "bin": {
         "create-astlide": "./dist/index.js",
       },
       "devDependencies": {
         "@types/node": "^26.6.5",
         "typescript": "^7.0.2",
-      },
-    },
-    "packages/engine": {
-      "name": "@astlide/engine",
-      "version": "0.1.3",
-      "dependencies": {
-        "@resvg/resvg-js": "^2.6.2",
-        "css-select": "^7.0.0",
-        "css-what": "^8.0.0",
-        "dom-serializer": "^3.1.1",
-        "domhandler": "^6.0.1",
-        "fontkit": "^2.0.4",
-        "htmlparser2": "^12.0.0",
-        "jsdom": "^30.1.3",
-        "postcss": "^8.5.30",
-        "svgdom": "^0.1.29",
-        "yoga-layout": "^3.2.1",
-      },
-      "devDependencies": {
-        "@types/fontkit": "^2.0.9",
-        "@types/jsdom": "^30.0.0",
       },
     },
     "packages/server": {
@@ -159,8 +146,6 @@
     "@astlide/core": ["@astlide/core@workspace:packages/astlide"],
 
     "@astlide/crispdf": ["@astlide/crispdf@0.0.1", "", { "dependencies": { "@pdf-lib/standard-fonts": "^1.0.0", "fontkit": "^2.0.4", "html-to-image": "^1.11.13", "woff2-encoder": "^2.0.0" }, "peerDependencies": { "pdfjs-dist": "^5.0.0" }, "optionalPeers": ["pdfjs-dist"] }, "sha512-37n7hAoXbi5/OJNiesFgpb6ZsSwM+IuM6DzN6XmBWSXh4QjCb7sSVLFRn97iQmkNB1W+UZ2EC/fTgExp4wBRCg=="],
-
-    "@astlide/engine": ["@astlide/engine@workspace:packages/engine"],
 
     "@astlide/server": ["@astlide/server@workspace:packages/server"],
 

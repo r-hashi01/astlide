@@ -1,7 +1,7 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { svgToPng } from "@astlide/engine";
+import { svgToPng } from "@astlide/core/engine";
 import { describe, expect, it } from "vitest";
 
 /** 1×1 red PNG. */
