@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Astlide is pre-1.0. Only the latest minor release of `@astlide/core` receives fixes.
+Only the latest minor release of `@astlide/core` (and the latest `create-astlide` / `astlide`) receives fixes.
 
 | Package | Supported |
 |---|---|
@@ -39,7 +39,8 @@ In scope:
 - `@astlide/core` integration code, schema, components, and utilities (e.g. `sanitizeHTML`, `sanitizeBackground`, `sanitizeKaTeXOutput`)
 - PowerPoint import and templates (`@astlide/core/pptx`): parsing untrusted `.pptx` / `.potx` / `.thmx` files
 - The `astlide` CLI (`export`, `import`, `mcp`) and the MCP server (`@astlide/core/mcp`)
-- `@astlide/engine` (layout of built pages for PPTX export)
+- The layout engine (`@astlide/core/engine`; formerly `@astlide/engine`): layout of built pages for PPTX export and `check_deck`
+- The `astlide` package (the `astlide` command for use without a project install)
 - The embed element (`@astlide/core/embed`) and its `postMessage` protocol
 - `create-astlide` CLI
 - The injected slide / index pages and their CSP defaults
@@ -53,8 +54,11 @@ Out of scope:
 
 ## Hardening already in place
 
-- Default CSP meta tag (`default-src 'self'`, `frame-src` restricted to `youtube-nocookie.com`)
-- `noindex, nofollow` injected by default (opt out via `astlide({ indexable: true })`)
-- HTML allowlist sanitisation for speaker notes (server + client)
-- CSS pattern blocklist on `background` frontmatter (`expression()`, `javascript:` / `vbscript:` URLs, `data:image/svg+xml`, `@import`, `behavior:`)
-- KaTeX output sanitisation that preserves SVG/inline-style while stripping scripts and event handlers
+- **Built pages:** a default CSP whose `script-src` allows inline scripts by hash only (no `'unsafe-inline'`); inline scripts, event handlers and `javascript:` URLs in Markdown / HTML / PowerPoint slides are removed — parsed as browsers parse them — unless `slideScripts: true`
+- **Speaker notes:** left out of production builds by default (`notes: "dev"`); allowlist sanitisation where they are shown
+- **Untrusted PowerPoint files:** bounded ZIP / XML reading, sanitised font names and colors, SVG pictures inlined (never served from the site), assets checked by their content
+- **Dev slide editor:** local requests only, enabled per browser through a one-time link printed by `astro dev`, edits existing slide files only
+- **Exports and the render service:** remote fetches checked against private / loopback / metadata addresses at connect time; Chromium sandboxed; size, count and time limits
+- **MCP server:** works only on projects inside the folders the client or `--root` allows; child processes get no secrets
+- **Releases:** published from CI only, with npm provenance, after a maintainer's approval
+- `noindex, nofollow` injected by default (opt out via `astlide({ indexable: true })`); CSS pattern blocklist on `background` frontmatter; KaTeX output sanitisation
