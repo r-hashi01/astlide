@@ -1,5 +1,13 @@
 # @astlide/core
 
+## 2.9.2
+
+### Patch Changes
+
+- [#232](https://github.com/r-hashi01/astlide/pull/232) [`5dc3c38`](https://github.com/r-hashi01/astlide/commit/5dc3c38cf3e3b3cbb3b5c3991b0cb444d8f618e1) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Printing a deck from the browser (Save as PDF) fits each slide to the paper — also on A4 / Letter and in Safari, which ignores the `@page` size — instead of cropping it at 1920px, and a slide change in progress no longer prints over the new slide (doubled text). `astlide export --pdf` output is unchanged.
+
+- [#225](https://github.com/r-hashi01/astlide/pull/225) [`04427a8`](https://github.com/r-hashi01/astlide/commit/04427a83da04efa352fe0957d24c867be94fb463) Thanks [@r-hashi01](https://github.com/r-hashi01)! - The layout engine is now part of `@astlide/core` (`@astlide/core/engine`); it was published separately as `@astlide/engine`, which is deprecated.
+
 ## 2.9.1
 
 ### Patch Changes
