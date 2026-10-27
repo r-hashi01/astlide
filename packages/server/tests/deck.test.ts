@@ -54,35 +54,37 @@ describe("slidesFromArray", () => {
 });
 
 describe("parseSlides", () => {
-	it("prefers slides over markdown and needs one of them", () => {
-		expect(parseSlides({ slides: ["# A"], markdown: "# B" })[0]?.body).toBe("# A");
-		expect(parseSlides({ markdown: "# B" })[0]?.body).toBe("# B");
-		expect(() => parseSlides({})).toThrow(BadRequest);
-		expect(() => parseSlides({ markdown: "---\n---" })).toThrow(/no slides/);
+	it("prefers slides over markdown and needs one of them", async () => {
+		expect((await parseSlides({ slides: ["# A"], markdown: "# B" }))[0]?.body).toBe("# A");
+		expect((await parseSlides({ markdown: "# B" }))[0]?.body).toBe("# B");
+		await expect(parseSlides({})).rejects.toThrow(BadRequest);
+		await expect(parseSlides({ markdown: "---\n---" })).rejects.toThrow(/no slides/);
 	});
 
-	it("validates frontmatter against the slide schema", () => {
-		expect(() =>
+	it("validates frontmatter against the slide schema", async () => {
+		await expect(
 			parseSlides({ slides: [{ markdown: "# A", frontmatter: { hidden: "yes" } }] }),
-		).toThrow(/slide 1: hidden/);
-		expect(() =>
+		).rejects.toThrow(/slide 1: hidden/);
+		await expect(
 			parseSlides({
 				slides: [{ markdown: "# A", frontmatter: { background: "url(javascript:x)" } }],
 			}),
-		).toThrow(/background/);
-		expect(() => parseSlides({ markdown: "---\nfoo: [\n---\n# A" })).toThrow(/invalid frontmatter/);
+		).rejects.toThrow(/background/);
+		await expect(parseSlides({ markdown: "---\nfoo: [\n---\n# A" })).rejects.toThrow(
+			/invalid frontmatter/,
+		);
 	});
 
-	it("turns layout (reserved by Astro) into slideLayout", () => {
-		const [slide] = parseSlides({ markdown: "---\nlayout: section\n---\n# A" });
+	it("turns layout (reserved by Astro) into slideLayout", async () => {
+		const [slide] = await parseSlides({ markdown: "---\nlayout: section\n---\n# A" });
 		expect(slide?.frontmatter).toEqual({ slideLayout: "section" });
 	});
 });
 
 describe("deckFiles", () => {
-	it("writes numbered slide files with frontmatter and _config.json", () => {
+	it("writes numbered slide files with frontmatter and _config.json", async () => {
 		const files = deckFiles(
-			parseSlides({
+			await parseSlides({
 				slides: [
 					{ markdown: "# A", slideLayout: "cover", notes: 'Say "hi"\n: ok' },
 					{ html: "<p>B</p>" },
@@ -94,13 +96,13 @@ describe("deckFiles", () => {
 		expect(files["01-slide.md"]).toBe(
 			'---\nslideLayout: "cover"\nnotes: "Say \\"hi\\"\\n: ok"\n---\n# A\n',
 		);
-		expect(files["02-slide.html"]).toBe("<p>B</p>\n");
+		expect(files["02-slide.html"]).toBe("---\n{}\n---\n<p>B</p>\n");
 		expect(JSON.parse(files["_config.json"] as string)).toEqual({ title: "Deck", theme: "dark" });
 	});
 
-	it("pads numbers so slides sort", () => {
+	it("pads numbers so slides sort", async () => {
 		const files = deckFiles(
-			parseSlides({ slides: Array.from({ length: 120 }, (_, i) => `# ${i}`) }),
+			await parseSlides({ slides: Array.from({ length: 120 }, (_, i) => `# ${i}`) }),
 			{},
 		);
 		expect(Object.keys(files)[0]).toBe("001-slide.md");
@@ -134,5 +136,89 @@ describe("Queue", () => {
 		expect(await first).toBe("first");
 		expect(await second).toBe("second");
 		expect(queue.size).toEqual({ running: 0, waiting: 0 });
+	});
+});
+
+describe("input that could escape the slide", () => {
+	it("keeps a body that starts with --- as body, not frontmatter", async () => {
+		const evil = "---\nslideLayout: 42\nfoo: bar\n---\n# Hi";
+		const files = deckFiles(await parseSlides({ slides: [evil, { html: evil }] }), {});
+		expect(files["01-slide.md"]).toBe(`---\n{}\n---\n${evil}\n`);
+		expect(files["02-slide.html"]).toBe(`---\n{}\n---\n${evil}\n`);
+	});
+
+	it("refuses Markdown images that are file paths", async () => {
+		for (const markdown of [
+			"![x](../../../../etc/secret.png)",
+			"![x](<./a b.png>)",
+			'![x](img.jpg "title")',
+			"![x][a]\n\n[a]: ../../x.svg",
+			"![x](%2e%2e/%2e%2e/x.png)",
+			"![x](..\\..\\x.png)",
+			"![x](x.png?raw)",
+			"[![x](../x.png)](https://example.com)",
+			"> - ![x](../x.png)",
+			"![x](<../a b.png> 'title')",
+		])
+			await expect(parseSlides({ markdown }), markdown).rejects.toThrow(/file path/);
+	});
+
+	it("allows image URLs, and links to relative pages", async () => {
+		for (const markdown of [
+			"![x](https://example.com/a.png)",
+			"![x](data:image/png;base64,AAAA)",
+			"![x](/public.png)",
+			"[docs](../guide.html)",
+			'<img src="../x.png">',
+			"![x](//cdn.example.com/a.png)",
+			"![x](file:///etc/x.png)",
+			"`![x](../x.png)`",
+			"text\n\n    ![x](../x.png)",
+		])
+			await expect(parseSlides({ markdown }), markdown).resolves.toBeDefined();
+	});
+});
+
+describe("input meant to exhaust the server", () => {
+	it("checks images in linear time", async () => {
+		for (const body of ["![](".repeat(250_000), "![](<".repeat(200_000), "[\n".repeat(500_000)]) {
+			const started = performance.now();
+			await parseSlides({ slides: [body] });
+			expect(performance.now() - started).toBeLessThan(1000);
+		}
+	});
+
+	it("refuses YAML aliases in frontmatter", async () => {
+		const levels = ["a: &a [x, x, x, x, x, x, x, x, x, x]"];
+		for (let i = 1; i < 9; i++)
+			levels.push(
+				`l${i}: &l${i} [${Array(10)
+					.fill(i === 1 ? "*a" : `*l${i - 1}`)
+					.join(", ")}]`,
+			);
+		await expect(parseSlides({ markdown: `---\n${levels.join("\n")}\n---\n# A` })).rejects.toThrow(
+			/invalid frontmatter/,
+		);
+	});
+
+	it("refuses oversized frontmatter", async () => {
+		await expect(
+			(async () =>
+				deckFiles(
+					await parseSlides({
+						slides: [{ markdown: "# A", frontmatter: { x: "y".repeat(300_000) } }],
+					}),
+					{},
+				))(),
+		).rejects.toThrow(/frontmatter is larger/);
+	});
+
+	it("counts slides before checking each one", async () => {
+		await expect(
+			parseSlides({ slides: Array.from({ length: 11 }, () => ({ frontmatter: 42 })) }, 10),
+		).rejects.toThrow(/at most 10 slides/);
+		await expect(parseSlides({ markdown: "# A\n---\n# B\n---\n# C" }, 2)).rejects.toThrow(
+			/at most 2/,
+		);
 	});
 });

@@ -57,4 +57,4 @@ The `astlide` MCP server ships with `@astlide/core` (`astlide mcp`, runs with Bu
 claude mcp add astlide -- bunx astlide mcp
 ```
 
-See https://astlide.dev/guides/agents/ for Codex and Gemini CLI.
+Claude Code sends the project as an MCP root, so the tools work there. Clients that don't (Codex, Gemini CLI, Claude Desktop …) need the project folder named: `bunx astlide mcp --root /path/to/project` (or `ASTLIDE_MCP_ROOTS`); started in `/` or the home folder, the server allows no project by default. A project must be a named folder or directly in one, and the PowerPoint files the tools read must be inside those folders too. See https://astlide.dev/guides/agents/.

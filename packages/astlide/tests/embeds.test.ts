@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resolveEmbeds } from "../src/cli/pptx/embeds";
+import { pageTags, resolveEmbeds } from "../src/cli/pptx/embeds";
 
 const cache = () => mkdtempSync(join(tmpdir(), "astlide-embeds-"));
 
@@ -44,6 +44,53 @@ describe("resolveEmbeds", () => {
 			link: "https://example.com/demo",
 			title: "A & B",
 			thumbnail: "https://example.com/card.png",
+		});
+	});
+
+	it("links only to http(s) pages, and survives broken tags", async () => {
+		serve({
+			"https://example.com/a": `<head><meta property="og:url" content="javascript:alert(1)"><meta property="og:image" content="http://["></head>`,
+			"https://example.com/b": `<head><meta property="og:url" content="file://host/share/x"><title>B</title></head>`,
+		});
+		const figma = "https://www.figma.com/embed?url=%E0%A4%A";
+		const info = await resolveEmbeds(
+			["https://example.com/a", "https://example.com/b", figma],
+			cache(),
+		);
+		expect(info.get("https://example.com/a")).toEqual({ link: "https://example.com/a" });
+		expect(info.get("https://example.com/b")).toEqual({
+			link: "https://example.com/b",
+			title: "B",
+		});
+		expect(info.get(figma)).toEqual({ link: figma });
+	});
+
+	it("only follows an advertised oEmbed endpoint to a public address", async () => {
+		const fetch = vi.fn(async (url: string) =>
+			url === "https://example.com/c"
+				? new Response(
+						`<head><link rel="alternate" type="application/json+oembed" href="http://127.0.0.1:9/oembed"><title>C</title></head>`,
+					)
+				: new Response(JSON.stringify({ title: "secret" })),
+		);
+		vi.stubGlobal("fetch", fetch);
+		const info = await resolveEmbeds(["https://example.com/c"], cache());
+		expect(info.get("https://example.com/c")).toEqual({
+			link: "https://example.com/c",
+			title: "C",
+		});
+		expect(fetch.mock.calls.map(([url]) => url)).toEqual(["https://example.com/c"]);
+	});
+
+	it("reads page tags in linear time", () => {
+		const started = performance.now();
+		pageTags("<meta".repeat(400_000));
+		pageTags(`<link type="application/json+oembed" ${"a".repeat(2_000_000)}`);
+		expect(performance.now() - started).toBeLessThan(1000);
+		expect(pageTags(`<title> A &amp; B </title><meta name="og:title" content="x">`)).toEqual({
+			meta: new Map([["og:title", "x"]]),
+			oembed: undefined,
+			title: "A & B",
 		});
 	});
 

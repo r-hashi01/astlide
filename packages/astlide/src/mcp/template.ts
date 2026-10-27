@@ -38,7 +38,7 @@ export interface TemplateLayoutsResult {
 	aliases: Record<string, string>;
 }
 
-const TEMPLATE_EXTENSIONS = new Set([".pptx", ".potx", ".thmx"]);
+export const TEMPLATE_EXTENSIONS = new Set([".pptx", ".potx", ".thmx"]);
 
 /** Read a template's layouts from its bytes. */
 export function templateLayouts(data: Uint8Array): TemplateLayoutsResult {

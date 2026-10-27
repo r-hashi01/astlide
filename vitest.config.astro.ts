@@ -41,6 +41,8 @@ const template = {
 
 export default getViteConfig({
 	plugins: [astlideVirtualPlugin(resolved), astlideTemplatesPlugin([template], (t) => t)],
+	// The integration sets this; without it notes are left out (fail closed).
+	define: { __ASTLIDE_NOTES__: "true" },
 	test: {
 		name: "astro-components",
 		include: ["**/astro-components.test.ts"],

@@ -25,6 +25,7 @@ import Math from '@astlide/core/components/Math.astro';
 import YouTube from '@astlide/core/components/YouTube.astro';
 import Tweet from '@astlide/core/components/Tweet.astro';
 import { extractCommentNotes } from '@astlide/core/utils/comment-notes';
+import { slideContentComments } from '@astlide/core/utils/slide-mark';
 
 export async function getStaticPaths() {
   const allSlides = await getCollection('decks');
@@ -222,7 +223,7 @@ if (import.meta.env.DEV) {
     totalSlides={totalSlides}
     theme={deckConfig.theme}
   >
-    <Content components={{ Left, Right, ImageSide, TextPanel, Fragment: SlideFragment, Fragments, Notes, SpeakerNotes, Columns, CodeBlock, Math, YouTube, Tweet }} />
+    <Fragment set:html={slideContentComments(slide.filePath).start} /><Content components={{ Left, Right, ImageSide, TextPanel, Fragment: SlideFragment, Fragments, Notes, SpeakerNotes, Columns, CodeBlock, Math, YouTube, Tweet }} /><Fragment set:html={slideContentComments(slide.filePath).end} />
   </Slide>
   {import.meta.env.DEV && diagnostics.length > 0 && <ErrorOverlay diagnostics={diagnostics} />}
 </DeckLayout>

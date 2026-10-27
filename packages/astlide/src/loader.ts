@@ -40,7 +40,13 @@ import { fileURLToPath } from "node:url";
 import type { Loader, LoaderContext } from "astro/loaders";
 import { glob } from "astro/loaders";
 import { load as parseYaml } from "js-yaml";
+import {
+	extractCommentNotes,
+	stripTrailingComment,
+	withoutNotesComment,
+} from "./utils/comment-notes";
 import { pptxAssetDir, storePptxAsset } from "./utils/pptx-assets";
+import { SLIDE_SCRIPTS_VERSION, slideScriptsKept, stripSlideScripts } from "./utils/slide-scripts";
 
 /** Options for {@link astlideDeckLoader}. */
 export interface AstlideDeckLoaderOptions {
@@ -74,6 +80,56 @@ function splitFrontmatter(raw: string): { data: Record<string, unknown>; body: s
 	return { data, body: raw.slice(match[0].length) };
 }
 
+/**
+ * `context` whose store removes scripts from the rendered HTML of every
+ * Markdown, HTML and PowerPoint slide it is given (see utils/slide-scripts) —
+ * also the updates Astro's own Markdown loader makes later in `astro dev`.
+ * MDX slides are code and are left alone.
+ *
+ * @internal
+ */
+export function withoutSlideScripts(context: LoaderContext): LoaderContext {
+	const { store } = context;
+	// Entries cleaned by this version carry it in their digest; others (cached
+	// before, or with `slideScripts` on) look changed, so they are rendered again.
+	const MARK = `:scripts-${SLIDE_SCRIPTS_VERSION}`;
+	const content = (filePath: string | undefined) => !!filePath && !/\.mdx$/i.test(filePath);
+	const set: typeof store.set = (entry) => {
+		const html = entry.rendered?.html;
+		if (typeof html !== "string" || !entry.rendered || !content(entry.filePath))
+			return store.set(entry);
+		return store.set({
+			...entry,
+			rendered: { ...entry.rendered, html: stripSlideScripts(html) },
+			digest: entry.digest === undefined ? undefined : `${entry.digest}${MARK}`,
+		});
+	};
+	const get = ((key: string) => {
+		const entry = store.get(key);
+		if (!entry || typeof entry.digest !== "string" || !content(entry.filePath)) return entry;
+		return entry.digest.endsWith(MARK)
+			? { ...entry, digest: entry.digest.slice(0, -MARK.length) }
+			: { ...entry, digest: undefined };
+	}) as typeof store.get;
+	return {
+		...context,
+		store: new Proxy(store, {
+			get: (target, key) => {
+				if (key === "set") return set;
+				if (key === "get") return get;
+				const value = Reflect.get(target, key, target);
+				return typeof value === "function" ? value.bind(target) : value;
+			},
+		}),
+	};
+}
+
+/** An HTML slide's body without its trailing notes comment. */
+function htmlWithoutNotes(body: string): string {
+	const notes = extractCommentNotes(body);
+	return (notes === undefined ? null : withoutNotesComment(body, notes)) ?? body;
+}
+
 /** Guard against re-registering dev watcher listeners each time `load()` re-runs. */
 const wiredWatchers = new WeakSet<object>();
 
@@ -96,7 +152,11 @@ export function astlideDeckLoader(options: AstlideDeckLoaderOptions = {}): Loade
 
 	return {
 		name: "astlide-deck-loader",
-		async load(context) {
+		async load(loaderContext) {
+			// Trailing-comment notes never reach the rendered body; scripts in Markdown /
+			// HTML / PowerPoint slides only run with `slideScripts: true`.
+			const withoutNotes = withoutMarkdownNotes(loaderContext);
+			const context = slideScriptsKept() ? withoutNotes : withoutSlideScripts(withoutNotes);
 			await markdownLoader.load(context);
 			const baseUrl = new URL(`${base.replace(/\/?$/, "/")}`, context.config.root);
 			await syncHtmlSlides(context, baseUrl);
@@ -120,6 +180,60 @@ export function astlideDeckLoader(options: AstlideDeckLoaderOptions = {}): Loade
 				watcher.on("unlink", onChange);
 			}
 		},
+	};
+}
+
+/**
+ * `context` with a store that takes the trailing notes comment out of
+ * rendered `.md` slides: the notes are read from the entry's raw body and
+ * reach pages only when notes are included, so the rendered HTML mustn't
+ * carry them. (`.mdx` loses it before compiling, `.html` in
+ * {@link syncHtmlSlides}.) The digest changes with it, so entries cached
+ * with the comment are replaced.
+ */
+/** @internal */
+export function withoutMarkdownNotes(context: LoaderContext): LoaderContext {
+	const { store } = context;
+	const MARK = ":notes-out";
+	/** The rendered HTML without the notes comment, or null when it has none. */
+	const withoutNotes = (entry: { body?: string; rendered?: { html?: string } }) => {
+		const notes = entry.body === undefined ? undefined : extractCommentNotes(entry.body);
+		const html = entry.rendered?.html;
+		return notes === undefined || html === undefined ? null : withoutNotesComment(html, notes);
+	};
+	const set: typeof store.set = (entry) => {
+		const stripped = withoutNotes(entry);
+		if (stripped === null || !entry.rendered) return store.set(entry);
+		return store.set({
+			...entry,
+			rendered: { ...entry.rendered, html: stripped },
+			digest: entry.digest === undefined ? undefined : `${entry.digest}${MARK}`,
+		});
+	};
+	// The glob loader skips files whose digest matches the stored entry: show it
+	// the original digest, and none for an entry cached with the comment still in.
+	const get = ((key: string) => {
+		const entry = store.get(key);
+		if (!entry || typeof entry.digest !== "string") return entry;
+		if (entry.digest.endsWith(MARK))
+			return { ...entry, digest: entry.digest.slice(0, -MARK.length) };
+		// Without a body to read the notes from, any trailing comment counts.
+		const cached =
+			entry.body === undefined
+				? entry.rendered?.html !== undefined && stripTrailingComment(entry.rendered.html) !== null
+				: withoutNotes(entry) !== null;
+		return cached ? { ...entry, digest: undefined } : entry;
+	}) as typeof store.get;
+	return {
+		...context,
+		store: new Proxy(store, {
+			get: (target, key) => {
+				if (key === "set") return set;
+				if (key === "get") return get;
+				const value = Reflect.get(target, key, target);
+				return typeof value === "function" ? value.bind(target) : value;
+			},
+		}),
 	};
 }
 
@@ -197,9 +311,10 @@ async function syncPptxSlides(context: LoaderContext, baseUrl: URL): Promise<voi
  * Read every `.html`/`.htm` file under `baseUrl`, store each as a pre-rendered
  * slide entry, and drop store entries whose HTML source has been deleted.
  *
- * HTML slides are first-party authored files (same trust level as `.mdx`), so
- * the body is stored verbatim — no sanitization — allowing inline `<style>`
- * and markup exactly as MDX slides already allow.
+ * The body is stored as written — inline `<style>` and any markup — except
+ * that scripts are removed from the rendered HTML unless the integration's
+ * `slideScripts` option is on (an HTML slide may be someone else's; see
+ * {@link withoutSlideScripts}).
  */
 async function syncHtmlSlides(context: LoaderContext, baseUrl: URL): Promise<void> {
 	const { store, parseData, generateDigest, config } = context;
@@ -234,8 +349,9 @@ async function syncHtmlSlides(context: LoaderContext, baseUrl: URL): Promise<voi
 			filePath,
 			body,
 			digest: generateDigest(raw),
-			// `render(entry)` returns a component that emits this HTML directly.
-			rendered: { html: body },
+			// `render(entry)` returns a component that emits this HTML directly —
+			// without the trailing notes comment, which is read from `body`.
+			rendered: { html: htmlWithoutNotes(body) },
 		});
 	}
 

@@ -1,11 +1,18 @@
 /**
  * PDF / PNG rendering of a deck from a running site (dev, preview or the
  * temporary server `astlide export` starts).
+ *
+ * Chromium runs with its sandbox on; `ASTLIDE_CHROMIUM_SANDBOX=0` turns it off
+ * (only for environments that can't provide it, see {@link launchChromium}).
+ *
+ * The render service also sets: `ASTLIDE_PUBLIC_NETWORK_ONLY=1` (slides reach
+ * only public hosts) and `ASTLIDE_MAX_SLIDES` (most slides rendered).
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { type Browser, chromium, type Page } from "playwright";
+import { publicNetworkOnly, publicRequest, readBody } from "@astlide/core/utils/network.ts";
+import { type BrowserContext, chromium, type Page } from "playwright";
 
 export interface RenderOptions {
 	/** Output file (PDF) or directory (PNG). */
@@ -17,15 +24,22 @@ export interface RenderOptions {
 	height: number;
 }
 
-async function getSlideCount(browser: Browser, baseUrl: string, deck: string): Promise<number> {
-	const page = await browser.newPage();
+async function getSlideCount(
+	context: BrowserContext,
+	baseUrl: string,
+	deck: string,
+): Promise<number> {
+	const page = await context.newPage();
 	await page.goto(`${baseUrl}/${deck}/1`);
 	await page.waitForLoadState("networkidle");
 	const count = await page.evaluate(() =>
 		parseInt((document.body as HTMLElement).dataset.totalSlides || "0", 10),
 	);
 	await page.close();
-	return count;
+	// The page says how many slides it has; a deck's own script could claim more.
+	const max = Number(process.env.ASTLIDE_MAX_SLIDES);
+	const n = Number.isFinite(count) && count > 0 ? count : 0;
+	return max > 0 ? Math.min(n, max) : n;
 }
 
 const EXPORT_STYLE = `
@@ -35,7 +49,7 @@ const EXPORT_STYLE = `
 `;
 
 async function exportToPDF(
-	browser: Browser,
+	context: BrowserContext,
 	deck: string,
 	slideCount: number,
 	outputPath: string,
@@ -43,7 +57,7 @@ async function exportToPDF(
 	width: number,
 	height: number,
 ): Promise<void> {
-	const page = await browser.newPage();
+	const page = await context.newPage();
 	await page.setViewportSize({ width, height });
 
 	// Navigate to the /[deck]/all route which stacks every slide with page-break-after,
@@ -70,7 +84,7 @@ async function exportToPDF(
 }
 
 async function exportToPNG(
-	browser: Browser,
+	context: BrowserContext,
 	deck: string,
 	slideCount: number,
 	outputDir: string,
@@ -78,7 +92,7 @@ async function exportToPNG(
 	width: number,
 	height: number,
 ): Promise<void> {
-	const page = await browser.newPage();
+	const page = await context.newPage();
 	await page.setViewportSize({ width, height });
 
 	await mkdir(outputDir, { recursive: true });
@@ -110,23 +124,18 @@ export async function exportDeck(deck: string, options: RenderOptions): Promise<
 	console.log(`\nExporting: ${deck}`);
 
 	// Launch a single browser instance shared across slide-count detection and export
-	const browser = await chromium.launch().catch((err: Error) => {
-		if (/Executable doesn't exist/.test(err.message)) {
-			throw new Error(
-				"PDF / PNG export needs Chromium. Install it once with: bunx playwright install chromium\n" +
-					"(PPTX needs no browser: --pptx)",
-			);
-		}
-		throw err;
-	});
+	const guarded = publicNetworkOnly();
+	const browser = await launchChromium(guarded ? guardedChromiumArgs(options.baseUrl) : []);
 	try {
-		const slideCount = await getSlideCount(browser, options.baseUrl, deck);
+		const context = await browser.newContext({ serviceWorkers: "block" });
+		if (guarded) await guardNetwork(context, options.baseUrl);
+		const slideCount = await getSlideCount(context, options.baseUrl, deck);
 		console.log(`  ${slideCount} slides found`);
 
 		if (options.format === "png") {
 			const outputDir = options.output || `./dist/${deck}-slides`;
 			await exportToPNG(
-				browser,
+				context,
 				deck,
 				slideCount,
 				outputDir,
@@ -138,7 +147,7 @@ export async function exportDeck(deck: string, options: RenderOptions): Promise<
 		} else {
 			const outputPath = options.output || `./dist/${deck}.pdf`;
 			await exportToPDF(
-				browser,
+				context,
 				deck,
 				slideCount,
 				outputPath,
@@ -165,4 +174,199 @@ async function waitForDiagrams(page: Page): Promise<void> {
 			timeout: 30_000,
 		},
 	);
+}
+
+/**
+ * Chromium flags for a guarded render of the site at `baseUrl`. Everything
+ * goes to a proxy that isn't there, loopback included (`<-loopback>`), except
+ * the rendered site itself: requests that the route in {@link guardNetwork}
+ * doesn't see — shared workers, speculative prefetch / prerender — go
+ * nowhere. WebRTC sends no UDP of its own.
+ */
+export function guardedChromiumArgs(baseUrl: string): string[] {
+	const site = new URL(baseUrl);
+	const port = site.port || (site.protocol === "https:" ? "443" : "80");
+	return [
+		"--proxy-server=http://127.0.0.1:9",
+		`--proxy-bypass-list=<-loopback>;${site.hostname}:${port}`,
+		"--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+		"--webrtc-ip-handling-policy=disable_non_proxied_udp",
+		"--dns-prefetch-disable",
+		// Memory: a few renderer processes, each with a bounded JavaScript heap.
+		"--renderer-process-limit=4",
+		"--js-flags=--max-old-space-size=512",
+	];
+}
+
+/** Bounds on what a guarded page may load from other hosts. */
+const GUARDED_LIMITS = {
+	/** One response, in bytes. */
+	response: 20 * 1024 * 1024,
+	/** All responses of one render together, in bytes. */
+	total: 200 * 1024 * 1024,
+	/** Requests in flight at once (more wait). */
+	parallel: 6,
+};
+
+/** Request headers not passed on when Astlide makes a request for the page. */
+const HOP_HEADERS = new Set([
+	"host",
+	"connection",
+	"content-length",
+	"accept-encoding",
+	"keep-alive",
+	"transfer-encoding",
+	"upgrade",
+]);
+
+/** Response headers not handed to Chromium: transport details, and anything that would make it navigate itself. */
+const DROPPED_RESPONSE_HEADERS = new Set([
+	"location",
+	"refresh",
+	"content-encoding",
+	"content-length",
+	"transfer-encoding",
+	"connection",
+	"keep-alive",
+	"alt-svc",
+]);
+
+/**
+ * With `ASTLIDE_PUBLIC_NETWORK_ONLY=1` (the render service): the slides may
+ * load from the site being rendered, `data:` / `blob:` URLs and public
+ * http(s) hosts — nothing on the server's own network (loopback, private
+ * ranges, cloud metadata), no other schemes, no WebSockets or service
+ * workers. Chromium doesn't connect to other hosts itself: Astlide makes
+ * those requests ({@link publicRequest}: checked as it connects) and hands
+ * Chromium the response. Redirects are followed here, each hop checked —
+ * Chromium would follow a redirect it is handed without routing it again —
+ * and a page can't load more than {@link GUARDED_LIMITS} allow. Pair it with
+ * {@link guardedChromiumArgs} for what the route doesn't see.
+ */
+export async function guardNetwork(context: BrowserContext, baseUrl: string): Promise<void> {
+	const site = new URL(baseUrl).origin;
+	let loaded = 0;
+	let reserved = 0;
+	let running = 0;
+	const waiting: (() => void)[] = [];
+	const slot = async () => {
+		if (running >= GUARDED_LIMITS.parallel) await new Promise<void>((go) => waiting.push(go));
+		running++;
+	};
+	const release = () => {
+		running--;
+		waiting.shift()?.();
+	};
+	await context.route("**/*", async (route) => {
+		const request = route.request();
+		const url = request.url();
+		const sameSite = URL.canParse(url) && new URL(url).origin === site;
+		// The page itself stays on the site: no redirect, refresh or link replaces what is
+		// rendered (a 204 leaves the current document in place; an abort would show an error page).
+		if (!sameSite && request.isNavigationRequest() && isMainFrame(request))
+			return route.fulfill({ status: 204 });
+		if (url.startsWith("data:") || url.startsWith("blob:")) return route.continue();
+		if (sameSite) return route.continue();
+		await slot();
+		try {
+			const headers: Record<string, string> = {};
+			for (const [name, value] of Object.entries(await request.allHeaders()))
+				if (!name.startsWith(":") && !HOP_HEADERS.has(name)) headers[name] = value;
+			const signal = AbortSignal.timeout(30_000);
+			let method = request.method();
+			let body: Buffer | undefined = request.postDataBuffer() ?? undefined;
+			let target = url;
+			let res = await publicRequest(target, { method, headers, body, signal });
+			for (
+				let hop = 0;
+				res.status >= 300 && res.status < 400 && res.headers.get("location");
+				hop++
+			) {
+				if (hop === 5) throw new Error("too many redirects");
+				await res.body?.cancel();
+				const next = new URL(res.headers.get("location") as string, target);
+				// Credentials stay with the host they were meant for.
+				if (next.origin !== new URL(target).origin) {
+					delete headers.authorization;
+					delete headers.cookie;
+				}
+				// 307 / 308 repeat the request; the others become a GET without a body.
+				if (res.status !== 307 && res.status !== 308) {
+					method = "GET";
+					body = undefined;
+					delete headers["content-type"];
+				}
+				target = next.href;
+				res = await publicRequest(target, { method, headers, body, signal });
+			}
+			const encoding = res.headers.get("content-encoding");
+			if (encoding && encoding !== "identity") throw new Error(`compressed response (${encoding})`);
+			// Reserved before reading, so responses read at once can't overshoot the total.
+			const limit = Math.min(GUARDED_LIMITS.response, GUARDED_LIMITS.total - loaded - reserved);
+			if (limit <= 0) throw new Error("over the render's download budget");
+			reserved += limit;
+			let content: Buffer;
+			try {
+				content = await readBody(res, limit);
+			} finally {
+				reserved -= limit;
+			}
+			loaded += content.length;
+			const passed: Record<string, string> = {};
+			for (const [name, value] of res.headers)
+				if (!DROPPED_RESPONSE_HEADERS.has(name)) passed[name] = value;
+			await route.fulfill({ status: res.status, headers: passed, body: content });
+		} catch (err) {
+			const refused = err instanceof Error && err.message.startsWith("refused");
+			await route.abort(refused ? "blockedbyclient" : "failed");
+		} finally {
+			release();
+		}
+	});
+	await context.routeWebSocket(/.*/, (ws) => ws.close());
+}
+
+/** Whether `request` loads a page's top-level document (not a frame's, nor a worker's). */
+function isMainFrame(request: import("playwright").Request): boolean {
+	try {
+		return request.frame().parentFrame() === null;
+	} catch {
+		// Requests of service workers have no frame.
+		return false;
+	}
+}
+
+/** Whether Chromium keeps its sandbox: on unless `ASTLIDE_CHROMIUM_SANDBOX=0`. */
+export function chromiumSandbox(env: Record<string, string | undefined> = process.env): boolean {
+	return env.ASTLIDE_CHROMIUM_SANDBOX !== "0";
+}
+
+/**
+ * Chromium for PDF / PNG, with its sandbox on (Playwright turns it off by
+ * default): the slides are web pages, and a renderer bug should stay inside
+ * the sandbox. On Linux the sandbox needs user namespaces; when the system
+ * refuses them this fails with how to allow them — it never quietly runs
+ * without the sandbox. `ASTLIDE_CHROMIUM_SANDBOX=0` opts out.
+ */
+export async function launchChromium(args: string[] = []) {
+	const sandbox = chromiumSandbox();
+	return chromium.launch({ chromiumSandbox: sandbox, args }).catch((err: Error) => {
+		if (/Executable doesn't exist/.test(err.message)) {
+			throw new Error(
+				"PDF / PNG export needs Chromium. Install it once with: bunx playwright install chromium\n" +
+					"(PPTX needs no browser: --pptx)",
+			);
+		}
+		if (sandbox && /sandbox|namespace|zygote/i.test(err.message)) {
+			throw new Error(
+				"Chromium couldn't start its sandbox (it needs unprivileged user namespaces).\n" +
+					"  · Linux (e.g. Ubuntu 24.04): allow them for Playwright's Chromium only, with an AppArmor profile:\n" +
+					"    https://astlide.dev/guides/export/#chromium-sandbox-on-linux\n" +
+					"  · Docker: run with --security-opt seccomp=<the Chromium profile> (see the render service guide)\n" +
+					"  · Or, only where the slides are your own: ASTLIDE_CHROMIUM_SANDBOX=0\n" +
+					`(${err.message.split("\n")[0]})`,
+			);
+		}
+		throw err;
+	});
 }

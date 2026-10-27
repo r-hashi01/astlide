@@ -1,6 +1,6 @@
 /**
  * `check_deck`: find text and boxes that don't fit, from the same layout the
- * PowerPoint export uses (@astlide/engine — no browser), so an agent can
+ * PowerPoint export uses (the layout engine in `engine/` — no browser), so an agent can
  * shorten text or split a slide before exporting.
  *
  * Problems found, per slide:
@@ -29,7 +29,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import type { Box, FontRegistry, Rect, SlideLayout, TextLine } from "@astlide/engine";
+import type { Box, FontRegistry, Rect, SlideLayout, TextLine } from "@astlide/core/engine";
 import type { Element } from "domhandler";
 import { buildSite, deckDir, printView, projectRoot } from "./project";
 
@@ -417,7 +417,7 @@ export async function layoutBuiltPage(
 	dist: string,
 	cacheDir: string,
 ): Promise<{ layouts: SlideLayout[]; warnings: string[] }> {
-	const engine = await import("@astlide/engine");
+	const engine = await import("@astlide/core/engine");
 	const fonts: FontRegistry = new engine.FontRegistry();
 	const css = engine.pageCss(html, dist);
 	const local = engine.loadFontFaces(fonts, css, dist);
@@ -493,6 +493,8 @@ export function siteView(page: string, dist: string): { dir: string; dispose(): 
 	const path = href?.[1] ?? href?.[2];
 	if (!path || existsSync(join(dist, path))) return same;
 	const segments = path.split("/").filter(Boolean);
+	// Only plain folder names: nothing may be linked outside the temporary folder.
+	if (segments.some((s) => s === "." || s === ".." || s.includes("\\"))) return same;
 	for (let n = 1; n < segments.length; n++) {
 		if (!existsSync(join(dist, ...segments.slice(n)))) continue;
 		const dir = mkdtempSync(join(tmpdir(), "astlide-check-"));
@@ -513,6 +515,8 @@ export async function checkDeck(options: CheckDeckOptions): Promise<CheckDeckRes
 	if (mode === true || (mode === "auto" && stale)) await buildSite(root);
 	if (!existsSync(page))
 		throw new Error(`no built deck at ${page} — build the site (astro build) first`);
+	// The layout check reads dist/ (a plain `astro build`): it needs no speaker
+	// notes, so it doesn't use the export's own build (utils/export-build).
 	const dist = join(root, "dist");
 	const view = siteView(page, dist);
 	let result: Awaited<ReturnType<typeof layoutBuiltPage>>;

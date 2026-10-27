@@ -5,7 +5,6 @@ bun workspaces モノレポ。パッケージマネージャーは **bun**。
 ```
 packages/astlide/          — @astlide/core (Astro Integration)
 packages/create-astlide/   — create-astlide (CLI scaffolder)
-packages/engine/           — @astlide/engine (ブラウザなしの HTML/CSS レイアウト、PPTX export が使用)
 skills/astlide/            — エージェント用スキル (SKILL.md)
 playground/                — 開発用 Astro プロジェクト
 docs/                      — ドキュメントサイト (Starlight) → https://astlide.dev/
@@ -72,7 +71,7 @@ bun run changeset    # changeset 作成
 ```bash
 bun run changeset   # 変更内容を記録（機能追加・破壊的変更のたびに実行）
 bun run version     # バージョンバンプ + CHANGELOG.md を自動生成
-bun run release     # npm publish（CI での実行を推奨）
+# 公開は CI のみ（Release ワークフロー、npm-publish 環境での承認が必要）。RELEASING.md 参照
 ```
 
 ## コードレビュー

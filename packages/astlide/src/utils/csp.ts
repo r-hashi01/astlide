@@ -12,6 +12,82 @@
  */
 const DEV_WORKER_SRC = "worker-src 'self' blob:";
 
+/** Directives every default policy ends with: no `<base>` / form / plugin tricks. */
+const HARDENING = ["base-uri 'self'", "form-action 'self'", "object-src 'none'"];
+
+/**
+ * Default policy of deck pages (slides, `/[deck]/all`). `'unsafe-inline'` in
+ * `script-src` is for `astro dev` only: built pages are emitted without it
+ * ({@link cspFor}) and the build adds the hashes of the allowed inline
+ * scripts (see `utils/csp-hashes`) — a page the build doesn't rewrite runs
+ * no inline scripts rather than all of them. Styles keep `'unsafe-inline'`:
+ * slides set `style` attributes throughout, which hashes can't allow.
+ */
+export const DEFAULT_DECK_CSP = [
+	"default-src 'self'",
+	"script-src 'self' 'unsafe-inline'",
+	"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+	"font-src 'self' https://fonts.gstatic.com data:",
+	"img-src 'self' data: https: blob:",
+	// `data:` and `blob:` allowed so the in-browser PDF exporter can fetch
+	// its own rasterised page images while assembling the document.
+	"connect-src 'self' data: blob:",
+	"frame-src 'self' https://www.youtube-nocookie.com",
+	...HARDENING,
+].join("; ");
+
+/** Default policy of the deck index page. */
+export const DEFAULT_INDEX_CSP = [
+	"default-src 'self'",
+	"script-src 'self' 'unsafe-inline'",
+	"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+	"font-src 'self' https://fonts.gstatic.com",
+	"img-src 'self' data: https:",
+	"connect-src 'self'",
+	"frame-src 'self'",
+	...HARDENING,
+].join("; ");
+
+/**
+ * Whether a page's policy is one of the defaults, whose `script-src` gets the
+ * page's inline-script hashes at build: true unless `csp` is `false` or a
+ * policy string of your own.
+ *
+ * @param option - The `csp` integration option.
+ */
+export function cspHashable(option: boolean | string): boolean {
+	return option !== false && !(typeof option === "string" && option !== "true");
+}
+
+/**
+ * The CSP a page emits for the integration's `csp` option: `false` → none,
+ * a string → that policy, otherwise `fallback` — outside `astro dev` without
+ * `'unsafe-inline'` in `script-src` (the build adds script hashes); plus the
+ * dev directives.
+ *
+ * @param option - The `csp` integration option.
+ * @param fallback - The page's default policy ({@link DEFAULT_DECK_CSP} / {@link DEFAULT_INDEX_CSP}).
+ * @param dev - Whether this is the dev server (`import.meta.env.DEV`).
+ */
+export function cspFor(option: boolean | string, fallback: string, dev: boolean): string | null {
+	if (option === false) return null;
+	if (!cspHashable(option)) return withDevDirectives(option as string, dev);
+	return withDevDirectives(dev ? fallback : withoutInlineScripts(fallback), dev);
+}
+
+/** `policy` without `'unsafe-inline'` in `script-src`. */
+export function withoutInlineScripts(policy: string): string {
+	return policy
+		.split(";")
+		.map((directive) => {
+			const parts = directive.trim().split(/\s+/);
+			if (parts[0]?.toLowerCase() !== "script-src") return directive.trim();
+			return parts.filter((s) => s.toLowerCase() !== "'unsafe-inline'").join(" ");
+		})
+		.filter(Boolean)
+		.join("; ");
+}
+
 /**
  * Add `worker-src 'self' blob:` to a policy during `astro dev`, unless it sets
  * `worker-src` itself. Production output is returned unchanged.

@@ -1,17 +1,20 @@
 /**
- * PPTX export: the built print view (`/<deck>/all`) is laid out by
- * @astlide/engine — CSS cascade, flexbox and font-metric line breaking, no
- * browser — and each slide's paint items become native PowerPoint shapes,
+ * PPTX export: the built print view (`/<deck>/all`) is laid out by the
+ * layout engine (`@astlide/core/engine`) — CSS cascade, flexbox and
+ * font-metric line breaking, no browser — and each slide's paint items become native PowerPoint shapes,
  * text boxes and pictures.
  *
  * @module
  */
 
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import type { Box, Scene, SceneItem, TableBox } from "@astlide/core/engine";
+import { exportSiteDir } from "@astlide/core/utils/export-build.ts";
 import { mermaidThemeFor } from "@astlide/core/utils/mermaid.ts";
-import type { Box, Scene, SceneItem, TableBox } from "@astlide/engine";
+import { FetchBudget } from "@astlide/core/utils/network.ts";
 import type { ChildNode, Element } from "domhandler";
 import { parseDocument } from "htmlparser2";
 import { type EmbedInfo, resolveEmbeds } from "./embeds";
@@ -32,10 +35,10 @@ import { type SvgNode, svgToShapes } from "./svg-shapes";
 import { getTheme } from "./theme-map";
 
 export interface PptxOptions {
-	/** Project root (built into <root>/dist). */
+	/** Project root (built into the export's own folder, see utils/export-build). */
 	root: string;
 	output: string;
-	/** Skip `astro build` and use the existing dist/. */
+	/** Skip the build: use the export's last build, else the existing dist/. */
 	build?: boolean;
 }
 
@@ -81,7 +84,7 @@ function fontFor(family: string, weight: number): { face: string; bold: boolean 
 const hex = (c: { hex: string }) => c.hex.toUpperCase();
 
 type TextItem = Extract<SceneItem, { kind: "text" }>;
-type Engine = typeof import("@astlide/engine");
+type Engine = typeof import("@astlide/core/engine");
 
 /** Pixels per CSS px when rasterizing vector images (sharp at full-screen size). */
 const RASTER_SCALE = 2;
@@ -134,8 +137,11 @@ function imageSource(
 	const bitmap = bitmapSize(bytes);
 	if (bitmap) return { bitmap: bytes, ...bitmap };
 	const svg = bytes.toString("utf-8");
-	if (!/<svg[\s>]/.test(svg)) return null;
-	const root = svg.match(/<svg\b[^>]*>/)?.[0] ?? "";
+	// The root tag found by index, not by a regex scanning to its `>` (quadratic on a hostile file).
+	const start = svg.search(/<svg[\s>]/);
+	if (start < 0) return null;
+	const end = svg.indexOf(">", start);
+	const root = end < 0 ? "" : svg.slice(start, Math.min(end + 1, start + 4096));
 	const attr = (name: string) =>
 		Number.parseFloat(root.match(new RegExp(`\\s${name}="([\\d.]+)(px)?"`))?.[1] ?? "");
 	const view = root.match(/viewBox="[\d.-]+[\s,]+[\d.-]+[\s,]+([\d.]+)[\s,]+([\d.]+)"/);
@@ -144,36 +150,60 @@ function imageSource(
 	return { svg, size: { w, h } };
 }
 
+/** SVG drawn as a picture, or null (with a warning) when it can't be — too large, unreadable. */
+function svgPicture(
+	engine: Engine,
+	svg: string,
+	width: number,
+	fontFiles: string[],
+): Buffer | null {
+	try {
+		return engine.svgToPng(svg, width, fontFiles);
+	} catch (error) {
+		console.warn(`  ⚠ SVG image left out: ${(error as Error).message.split("\n")[0]}`);
+		return null;
+	}
+}
+
 function rasterize(
 	engine: Engine,
 	source: ImageSource,
 	width: number,
 	fontFiles: string[],
-): Buffer {
+): Buffer | null {
 	return "bitmap" in source
 		? source.bitmap
-		: engine.svgToPng(source.svg, width * RASTER_SCALE, fontFiles);
+		: svgPicture(engine, source.svg, width * RASTER_SCALE, fontFiles);
 }
+
+/** Largest remote image an export downloads, in bytes. */
+const IMAGE_LIMIT = 20 * 1024 * 1024;
 
 /**
  * Fetch remote images (e.g. video thumbnails) ahead of the export, cached on
- * disk. Offline or failing ones are left out with a warning: their stand-in
- * (background, play button, link) still shows.
+ * disk. Offline, failing, oversized or refused ones (see
+ * `exportFetch`, or past the {@link FetchBudget}) are left out with a warning: their stand-in
+ * (background, play button, link) still shows. `urls` maps each URL to who
+ * chose it: the deck, or a remote page (thumbnails).
  */
-async function fetchImages(urls: string[], cacheDir: string): Promise<void> {
+async function fetchImages(
+	urls: Map<string, "deck" | "remote">,
+	cacheDir: string,
+	budget: FetchBudget,
+): Promise<void> {
 	await mkdir(cacheDir, { recursive: true });
 	const failed: string[] = [];
 	await Promise.all(
-		urls.map(async (url) => {
-			const file = join(cacheDir, Buffer.from(url).toString("base64url").slice(0, 200));
+		[...urls].map(async ([url, source]) => {
+			const file = join(cacheDir, createHash("sha256").update(url).digest("hex"));
 			if (existsSync(file)) {
 				remoteImages.set(url, readFileSync(file));
 				return;
 			}
 			try {
-				const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+				const res = await budget.fetch(url, { limit: IMAGE_LIMIT, source });
 				if (!res.ok) throw new Error(String(res.status));
-				const bytes = Buffer.from(await res.arrayBuffer());
+				const bytes = res.body;
 				await writeFile(file, bytes);
 				remoteImages.set(url, bytes);
 			} catch {
@@ -205,7 +235,8 @@ function embedCard(
 		host = new URL(item.src).host;
 	} catch {}
 	const label = info?.title || item.title || host || "Embedded content";
-	const link = info?.link ?? (/^https?:/.test(item.src) ? item.src : undefined);
+	const web = (url: string | undefined) => (url && /^https?:\/\//i.test(url) ? url : undefined);
+	const link = web(info?.link) ?? web(item.src);
 	const size = Math.max(12, Math.min(28, item.h / 8));
 	// With a thumbnail: the picture (cover), linked, with the title along the bottom.
 	const thumb = info?.thumbnail ? remoteImages.get(info.thumbnail) : null;
@@ -773,7 +804,7 @@ const DEFAULT_EA_FONT = "Yu Gothic";
 
 /** A Google Fonts family's regular face (downloaded into the project's font cache), or null. */
 async function googleFontFile(
-	engine: typeof import("@astlide/engine"),
+	engine: typeof import("@astlide/core/engine"),
 	family: string,
 	root: string,
 ): Promise<string | null> {
@@ -844,12 +875,15 @@ function plainText(el: Element): string {
 }
 
 export async function exportPptx(deck: string, options: PptxOptions): Promise<void> {
-	const engine = await import("@astlide/engine");
+	const engine = await import("@astlide/core/engine");
 	if (options.build !== false) {
 		const { buildSite } = await import("../site-server");
 		await buildSite(options.root);
 	}
-	const dist = join(options.root, "dist");
+	const site = exportSiteDir(options.root);
+	if (!site.own)
+		console.log('  (using dist/: speaker notes only if it was built with notes: "public")');
+	const dist = site.dir;
 	const html = join(dist, deck, "all", "index.html");
 	if (!existsSync(html)) throw new Error(`no print view at ${html}`);
 
@@ -895,23 +929,37 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 	const slides: SlideSpec[] = [];
 	const used: TextItem[] = [];
 	// Remote images (video thumbnails …) are fetched up front.
-	const remote = new Set<string>();
+	const remote = new Map<string, "deck" | "remote">();
 	const embedded = new Set<string>();
 	for (const layout of layouts)
 		for (const it of engine.toScene(layout, (eid) => layout.elements[eid]).items) {
-			if (it.kind === "image" && /^https?:\/\//.test(it.src)) remote.add(it.src);
+			if (it.kind === "image" && /^https?:\/\//.test(it.src)) remote.set(it.src, "deck");
 			if (it.kind === "embed" && /^https?:\/\//.test(it.src)) embedded.add(it.src);
 		}
+	// Everything this export downloads shares one budget: a few requests at a
+	// time, a total size, and a number of distinct URLs.
+	const budget = new FetchBudget();
 	// Embedded pages of other sites: their title and thumbnail (oEmbed / Open Graph).
 	const embeds = embedded.size
 		? await resolveEmbeds(
 				[...embedded],
 				join(options.root, "node_modules", ".cache", "astlide-embeds"),
+				budget,
 			)
 		: new Map<string, EmbedInfo>();
-	for (const info of embeds.values()) if (info.thumbnail) remote.add(info.thumbnail);
+	// Thumbnails were chosen by the embedded pages: always public addresses only.
+	for (const info of embeds.values())
+		if (info.thumbnail && !remote.has(info.thumbnail)) remote.set(info.thumbnail, "remote");
 	if (remote.size)
-		await fetchImages([...remote], join(options.root, "node_modules", ".cache", "astlide-images"));
+		await fetchImages(
+			remote,
+			join(options.root, "node_modules", ".cache", "astlide-images"),
+			budget,
+		);
+	if (budget.refused.length)
+		console.warn(
+			`  ⚠ ${budget.refused.length} remote file(s) skipped (download limits reached): ${budget.refused.slice(0, 3).join(", ")}${budget.refused.length > 3 ? " …" : ""}`,
+		);
 	const bodyFace = fonts.pick(layouts[0]?.style.get("font-family") ?? "sans-serif", 400, false);
 	layouts.forEach((layout, i) => {
 		// Progress on one line: only where \r rewrites it (a terminal, not a log).
@@ -1042,14 +1090,16 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 				else {
 					// Not expressible as shapes: a picture of it.
 					const svg = rasterReady(item.markup, hex(item.color));
-					elements.push({
-						type: "image",
-						x: item.x * k,
-						y: item.y * k,
-						w: item.w * k,
-						h: item.h * k,
-						data: engine.svgToPng(svg, item.w * RASTER_SCALE, fonts.files()),
-					});
+					const data = svgPicture(engine, svg, item.w * RASTER_SCALE, fonts.files());
+					if (data)
+						elements.push({
+							type: "image",
+							x: item.x * k,
+							y: item.y * k,
+							w: item.w * k,
+							h: item.h * k,
+							data,
+						});
 				}
 			} else if (item.kind === "embed") {
 				elements.push(

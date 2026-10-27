@@ -6,14 +6,16 @@
  *   astlide export --all --pdf --pptx
  *   astlide import talk.pptx [--deck my-talk]
  *
- * Every format starts from the built site. PDF and PNG are rendered by a
- * browser: unless `--base-url` points at a running server, dist/ is served on
- * a free port for the export, then stopped. PPTX needs no browser: the built
- * slides are laid out by @astlide/engine.
+ * Every format starts from the built site — a build of its own, in
+ * node_modules/.astro/astlide-export (never dist/), with speaker notes. PDF
+ * and PNG are rendered by a browser: unless `--base-url` points at a running
+ * server, that build is served on a free port for the export, then stopped.
+ * PPTX needs no browser: the built slides are laid out by the layout engine (src/engine).
  */
 
 import { existsSync, readdirSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
+import { exportBuildDir } from "@astlide/core/utils/export-build";
 import { getDecks } from "./pptx/export";
 
 type Format = "pdf" | "png" | "pptx";
@@ -46,9 +48,12 @@ Usage:
     an editable deck: src/content/decks/<deck>/*.html, pictures in public/pptx/.
     A Google Slides URL works when the deck is shared as "Anyone with the link".
     (To show a .pptx as is, just put it in a deck folder.)
-  astlide mcp
+  astlide mcp [--root <dir>]...
     Run the Astlide MCP server over stdio, for coding agents:
     claude mcp add astlide -- bunx astlide mcp
+    Its tools build and export only projects inside the client's MCP roots,
+    the --root folders (or ASTLIDE_MCP_ROOTS), or else the folder it was
+    started in — never by default the filesystem root or home folder.
 
 Formats (combine as needed; default --pdf):
   --pdf                 One multi-page PDF per deck
@@ -59,7 +64,8 @@ Options:
   -a, --all             Export every deck
   -o, --output <path>   Output file / directory (one deck and one format only)
   --out-dir <dir>       Where exports go (default: ./exports)
-  --no-build            Use the existing dist/ instead of building first
+  --no-build            Reuse the last export build (else dist/, without notes
+                        unless notes: "public") instead of building first
   --base-url <url>      PDF / PNG: render from a running dev / preview server
                         (include Astro's base, e.g. http://localhost:4321/my-repo)
   --width <px>          PDF / PNG: slide width (default: 1920)
@@ -100,6 +106,11 @@ function parseExportArgs(args: string[]): Options {
 	};
 	for (let i = 0; i < args.length; i++) {
 		const arg = args[i] as string;
+		// After `--`, everything is a deck name (even one starting with "-").
+		if (arg === "--") {
+			options.decks.push(...args.slice(i + 1));
+			break;
+		}
 		switch (arg) {
 			case "--pdf":
 			case "--png":
@@ -227,7 +238,7 @@ async function runExport(options: Options): Promise<void> {
 			await exportPptx(deck, {
 				root: options.cwd,
 				output: outputFor(options, deck, "pptx"),
-				// Build once; later decks (and PDF / PNG) reuse dist/.
+				// Build once; later decks (and PDF / PNG) reuse that build.
 				build: options.build && n === 0,
 			});
 		}
@@ -242,10 +253,14 @@ async function runExport(options: Options): Promise<void> {
 	let server: { url: string; stop(): Promise<void> } | undefined;
 	let baseUrl = options.baseUrl;
 	if (!baseUrl) {
-		if (!options.build && !existsSync(join(options.cwd, "dist"))) {
-			fail("--no-build needs an existing dist/ (run astro build first)");
+		if (
+			!options.build &&
+			!existsSync(exportBuildDir(options.cwd)) &&
+			!existsSync(join(options.cwd, "dist"))
+		) {
+			fail("--no-build needs an earlier export build or a dist/ (run astro build first)");
 		}
-		console.log(options.build ? "\nBuilding the site…" : "\nServing dist/…");
+		console.log(options.build ? "\nBuilding the site…" : "\nServing the built site…");
 		const { startSite } = await import("./site-server");
 		server = await startSite({ root: options.cwd, build: options.build });
 		baseUrl = server.url;
@@ -308,9 +323,16 @@ async function main(): Promise<void> {
 		// Runs until the client closes stdin; nothing else may write to stdout.
 		const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
 		const { createServer } = await import("../mcp/server-def");
+		const { explicitRoots, isBroadFolder } = await import("../mcp/project");
+		const roots = explicitRoots(rest);
+		// stdout is the MCP channel: notes go to stderr.
+		for (const root of roots.filter((r) => isBroadFolder(r)))
+			console.error(
+				`astlide mcp: ${root} allows every project under it — name the project folder instead if you can`,
+			);
 		const transport = new StdioServerTransport();
 		transport.onclose = () => process.exit(0);
-		await createServer().connect(transport);
+		await createServer(roots.length ? { allowedRoots: roots } : {}).connect(transport);
 		return new Promise<never>(() => {});
 	}
 	if (command !== "export" && command !== "import") fail(`unknown command "${command}"`);

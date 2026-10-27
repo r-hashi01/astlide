@@ -22,9 +22,25 @@ Each call names the Astlide project to work on, and uses that project's own `@as
 | `template_layouts` | `templatePath` (`.pptx` / `.potx` / `.thmx`) | The template's layouts: the id to use as `slideLayout`, PowerPoint name and type, title / body / slide-number placeholders, and which built-in layouts (`cover`, `section`, `default`, `two-column`, `code`) are drawn with each; theme colors and fonts |
 | `import_pptx` | `path`, optional `projectRoot`, `deck`, `force`, `includeHtml` | Each slide's title, speaker notes and text as Markdown. With `projectRoot`, also writes an editable deck, like [`astlide import`](/guides/import/) |
 | `check_deck` | `projectRoot`, `deck`, optional `build` | Text and boxes that don't fit, per slide (below) |
-| `render_deck` | `projectRoot`, `deck`, `formats` (`pptx`, `pdf`), optional `outDir`, `build` | The exported files' paths, as [`astlide export`](/guides/export/) writes them |
+| `render_deck` | `projectRoot`, `deck`, `formats` (`pptx`, `pdf`), optional `outDir` (inside the project), `build` | The exported files' paths, as [`astlide export`](/guides/export/) writes them |
 
-`check_deck` and `render_deck` build the site themselves (`check_deck` only when `dist/` is older than the deck), so no dev server is needed. PDF export needs Playwright's Chromium (`bunx playwright install chromium`).
+`check_deck` and `render_deck` build the site themselves (`check_deck` only when `dist/` is older than the deck), so no dev server is needed. Building runs the project's Astro config, so neither tool is marked read-only; `check_deck` with `build: false` only reads. PDF export needs Playwright's Chromium (`bunx playwright install chromium`).
+
+Building and exporting run the project's own code — its Astro config and integrations, MDX slides, a `bunfig.toml` preload, the project's installed `@astlide/core` — and `import_pptx` with `projectRoot` runs the project's `astlide` CLI. So:
+
+- None of these tools is marked read-only (`check_deck` with `build: false` only reads), and `import_pptx` is marked destructive, since `force` replaces a deck folder. Set your client to ask before each call of `check_deck`, `render_deck` and `import_pptx` with a project rather than auto-approving them.
+- They only work on projects inside the folders the server is given:
+  - the folders named with `--root <dir>` (repeatable) or `ASTLIDE_MCP_ROOTS` (separated like `PATH`) are the outer limit;
+  - the client's MCP roots, when it sends them (Claude Code does — nothing to set up), are used inside that limit: with named folders, only client roots inside them count;
+  - with neither, the folder the server was started in — but never the filesystem root, your home folder, a shared folder (`/tmp`, `/Users/Shared`, `C:\Users\Public` …), or a folder above one of them, where clients often start servers. Then nothing is allowed until you name a folder.
+
+  A project must be one of those folders or directly in one: with `--root ~/slides`, `~/slides/q3-review` is fine, `~/slides/clones/someone-else` is not (name it with its own `--root`). That keeps a broad folder from covering every repository somewhere below it.
+
+  Client roots that broad are ignored too, one by one (a note goes to stderr). The filesystem root never counts, even when named. The project path is resolved once and the work happens there, so swapping a symlink afterwards changes nothing. To allow any folder, set `ASTLIDE_MCP_ANY_PROJECT=1` in the server's environment.
+- The files `template_layouts` and `import_pptx` read must be inside the same folders (any depth, symlinks resolved), be regular files with the right extension and at most 256 MB.
+- `import_pptx` names the deck itself (from the file name, unless `deck` is given) and checks the name before anything is written. A project whose `@astlide/core` is older than 2.8.0 is written with the server's own `astlide` CLI instead of the project's.
+- The build and export get only the environment variables they need (`PATH`, `HOME`, locale, proxy, `ASTLIDE_*` …); tokens and keys are left out.
+- Deck names are plain folder names, and output folders (`outDir`) must stay inside the project, symlinks included.
 
 ### Claude Code
 
@@ -40,7 +56,7 @@ Add `--scope project` to share it with your team through `.mcp.json`.
 # ~/.codex/config.toml
 [mcp_servers.astlide]
 command = "bunx"
-args = ["astlide", "mcp"]
+args = ["astlide", "mcp", "--root", "/path/to/your/slides"]
 ```
 
 ### Gemini CLI
@@ -51,13 +67,13 @@ args = ["astlide", "mcp"]
   "mcpServers": {
     "astlide": {
       "command": "bunx",
-      "args": ["astlide", "mcp"]
+      "args": ["astlide", "mcp", "--root", "/path/to/your/slides"]
     }
   }
 }
 ```
 
-Other MCP clients take the same command: `bunx astlide mcp`, started in the project folder.
+Other MCP clients (Claude Desktop, …) take the same command: `bunx astlide mcp --root /path/to/your/slides`, naming the project — or a folder holding your projects. Clients that send MCP roots don't need `--root`.
 
 ## Checking a deck
 

@@ -1,8 +1,16 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { distFile, FontRegistry, layoutPage, toScene, transformText } from "@astlide/engine";
+import {
+	distFile,
+	FontRegistry,
+	familiesIn,
+	isInside,
+	layoutPage,
+	toScene,
+	transformText,
+} from "@astlide/core/engine";
 import { describe, expect, it } from "vitest";
 
 /** A font every install has (KaTeX ships TrueType), for text tests. */
@@ -143,6 +151,19 @@ describe("engine layout", () => {
 		expect(distFile(dist, "/../../etc/passwd")).toBeNull();
 	});
 
+	it("doesn't take a sibling folder sharing the dist folder's name for it", () => {
+		const parent = mkdtempSync(join(tmpdir(), "astlide-dist-"));
+		const dist = join(parent, "dist");
+		mkdirSync(dist);
+		mkdirSync(join(parent, "dist-old"));
+		writeFileSync(join(parent, "dist-old", "secret.css"), "x");
+		expect(distFile(dist, "/x/../../dist-old/secret.css")).toBeNull();
+		expect(distFile(dist, "/%2e%2e/dist-old/secret.css")).toBeNull();
+		expect(isInside(dist, join(parent, "dist-old", "secret.css"))).toBe(false);
+		expect(isInside(dist, join(dist, "a", "b.css"))).toBe(true);
+		expect(isInside(dist, dist)).toBe(true);
+	});
+
 	it("places absolute boxes against the nearest positioned ancestor, not their parent", () => {
 		const b = boxes(
 			".slide{position:relative;padding:64px;box-sizing:border-box}.c{flex:1}.abs{position:absolute;inset:0}.rel{position:relative;top:10px;left:20px;height:50px}",
@@ -167,6 +188,19 @@ describe("engine layout", () => {
 		]);
 	});
 
+	it("reads font families from CSS quickly, even from pathological input", () => {
+		expect(familiesIn('body{font-family: "Inter", "Noto Sans JP", sans-serif}')).toEqual([
+			"Inter",
+			"Noto Sans JP",
+		]);
+		const start = performance.now();
+		familiesIn(`a{font-family:${" ".repeat(50000)}x`);
+		familiesIn(`@font-face{src:${"url(".repeat(20000)}`);
+		familiesIn("@font-face{{".repeat(20000));
+		expect(familiesIn("@font-face{font-family:Skip}p{font-family:Keep}")).toEqual(["Keep"]);
+		expect(performance.now() - start).toBeLessThan(500);
+	});
+
 	it("clips to ancestors with overflow other than visible", () => {
 		const s = page(
 			".o{width:200px;height:30px;overflow:hidden;line-height:30px}",
@@ -176,6 +210,86 @@ describe("engine layout", () => {
 			{ x: 0, y: 0, w: 200, h: 30 },
 			{ x: 0, y: 0, w: 200, h: 30 },
 		]);
+	});
+
+	it("lays out same-site iframes only from pages inside the built site", () => {
+		const parent = mkdtempSync(join(tmpdir(), "astlide-frames-"));
+		const dist = join(parent, "dist");
+		mkdirSync(join(dist, "deck", "1"), { recursive: true });
+		mkdirSync(join(dist, "card"));
+		writeFileSync(join(dist, "card", "index.html"), "<body>card</body>");
+		// Next to dist/, not in it: `${dist}.html`.
+		writeFileSync(join(parent, "dist.html"), "<body>outside</body>");
+		const file = join(dist, "deck", "1", "index.html");
+		writeFileSync(
+			file,
+			`<html><head><style>body{font-family:T;font-size:20px}.slide{width:1000px;height:500px;display:flex;flex-direction:column}iframe{border:0;width:300px;height:100px}</style></head><body><section class="slide"><iframe src="../../card/"></iframe><iframe src="../.."></iframe></section></body></html>`,
+		);
+		const fonts = new FontRegistry();
+		fonts.add("T", 400, false, FONT);
+		const [slide] = layoutPage(file, dist, fonts, { width: 1000, height: 500, media: "screen" });
+		const texts = slide?.lines.map((l) => l.text) ?? [];
+		expect(texts).toContain("card");
+		expect(texts).not.toContain("outside");
+	});
+
+	it("lays out a bounded number of frames, never a page inside itself", () => {
+		const dist = mkdtempSync(join(tmpdir(), "astlide-fanout-"));
+		const css =
+			"<style>body{font-family:T;font-size:20px}.slide{width:1000px;height:500px}iframe{border:0;width:50px;height:20px}</style>";
+		const frames = (src: string) => `<iframe src="${src}"></iframe>`.repeat(10);
+		// 10 frames of a page with 10 frames of a page with 10 frames: 1110 documents unbounded.
+		for (const [name, inner] of [
+			["a", frames("/b/")],
+			["b", frames("/c/")],
+			["c", "leaf"],
+		] as const) {
+			mkdirSync(join(dist, name));
+			writeFileSync(
+				join(dist, name, "index.html"),
+				`<html><head>${css}</head><body>${inner}</body></html>`,
+			);
+		}
+		mkdirSync(join(dist, "deck"));
+		const file = join(dist, "deck", "index.html");
+		writeFileSync(
+			file,
+			`<html><head>${css}</head><body><section class="slide">${frames("/a/")}<iframe src="/deck/"></iframe>self</section></body></html>`,
+		);
+		const fonts = new FontRegistry();
+		fonts.add("T", 400, false, FONT);
+		const started = performance.now();
+		const [slide] = layoutPage(file, dist, fonts, { width: 1000, height: 500, media: "screen" });
+		const texts = slide?.lines.map((l) => l.text) ?? [];
+		expect(texts.filter((t) => t === "leaf").length).toBeLessThanOrEqual(32);
+		// The page doesn't lay itself out again inside its own frame.
+		expect(texts.filter((t) => t === "self")).toHaveLength(1);
+		expect(performance.now() - started).toBeLessThan(5000);
+	});
+
+	it("doesn't follow symlinks in dist/ to files elsewhere", () => {
+		const parent = mkdtempSync(join(tmpdir(), "astlide-links-"));
+		const dist = join(parent, "dist");
+		const outside = join(parent, "outside");
+		mkdirSync(join(dist, "deck", "1"), { recursive: true });
+		mkdirSync(outside);
+		writeFileSync(join(outside, "index.html"), "<body>secret</body>");
+		writeFileSync(join(outside, "secret.css"), ".slide{background:red}");
+		// A committed dist/ (someone else's project) with links pointing out of it.
+		symlinkSync(outside, join(dist, "leak"));
+		symlinkSync(join(outside, "secret.css"), join(dist, "s.css"));
+		expect(distFile(dist, "/s.css")).toBeNull();
+		expect(distFile(dist, "/leak/secret.css")).toBeNull();
+		expect(isInside(dist, join(dist, "s.css"))).toBe(false);
+		const file = join(dist, "deck", "1", "index.html");
+		writeFileSync(
+			file,
+			`<html><head><link rel="stylesheet" href="/s.css"><style>body{font-family:T;font-size:20px}.slide{width:1000px;height:500px;display:flex;flex-direction:column}iframe{border:0;width:300px;height:100px}</style></head><body><section class="slide"><iframe src="/leak/"></iframe><iframe src="../../leak/"></iframe></section></body></html>`,
+		);
+		const fonts = new FontRegistry();
+		fonts.add("T", 400, false, FONT);
+		const [slide] = layoutPage(file, dist, fonts, { width: 1000, height: 500, media: "screen" });
+		expect(slide?.lines.map((l) => l.text) ?? []).not.toContain("secret");
 	});
 
 	it("lays out a srcdoc iframe into the slide, clipped to the frame", () => {

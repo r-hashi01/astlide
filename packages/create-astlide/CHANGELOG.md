@@ -1,5 +1,19 @@
 # create-astlide
 
+## 0.2.6
+
+### Patch Changes
+
+- [#220](https://github.com/r-hashi01/astlide/pull/220) [`8bec7f4`](https://github.com/r-hashi01/astlide/commit/8bec7f460a59be4714fa0de30b186c405e1382a7) Thanks [@r-hashi01](https://github.com/r-hashi01)! - New projects' `.gitignore` also leaves out `.env` files.
+
+## 0.2.5
+
+### Patch Changes
+
+- [#159](https://github.com/r-hashi01/astlide/pull/159) [`01c0b37`](https://github.com/r-hashi01/astlide/commit/01c0b374695aa46d23776c0fe735c4f24fa47e9b) Thanks [@r-hashi01](https://github.com/r-hashi01)! - The docs moved to https://astlide.dev/ (package `homepage`, README links).
+
+- [#192](https://github.com/r-hashi01/astlide/pull/192) [`e426a22`](https://github.com/r-hashi01/astlide/commit/e426a22e6915ef0e52e22644fde69326893013a0) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `create-astlide deck <name>` accepts only plain folder names (letters, digits, `-`, `_`, `.`), like `astlide import`.
+
 ## 0.2.4
 
 ### Patch Changes

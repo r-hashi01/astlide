@@ -1,7 +1,15 @@
 # Astlide render service — build from the repository root:
 #
 #   docker build -f packages/server/Dockerfile -t astlide-server .
-#   docker run --rm -p 8787:8787 astlide-server
+#   docker run --rm -p 8787:8787 -e ASTLIDE_API_KEY=… \
+#     --security-opt seccomp=packages/server/chromium-seccomp.json astlide-server
+#
+# The seccomp profile is Docker's default plus the namespace calls Chromium's
+# sandbox needs (clone / clone3 / unshare / setns); PDF / PNG renders keep the
+# sandbox on and fail without it (ASTLIDE_CHROMIUM_SANDBOX=0 opts out).
+# Give the container limits of its own as well, e.g. --memory 4g --pids-limit 512:
+# renders are the first to go when memory runs out (oom_score_adj), but a
+# limit keeps them from taking the host down.
 #
 # Node (Astro builds run in Node), Bun (runs the server and the astlide CLI),
 # Playwright's Chromium (PDF / PNG) and Noto CJK fonts (Japanese, Chinese,
@@ -11,7 +19,8 @@ ARG BUN_VERSION=1.4.0
 
 FROM oven/bun:${BUN_VERSION}-debian AS bun
 
-FROM node:22-bookworm-slim
+# Pinned to a patched Node release (Dependabot keeps it current).
+FROM node:22.23.4-bookworm-slim@sha256:de170b39439eb0e5a3444ad7d60b015614a381e10fecae2e30ec9e735122f38d
 
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 
@@ -31,7 +40,6 @@ WORKDIR /app
 # dependencies are installed.
 COPY package.json bun.lock bunfig.toml ./
 COPY packages/astlide/package.json packages/astlide/
-COPY packages/engine/package.json packages/engine/
 COPY packages/server/package.json packages/server/
 COPY packages/create-astlide/package.json packages/create-astlide/
 COPY playground/package.json playground/
@@ -43,7 +51,6 @@ RUN node node_modules/playwright/cli.js install --with-deps chromium \
 	&& rm -rf /var/lib/apt/lists/*
 
 COPY packages/astlide/src packages/astlide/src
-COPY packages/engine/src packages/engine/src
 COPY packages/server/src packages/server/src
 COPY packages/server/openapi.json packages/server/
 

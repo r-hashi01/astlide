@@ -1,5 +1,6 @@
 /**
- * @astlide/engine — lay out HTML + CSS slides without a browser (spike).
+ * The layout engine — lay out HTML + CSS slides without a browser (PPTX
+ * export and `check_deck`; exported as `@astlide/core/engine`).
  *
  * Pipeline: HTML (htmlparser2) → cascade (cascade.ts) → Yoga box layout +
  * font-metric line breaking (layout.ts, text.ts) → boxes and text lines in
@@ -11,7 +12,7 @@ import { dirname, join, resolve } from "node:path";
 import type { Element } from "domhandler";
 import { parseDocument } from "htmlparser2";
 import { StyleSheets, UA_CSS, type Viewport } from "./cascade";
-import { distFile } from "./dist";
+import { distFile, isInside } from "./dist";
 import {
 	type Box,
 	intersect,
@@ -30,8 +31,8 @@ export {
 	resolveEsm,
 	svgToPng,
 } from "./diagrams";
-export { distFile } from "./dist";
-export { familiesIn, loadFontFaces, loadGoogleFonts } from "./fonts";
+export { distFile, isInside } from "./dist";
+export { familiesIn, GOOGLE_FONT_LIMITS, loadFontFaces, loadGoogleFonts } from "./fonts";
 export type { Box, Rect, SlideLayout, TableBox, TableCellBox, TextLine } from "./layout";
 export { intersect, transformText } from "./layout";
 export {
@@ -111,6 +112,8 @@ export function layoutPage(
 			fonts,
 			vp,
 			0,
+			{ frames: FRAME_LIMITS.frames },
+			new Set([resolve(htmlPath)]),
 		),
 	);
 }
@@ -129,7 +132,8 @@ function documentSheets(
 			const href = el.attribs.href.split(/[?#]/)[0] ?? "";
 			if (/^[a-z]+:|^\/\//i.test(href)) continue;
 			const file = href.startsWith("/") ? distFile(distDir, href) : join(dir, href);
-			if (file && existsSync(file)) sheets.add(readFileSync(file, "utf-8"));
+			if (file && isInside(distDir, file) && existsSync(file))
+				sheets.add(readFileSync(file, "utf-8"));
 		} else if (el.name === "style") {
 			sheets.add(el.children.map((c) => ("data" in c ? c.data : "")).join(""));
 		}
@@ -146,7 +150,7 @@ function frameDocument(
 	el: Element,
 	dir: string,
 	distDir: string,
-): { source: string; dir: string } | null {
+): { source: string; dir: string; file?: string } | null {
 	if (el.attribs.srcdoc !== undefined) return { source: el.attribs.srcdoc, dir };
 	const src = (el.attribs.src ?? "").split(/[?#]/)[0] ?? "";
 	if (!src || /^[a-z]+:|^\/\//i.test(src)) return null;
@@ -155,18 +159,29 @@ function frameDocument(
 		: resolve(join(dir, src));
 	if (!page) return null;
 	const base = resolve(page);
-	if (!base.startsWith(resolve(distDir))) return null;
 	for (const file of [base, join(base, "index.html"), `${base}.html`]) {
+		// Each candidate on its own: for `dist/` itself, `${base}.html` is next to it.
+		if (!isInside(distDir, file)) continue;
 		if (existsSync(file) && statSync(file).isFile())
-			return { source: readFileSync(file, "utf-8"), dir: dirname(file) };
+			return { source: readFileSync(file, "utf-8"), dir: dirname(file), file };
 	}
 	return null;
 }
 
+/** Bounds on same-site iframes laid out for one slide (frames inside frames included). */
+const FRAME_LIMITS = {
+	/** Documents laid out. */
+	frames: 32,
+	/** Boxes in the slide, frames' boxes included; a frame that would pass it is left as a card. */
+	boxes: 20_000,
+};
+
 /**
  * Same-site iframes (srcdoc, or a page of the built site) laid out as
  * documents of their own, at the frame's size, and placed into the slide:
- * their boxes, text and tables join the slide's, clipped to the frame.
+ * their boxes, text and tables join the slide's, clipped to the frame. At
+ * most {@link FRAME_LIMITS} per slide, and a page never frames itself (or
+ * a page that frames it).
  */
 function withFrames(
 	layout: SlideLayout,
@@ -175,13 +190,17 @@ function withFrames(
 	fonts: FontRegistry,
 	vp: Viewport,
 	depth: number,
+	budget: { frames: number },
+	ancestors: Set<string>,
 ): SlideLayout {
 	if (depth > 2) return layout;
 	for (const frame of layout.boxes.filter((b) => b.tag === "iframe")) {
+		if (budget.frames <= 0) break;
 		const el = layout.elements[frame.eid];
 		if (!el) continue;
 		const found = frameDocument(el, dir, distDir);
-		if (!found) continue;
+		if (!found || (found.file && ancestors.has(found.file))) continue;
+		budget.frames--;
 		// A fragment (srcdoc usually is) gets the <html><body> a browser would add.
 		const source = /<body[\s>]/i.test(found.source)
 			? found.source
@@ -206,7 +225,10 @@ function withFrames(
 			fonts,
 			fvp,
 			depth + 1,
+			budget,
+			found.file ? new Set([...ancestors, found.file]) : ancestors,
 		);
+		if (layout.boxes.length + inner.boxes.length > FRAME_LIMITS.boxes) continue;
 		// The frame shows the document's viewport only.
 		const view = frame.clip
 			? intersect({ x: x0, y: y0, w, h }, frame.clip)

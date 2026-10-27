@@ -14,73 +14,29 @@ node scripts/test-template.mjs   # template smoke
 
 All five must pass cleanly. CI runs the same plus the astro-compat matrix and the browser tests (`bun run test:e2e`).
 
-## First publish (v0.1.0) — one-time manual
+## Publishing is CI-only
 
-The repository ships v0.1.0 as the initial release, so there is no prior changeset to apply. The CHANGELOG entries are already authored manually under `packages/*/CHANGELOG.md`.
+Every release goes through the **Release** workflow below — never `npm publish` from a laptop, and never an npm token stored as a repository secret: either would skip the approval step and provenance. (`bun run release` refuses and points here.) The one exception is a brand-new package's very first version, described under Trusted Publishing.
 
-1. **Reserve the npm scope.** Confirm the maintainer owns the `@astlide` scope on npm and that `npm whoami` matches.
-   ```bash
-   npm login                       # interactive
-   npm access list packages        # confirm the scope is yours (npm CLI 11+)
-   # On older CLIs:  npm access ls-packages
-   ```
-   If `@astlide` is unowned, create it from <https://www.npmjs.com/settings/<user>/orgs> (or just publish — npm auto-creates the scope on first scoped publish for an authenticated user).
-2. **Generate an automation token** at <https://www.npmjs.com/settings/<user>/tokens> (type: Automation). Save it as the `NPM_TOKEN` secret on GitHub:
-   <https://github.com/r-hashi01/astlide/settings/secrets/actions> → New repository secret → name `NPM_TOKEN`.
-3. **Verify the package contents** match expectations:
-   ```bash
-   cd packages/astlide && npm pack --dry-run
-   cd ../create-astlide && npm pack --dry-run
-   ```
-   Both should list `package.json`, `README.md`, `LICENSE`, `CHANGELOG.md`, plus `src/` (core) or `dist/` + `template/` (CLI).
-4. **Publish from local** (only because no prior tags exist for changesets/action to detect, and granular tokens cannot pre-authorise unscoped packages that don't exist on npm yet):
+To check what a package will contain before a release:
 
-   ```bash
-   # Easier: full-permission interactive auth — not a long-lived token.
-   npm logout
-   npm login
-   npm whoami    # confirm
+```bash
+cd packages/<package> && npm pack --dry-run
+```
 
-   # Provenance requires GitHub Actions OIDC; from local it falls back to
-   # un-attested. v0.1.1+ will carry provenance via Trusted Publishing.
-   cd packages/astlide
-   npm publish --access=public
+## Trusted Publishing
 
-   cd ../create-astlide
-   npm publish --access=public
-   ```
+Every published package (`@astlide/core`, `create-astlide`, `astlide`) publishes through npm Trusted Publishing (OIDC) — no npm token is stored anywhere. Each one trusts this repository's `release.yml` **in the `npm-publish` environment** only, so a modified workflow on another branch, or a job without the approval, can't publish:
 
-   The Release workflow has its `push` trigger removed for the same chicken-egg reason — re-enable it after step 6.
-5. **Tag the release in git** so changesets can compute future diffs:
-   ```bash
-   git tag @astlide/core@0.1.0
-   git tag create-astlide@0.1.0
-   git push --tags
-   ```
-6. **Smoke test the published packages** from a clean directory:
-   ```bash
-   bun create astlide /tmp/astlide-smoke
-   cd /tmp/astlide-smoke && bun install && bun run build
-   ```
+```bash
+npm trust github <package> --file release.yml --repo r-hashi01/astlide --env npm-publish --allow-publish
+```
 
-## Migrate to Trusted Publishing after v0.1.0
+The `npm-publish` environment (repository settings → Environments) requires a maintainer's approval and only allows `main`. The `release-tags` ruleset protects the `@astlide/*`, `create-astlide@*` and `astlide@*` tags.
 
-After the first publish lands, swap the long-lived `NPM_TOKEN` for npm Trusted Publishing (OIDC). It eliminates token rotation and credentials in repo settings:
+A new package's first version has to be published by hand (Trusted Publishing can only be set up for an existing package): `npm publish --access public` from its folder, then the `npm trust` command above.
 
-1. Visit each package's access page:
-   - <https://www.npmjs.com/package/@astlide/core/access>
-   - <https://www.npmjs.com/package/create-astlide/access>
-2. **Trusted Publishers → Add publisher**:
-   - Repository: `r-hashi01/astlide`
-   - Workflow filename: `release.yml`
-   - Environment: leave empty
-3. Verify `release.yml` already has `id-token: write` permission (it does).
-4. Remove the `NPM_TOKEN` secret from
-   <https://github.com/r-hashi01/astlide/settings/secrets/actions>.
-5. Drop the `NPM_TOKEN` / `NODE_AUTH_TOKEN` env lines from `release.yml`. The workflow then publishes via short-lived OIDC tokens minted at publish time, signed with provenance.
-6. Re-enable the `push: branches: [main]` trigger in `release.yml` (it's currently `workflow_dispatch` only — see the comment in the workflow file).
-
-Until step 5 is done, v0.1.1+ continues to use the long-lived granular token.
+What this does not cover: the build job runs the build (and its dependencies) to produce the tarballs, so a compromised build dependency could still change what's inside them. The split keeps such code away from the publishing credentials; review lockfile changes (including in the "version packages" PR) as you would code.
 
 ## Subsequent releases (v0.1.1 onward) — automated
 
@@ -94,7 +50,9 @@ For every PR that changes `@astlide/core` or `create-astlide` runtime behaviour:
 
 2. When the PR merges to `main`, the **Release** workflow opens (or updates) a "chore: version packages" PR. That PR consumes all pending changesets, bumps versions, regenerates `CHANGELOG.md`, and removes the consumed changeset files.
 
-3. Merging the version PR triggers the same workflow again, which runs `bun run release` — i.e. `changeset publish` — pushing the bumped packages to npm and creating GitHub releases with provenance.
+3. Merging the version PR triggers the workflow again. Only versions bumped by that commit are built, so a later push can't publish an older pending release; to finish a release that didn't publish (e.g. a fix had to land after the version PR), run the workflow by hand (Actions → Release → Run workflow, *Publish every version not yet on npm*).
+   - **Build packages** builds and packs (`scripts/release-pack.mjs`) every public package whose version isn't on npm yet. It has no publishing rights.
+   - **Publish to npm** waits for approval: the `npm-publish` environment requires a maintainer's review (Actions → the run → *Review deployments* → approve). The run's summary page lists each tarball (name, version, sha256, files) — compare it with the merged version PR before approving. It then publishes those tarballs with provenance and creates the tags and GitHub releases. It runs none of the repository's code — no checkout, no install — so a compromised dependency can't reach the publishing credentials.
 
 No manual `npm publish` is needed after step 1.
 
@@ -103,9 +61,9 @@ No manual `npm publish` is needed after step 1.
 | Artefact | Location | Owner |
 |---|---|---|
 | npm tarball | `https://www.npmjs.com/package/@astlide/core` | npm |
-| GitHub release | Release tab on the repo | changesets/action |
+| GitHub release | Release tab on the repo | `Publish to npm` job |
 | CHANGELOG.md update | `packages/*/CHANGELOG.md` | changesets |
-| Git tag | `@astlide/core@x.y.z`, `create-astlide@x.y.z` | changesets/action |
+| Git tag | `@astlide/core@x.y.z`, `create-astlide@x.y.z`, `astlide@x.y.z` | `Publish to npm` job |
 
 ## Rolling back
 
@@ -131,7 +89,7 @@ git config --global tag.gpgsign true
 
 Then upload the public key to <https://github.com/settings/ssh/new> as a **Signing Key** (not Authentication Key).
 
-The release-tags ruleset deliberately does not require signatures — `changesets/action` creates tags from inside CI without a configured signing key, and the registry-side provenance attestation already binds each tag to a verified GitHub Actions workflow run.
+The release-tags ruleset deliberately does not require signatures — the publish job creates tags from inside CI without a configured signing key, and the registry-side provenance attestation already binds each tag to a verified GitHub Actions workflow run.
 
 ## Branch protection (recommended)
 

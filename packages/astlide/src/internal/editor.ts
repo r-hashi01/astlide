@@ -30,6 +30,19 @@
 import { trailingSlash } from "@astlide/core/utils/base-path";
 
 const ENDPOINT = "/__astlide/source";
+const TOKEN_ENDPOINT = "/__astlide/editor-token";
+/** The dev server's editor token: fetched once, from the dev server's own origin. */
+let token: Promise<string> | null = null;
+async function authHeaders(): Promise<Record<string, string>> {
+	token ??= fetch(TOKEN_ENDPOINT, { cache: "no-store" })
+		.then((res) => (res.ok ? (res.json() as Promise<{ token?: string }>) : {}))
+		.then((data) => data.token ?? "")
+		.catch(() => "");
+	const value = await token;
+	// Not handed out (another machine, a tunnel): try again next time.
+	if (!value) token = null;
+	return { "x-astlide-editor-token": value };
+}
 const SOURCE_SAVED_EVENT = "astlide:source-saved";
 const DECK_CHANGED_EVENT = "astlide:deck-changed";
 /** Coalesce the burst of events after the content store committed a change… */
@@ -62,9 +75,14 @@ type AstlideWindow = Window & {
 	__astlide_pending_step?: { slide: number; step: number } | null;
 };
 
-/** Where the panel lives: a `transition:persist` host so it survives refreshes. */
+/**
+ * Where the panel lives: the layout's `transition:persist` host, so it
+ * survives refreshes — never an element of that id inside the slides, which
+ * a slide's own markup could put there.
+ */
 function host(): HTMLElement {
-	return document.getElementById("astlide-editor-host") ?? document.body;
+	const hosts = document.querySelectorAll<HTMLElement>('[id="astlide-editor-host"]');
+	return [...hosts].find((el) => !el.closest(".presentation")) ?? document.body;
 }
 
 function sourcePath(): string | null {
@@ -217,8 +235,13 @@ async function loadSource(): Promise<void> {
 	try {
 		const res = await fetch(`${ENDPOINT}?path=${encodeURIComponent(target.path)}`, {
 			cache: "no-store",
+			headers: await authHeaders(),
 		});
-		const body = (await res.json()) as { content?: string; error?: string };
+		const body = (await res.json()) as { content?: string; error?: string; locked?: boolean };
+		if (body.locked) {
+			if (state === target) setStatus(body.error ?? "", "error");
+			return;
+		}
 		if (!res.ok || typeof body.content !== "string") throw new Error(body.error ?? res.statusText);
 		// The panel may have moved to another slide while this was loading.
 		if (state !== target) return;
@@ -246,10 +269,15 @@ async function saveSource(): Promise<void> {
 		try {
 			const res = await fetch(ENDPOINT, {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
+				headers: { "Content-Type": "application/json", ...(await authHeaders()) },
 				body: JSON.stringify({ path, content }),
 			});
-			const body = (await res.json()) as { ok?: boolean; error?: string };
+			const body = (await res.json()) as { ok?: boolean; error?: string; locked?: boolean };
+			// Not enabled in this browser: say how, rather than "Couldn't save".
+			if (body.locked) {
+				if (state === current) setStatus(body.error ?? "", "error");
+				return;
+			}
 			if (!res.ok || !body.ok) throw new Error(body.error ?? res.statusText);
 			current.saved = content;
 			if (state === current) setStatus(isDirty() ? "Editing…" : "Saved", "ok");
@@ -262,8 +290,16 @@ async function saveSource(): Promise<void> {
 	await saving;
 }
 
+/**
+ * This page's path, with a leading `//` collapsed: used as is, a path some
+ * servers accept (`//host/...`) would make requests protocol-relative.
+ */
+function herePath(): string {
+	return `/${location.pathname.replace(/^\/+/, "")}`;
+}
+
 async function fetchPage(): Promise<Document> {
-	const res = await fetch(location.pathname + location.search, { cache: "no-store" });
+	const res = await fetch(herePath() + location.search, { cache: "no-store" });
 	if (!res.ok) throw new Error(res.statusText);
 	return new DOMParser().parseFromString(await res.text(), "text/html");
 }
@@ -397,7 +433,7 @@ async function refreshSlide(): Promise<void> {
 		return;
 	}
 	w.__astlide_pending_step = w.__astlide_step ?? null;
-	w.__astlide_navigate(location.pathname + location.search, { history: "replace" });
+	w.__astlide_navigate(herePath() + location.search, { history: "replace" });
 }
 
 function dirOf(path: string): string {
@@ -413,7 +449,7 @@ function dirOf(path: string): string {
 async function followDeck(): Promise<void> {
 	const w = window as AstlideWindow;
 	const current = sourcePath();
-	const deckUrl = location.pathname.replace(/\/\d+\/?$/, "");
+	const deckUrl = herePath().replace(/\/\d+\/?$/, "");
 	const here = Number(document.body.dataset.currentSlide) || 1;
 	let sources: string[] = [];
 	// The dev server may still be settling (error page while modules reload).

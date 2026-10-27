@@ -23,30 +23,14 @@ const toolbarItems: string[] =
     ? __ASTLIDE_TOOLBAR__
     : ['prev', 'counter', 'next'];
 
-const DEFAULT_CSP = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com data:",
-  "img-src 'self' data: https: blob:",
-  // `data:` and `blob:` allowed so the in-browser PDF exporter can fetch
-  // its own rasterised page images while assembling the document.
-  "connect-src 'self' data: blob:",
-  "frame-src 'self' https://www.youtube-nocookie.com",
-].join('; ');
-
 const cspOption: boolean | string =
   typeof __ASTLIDE_CSP__ !== 'undefined' ? __ASTLIDE_CSP__ : true;
 // Dev only: let Vite's client run its reconnect worker (see utils/csp).
-const cspContent =
-  cspOption === false ? null
-  : withDevDirectives(
-      typeof cspOption === 'string' && cspOption !== 'true' ? cspOption : DEFAULT_CSP,
-      import.meta.env.DEV,
-    );
+const cspContent = cspFor(cspOption, DEFAULT_DECK_CSP, import.meta.env.DEV);
 
 import type { DeckContext } from '@astlide/core/context';
-import { withDevDirectives } from '@astlide/core/utils/csp';
+import { cspFor, cspHashable, DEFAULT_DECK_CSP } from '@astlide/core/utils/csp';
+import { notesIncluded } from '@astlide/core/utils/notes';
 
 interface Props {
   title: string;
@@ -81,7 +65,10 @@ const {
   firstSlide = 1,
   lastSlide = totalSlides,
 } = Astro.props;
-const sanitizedNotes = notes ? sanitizeHTML(await renderMarkdown(notes)) : undefined;
+// `notes: "dev"`: built pages carry no notes (see utils/notes).
+const sanitizedNotes =
+  notesIncluded && notes ? sanitizeHTML(await renderMarkdown(notes)) : undefined;
+const noNotes = notesIncluded ? 'No notes for this slide.' : 'Speaker notes are not published with this deck.';
 // Internal links honour Astro's `base` (sub-path deployments).
 const slideHref = (n: number, query = '') => pageUrl(`/${deck}/${n}${query}`);
 const progress = (currentSlide / totalSlides) * 100;
@@ -93,7 +80,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    {cspContent && <meta http-equiv="Content-Security-Policy" content={cspContent} />}
+    {cspContent && <meta http-equiv="Content-Security-Policy" content={cspContent} data-astlide-csp={cspHashable(cspOption) || undefined} />}
     <title>{title}</title>
     <Favicon />
     <meta name="description" content={`${title} — slide ${currentSlide} of ${totalSlides}`} />
@@ -185,7 +172,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
           </div>
           {sanitizedNotes
             ? <div class="notes-content" set:html={sanitizedNotes} />
-            : <p class="no-notes">No notes for this slide.</p>
+            : <p class="no-notes">{noNotes}</p>
           }
         </div>
         <div class="presenter-nav">
@@ -301,7 +288,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         </div>
         {sanitizedNotes
           ? <div class="notes-body" set:html={sanitizedNotes} />
-          : <div class="notes-body"><p class="no-notes">No notes for this slide.</p></div>
+          : <div class="notes-body"><p class="no-notes">{noNotes}</p></div>
         }
       </div>
     </div>
@@ -640,18 +627,20 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       let syncChannel = null;
       try {
         if (!isEmbedded && typeof BroadcastChannel !== 'undefined') {
-          syncChannel = new BroadcastChannel('astlide-sync-' + deck);
+          // Keyed by base path too: two sites on one origin (user.github.io/a, /b) don't share it.
+          syncChannel = new BroadcastChannel('astlide-sync-' + basePath + '/' + deck);
           syncChannel.onmessage = function(e) {
             const data = e.data;
-            if (data && data.type === 'navigate' && data.slide !== currentSlide) {
+            if (!isSyncMessage(data)) return;
+            if (data.type === 'navigate' && data.slide !== currentSlide) {
               navTo(slideUrl(data.slide, isPresenter ? '?presenter' : ''));
-            } else if (data && data.type === 'step') {
+            } else if (data.type === 'step') {
               // Mirror fragment / code-step progress. A step for another slide
               // usually means we are still navigating there: keep it for the next
               // page to apply once its steps exist.
               if (data.slide === currentSlide) goToStep(data.step);
               else window.__astlide_pending_step = data;
-            } else if (data && (data.type === 'draw' || data.type === 'draw-clear' || data.type === 'draw-clear-all' || data.type === 'laser' || data.type === 'laser-off')) {
+            } else if (data.type === 'draw' || data.type === 'draw-clear' || data.type === 'draw-clear-all' || data.type === 'laser' || data.type === 'laser-off') {
               receiveDrawing(data);
             }
           };
@@ -659,6 +648,39 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       } catch (_) {
         // BroadcastChannel not available — each window navigates independently
         syncChannel = null;
+      }
+
+      /**
+       * Whether a sync message is well-formed: a slide number of this deck, and
+       * numbers / short strings where numbers / strings are used. Anything else
+       * on the channel (another tab, a stale version) is ignored.
+       */
+      /** A pen stroke as drawn and saved: bounded strings, finite numbers. */
+      function isStroke(s) {
+        const num = (v) => typeof v === 'number' && Number.isFinite(v);
+        const point = (p) => Array.isArray(p) && p.length >= 2 && num(p[0]) && num(p[1]);
+        return !!s && typeof s === 'object' && typeof s.id === 'string' && s.id.length <= 64
+          && typeof s.color === 'string' && s.color.length <= 64
+          && num(s.width) && s.width > 0 && s.width <= 200
+          && Array.isArray(s.points) && s.points.length <= 100000 && s.points.every(point);
+      }
+
+      function isSyncMessage(data) {
+        const num = (v) => typeof v === 'number' && Number.isFinite(v);
+        if (!data || typeof data !== 'object') return false;
+        if (!(Number.isInteger(data.slide) && data.slide >= 1 && data.slide <= totalSlides)) return false;
+        switch (data.type) {
+          case 'navigate': case 'draw-clear': case 'draw-clear-all': case 'laser-off':
+            return true;
+          case 'step':
+            return Number.isInteger(data.step) && data.step >= -1;
+          case 'laser':
+            return num(data.x) && num(data.y);
+          case 'draw':
+            return isStroke(data.stroke);
+          default:
+            return false;
+        }
       }
 
       function broadcastSlide(slideNum) {
@@ -905,7 +927,13 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         loadedDecks[drawingsStorageKey] = true;
         try {
           const saved = JSON.parse(localStorage.getItem(drawingsStorageKey) || '{}');
-          for (const key of Object.keys(saved)) if (!drawings[key]) drawings[key] = saved[key];
+          // Only this deck's slides, and only well-formed strokes: storage is
+          // shared with every page of the origin.
+          for (const key of Object.keys(saved)) {
+            if (!key.startsWith(deck + '/') || Object.hasOwn(drawings, key)) continue;
+            const strokes = saved[key];
+            if (Array.isArray(strokes) && strokes.every(isStroke)) drawings[key] = strokes;
+          }
         } catch (_) { /* unavailable or corrupt storage: start empty */ }
       }
       let saveTimer = 0;
@@ -1096,7 +1124,7 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
        * Strategy mirrors the server-side sanitizeHTML() in utils/sanitize.ts:
        *   1. Remove known-dangerous tags (with content) entirely.
        *   2. Allowlist safe tags — strip any tag not in the list (promote children).
-       *   3. Strip on* event-handler attributes from every remaining element.
+       *   3. Keep only allowlisted attributes, and safe URLs in href.
        */
       function sanitizeNotesHTML(html) {
         const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -1122,10 +1150,20 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
           }
         });
 
-        // 3. Strip on* event-handler attributes from every remaining element
+        // 3. Keep only allowlisted attributes (mirrors server-side ALLOWED_ATTRS /
+        //    TAG_ATTRS), and only safe URLs in href.
+        const ALLOWED_ATTRS = new Set(['class', 'id', 'title', 'lang', 'dir', 'role',
+          'aria-label', 'aria-hidden', 'aria-describedby', 'data-fragment',
+          'data-fragment-index', 'data-fragment-effect']);
+        const TAG_ATTRS = { a: ['href', 'target', 'rel'], td: ['colspan', 'rowspan'],
+          th: ['colspan', 'rowspan', 'scope'], ol: ['start', 'type'] };
         doc.body.querySelectorAll('*').forEach((el) => {
+          const tagAttrs = TAG_ATTRS[el.tagName.toLowerCase()] || [];
           Array.from(el.attributes).forEach((attr) => {
-            if (/^on\w+$/i.test(attr.name)) el.removeAttribute(attr.name);
+            const name = attr.name.toLowerCase();
+            const allowed = ALLOWED_ATTRS.has(name) || tagAttrs.includes(name);
+            const safeUrl = name !== 'href' || /^(?:https?:|mailto:|#|\/)/i.test(attr.value.replace(/[\u0000-\u0020]+/g, ''));
+            if (!allowed || !safeUrl) el.removeAttribute(attr.name);
           });
         });
 
@@ -1178,7 +1216,9 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         const u = new URL(window.location.href);
         if (u.searchParams.has(flag)) u.searchParams.delete(flag);
         else u.searchParams.set(flag, '');
-        navTo(u.pathname + (u.search ? u.search : '') + u.hash);
+        // Built from the slide number, not `u.pathname`: a path starting with
+        // `//` (some static hosts serve one) would make it protocol-relative.
+        navTo(slideUrl(currentSlide, u.search) + u.hash);
       }
 
       // ── 8c. Notes font-size controls (persisted in localStorage) ─
@@ -1489,6 +1529,9 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
       function postToHost() {
         const host = window.__astlide_embed_host;
         if (!host) return;
+        // A "null" host (a file: page, a sandboxed frame) can't be named as the
+        // target; the message still only goes to window.parent, and says no
+        // more than any page that frames the deck can learn.
         try { window.parent.postMessage(embedState(), host === 'null' ? '*' : host); }
         catch (_) { /* ignore */ }
       }

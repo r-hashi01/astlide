@@ -65,7 +65,32 @@ export function slideSrc(src: string, n: number): string {
 	const rest = cut === -1 ? "" : src.slice(cut);
 	const slash = path.endsWith("/");
 	const slide = Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
-	return `${path.replace(/\/+$/, "")}/${slide}${slash ? "/" : ""}${rest}`;
+	return `${trimTrailingSlashes(path)}/${slide}${slash ? "/" : ""}${rest}`;
+}
+
+/**
+ * Whether `src` may be loaded as a deck: an `http:` / `https:` URL, or a
+ * relative one (resolved against the page). Anything else — `javascript:`,
+ * `data:` … — is refused, as frameworks' own URL checks don't cover a custom
+ * element's attribute.
+ */
+export function isDeckUrl(
+	src: string,
+	base = typeof document === "undefined" ? undefined : document.baseURI,
+): boolean {
+	try {
+		const { protocol } = new URL(src, base ?? "http://localhost/");
+		return protocol === "http:" || protocol === "https:";
+	} catch {
+		return false;
+	}
+}
+
+/** `value` without trailing slashes (a loop: a regex like /\/+$/ backtracks on long runs of slashes). */
+function trimTrailingSlashes(value: string): string {
+	let end = value.length;
+	while (end > 0 && value.charCodeAt(end - 1) === 47) end--;
+	return value.slice(0, end);
 }
 
 /** Parse a `slidechange` message from a deck, or `null` when it isn't one. */
@@ -150,7 +175,8 @@ const Base: typeof HTMLElement =
  * The `<astlide-deck>` element.
  *
  * Attributes (each also a property):
- * - `src` — URL of the deck root (`/my-talk/`, `https://example.com/talks/my-talk/`).
+ * - `src` — URL of the deck root (`/my-talk/`, `https://example.com/talks/my-talk/`);
+ *   only `http(s)` and relative URLs are loaded (see {@link isDeckUrl}).
  *   Its trailing slash decides the slide URLs' style (`/my-talk/3/` vs `/my-talk/3`).
  * - `start` — slide to open first (1-based, default 1).
  * - `controls` — show a bar with previous / next, a slide counter and fullscreen.
@@ -295,7 +321,9 @@ export class AstlideDeckElement extends Base {
 		this.#ready = false;
 		this.#queue = [];
 		const src = this.src;
-		if (!src) {
+		if (!src || !isDeckUrl(src)) {
+			if (src)
+				console.warn(`<astlide-deck>: ignoring src "${src}" (only http(s) and relative URLs)`);
 			iframe.removeAttribute("src");
 			return;
 		}

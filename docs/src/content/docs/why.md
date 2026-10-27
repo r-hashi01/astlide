@@ -9,7 +9,7 @@ Astlide is for people who want slides to be part of a website — and who still 
 
 **Decks are content, not projects.** Most slide tools build one deck per project. In Astlide every folder under `src/content/decks/` is a deck of an Astro content collection, and the site serves an index of them. A year of talks, a team's weekly reports, a product's training decks: one repository, one set of themes and components, one deploy.
 
-**It's an SDK, not an app.** Astlide is `astlide()` in your `astro.config.mjs`, so it goes into whatever site you build — a blog, Starlight docs, a portal with your own navigation. Its pieces work on their own too: the deck loader (`astlideDeckLoader`), PowerPoint import and templates (`@astlide/core/pptx`), and the layout engine behind the PPTX export (`@astlide/engine`).
+**It's an SDK, not an app.** Astlide is `astlide()` in your `astro.config.mjs`, so it goes into whatever site you build — a blog, Starlight docs, a portal with your own navigation. Its pieces work on their own too: the deck loader (`astlideDeckLoader`), PowerPoint import and templates (`@astlide/core/pptx`), and the layout engine behind the PPTX export (`@astlide/core/engine`).
 
 **Your PowerPoint template, editable PowerPoint out.** Register a `.pptx` / `.potx` / `.thmx` [template as a theme](/guides/templates/) and Markdown slides take its backgrounds, fonts, colors and placeholder positions. [Export](/guides/export/) writes real PowerPoint text boxes, tables and shapes with your speaker notes, laid out by Astlide's own engine — no browser or LibreOffice involved, so it runs anywhere Node runs.
 

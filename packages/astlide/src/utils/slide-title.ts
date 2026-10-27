@@ -9,6 +9,9 @@
  * @module
  */
 
+import { type ChildNode, isTag } from "domhandler";
+import { parseDocument } from "htmlparser2";
+
 /** The subset of a content collection entry this helper reads. */
 export interface SlideTitleSource {
 	data: { title?: string };
@@ -50,15 +53,16 @@ function cleanMarkdown(text: string): string {
 		.trim();
 }
 
-/** Strip tags and decode the handful of entities headings commonly contain. */
+/** The text of an HTML fragment: tags dropped, entities decoded (by a parser), white space collapsed. */
 function cleanHtml(text: string): string {
-	return text
-		.replace(/<[^>]*>/g, "")
-		.replace(/&amp;/g, "&")
-		.replace(/&lt;/g, "<")
-		.replace(/&gt;/g, ">")
-		.replace(/&quot;/g, '"')
-		.replace(/&#39;/g, "'")
-		.replace(/\s+/g, " ")
-		.trim();
+	return textContent(parseDocument(text).children).replace(/\s+/g, " ").trim();
+}
+
+function textContent(nodes: ChildNode[]): string {
+	let out = "";
+	for (const node of nodes) {
+		if (node.type === "text") out += node.data;
+		else if (isTag(node)) out += textContent(node.children);
+	}
+	return out;
 }

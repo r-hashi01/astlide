@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import astlide from "../src/index";
+import { exportBuildDir } from "../src/utils/export-build";
 
 // ── Helpers ──
 
@@ -174,6 +175,79 @@ describe("astlide integration", () => {
 			const { args } = runSetup({ drawings: { persist: true } });
 			const configCall = args.updateConfig.mock.calls[0][0];
 			expect(configCall.vite.define.__ASTLIDE_DRAWINGS_PERSIST__).toBe("true");
+		});
+	});
+
+	// ── Speaker notes ──
+
+	describe("notes option", () => {
+		const notesDefine = (options?: Parameters<typeof astlide>[0], command = "build") => {
+			const integration = astlide(options);
+			const args = createMockHookArgs();
+			(integration.hooks["astro:config:setup"] as HookFn)({
+				...args,
+				command,
+				injectScript: () => {},
+			});
+			return args.updateConfig.mock.calls[0][0].vite.define.__ASTLIDE_NOTES__;
+		};
+
+		it("leaves notes out of builds by default, keeps them in dev", () => {
+			expect(notesDefine(undefined, "build")).toBe("false");
+			expect(notesDefine(undefined, "dev")).toBe("true");
+			expect(notesDefine({ notes: "dev" }, "build")).toBe("false");
+		});
+
+		it('includes notes everywhere with notes: "public"', () => {
+			expect(notesDefine({ notes: "public" }, "build")).toBe("true");
+			expect(notesDefine({ notes: "public" }, "dev")).toBe("true");
+		});
+
+		it("builds an export into its own folder, with notes", () => {
+			const own = exportBuildDir(process.cwd());
+			process.env.ASTLIDE_EXPORT_BUILD = own;
+			try {
+				expect(notesDefine(undefined, "build")).toBe("true");
+				const integration = astlide();
+				const args = createMockHookArgs();
+				(integration.hooks["astro:config:setup"] as HookFn)({
+					...args,
+					command: "build",
+					injectScript: () => {},
+				});
+				const { outDir } = args.updateConfig.mock.calls[0][0];
+				expect(String(outDir)).toBe(pathToFileURL(`${own}/`).href);
+			} finally {
+				delete process.env.ASTLIDE_EXPORT_BUILD;
+			}
+		});
+
+		it("ignores ASTLIDE_EXPORT_BUILD naming any other folder", () => {
+			process.env.ASTLIDE_EXPORT_BUILD = join(process.cwd(), "dist");
+			try {
+				expect(notesDefine(undefined, "build")).toBe("false");
+				const integration = astlide();
+				const args = createMockHookArgs();
+				(integration.hooks["astro:config:setup"] as HookFn)({
+					...args,
+					command: "build",
+					injectScript: () => {},
+				});
+				expect(args.updateConfig.mock.calls[0][0].outDir).toBeUndefined();
+			} finally {
+				delete process.env.ASTLIDE_EXPORT_BUILD;
+			}
+		});
+
+		it("leaves outDir alone for other builds", () => {
+			const integration = astlide();
+			const args = createMockHookArgs();
+			(integration.hooks["astro:config:setup"] as HookFn)({
+				...args,
+				command: "build",
+				injectScript: () => {},
+			});
+			expect(args.updateConfig.mock.calls[0][0].outDir).toBeUndefined();
 		});
 	});
 
