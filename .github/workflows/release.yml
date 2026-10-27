@@ -92,7 +92,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v4
         with:
-          node-version: 24
+          node-version: 24.22.1 # a patched Node 24 (npm 11.5+ for Trusted Publishing)
 
       - run: bun install --frozen-lockfile --ignore-scripts
 
@@ -157,7 +157,7 @@ jobs:
           # 11.5.1+ for the OIDC handshake. Node 22 ships with npm 10 and
           # silently falls back to anonymous publish → 404. See
           # https://github.com/npm/cli/issues/8976
-          node-version: 24
+          node-version: 24.22.1 # a patched Node 24 (npm 11.5+ for Trusted Publishing)
           registry-url: "https://registry.npmjs.org"
 
       - name: Publish, tag and release
