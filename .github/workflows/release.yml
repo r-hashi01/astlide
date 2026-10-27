@@ -37,8 +37,8 @@ jobs:
     name: Version PR
     runs-on: ubuntu-latest
     permissions:
-      contents: write       # the "Version Packages" branch
-      pull-requests: write  # …and its PR
+      contents: write # the "Version Packages" branch
+      pull-requests: write # …and its PR
     outputs:
       # Pending changesets (counted here: changesets/action sets no output when
       # there are none and it has no publish script).
@@ -46,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0    # changesets needs full history for changelog generation
+          fetch-depth: 0 # changesets needs full history for changelog generation
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
@@ -84,7 +84,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: 2    # release-pack compares versions with the parent commit
+          fetch-depth: 2 # release-pack compares versions with the parent commit
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
@@ -137,8 +137,8 @@ jobs:
     # Required reviewers on this environment: publishing waits for approval.
     environment: npm-publish
     permissions:
-      contents: write       # tags and GitHub releases
-      id-token: write       # npm Trusted Publishing (OIDC)
+      contents: write # tags and GitHub releases
+      id-token: write # npm Trusted Publishing (OIDC)
     steps:
       # Exactly the artifact the build job uploaded, with the contents it hashed.
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2

@@ -155,7 +155,7 @@ export async function importDeck(options: ImportOptions): Promise<{ dir: string;
 			return `/pptx/${deckName}/${fileName}`;
 		},
 	});
-	const width = String(deck.slides.length).length < 2 ? 2 : String(deck.slides.length).length;
+	const width = Math.max(2, String(deck.slides.length).length);
 	for (const slide of deck.slides) {
 		const front = [
 			slide.title ? `title: ${yaml(slide.title)}` : "",
