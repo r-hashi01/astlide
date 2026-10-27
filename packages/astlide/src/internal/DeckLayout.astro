@@ -111,9 +111,17 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
         applyFlags(document, location.search);
         if (!window.__astlide_swap_listeners__) {
           window.__astlide_swap_listeners__ = true;
+          // The slide change in flight, if any: printing mid-change would put the
+          // old slide's snapshot on paper over the new one, so finish it first.
+          var running = null;
           document.addEventListener('astro:before-swap', function (e) {
             // Set flags on the new document BEFORE the swap renders, avoiding a flash (A-1, A-2).
             applyFlags(e.newDocument, new URL(e.to, location.origin).search);
+            running = e.viewTransition || null;
+            if (running) running.finished.finally(function () { running = null; });
+          });
+          window.addEventListener('beforeprint', function () {
+            if (running) running.skipTransition();
           });
           document.addEventListener('astro:after-swap', function () {
             applyFlags(document, location.search);
@@ -2450,10 +2458,17 @@ const indexable = typeof __ASTLIDE_INDEXABLE__ !== 'undefined' ? __ASTLIDE_INDEX
     margin: 0;
   }
   @media print {
-    html, body { background: #fff !important; }
+    html, body { background: #fff !important; width: auto; height: auto; overflow: visible; }
     .slide-nav, .progress-bar, .overview, .notes-overlay, .presenter-layout { display: none !important; }
-    .presentation { background: transparent; }
-    .slide-scaler { transform: none !important; width: 100% !important; height: 100% !important; page-break-after: always; }
-    .slide-scaler:last-child { page-break-after: auto; }
+    .presentation { display: block; width: auto; height: auto; background: transparent; }
+    /* The screen scale (an inline transform from updateScale) gives way to the
+       page's: zoom also shrinks the layout box, so nothing spills onto a second
+       page or past the right edge. */
+    .slide-scaler {
+      transform: none !important;
+      width: var(--slide-width, 1920px) !important;
+      height: var(--slide-height, 1080px) !important;
+      zoom: var(--astlide-print-scale, 1);
+    }
   }
 </style>
