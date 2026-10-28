@@ -1,0 +1,361 @@
+---
+/**
+ * The docs' landing page (index.mdx, ja/index.mdx), rendered in place of
+ * Starlight's hero (see Hero.astro). Title, tagline and actions come from the
+ * page's `hero` frontmatter; the rest from landing-copy.ts.
+ */
+import { Code } from "@astrojs/starlight/components";
+import { Image } from "astro:assets";
+import diagram from "../assets/gallery/tour-9.png";
+import twoColumns from "../assets/gallery/tour-7.png";
+import markdownSlide from "../assets/gallery/theme-corporate.png";
+import darkTheme from "../assets/gallery/theme-dark.png";
+import forestTheme from "../assets/gallery/theme-forest.png";
+import { copy, sources } from "./landing-copy";
+
+const { entry, locale } = Astro.locals.starlightRoute;
+const hero = entry.data.hero;
+const t = copy[locale === "ja" ? "ja" : "en"];
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const href = (link: string) => (link.startsWith("/") ? `${base}${link}` : link);
+const localePath = (path: string) => href(`${locale ? `/${locale}` : ""}${path}`);
+const shots = [darkTheme, forestTheme, twoColumns, diagram];
+const create = "bun create astlide my-slides";
+---
+
+<div class="landing not-content">
+	<section class="hero">
+		<div class="pitch">
+			<h1 id="_top">{hero?.title}</h1>
+			{hero?.tagline && <p class="tagline">{hero.tagline}</p>}
+			<div class="actions">
+				{
+					hero?.actions.map((action, i) => (
+						<a class:list={["action", i === 0 && "primary"]} href={href(action.link)}>
+							{action.text}
+						</a>
+					))
+				}
+			</div>
+			<div class="command">
+				<code><span aria-hidden="true">$ </span>{create}</code>
+				<button type="button" data-copy={create} aria-label={t.copy} data-copied={t.copied}>
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>
+				</button>
+			</div>
+		</div>
+		<div class="source">
+			<Code code={sources.slide} lang="md" title="decks/tour/04-markdown.md" wrap />
+			<p class="caption"><span class="dot" aria-hidden="true"></span>{t.sourceCaption}</p>
+			<Image class="shot" src={markdownSlide} alt={t.sourceAlt} widths={[480, 960]} sizes="(min-width: 60rem) 32rem, 100vw" />
+		</div>
+	</section>
+
+	<section class="band">
+		<div class="split">
+			<div class="text">
+				<h2>{t.decks.title}</h2>
+				<p>{t.decks.body}</p>
+				<Code code={sources.decks} lang="txt" />
+			</div>
+			<div class="shots">
+				{
+					shots.map((src, i) => (
+						<figure>
+							<Image class="shot" src={src} alt={t.decks.shots[i].alt} widths={[480, 960]} sizes="(min-width: 60rem) 16rem, 50vw" />
+							<figcaption>{t.decks.shots[i].caption}</figcaption>
+						</figure>
+					))
+				}
+			</div>
+		</div>
+	</section>
+
+	<section class="split center">
+		<div class="text">
+			<h2>{t.templates.title}</h2>
+			<p>{t.templates.body}</p>
+			<div class="command">
+				<code><span aria-hidden="true">$ </span>bunx astlide export my-talk --pptx</code>
+			</div>
+		</div>
+		<Code code={sources.config} lang="js" title="astro.config.mjs" wrap />
+	</section>
+
+	<section class="more">
+		<h2>{t.more.title}</h2>
+		<ul>
+			{
+				t.more.items.map(([name, body]) => (
+					<li>
+						<strong>{name}</strong>
+						<span>{body}</span>
+					</li>
+				))
+			}
+		</ul>
+		<a class="compare" href={localePath("/why/")}>{t.more.compare}</a>
+	</section>
+
+	<section class="band start">
+		<h2>{t.start}</h2>
+		<div class="command">
+			<code><span aria-hidden="true">$ </span>{create}</code>
+			<button type="button" data-copy={create} aria-label={t.copy} data-copied={t.copied}>
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>
+			</button>
+		</div>
+	</section>
+</div>
+
+<script>
+	for (const button of document.querySelectorAll<HTMLButtonElement>(".landing [data-copy]")) {
+		const label = button.getAttribute("aria-label") ?? "";
+		button.addEventListener("click", async () => {
+			await navigator.clipboard.writeText(button.dataset.copy ?? "");
+			button.setAttribute("aria-label", button.dataset.copied ?? label);
+			setTimeout(() => button.setAttribute("aria-label", label), 2000);
+		});
+	}
+</script>
+
+<style>
+	/* Dark (Starlight's default theme): ink background, light vermilion. */
+	.landing {
+		--band: #231f1d;
+		--line: #3a3431;
+		--muted: var(--sl-color-gray-2);
+		--action: #ff6b5e;
+		--on-action: #1c1917;
+		--field: #2a2522;
+		font-size: 1rem;
+		color: var(--sl-color-white);
+	}
+	:global([data-theme="light"]) .landing {
+		--band: #ffffff;
+		--line: #e7e5e4;
+		--muted: var(--sl-color-gray-3);
+		--action: #c8322a;
+		--on-action: #ffffff;
+		--field: #ffffff;
+	}
+
+	section {
+		padding-block: 4.5rem;
+	}
+	/* Full-width background behind a section, without horizontal scroll. */
+	.band {
+		background: var(--band);
+		box-shadow: 0 0 0 100vmax var(--band);
+		clip-path: inset(0 -100vmax);
+		border-block: 1px solid var(--line);
+	}
+
+	h1 {
+		margin: 0;
+		font-size: clamp(2.5rem, 5vw, 4rem);
+		font-weight: 700;
+		line-height: 1.05;
+		letter-spacing: -0.03em;
+		color: var(--sl-color-white);
+	}
+	h2 {
+		margin: 0;
+		font-size: clamp(1.75rem, 3vw, 2.5rem);
+		font-weight: 700;
+		line-height: 1.15;
+		letter-spacing: -0.02em;
+		color: var(--sl-color-white);
+	}
+	/* Break Japanese headings between phrases, not inside words. */
+	h1:lang(ja),
+	h2:lang(ja) {
+		word-break: auto-phrase;
+	}
+	p {
+		margin: 0;
+		max-width: 36rem;
+		font-size: 1.125rem;
+		line-height: 1.6;
+		color: var(--muted);
+	}
+
+	.hero,
+	.split {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr));
+		gap: 3.5rem;
+		align-items: start;
+	}
+	.hero {
+		align-items: center;
+		padding-block: 2rem 5rem;
+	}
+	.center {
+		align-items: center;
+	}
+	.pitch,
+	.text,
+	.source {
+		display: flex;
+		flex-direction: column;
+		gap: 1.5rem;
+		min-width: 0;
+	}
+	.source {
+		gap: 0.75rem;
+	}
+	.tagline {
+		font-size: 1.25rem;
+	}
+
+	.actions {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.75rem 1.25rem;
+	}
+	.action {
+		display: inline-flex;
+		align-items: center;
+		min-height: 2.75rem;
+		font-weight: 600;
+		color: var(--action);
+		text-decoration: none;
+	}
+	.action:hover {
+		text-decoration: underline;
+	}
+	.action.primary {
+		padding-inline: 1.25rem;
+		border-radius: 0.625rem;
+		background: var(--action);
+		color: var(--on-action);
+	}
+	.action.primary:hover {
+		text-decoration: none;
+		filter: brightness(1.08);
+	}
+
+	.command {
+		display: inline-flex;
+		align-items: center;
+		align-self: flex-start;
+		gap: 0.25rem;
+		max-width: 100%;
+		min-height: 3.25rem;
+		padding: 0.25rem 0.25rem 0.25rem 1rem;
+		box-sizing: border-box;
+		border: 1px solid var(--line);
+		border-radius: 0.625rem;
+		background: var(--field);
+	}
+	.command code {
+		overflow-x: auto;
+		white-space: nowrap;
+		font-size: 0.9375rem;
+		color: var(--sl-color-white);
+		background: none;
+	}
+	.command code span {
+		color: var(--action);
+	}
+	.command button {
+		display: grid;
+		place-items: center;
+		flex-shrink: 0;
+		width: 2.75rem;
+		height: 2.75rem;
+		border: 0;
+		border-radius: 0.5rem;
+		background: transparent;
+		color: var(--muted);
+		cursor: pointer;
+	}
+	.command button:hover {
+		color: var(--sl-color-white);
+	}
+	.command:not(:has(button)) {
+		padding-right: 1rem;
+	}
+
+	.caption,
+	figcaption {
+		display: flex;
+		align-items: center;
+		gap: 0.625rem;
+		font-size: 0.875rem;
+		color: var(--muted);
+	}
+	.dot {
+		width: 0.5rem;
+		height: 0.5rem;
+		border-radius: 50%;
+		background: var(--action);
+	}
+	.shot {
+		display: block;
+		width: 100%;
+		height: auto;
+		aspect-ratio: 16 / 9;
+		border: 1px solid var(--line);
+		border-radius: 0.625rem;
+	}
+	.shots {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 1rem;
+	}
+	figure {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		margin: 0;
+	}
+
+	.more {
+		display: flex;
+		flex-direction: column;
+		gap: 1.5rem;
+	}
+	.more ul {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+		column-gap: 2.5rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+	.more li {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		padding-block: 1.125rem;
+		border-top: 1px solid var(--line);
+	}
+	.more strong {
+		color: var(--sl-color-white);
+	}
+	.more li span {
+		font-size: 0.9375rem;
+		line-height: 1.5;
+		color: var(--muted);
+	}
+	.compare {
+		align-self: flex-start;
+		font-weight: 600;
+		color: var(--action);
+	}
+
+	.start {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1.5rem;
+		border-bottom: 0;
+	}
+	.start .command {
+		align-self: center;
+	}
+</style>

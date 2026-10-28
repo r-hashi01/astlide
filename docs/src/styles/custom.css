@@ -7,14 +7,32 @@
 	box-shadow: var(--sl-shadow-sm);
 }
 
-/* Brand colors (the logo's vermilion). Starlight's dark theme is the default;
-   links there use accent-high, links in the light theme use accent. */
+/* Brand colors (the logo's vermilion) on warm grays: ink in the dark theme,
+   paper in the light one. Starlight's dark theme is the default; links there
+   use accent-high, links in the light theme use accent. */
 :root {
+	--sl-color-white: #ffffff;
+	--sl-color-gray-1: #f0eeec;
+	--sl-color-gray-2: #c9c4bf;
+	--sl-color-gray-3: #9a918b;
+	--sl-color-gray-4: #5c5550;
+	--sl-color-gray-5: #3a3431;
+	--sl-color-gray-6: #2a2522;
+	--sl-color-black: #1c1917;
 	--sl-color-accent-low: #3d1714;
 	--sl-color-accent: #ff6b5e;
 	--sl-color-accent-high: #ffd0ca;
 }
 :root[data-theme="light"] {
+	--sl-color-white: #1c1917;
+	--sl-color-gray-1: #2a2522;
+	--sl-color-gray-2: #3a3431;
+	--sl-color-gray-3: #57534e;
+	--sl-color-gray-4: #8f8781;
+	--sl-color-gray-5: #c9c4bf;
+	--sl-color-gray-6: #ece8e3;
+	--sl-color-gray-7: #f5f2ed;
+	--sl-color-black: #faf7f2;
 	--sl-color-accent-low: #f3e2da;
 	--sl-color-accent: #c8322a;
 	--sl-color-accent-high: #6e1a15;

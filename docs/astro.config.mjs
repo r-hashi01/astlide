@@ -25,6 +25,8 @@ export default defineConfig({
 			title: "Astlide",
 			logo: { light: "./src/assets/logo.svg", dark: "./src/assets/logo-dark.svg" },
 			customCss: ["./src/styles/custom.css"],
+			// The index pages' hero is the landing page (src/components/Landing.astro).
+			components: { Hero: "./src/components/Hero.astro" },
 			// The picture shown when a docs page is shared (X, Slack …).
 			head: [
 				{ tag: "meta", attrs: { property: "og:image", content: `${site}${base}/og.png` } },
