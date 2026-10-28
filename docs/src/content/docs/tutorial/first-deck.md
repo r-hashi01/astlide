@@ -132,21 +132,7 @@ Markdown in git, built by CI.
 </Right>
 ```
 
-The last slide is a plain Markdown file with a [Mermaid](/guides/diagrams/) diagram. A new project only loads `.mdx` slides, so first replace `src/content.config.ts` with this version, which also loads `.md` and `.html` slides:
-
-```ts
-// src/content.config.ts
-import { defineCollection } from "astro:content";
-import { astlideDeckLoader, slideSchema } from "@astlide/core";
-
-const decks = defineCollection({
-  // Renders .mdx, .md, and .html slides from src/content/decks/<deck>/
-  loader: astlideDeckLoader(),
-  schema: slideSchema,
-});
-
-export const collections = { decks };
-```
+The last slide is a plain Markdown file with a [Mermaid](/guides/diagrams/) diagram. A deck can mix `.mdx`, `.md` and `.html` slides.
 
 Diagrams also need the `mermaid` package. Stop the dev server with <kbd>Ctrl</kbd>+<kbd>C</kbd>, install it, and start the server again so it picks the package up:
 

@@ -132,21 +132,7 @@ Markdown in git, built by CI.
 </Right>
 ```
 
-最後のスライドは、[Mermaid](/ja/guides/diagrams/) の図を入れた普通の Markdown ファイルにします。ただし、作ったばかりのプロジェクトは `.mdx` のスライドしか読み込みません。そこで先に `src/content.config.ts` を次の内容に置き換え、`.md` と `.html` のスライドも読み込めるようにします。
-
-```ts
-// src/content.config.ts
-import { defineCollection } from "astro:content";
-import { astlideDeckLoader, slideSchema } from "@astlide/core";
-
-const decks = defineCollection({
-  // Renders .mdx, .md, and .html slides from src/content/decks/<deck>/
-  loader: astlideDeckLoader(),
-  schema: slideSchema,
-});
-
-export const collections = { decks };
-```
+最後のスライドは、[Mermaid](/ja/guides/diagrams/) の図を入れた普通の Markdown ファイルにします。1 つのデッキの中で、`.mdx`・`.md`・`.html` のスライドを混ぜて使えます。
 
 図を描くには `mermaid` パッケージも必要です。開発サーバーは起動時にこのパッケージの有無を確認するので、インストールしたら起動し直します。開発サーバーを <kbd>Ctrl</kbd>+<kbd>C</kbd> で止めてから、次のコマンドを実行してください。
 

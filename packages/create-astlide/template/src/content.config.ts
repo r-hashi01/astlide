@@ -1,9 +1,9 @@
 import { defineCollection } from 'astro:content';
-import { glob } from 'astro/loaders';
-import { slideSchema } from '@astlide/core/schema';
+import { astlideDeckLoader, slideSchema } from '@astlide/core';
 
 const decks = defineCollection({
-  loader: glob({ pattern: '**/*.mdx', base: 'src/content/decks' }),
+  // .mdx, .md and .html slides (and .pptx files) under src/content/decks/<deck>/
+  loader: astlideDeckLoader(),
   schema: slideSchema,
 });
 

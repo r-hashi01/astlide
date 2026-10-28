@@ -11,7 +11,15 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -42,6 +50,14 @@ try {
 	const projectDir = join(work, "my-slides");
 	cpSync(TEMPLATE_DIR, projectDir, { recursive: true });
 
+	// A deck with a Markdown and an HTML slide: the template's loader must read
+	// every slide format, not only .mdx.
+	const deckDir = join(projectDir, "src/content/decks/smoke");
+	mkdirSync(deckDir, { recursive: true });
+	writeFileSync(join(deckDir, "_config.json"), JSON.stringify({ title: "Smoke" }));
+	writeFileSync(join(deckDir, "01-markdown.md"), "# A Markdown slide\n");
+	writeFileSync(join(deckDir, "02-html.html"), "<h1>An HTML slide</h1>\n");
+
 	// 3. Repoint @astlide/core to the local tarball.
 	const projPkgPath = join(projectDir, "package.json");
 	const projPkg = JSON.parse(readFileSync(projPkgPath, "utf-8"));
@@ -61,6 +77,11 @@ try {
 		.filter(Boolean).length;
 	if (pageCount === 0) {
 		throw new Error(`Build produced no HTML pages in ${dist}`);
+	}
+	for (const slide of ["1", "2"]) {
+		if (!existsSync(join(dist, "smoke", slide, "index.html"))) {
+			throw new Error(`The .md / .html slide /smoke/${slide}/ was not built`);
+		}
 	}
 	console.log(`\n✓ Template smoke test passed: ${pageCount} HTML page(s) generated.`);
 } finally {

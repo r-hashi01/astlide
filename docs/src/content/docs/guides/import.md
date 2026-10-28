@@ -10,7 +10,7 @@ Either way, each page becomes one Astlide slide. Text stays real text, and shape
 Only `.pptx` is read. For Google Slides, Keynote, `.ppt` or `.odp`, save or download the deck as PowerPoint first; Google Slides can also be imported from its URL ([below](#google-slides)). If you want to write new slides in Markdown that use a PowerPoint design, see [PowerPoint templates](/guides/templates/).
 
 :::note
-Both ways need the `decks` collection to use `astlideDeckLoader()` (see [Getting Started](/getting-started/#add-to-an-existing-astro-project)). A project created with `bun create astlide` loads only `.mdx` files until you switch.
+Both ways need the `decks` collection to use `astlideDeckLoader()` (see [Getting Started](/getting-started/#add-to-an-existing-astro-project)). Projects created with `bun create astlide` already do. Projects created with an older version of `create-astlide` load only `.mdx` files until you switch.
 :::
 
 ## Show a .pptx as it is

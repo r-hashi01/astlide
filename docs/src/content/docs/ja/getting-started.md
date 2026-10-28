@@ -18,10 +18,6 @@ bun run dev
 
 開発サーバーが起動したら `http://localhost:4321` を開きます。デッキの一覧に `example-deck` が 1 つ表示されるので、クリックすると 1 枚目のスライドが開きます。
 
-:::note
-生成された `src/content.config.ts` が読み込むのは `.mdx` のスライドだけです。`.md`、`.html`、`.pptx` のスライドも使う場合は、次の節にある `astlideDeckLoader()` を使った内容に書き換えてください。
-:::
-
 ## 既存の Astro プロジェクトに追加する
 
 パッケージをインストールします。

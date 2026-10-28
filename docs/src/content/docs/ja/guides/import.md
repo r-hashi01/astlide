@@ -10,7 +10,7 @@ Astlide で PowerPoint のファイル（`.pptx`）を使う方法は 2 つあ�
 読み込めるのは `.pptx` だけです。Google スライド、Keynote、`.ppt`、`.odp` のファイルは、先に PowerPoint 形式で保存するかダウンロードしてください。Google スライドは URL から直接取り込むこともできます（[後述](#google-スライド)）。PowerPoint のデザインを使って新しいスライドを Markdown で書きたい場合は、[PowerPoint テンプレート](/ja/guides/templates/)を参照してください。
 
 :::note
-どちらの方法でも、`decks` コレクションのローダーが `astlideDeckLoader()` になっている必要があります（[はじめに](/ja/getting-started/#既存の-astro-プロジェクトに追加する)を参照）。`bun create astlide` で作ったプロジェクトは、書き換えるまで `.mdx` のファイルしか読み込みません。
+どちらの方法でも、`decks` コレクションのローダーが `astlideDeckLoader()` になっている必要があります（[はじめに](/ja/getting-started/#既存の-astro-プロジェクトに追加する)を参照）。`bun create astlide` で作ったプロジェクトは、最初からそうなっています。ただし、古いバージョンの `create-astlide` で作ったプロジェクトは `.mdx` のファイルしか読み込まないので、書き換えてください。
 :::
 
 ## .pptx をそのまま表示する

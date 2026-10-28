@@ -18,10 +18,6 @@ bun run dev
 
 Once the dev server is running, open `http://localhost:4321`. The deck index lists one deck, `example-deck`. Click it to open its first slide.
 
-:::note
-The generated `src/content.config.ts` loads only `.mdx` slides. To use `.md`, `.html` or `.pptx` slides as well, replace it with the `astlideDeckLoader()` version in the next section.
-:::
-
 ## Add to an existing Astro project
 
 Install the package:
