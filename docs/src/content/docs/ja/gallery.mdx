@@ -1,6 +1,6 @@
 ---
 title: ギャラリー
-description: 組み込みのレイアウトとテーマを、機能紹介デッキから描画して一覧にしています。
+description: 組み込みのレイアウトとテーマをすべて、機能紹介デッキのスクリーンショットで紹介します。
 ---
 
 import { Image } from "astro:assets";
@@ -25,58 +25,58 @@ import themeGradient from "../../../assets/gallery/theme-gradient.png";
 import themeRose from "../../../assets/gallery/theme-rose.png";
 import themeForest from "../../../assets/gallery/theme-forest.png";
 
-スクリーンショットは[機能紹介デッキ](https://astlide.dev/demo/tour/1/)から撮影しています。デッキを開くと各スライドを実際に動かして確認でき、<kbd>o</kbd> キーで一覧表示になります。
+スクリーンショットはすべて[機能紹介デッキ](https://astlide.dev/demo/tour/1/)から撮っています。デッキを開けば実際のスライドを確認でき、<kbd>o</kbd> キーで一覧に切り替わります。
 
 ## レイアウト
 
-スライドの frontmatter で `slideLayout` を指定します。それぞれのレイアウトで使うマークアップは[レイアウトとコンポーネント](/ja/guides/layouts-and-components/)を参照してください。
+レイアウトは、スライドの frontmatter の `slideLayout` で指定します。レイアウトごとの書き方は[レイアウトとコンポーネント](/ja/guides/layouts-and-components/)を参照してください。
 
 <CardGrid>
 	<Card title="cover">
 		<Image class="slide-shot" src={cover} alt="cover レイアウト: 中央にタイトル、サブタイトル、ヒント" />
-		中央寄せのタイトル。最初と最後のスライド向けです。
+		タイトルを中央に置きます。最初と最後のスライド向けです。
 	</Card>
 	<Card title="section">
 		<Image class="slide-shot" src={section} alt="section レイアウト: 章の区切り" />
-		章の区切り。
+		章の区切りに使います。
 	</Card>
 	<Card title="default">
 		<Image class="slide-shot" src={defaultLayout} alt="default レイアウト: 見出し、本文、表" />
-		標準的なコンテンツスライド。
+		通常の内容を載せる標準のスライドです。
 	</Card>
 	<Card title="two-column">
 		<Image class="slide-shot" src={twoColumn} alt="two-column レイアウト: 全幅のタイトルの下に左右の列" />
-		全幅のタイトルの下に `<Left>` / `<Right>`。
+		全幅のタイトルの下に `<Left>` / `<Right>` を並べます。
 	</Card>
 	<Card title="image-left">
 		<Image class="slide-shot" src={imageLeft} alt="image-left レイアウト: 左にイラスト、右にテキスト" />
-		`<ImageSide>` + `<TextPanel>`。
+		`<ImageSide>` と `<TextPanel>` で組みます。
 	</Card>
 	<Card title="image-right">
 		<Image class="slide-shot" src={imageRight} alt="image-right レイアウト: 左にテキスト、右にイラスト" />
-		image-left の左右反転です。
+		image-left の左右を入れ替えたものです。
 	</Card>
 	<Card title="image-full">
 		<Image class="slide-shot" src={imageFull} alt="image-full レイアウト: 全面の背景画像に白い文字" />
-		全面に敷く `background` 画像。
+		`background` の画像を全面に敷きます。
 	</Card>
 	<Card title="code">
 		<Image class="slide-shot" src={code} alt="code レイアウト: 行をハイライトした CodeBlock" />
-		コード向けに余白を詰めたレイアウト。
+		コードを載せるために余白を詰めています。
 	</Card>
 	<Card title="quote">
 		<Image class="slide-shot" src={quote} alt="quote レイアウト: 中央寄せの引用" />
-		中央寄せの引用。
+		引用を中央に置きます。
 	</Card>
 	<Card title="statement">
 		<Image class="slide-shot" src={statement} alt="statement レイアウト: 大きな一文" />
-		大きな一文。
+		一文を大きく見せます。
 	</Card>
 </CardGrid>
 
 ## テーマ
 
-デッキごとに `_config.json` の `"theme"` で指定します。同じスライドを組み込みテーマごとに表示すると次のようになります。
+デッキごとに `_config.json` の `"theme"` で指定します。同じスライドを各組み込みテーマで表示すると、次のようになります。
 
 <CardGrid>
 	<Card title="default"><Image class="slide-shot" src={themeDefault} alt="default テーマのスライド" /></Card>
@@ -88,4 +88,4 @@ import themeForest from "../../../assets/gallery/theme-forest.png";
 	<Card title="forest"><Image class="slide-shot" src={themeForest} alt="forest テーマのスライド" /></Card>
 </CardGrid>
 
-独自のテーマを作りたい場合は[カスタムテーマ](/ja/guides/themes-and-plugins/#カスタムテーマ)を参照してください。
+独自のテーマを作るときは[カスタムテーマ](/ja/guides/themes-and-plugins/#カスタムテーマ)を参照してください。

@@ -8,7 +8,7 @@ export const site = "https://astlide.dev";
 export const base = "";
 
 export const sidebar = [
-	{ label: "Why Astlide?", translations: { ja: "なぜ Astlide？" }, slug: "why" },
+	{ label: "Why Astlide?", translations: { ja: "Astlide を選ぶ理由" }, slug: "why" },
 	{ label: "Getting Started", translations: { ja: "はじめに" }, slug: "getting-started" },
 	{ slug: "tutorial/first-deck" },
 	{ slug: "gallery" },

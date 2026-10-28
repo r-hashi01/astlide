@@ -1,45 +1,45 @@
 ---
 title: コーディングエージェント
-description: Claude Code、Codex、Gemini CLI にデッキを書かせ、チェックし、エクスポートさせます。MCP サーバー、エージェントスキル、llms.txt を紹介します。
+description: Claude Code、Codex、Gemini CLI にデッキを書かせ、チェックし、エクスポートさせるための MCP サーバー、エージェントスキル、llms.txt を紹介します。
 ---
 
-コーディングエージェントは、ほかのファイルと同じように Astlide のデッキも書けます。うまく書かせるために、次の 3 つを用意しています。
+Astlide のデッキはただのファイルなので、コーディングエージェントにも書けます。うまく書かせるために、次の 3 つを用意しています。
 
-- **MCP サーバー**: PowerPoint テンプレートの読み取り、`.pptx` ファイルのインポート、収まらないテキストの検出、デッキのエクスポートを行うツールを提供します。
-- **エージェントスキル**: スライドの書き方、レイアウト、そして「書く → チェックする → 直す → エクスポートする」の流れを教えます。
-- **プレーンテキストのドキュメント**: [`/llms.txt`](https://astlide.dev/llms.txt) と [`/llms-full.txt`](https://astlide.dev/llms-full.txt) にあります。
+- **MCP サーバー**: PowerPoint テンプレートの読み取り、`.pptx` ファイルのインポート、収まらないテキストの検出、デッキのエクスポートをツールとして呼べます。
+- **エージェントスキル**: スライドの書き方とレイアウト、それに「書く → チェック → 直す → エクスポート」の手順をエージェントに教えます。
+- **テキスト版のドキュメント**: [`/llms.txt`](https://astlide.dev/llms.txt) と [`/llms-full.txt`](https://astlide.dev/llms-full.txt) で公開しています。
 
 ## MCP サーバー
 
-サーバーは `@astlide/core` に含まれています。`astlide mcp` で起動し、標準入出力（stdio）で MCP のやり取りをします（[Bun](https://bun.sh) で動きます）。Astlide を入れたプロジェクトなら、追加のインストールは要りません。
+MCP サーバーは `@astlide/core` に入っています。`astlide mcp` で起動し、標準入出力（stdio）でやり取りします。実行には [Bun](https://bun.sh) を使います。Astlide を入れたプロジェクトなら、追加で何かをインストールする必要はありません。
 
-ツールを呼ぶたびに対象の Astlide プロジェクトを指定し、そのプロジェクトにインストールされている `@astlide/core` を使って動きます。
+ツールを呼ぶときは、毎回どの Astlide プロジェクトを扱うかを指定します。処理には、そのプロジェクトにインストールされている `@astlide/core` を使います。
 
 ### ツール
 
 | ツール | 引数 | 戻り値 |
 |---|---|---|
-| `template_layouts` | `templatePath`（`.pptx` / `.potx` / `.thmx`） | テンプレートのレイアウト（`slideLayout` に使う ID、PowerPoint での名前と種類、タイトル / 本文 / スライド番号のプレースホルダー、各レイアウトで描画される組み込みレイアウト（`cover`、`section`、`default`、`two-column`、`code`））と、テーマの色とフォント |
-| `import_pptx` | `path`、省略可能な `projectRoot`、`deck`、`force`、`includeHtml` | 各スライドのタイトル、スピーカーノート、Markdown にしたテキスト。`projectRoot` を指定すると、[`astlide import`](/ja/guides/import/) と同じように編集可能なデッキも書き出します |
-| `check_deck` | `projectRoot`、`deck`、省略可能な `build` | スライドごとの、収まっていないテキストやボックス（後述） |
-| `render_deck` | `projectRoot`、`deck`、`formats`（`pptx`、`pdf`）、省略可能な `outDir`（プロジェクト内）、`build` | [`astlide export`](/ja/guides/export/) と同じように書き出したファイルのパス |
+| `template_layouts` | `templatePath`（`.pptx` / `.potx` / `.thmx`） | テンプレートのレイアウト一覧（`slideLayout` に指定する ID、PowerPoint での名前と種類、タイトル / 本文 / スライド番号のプレースホルダー、そのレイアウトで描く組み込みレイアウト（`cover`、`section`、`default`、`two-column`、`code`））と、テーマの色とフォント |
+| `import_pptx` | `path`、省略可能な `projectRoot`、`deck`、`force`、`includeHtml` | 各スライドのタイトル、発表者ノート、Markdown にしたテキスト。`projectRoot` を指定すると、[`astlide import`](/ja/guides/import/) と同じく編集できるデッキも書き出します |
+| `check_deck` | `projectRoot`、`deck`、省略可能な `build` | 収まっていないテキストやボックス（スライドごと。後述） |
+| `render_deck` | `projectRoot`、`deck`、`formats`（`pptx`、`pdf`）、省略可能な `outDir`（プロジェクト内）、`build` | 書き出したファイルのパス。書き出し方は [`astlide export`](/ja/guides/export/) と同じです |
 
-`check_deck` と `render_deck` はサイトを自分でビルドするので（`check_deck` は `dist/` がデッキより古い場合のみ）、開発サーバーは不要です。ビルドではプロジェクトの Astro 設定が実行されるため、どちらのツールも読み取り専用とは申告していません。`check_deck` に `build: false` を指定すると、読み取りだけを行います。PDF のエクスポートには Playwright の Chromium（`bunx playwright install chromium`）が必要です。
+`check_deck` と `render_deck` は自分でサイトをビルドするので、開発サーバーを起動しておく必要はありません。`check_deck` がビルドするのは、`dist/` がデッキより古いときだけです。ビルドするとプロジェクトの Astro 設定が実行されるため、どちらのツールも読み取り専用とは申告していません。`check_deck` に `build: false` を渡したときは、読み取りしかしません。PDF のエクスポートには Playwright の Chromium が必要です（`bunx playwright install chromium`）。
 
-ビルドとエクスポートでは、プロジェクト自身のコードが実行されます（Astro の設定とインテグレーション、MDX のスライド、`bunfig.toml` の preload、プロジェクトにインストールされた `@astlide/core`）。`projectRoot` を指定した `import_pptx` も、プロジェクトの `astlide` CLI を実行します。そのため、次のようにしています。
+ビルドとエクスポートでは、プロジェクト自身のコードが動きます。Astro の設定とインテグレーション、MDX のスライド、`bunfig.toml` の preload、プロジェクトにインストールされた `@astlide/core` です。`projectRoot` を指定した `import_pptx` も、プロジェクトの `astlide` CLI を実行します。そのため、次の制限を設けています。
 
-- どのツールも読み取り専用とは申告していません（`check_deck` に `build: false` を指定した場合は読み取りだけです）。`import_pptx` は、`force` でデッキのフォルダーを置き換えるため、破壊的な操作として申告しています。`check_deck`、`render_deck`、プロジェクトを指定した `import_pptx` は、クライアント側で自動承認にせず、呼び出しのたびに確認する設定にしてください。
-- 扱えるのは、サーバーに渡したフォルダーの中にあるプロジェクトだけです。次の順で決まります。
-  - `--root <dir>`（複数指定できます）か `ASTLIDE_MCP_ROOTS`（`PATH` と同じ区切り）で指定したフォルダーが、外側の上限になります。
-  - クライアントが MCP ルートを送ってくれば（Claude Code は送ってくるので設定は不要です）、その上限の中で使います。フォルダーを指定してある場合は、その中にあるルートだけが対象です。
-  - どちらもなければ、サーバーを起動したフォルダーを使います。ただし、ファイルシステムのルート、ホームフォルダー、共有フォルダー（`/tmp`、`/Users/Shared`、`C:\Users\Public` など）と、それらより上のフォルダーは使いません。クライアントはサーバーをそうした場所で起動することが多いためです。この場合は、フォルダーを指定するまでどのプロジェクトも扱えません。
+- 読み取り専用と申告しているツールはありません（`build: false` の `check_deck` は読み取りだけです）。`import_pptx` は `force` でデッキのフォルダーを置き換えるので、破壊的な操作として申告しています。`check_deck`、`render_deck`、プロジェクトを指定した `import_pptx` は自動承認にせず、呼ぶたびに確認するようクライアントを設定してください。
+- 扱えるのは、サーバーに渡したフォルダーの中のプロジェクトだけです。フォルダーは次のように決まります。
+  - `--root <dir>`（何度でも指定できます）または `ASTLIDE_MCP_ROOTS`（`PATH` と同じ区切り）で指定したフォルダーが上限です。
+  - クライアントが MCP ルートを送ってくる場合は、上限の範囲内でそれを使います。Claude Code は送ってくるので、設定は要りません。上限のフォルダーを指定していれば、その中にあるルートだけが有効です。
+  - どちらもなければ、サーバーを起動したフォルダーを使います。ただし、ファイルシステムのルート、ホームフォルダー、共有フォルダー（`/tmp`、`/Users/Shared`、`C:\Users\Public` など）と、それより上のフォルダーは使いません。クライアントはこうした場所でサーバーを起動することが多いからです。この場合、フォルダーを指定するまでどのプロジェクトも扱えません。
 
-  クライアントのルートがそうした広すぎるフォルダーなら、そのルートだけを無視します（stderr に記録します）。ファイルシステムのルートは、指定しても対象になりません。プロジェクトのパスは最初に解決したものをそのまま使うので、あとからシンボリックリンクを差し替えても影響しません。どのフォルダーでも扱えるようにするには、サーバーの環境変数に `ASTLIDE_MCP_ANY_PROJECT=1` を設定します。
-- 扱えるプロジェクトは、上のフォルダーそのものか、その直下にあるものだけです。`--root ~/slides` なら `~/slides/q3-review` は扱えますが、`~/slides/clones/someone-else` は扱えません（扱うなら、そのフォルダーを `--root` で指定します）。広いフォルダーを指定しても、その下にあるすべてのリポジトリが対象になるわけではありません。
-- `template_layouts` と `import_pptx` が読むファイルも、同じフォルダーの中（深さは問いません。シンボリックリンクはたどった先で判定します）にある、拡張子の合った通常のファイルで、256 MB 以下に限ります。
-- `import_pptx` は、デッキ名を自分で決め（`deck` を指定しなければファイル名から）、書き込む前に検査します。プロジェクトの `@astlide/core` が 2.8.0 より古い場合は、プロジェクトのものではなく、サーバー側の `astlide` CLI で書き込みます。
-- ビルドとエクスポートには、必要な環境変数（`PATH`、`HOME`、ロケール、プロキシ、`ASTLIDE_*` など）だけを渡し、トークンやキーは渡しません。
-- デッキ名は普通のフォルダー名に限り、出力先（`outDir`）はシンボリックリンクをたどった先も含めてプロジェクトの中に限ります。
+  クライアントのルートが広すぎるフォルダーなら、そのルートだけを無視して stderr に記録します。ファイルシステムのルートは、指定しても使いません。プロジェクトのパスは最初に一度だけ解決し、以後はその場所で作業します。あとからシンボリックリンクを差し替えても影響はありません。どのフォルダーでも扱えるようにするには、サーバーの環境変数に `ASTLIDE_MCP_ANY_PROJECT=1` を設定します。
+- プロジェクトは、上のフォルダーそのものか、その直下になければいけません。`--root ~/slides` なら、`~/slides/q3-review` は扱えますが、`~/slides/clones/someone-else` は扱えません（扱うには、そのフォルダーも `--root` で指定します）。広いフォルダーを 1 つ指定しただけで、その下にあるリポジトリがすべて対象になるのを防ぐためです。
+- `template_layouts` と `import_pptx` が読むファイルも、同じフォルダーの中に置きます。深さは問いませんが、シンボリックリンクはリンク先の場所で判定します。拡張子の合った通常のファイルで、256 MB 以下に限ります。
+- `import_pptx` は、デッキ名を自分で決めます（`deck` を指定しなければファイル名から）。名前は書き込む前に検査します。プロジェクトの `@astlide/core` が 2.8.0 より古いときは、プロジェクトの `astlide` CLI ではなくサーバー側の CLI で書き込みます。
+- ビルドとエクスポートには、必要な環境変数（`PATH`、`HOME`、ロケール、プロキシ、`ASTLIDE_*` など）だけを渡します。トークンやキーは渡しません。
+- デッキ名には普通のフォルダー名しか使えません。出力先（`outDir`）はプロジェクトの中に限ります。シンボリックリンクもリンク先で判定します。
 
 ### Claude Code
 
@@ -47,7 +47,7 @@ description: Claude Code、Codex、Gemini CLI にデッキを書かせ、チェ�
 claude mcp add astlide -- bunx astlide mcp
 ```
 
-`--scope project` を付けると、`.mcp.json` を通じてチームで共有できます。
+`--scope project` を付けると `.mcp.json` に書かれるので、チームで共有できます。
 
 ### Codex
 
@@ -72,20 +72,20 @@ args = ["astlide", "mcp", "--root", "/path/to/your/slides"]
 }
 ```
 
-ほかの MCP クライアント（Claude Desktop など）でも、同じように `bunx astlide mcp --root /path/to/your/slides` と、プロジェクト（または複数のプロジェクトをまとめたフォルダー）を指定して起動します。MCP ルートを送るクライアントなら `--root` は要りません。
+ほかの MCP クライアント（Claude Desktop など）でも、コマンドは同じ `bunx astlide mcp --root /path/to/your/slides` です。`--root` にはプロジェクトか、プロジェクトをまとめて置いたフォルダーを指定します。MCP ルートを送ってくるクライアントなら、`--root` は不要です。
 
 ## デッキをチェックする
 
-`check_deck` は、[PowerPoint エクスポート](/ja/guides/export/)を支えるエンジンでデッキをレイアウトし（1920×1080、テーマのフォントを使用、ブラウザは使いません）、スライドごとに次の問題を報告します。
+`check_deck` は、[PowerPoint エクスポート](/ja/guides/export/)と同じエンジンでデッキをレイアウトします。サイズは 1920×1080 で、テーマのフォントを使い、ブラウザは使いません。そのうえで、スライドごとに次の問題を報告します。
 
 | 種類 | 意味 |
 |---|---|
-| `text-clipped` | スライドや `overflow: hidden` のボックスでテキストが切れていて、一部が見えない |
+| `text-clipped` | スライドや `overflow: hidden` のボックスでテキストが切れ、一部が見えない |
 | `text-overflow` | テキストがボックス（高さ固定のカード、カラム、スライドのコンテンツ領域）からはみ出している |
-| `box-clipped` / `box-overflow` | 画像、表、埋め込みについての同様の問題 |
-| `off-slide` | 何にも切り取られず、スライドの外に出ている |
+| `box-clipped` / `box-overflow` | 画像、表、埋め込みで同じことが起きている |
+| `off-slide` | スライドの外に出ていて、何にも切り取られていない |
 
-各問題には、スライド番号とタイトル、テキスト、その要素とはみ出している相手、どちら側に何 px はみ出しているかが含まれます。
+報告には、スライド番号とタイトル、テキスト、要素とそのはみ出し先、どちら側に何 px はみ出したかが入ります。
 
 ```text
 2 problem(s) in 2 of 12 slides:
@@ -93,27 +93,27 @@ args = ["astlide", "mcp", "--root", "/path/to/your/slides"]
 - Slide 9 "Pricing": text "Enterprise plans include single sign-on, audit logs and…" (p) is cut off by div.card (48px bottom)
 ```
 
-これをもとに、エージェントはテキストを短くしたり、スライドを分けたり、別のレイアウトを選んだりして、もう一度チェックできます。
+エージェントはこれを見て、テキストを削ったり、スライドを分けたり、レイアウトを変えたりしてから、もう一度チェックできます。
 
-テキストは、デッキが読み込むフォント（`@font-face` のルールと Google Fonts）で計測されます。フォントが見つからない場合は結果にその旨が示され、幅は概算になります。Mermaid の図（ブラウザでレイアウトされるため）と、そのまま表示している `.pptx` ファイルのページはチェックの対象外です。
+テキストの幅は、デッキが読み込むフォント（`@font-face` のルールと Google Fonts）で測ります。フォントが見つからないときは結果にそう書かれ、幅は概算になります。Mermaid の図（ブラウザがレイアウトするため）と、`.pptx` ファイルをそのまま表示したページはチェックしません。
 
 ## エージェントスキル
 
-[`skills/astlide/SKILL.md`](https://github.com/r-hashi01/astlide/tree/main/skills/astlide) は [Agent Skill](https://agentskills.io) です。デッキの構成、frontmatter、レイアウト、コンポーネント、PowerPoint テンプレート、エクスポート、チェックの流れ、よくある間違い（`layout` ではなく `slideLayout` を使う、など）をまとめています。
+[`skills/astlide/SKILL.md`](https://github.com/r-hashi01/astlide/tree/main/skills/astlide) は [Agent Skill](https://agentskills.io) の形式で書いています。デッキの構成、frontmatter、レイアウト、コンポーネント、PowerPoint テンプレート、エクスポート、チェックの手順と、よくある間違い（`slideLayout` を `layout` と書いてしまう、など）をまとめています。
 
-- **Claude Code**: プロジェクトの `.claude/skills/astlide/` にフォルダをコピーします（すべてのプロジェクトで使う場合は `~/.claude/skills/astlide/`）。
+- **Claude Code**: プロジェクトの `.claude/skills/astlide/` にフォルダーをコピーします。すべてのプロジェクトで使うなら `~/.claude/skills/astlide/` に置きます。
 
   ```bash
   mkdir -p .claude/skills && cp -r /path/to/astlide/skills/astlide .claude/skills/
   ```
 
-- **そのほかのエージェント**: Agent Skills を読み込めるエージェントなら、スキルのディレクトリから同じフォルダを読み込めます。それ以外のエージェントには、指示ファイル（`AGENTS.md`、`GEMINI.md`）からこのファイルを参照させてください。
+- **ほかのエージェント**: Agent Skills に対応していれば、スキル用のディレクトリに同じフォルダーを置けば読み込みます。対応していないエージェントには、指示ファイル（`AGENTS.md`、`GEMINI.md`）からこのファイルを参照させてください。
 
 ## llms.txt
 
-ドキュメントは言語モデル向けにも公開しています。
+ドキュメントは、言語モデル向けのテキストでも公開しています。
 
-- [`https://astlide.dev/llms.txt`](https://astlide.dev/llms.txt) — 全ページの一覧と 1 行の要約（[llms.txt 形式](https://llmstxt.org)）
+- [`https://astlide.dev/llms.txt`](https://astlide.dev/llms.txt) — 全ページの一覧と、それぞれ 1 行の要約（[llms.txt 形式](https://llmstxt.org)）
 - [`https://astlide.dev/llms-full.txt`](https://astlide.dev/llms-full.txt) — 全ページを 1 つにまとめた Markdown
 
-Astlide のすべてを一度に把握させたいときは、エージェントに後者を渡してください。
+Astlide の全体を一度に把握させたいときは、エージェントに `llms-full.txt` を渡してください。

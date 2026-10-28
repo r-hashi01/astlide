@@ -1,9 +1,9 @@
 ---
 title: スライドの frontmatter
-description: スライドで使える frontmatter のフィールド一覧。
+description: スライドに書ける frontmatter のフィールド一覧。
 ---
 
-`.mdx`、`.md`、`.html` のどのスライドでも、同じ frontmatter を使えます。
+`.mdx`、`.md`、`.html` のどのスライドにも、同じ frontmatter を書けます。
 
 ```yaml
 ---
@@ -21,14 +21,14 @@ hidden: false
 |---|---|---|---|
 | `slideLayout` | `string` | `"default"` | レイアウト。`default`、`cover`、`section`、`two-column`、`image-full`、`image-left`、`image-right`、`code`、`quote`、`statement`、またはプラグインのレイアウト。 |
 | `transition` | `string` | `"fade"` | `none`、`fade`、`slide-left`、`slide-right`、`slide-up`、`zoom`、またはプラグインのトランジション。 |
-| `title` | `string` | 最初の見出し | スライドへの移動ダイアログに表示するタイトル。 |
-| `background` | `string` | — | CSS の背景（色、グラデーション、`url(…)`）。スクリプトのようなパターンを含む値は拒否されます。 |
+| `title` | `string` | 最初の見出し | スライドへ移動するダイアログに出すタイトル。 |
+| `background` | `string` | — | CSS の背景（色、グラデーション、`url(…)`）。スクリプトに見えるパターンを含む値は受け付けません。 |
 | `class` | `string` | — | スライドに追加するクラス。例: `text-light`、`text-dark`。 |
-| `notes` | `string` | — | スピーカーノート（Markdown）。本文に `<SpeakerNotes>` があればそちらが優先されます。`notes` も `<SpeakerNotes>` もない場合は、末尾の `<!-- … -->` コメントがノートになります。 |
-| `hidden` | `boolean` | `false` | 本番ビルドでスライドをスキップします。 |
+| `notes` | `string` | — | 発表者ノート（Markdown）。本文に `<SpeakerNotes>` があれば、そちらを優先します。`notes` を書いていなければ、末尾の `<!-- … -->` コメントをノートとして使います。 |
+| `hidden` | `boolean` | `false` | 本番ビルドでこのスライドを飛ばします。 |
 
 :::caution
 `layout` ではなく `slideLayout` を使ってください。`layout` は Astro の MDX パイプラインの予約語です。
 :::
 
-存在しないレイアウト、トランジション、テーマを指定してもビルドは失敗しません。警告がログに出力され、開発中はオーバーレイが表示されます。
+存在しないレイアウト、トランジション、テーマを指定しても、ビルドは止まりません。ログに警告を出し、開発中は画面にオーバーレイも表示します。

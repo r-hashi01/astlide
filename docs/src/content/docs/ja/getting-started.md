@@ -1,11 +1,11 @@
 ---
 title: はじめに
-description: Astlide の新しいプロジェクトを作成するか、既存の Astro サイトに Astlide を追加します。
+description: Astlide のプロジェクトを新しく作るか、既存の Astro サイトに Astlide を追加します。
 ---
 
-Astlide は [Astro](https://astro.build) のインテグレーションです。**Astro 7.2.10 以降**が必要です。このドキュメントのコマンドは [Bun](https://bun.sh) で書いています。
+Astlide は [Astro](https://astro.build) のインテグレーションです。**Astro 7.2.10 以降**が必要です。開発には [Bun](https://bun.sh) を使っています。
 
-## 新しいプロジェクトを作成する
+## 新しいプロジェクトを作る
 
 ```bash
 bun create astlide my-slides
@@ -14,7 +14,7 @@ bun install
 bun run dev
 ```
 
-開発サーバーの URL を開くとデッキの一覧が表示され、デッキを選ぶとそのまま発表を始められます。
+開発サーバーの URL を開くと、デッキの一覧が出ます。デッキを選べば、そのまま発表を始められます。
 
 ## 既存の Astro プロジェクトに追加する
 
@@ -34,7 +34,7 @@ export default defineConfig({
 });
 ```
 
-Astlide のローダーとスキーマを使って、`decks` コンテンツコレクションを定義します。
+`decks` コンテンツコレクションを定義します。ローダーとスキーマには Astlide のものを使います。
 
 ```ts
 // src/content.config.ts
@@ -51,7 +51,7 @@ export const collections = { decks };
 ```
 
 :::caution
-`glob({ pattern: "**/*.mdx" })` ではなく `astlideDeckLoader()` を使ってください。`.md` や `.html` のスライドも扱え、番号順の並びも保たれます。
+`glob({ pattern: "**/*.mdx" })` ではなく `astlideDeckLoader()` を使ってください。`.md` や `.html` のスライドも読み込み、番号順に並べます。
 :::
 
 ## プロジェクト構成
@@ -68,11 +68,11 @@ src/
             └── 03-demo.html
 ```
 
-`src/content/decks/` の下にあるフォルダが 1 つずつデッキになり、`/<deck>/<slide-number>` で配信されます。デッキの一覧は `/` にあります。
+`src/content/decks/` の下のフォルダー 1 つが、1 つのデッキになります。各スライドは `/<deck>/<slide-number>` で開けます。デッキの一覧は `/` にあります。
 
 ## 次のステップ
 
-- [チュートリアル](/ja/tutorial/first-deck/)に沿って、発表の作成・プレゼン・公開までを体験する
+- [チュートリアル](/ja/tutorial/first-deck/)に沿って、発表資料を作り、発表し、公開するまでを一通り試す
 - [最初のデッキを作る](/ja/guides/decks/)
-- [プレゼンする](/ja/guides/presenting/) — キーボードショートカット、発表者ウィンドウ、ペンとレーザーポインター
-- すべてのレイアウトとテーマを[ギャラリー](/ja/gallery/)で見る、または[ライブデモを試す](https://astlide.dev/demo/tour/1/)
+- [発表する](/ja/guides/presenting/) — キーボードショートカット、発表者ウィンドウ、ペンとレーザーポインター
+- すべてのレイアウトとテーマを[ギャラリー](/ja/gallery/)で見る（[ライブデモ](https://astlide.dev/demo/tour/1/)もあります）

@@ -1,11 +1,11 @@
 ---
 title: テーマとプラグイン
-description: 組み込みテーマ、カスタムテーマ、プラグイン API、スライドデコレーター、デッキのメタデータ、フォント。
+description: 組み込みテーマ、独自テーマの作り方、プラグイン API、スライドデコレーター、デッキのメタデータ、フォントの設定を説明します。
 ---
 
 ## テーマ
 
-組み込みテーマは `default`、`dark`、`minimal`、`corporate`、`gradient`、`rose`、`forest` です。デッキごとに `_config.json` で指定します。
+組み込みのテーマは `default`、`dark`、`minimal`、`corporate`、`gradient`、`rose`、`forest` の 7 種類です。デッキごとに `_config.json` で選びます。
 
 ```json
 { "theme": "gradient" }
@@ -13,7 +13,7 @@ description: 組み込みテーマ、カスタムテーマ、プラグイン API
 
 ### カスタムテーマ
 
-テーマは、`[data-theme="<name>"]` にスコープした CSS で Astlide のカスタムプロパティを設定したものです。
+テーマの実体は CSS です。`[data-theme="<name>"]` のセレクターの中で、Astlide のカスタムプロパティに値を設定します。
 
 ```css
 /* themes/my-theme.css */
@@ -28,15 +28,15 @@ description: 組み込みテーマ、カスタムテーマ、プラグイン API
 }
 ```
 
-後述のプラグインで登録し、デッキの `_config.json` で `"theme": "my-theme"` を指定します。
+作ったテーマは後述のプラグインで登録します。あとはデッキの `_config.json` で `"theme": "my-theme"` を指定すれば使えます。
 
 ### PowerPoint テンプレートから作る
 
-`.pptx` / `.potx` / `.thmx` のテンプレートもテーマとして使えます。`astlide({ templates: { brand: './brand.pptx' } })` のように登録すると、テンプレートの背景、フォント、色、プレースホルダーの位置が反映されます。詳しくは [PowerPoint テンプレート](/ja/guides/templates/)を参照してください。
+`.pptx` / `.potx` / `.thmx` のテンプレートもテーマとして使えます。`astlide({ templates: { brand: './brand.pptx' } })` のように登録すると、テンプレートの背景、フォント、色、プレースホルダーの位置がスライドに反映されます。詳しくは [PowerPoint テンプレート](/ja/guides/templates/)を参照してください。
 
 ## プラグイン API
 
-プラグインでは、テーマ、レイアウト、トランジション、Shiki の言語 / テーマ、スライドデコレーターを追加できます。
+プラグインを使うと、テーマ、レイアウト、トランジション、Shiki の言語とテーマ、スライドデコレーターを追加できます。
 
 ```js
 // astro.config.mjs
@@ -60,9 +60,9 @@ export default defineConfig({
 });
 ```
 
-`cssEntrypoint` は Vite の import として解決されます。CSS に解決されるモジュール指定子であれば、相対パスでも npm パッケージでも使えます。
+`cssEntrypoint` は、Vite が import と同じ方法で解決します。最終的に CSS ファイルを指していれば、相対パスでも npm パッケージ名でもかまいません。
 
-レイアウトは**名前**だけを登録することもできます（スライドに `.slide-<name>` クラスが付くので、プラグインの CSS から対象にできます）。`componentEntrypoint` を指定すれば、プラグインの `.astro` コンポーネントがスライドのマークアップを担当します。
+レイアウトは**名前**だけでも登録できます。その場合、スライドに `.slide-<name>` クラスが付くので、プラグインの CSS でそのクラスにスタイルを当てます。`componentEntrypoint` を指定すると、スライドのマークアップをプラグインの `.astro` コンポーネントで組めます。
 
 ```js
 layouts: [
@@ -81,7 +81,7 @@ layouts: [
 
 ## スライドデコレーター
 
-ロゴ、フッター、ページ番号、戻るリンクなどのコンポーネントを、各ファイルを編集せずに**すべての**スライドに描画します。
+ロゴ、フッター、ページ番号、戻るリンクのようなコンポーネントを、**すべての**スライドに表示できます。スライドのファイルを 1 つずつ編集する必要はありません。
 
 ```js
 astlide({ slideDecorators: ["./src/components/DeckFooter.astro"] });
@@ -91,7 +91,7 @@ astlide({ slideDecorators: ["./src/components/DeckFooter.astro"] });
 
 ## デッキとスライドのメタデータ
 
-デッキ名、スライド番号、総数、レイアウト、トランジション、パース済みの設定を取得できます。
+デッキ名、スライド番号、スライドの総数、レイアウト、トランジション、読み込んだ設定の内容を取得できます。
 
 ```astro
 ---
@@ -102,11 +102,11 @@ const ctx = getDeckContext(Astro);
 <footer>{ctx?.config.title} — {ctx?.slideNumber}/{ctx?.totalSlides}</footer>
 ```
 
-ブラウザでは、`getClientDeckContext()` が同じ形のオブジェクトを返します。
+ブラウザ側では `getClientDeckContext()` を使います。返ってくるオブジェクトの形は同じです。
 
 ## フォント
 
-Astlide はデフォルトで Google Fonts から Inter（本文）と JetBrains Mono（コード）を読み込むので、スライドや書き出した PDF はどのマシンでも同じフォントで表示されます。
+Astlide は標準で Google Fonts から Inter（本文用）と JetBrains Mono（コード用）を読み込みます。そのため、スライドも書き出した PDF も、どのマシンで見ても同じフォントになります。
 
 ```js
 astlide({ font: false }); // use whatever your CSS specifies
@@ -115,7 +115,7 @@ astlide({ font: "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans&display=
 
 ### 日本語フォント
 
-Inter には日本語のグリフが含まれていないため、日本語の文字はブラウザや OS のフォールバックフォントで表示され、環境によって見た目が変わります。日本語のスライドでは、`font` オプションで日本語の Web フォントも読み込み、カスタムテーマの `--font-body` / `--font-heading` に指定しておくのがおすすめです。
+Inter には日本語の文字が入っていません。そのため日本語はブラウザや OS の代替フォントで表示され、環境によって見た目が変わります。日本語のスライドでは、`font` オプションで日本語の Web フォントも読み込み、独自テーマの `--font-body` / `--font-heading` に指定しておくことをおすすめします。
 
 ```js
 astlide({
@@ -130,8 +130,8 @@ astlide({
 }
 ```
 
-PPTX エクスポートでの日本語フォントの扱いは、[エクスポート](/ja/guides/export/#日本語のフォント)を参照してください。
+PPTX に書き出すときの日本語フォントの扱いは、[エクスポート](/ja/guides/export/#日本語のフォント)を参照してください。
 
-## カスタムのホームページ
+## トップページを自分で作る
 
-Astlide は `/` でデッキの一覧を配信します。独自の `src/pages/index.{astro,md,mdx,html}` を追加すると、Astlide はそれを検出して一覧のルートを登録しません。`injectIndexRoute: false | true` でどちらかに固定することもできます。
+Astlide は標準で `/` にデッキの一覧を表示します。自分で `src/pages/index.{astro,md,mdx,html}` を置くと、Astlide がそれを見つけて、一覧のルートを登録しなくなります。この判定に任せず、`injectIndexRoute: false | true` で明示的に切り替えることもできます。
