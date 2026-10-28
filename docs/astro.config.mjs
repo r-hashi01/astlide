@@ -23,6 +23,7 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			title: "Astlide",
+			logo: { light: "./src/assets/logo.svg", dark: "./src/assets/logo-dark.svg" },
 			customCss: ["./src/styles/custom.css"],
 			// The picture shown when a docs page is shared (X, Slack …).
 			head: [
