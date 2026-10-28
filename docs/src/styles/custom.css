@@ -6,3 +6,16 @@
 	border-radius: 0.5rem;
 	box-shadow: var(--sl-shadow-sm);
 }
+
+/* Brand colors (the logo's vermilion). Starlight's dark theme is the default;
+   links there use accent-high, links in the light theme use accent. */
+:root {
+	--sl-color-accent-low: #3d1714;
+	--sl-color-accent: #ff6b5e;
+	--sl-color-accent-high: #ffd0ca;
+}
+:root[data-theme="light"] {
+	--sl-color-accent-low: #f3e2da;
+	--sl-color-accent: #c8322a;
+	--sl-color-accent-high: #6e1a15;
+}
