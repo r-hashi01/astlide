@@ -436,4 +436,58 @@ describe("astlide integration", () => {
 
 		expect(args.updateConfig).toHaveBeenCalledTimes(1);
 	});
+
+	describe("plugin entrypoints", () => {
+		/** Source of a virtual module from the integration's Vite plugin. */
+		function virtualModule(args: ReturnType<typeof createMockHookArgs>, id: string): string {
+			const vite = args.updateConfig.mock.calls[0]?.[0]?.vite as {
+				plugins: Array<{ name: string; load?: (id: string) => unknown }>;
+			};
+			const plugin = vite.plugins.find((p) => p.name === "astlide:virtual");
+			return String(plugin?.load?.(`\0${id}`));
+		}
+
+		it("resolves ./ and ../ paths from the project root for themes, layouts and decorators", () => {
+			const root = process.cwd();
+			const { args } = runSetup({
+				plugins: [
+					{
+						name: "local",
+						themes: [{ name: "midnight", cssEntrypoint: "./themes/midnight.css" }],
+						layouts: [{ name: "pull-quote", componentEntrypoint: "../shared/Quote.astro" }],
+						decorators: [{ componentEntrypoint: "./src/components/Footer.astro" }],
+					},
+				],
+			});
+
+			expect(virtualModule(args, "virtual:astlide/themes")).toContain(
+				JSON.stringify(join(root, "themes/midnight.css")),
+			);
+			expect(virtualModule(args, "virtual:astlide/layouts")).toContain(
+				JSON.stringify(join(root, "../shared/Quote.astro")),
+			);
+			expect(virtualModule(args, "virtual:astlide/decorators")).toContain(
+				JSON.stringify(join(root, "src/components/Footer.astro")),
+			);
+		});
+
+		it("leaves package specifiers and / paths for Vite to resolve", () => {
+			const { args } = runSetup({
+				plugins: [
+					{
+						name: "pkg",
+						themes: [
+							{ name: "acme", cssEntrypoint: "astlide-plugin-acme/acme.css" },
+							{ name: "rooted", cssEntrypoint: "/themes/rooted.css" },
+						],
+					},
+				],
+			});
+
+			const themes = virtualModule(args, "virtual:astlide/themes");
+			expect(themes).toContain('"astlide-plugin-acme/acme.css"');
+			expect(themes).toContain('"/themes/rooted.css"');
+			expect(themes).toContain('"@astlide/core/styles/themes/default.css"');
+		});
+	});
 });

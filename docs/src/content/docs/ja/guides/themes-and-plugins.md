@@ -51,7 +51,7 @@ import { defineAstlidePlugin } from "@astlide/core/plugin";
 
 const myPlugin = defineAstlidePlugin({
   name: "astlide-plugin-midnight",
-  themes: [{ name: "midnight", cssEntrypoint: "/themes/midnight.css" }],
+  themes: [{ name: "midnight", cssEntrypoint: "./themes/midnight.css" }],
   layouts: [{ name: "split-quote" }],
   transitions: [{ name: "iris" }],
   shiki: {
@@ -65,7 +65,7 @@ export default defineConfig({
 });
 ```
 
-`cssEntrypoint` のファイルは Vite が import します。`astlide-plugin-midnight/midnight.css` のようなパッケージ内のパスか、`/` から始まるプロジェクト内のパスで指定してください。`/` から始まるパスは、プロジェクトのルートを起点に解決されます。`./` から始まる相対パスは解決できません。
+`cssEntrypoint` のファイルは Vite から読み込まれます。プロジェクト内のファイルは `./` から始まるパスで書きます。パスはプロジェクトのルートを起点に解決されます。`astlide-plugin-midnight/midnight.css` のように、パッケージ内のファイルも指定できます。
 
 レイアウトは名前だけでも登録できます。そのレイアウトを使ったスライドには `.slide-<name>` クラスが付くので、プラグインの CSS でこのクラスにスタイルを当てます。スライドのマークアップ自体を変えたい場合は、`componentEntrypoint` に `.astro` コンポーネントを指定します。
 

@@ -79,7 +79,10 @@
 export interface ThemeContribution {
 	/** Theme identifier. Used as `[data-theme="<name>"]` selector and in `_config.json` `theme` field. */
 	name: string;
-	/** Module specifier resolved as a Vite import (e.g. `"astlide-plugin-midnight/midnight.css"`). */
+	/**
+	 * Module specifier resolved as a Vite import (e.g. `"astlide-plugin-midnight/midnight.css"`).
+	 * A path starting with `./` or `../` is resolved from the project root.
+	 */
 	cssEntrypoint: string;
 }
 

@@ -51,7 +51,7 @@ import { defineAstlidePlugin } from "@astlide/core/plugin";
 
 const myPlugin = defineAstlidePlugin({
   name: "astlide-plugin-midnight",
-  themes: [{ name: "midnight", cssEntrypoint: "/themes/midnight.css" }],
+  themes: [{ name: "midnight", cssEntrypoint: "./themes/midnight.css" }],
   layouts: [{ name: "split-quote" }],
   transitions: [{ name: "iris" }],
   shiki: {
@@ -65,7 +65,7 @@ export default defineConfig({
 });
 ```
 
-Vite imports `cssEntrypoint`, so it can be a package path such as `astlide-plugin-midnight/midnight.css`, or a path in your project that starts with `/` (Vite resolves it from the project root). A path that starts with `./` does not resolve here.
+`cssEntrypoint` is imported through Vite. Use a path in your project that starts with `./` (resolved from the project root), or a package path such as `astlide-plugin-midnight/midnight.css`.
 
 A layout can be just a name. Slides that use it get a `.slide-<name>` class, and your plugin's CSS styles that class. To control the slide's markup, give the layout a `componentEntrypoint` that points to an `.astro` component:
 

@@ -365,13 +365,18 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 				// Auto-add MDX support if not already present
 				const hasMdx = config.integrations.some((i) => i.name === "@astrojs/mdx");
 
-				// Layout/decorator entrypoints may be given as project-relative paths
-				// (e.g. "./src/components/Footer.astro"). Virtual modules can't resolve
-				// those, so rewrite them to absolute paths against the project root.
+				// Theme, layout and decorator entrypoints may be given as project-relative
+				// paths (e.g. "./src/components/Footer.astro"). Virtual modules can't
+				// resolve those, so rewrite them to absolute paths against the project
+				// root. Package specifiers and "/" paths (Vite resolves those from the
+				// root, or as absolute files) pass through.
 				const resolveEntry = (spec: string) =>
-					spec.startsWith(".") || spec.startsWith("/")
+					spec.startsWith("./") || spec.startsWith("../")
 						? fileURLToPath(new URL(spec, config.root))
 						: spec;
+				for (const t of resolved.themes) {
+					t.cssEntrypoint = resolveEntry(t.cssEntrypoint);
+				}
 				for (const d of resolved.decorators) {
 					d.componentEntrypoint = resolveEntry(d.componentEntrypoint);
 				}
