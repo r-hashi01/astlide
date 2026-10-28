@@ -1,6 +1,6 @@
 ---
 title: Gallery
-description: Every built-in layout and theme, rendered from the feature tour deck.
+description: Screenshots of every built-in layout and theme, taken from the feature tour deck.
 ---
 
 import { Image } from "astro:assets";
@@ -25,58 +25,58 @@ import themeGradient from "../../assets/gallery/theme-gradient.png";
 import themeRose from "../../assets/gallery/theme-rose.png";
 import themeForest from "../../assets/gallery/theme-forest.png";
 
-Screenshots come from the [feature tour deck](https://astlide.dev/demo/tour/1/) — open it to see each slide live, then press <kbd>o</kbd> for the overview.
+These screenshots come from the [feature tour deck](https://astlide.dev/demo/tour/1/). Open it to see the slides live, and press <kbd>o</kbd> to see them all at once.
 
 ## Layouts
 
-Set with `slideLayout` in a slide's frontmatter. See [Layouts & Components](/guides/layouts-and-components/) for the markup each one expects.
+Choose a layout with `slideLayout` in a slide's frontmatter. [Layouts & Components](/guides/layouts-and-components/) shows what to write in each one.
 
 <CardGrid>
 	<Card title="cover">
 		<Image class="slide-shot" src={cover} alt="cover layout: centred title, subtitle and hint" />
-		Centred title — opening and closing slides.
+		A centered title, for the first and last slides.
 	</Card>
 	<Card title="section">
 		<Image class="slide-shot" src={section} alt="section layout: a chapter divider" />
-		Chapter divider.
+		Marks the start of a new part of the talk.
 	</Card>
 	<Card title="default">
 		<Image class="slide-shot" src={defaultLayout} alt="default layout: heading, text and a table" />
-		Standard content slide.
+		The everyday slide: a heading and content.
 	</Card>
 	<Card title="two-column">
 		<Image class="slide-shot" src={twoColumn} alt="two-column layout with a full-width title above Left and Right columns" />
-		`<Left>` / `<Right>` under a full-width title.
+		`<Left>` and `<Right>` columns under a full-width title.
 	</Card>
 	<Card title="image-left">
 		<Image class="slide-shot" src={imageLeft} alt="image-left layout: illustration on the left, text on the right" />
-		`<ImageSide>` + `<TextPanel>`.
+		An image on the left and text on the right, written with `<ImageSide>` and `<TextPanel>`.
 	</Card>
 	<Card title="image-right">
 		<Image class="slide-shot" src={imageRight} alt="image-right layout: text on the left, illustration on the right" />
-		The same, mirrored.
+		Like `image-left`, with the image on the right.
 	</Card>
 	<Card title="image-full">
 		<Image class="slide-shot" src={imageFull} alt="image-full layout: full-bleed background image with white text" />
-		Full-bleed `background` image.
+		The `background` image fills the whole slide.
 	</Card>
 	<Card title="code">
 		<Image class="slide-shot" src={code} alt="code layout: a CodeBlock with highlighted lines" />
-		Tighter padding for code.
+		Less padding, so code has more room.
 	</Card>
 	<Card title="quote">
 		<Image class="slide-shot" src={quote} alt="quote layout: a centred blockquote" />
-		Centred blockquote.
+		A blockquote in the center of the slide.
 	</Card>
 	<Card title="statement">
 		<Image class="slide-shot" src={statement} alt="statement layout: one large sentence" />
-		One large sentence.
+		One sentence in large type.
 	</Card>
 </CardGrid>
 
 ## Themes
 
-Set per deck with `"theme"` in `_config.json`. The same slide in each built-in theme:
+Each deck sets its theme with `"theme"` in `_config.json`. Here is the same slide in each built-in theme:
 
 <CardGrid>
 	<Card title="default"><Image class="slide-shot" src={themeDefault} alt="Slide in the default theme" /></Card>
@@ -88,4 +88,4 @@ Set per deck with `"theme"` in `_config.json`. The same slide in each built-in t
 	<Card title="forest"><Image class="slide-shot" src={themeForest} alt="Slide in the forest theme" /></Card>
 </CardGrid>
 
-Want your own? See [custom themes](/guides/themes-and-plugins/#custom-theme).
+To make your own theme, see [Custom theme](/guides/themes-and-plugins/#custom-theme).

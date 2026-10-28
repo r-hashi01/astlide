@@ -3,7 +3,7 @@ title: Getting Started
 description: Create a new Astlide project or add Astlide to an existing Astro site.
 ---
 
-Astlide is an [Astro](https://astro.build) integration. It needs **Astro 7.2.10 or later** and is developed with [Bun](https://bun.sh).
+Astlide is an [Astro](https://astro.build) integration. You need **Astro 7.2.10 or later** and Node.js 22.12 or later. The commands on this page use [Bun](https://bun.sh); npm, pnpm and Yarn work as well.
 
 ## Create a new project
 
@@ -14,15 +14,23 @@ bun install
 bun run dev
 ```
 
-Open the dev server URL — you'll see the deck index; pick a deck to start presenting.
+`bun create astlide` asks three questions: a theme, whether to include the example slides, and which package manager you use. Press Enter to accept the defaults. It doesn't install any packages, so run `bun install` next.
+
+Once the dev server is running, open `http://localhost:4321`. The deck index lists one deck, `example-deck`. Click it to open its first slide.
+
+:::note
+The generated `src/content.config.ts` loads only `.mdx` slides. To use `.md`, `.html` or `.pptx` slides as well, replace it with the `astlideDeckLoader()` version in the next section.
+:::
 
 ## Add to an existing Astro project
+
+Install the package:
 
 ```bash
 bun add @astlide/core
 ```
 
-Register the integration:
+Add the integration to your Astro config:
 
 ```js
 // astro.config.mjs
@@ -34,7 +42,7 @@ export default defineConfig({
 });
 ```
 
-Define the `decks` content collection with Astlide's loader and schema:
+Then define a content collection named `decks` with Astlide's loader and schema:
 
 ```ts
 // src/content.config.ts
@@ -51,8 +59,10 @@ export const collections = { decks };
 ```
 
 :::caution
-Use `astlideDeckLoader()` rather than `glob({ pattern: "**/*.mdx" })` — it also handles `.md` and `.html` slides and keeps them in numeric order.
+Use `astlideDeckLoader()` here. A `glob({ pattern: "**/*.mdx" })` loader finds only `.mdx` files. `astlideDeckLoader()` also reads `.md`, `.html` and `.pptx` slides and sorts all of them by the number in the file name.
 :::
+
+If your site already has a home page (`src/pages/index.astro`, `.md`, `.mdx` or `.html`), Astlide leaves `/` to it and doesn't add the deck index there. Your decks still work at `/<deck>/1`.
 
 ## Project structure
 
@@ -68,11 +78,11 @@ src/
             └── 03-demo.html
 ```
 
-Every directory under `src/content/decks/` is a deck, served at `/<deck>/<slide-number>`. The deck index lives at `/`.
+Each folder under `src/content/decks/` is one deck, and its name is part of the URL: slide 2 of `my-talk` is at `/my-talk/2`. The number at the start of each file name sets the slide order. `_config.json` holds the deck's title, author, date and theme. The deck index at `/` lists every deck.
 
 ## Next steps
 
-- Follow the [tutorial](/tutorial/first-deck/) to build, present and publish a talk
-- [Create your first deck](/guides/decks/)
-- [Present it](/guides/presenting/) — keyboard shortcuts, presenter window, pen and laser
-- See every layout and theme in the [Gallery](/gallery/), or [try the live demo](https://astlide.dev/demo/tour/1/)
+- Work through the [tutorial](/tutorial/first-deck/): write a short talk, present it, export a PDF and publish it.
+- Read [Creating a Deck](/guides/decks/) to see what you can put on a slide.
+- Learn the keys and the presenter window in [Presenting](/guides/presenting/).
+- Browse every layout and theme in the [Gallery](/gallery/), or open the [live demo](https://astlide.dev/demo/tour/1/).

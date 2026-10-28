@@ -1,17 +1,21 @@
 ---
 title: Creating a Deck
-description: Deck folders, _config.json, slide files in .mdx, .md and .html, and frontmatter.
+description: Set up a deck folder with _config.json, write slides in .mdx, .md or .html, and use frontmatter, speaker notes, the in-browser editor and hidden slides.
 ---
 
-A deck is a folder under `src/content/decks/`. Its slides are numbered files that sort by name.
+A deck is a folder under `src/content/decks/`. It holds a `_config.json` file and one file per slide. The folder name becomes the deck's URL: the deck in `src/content/decks/my-talk/` is served at `/my-talk/`.
 
 ## Scaffold with the CLI
+
+Run this in your project's root folder:
 
 ```bash
 bunx create-astlide deck my-talk --theme dark --format mdx   # or md | html
 ```
 
-## Or create it by hand
+It creates `src/content/decks/my-talk/` with a `_config.json` and three starter slides. If you leave out `--format`, it asks which format to use.
+
+## Create it by hand
 
 1. Add `src/content/decks/my-talk/_config.json`:
 
@@ -24,7 +28,9 @@ bunx create-astlide deck my-talk --theme dark --format mdx   # or md | html
    }
    ```
 
-2. Add slides as numbered files. `.mdx`, `.md` and `.html` can be mixed:
+   Every field is optional. Without `title`, the folder name is used. `theme` defaults to `default`; see [Themes & Plugins](/guides/themes-and-plugins/) for the others.
+
+2. Add slides as numbered files. You can mix `.mdx`, `.md` and `.html` in one deck:
 
    ```
    src/content/decks/my-talk/
@@ -34,13 +40,17 @@ bunx create-astlide deck my-talk --theme dark --format mdx   # or md | html
    └── 03-demo.html
    ```
 
-The slide number in the URL (`/my-talk/2`) follows the sorted file order.
+Slides are sorted by file name, and the slide number in the URL (`/my-talk/2`) follows that order. Names are compared as text, so pad the numbers to the same width: `02` sorts before `10`, but `2` would sort after it.
+
+A deck folder can also hold a `.pptx` file, which is shown as slides as it is. See [Import PowerPoint & Google Slides](/guides/import/).
 
 ## Slide formats
 
-- **`.mdx`** — Markdown plus components (`<Fragment>`, `<Columns>`, `<SpeakerNotes>`, …). Astlide's components are available without imports.
-- **`.md`** — plain Markdown, including code highlighting and diagrams.
-- **`.html`** — a self-contained HTML slide. The body is rendered verbatim (inline `<style>` and markup preserved — the same trust level as MDX), which is handy for pasting hand-crafted or AI-generated markup.
+- **`.mdx`**: Markdown with components such as `<Fragment>`, `<Columns>` and `<SpeakerNotes>`. You can use Astlide's components without importing them.
+- **`.md`**: plain Markdown. Code highlighting and diagrams work here too.
+- **`.html`**: one slide written in HTML. Astlide renders the body as it is, including inline `<style>` and any markup, and trusts it as much as an MDX slide. This is useful for pasting in HTML you wrote by hand or got from an AI tool.
+
+An `.html` slide takes the same frontmatter as the other formats:
 
 ```html
 ---
@@ -52,6 +62,8 @@ background: "#0b132b"
 ```
 
 ## Frontmatter
+
+Set per-slide options at the top of the file:
 
 ```yaml
 ---
@@ -66,16 +78,16 @@ hidden: false
 ```
 
 :::caution
-Use **`slideLayout`**, not `layout` — Astro's MDX pipeline reserves `layout`.
+Write **`slideLayout`** to pick a layout. Astro's MDX pipeline reserves the `layout` key, so it won't work.
 :::
 
-See the [frontmatter reference](/reference/frontmatter/) for every field, and [layouts](/guides/layouts-and-components/) for the built-in `slideLayout` values.
+The [frontmatter reference](/reference/frontmatter/) lists every field. [Layouts](/guides/layouts-and-components/) lists the built-in values for `slideLayout`.
 
 ## Speaker notes
 
-Notes are hidden from the audience and show in the presenter window (`p`) and the notes overlay (`n`). Write them in whichever way suits the slide:
+The audience never sees speaker notes. You see them in the presenter window (`p`) and the notes overlay (`n`). There are three ways to write them:
 
-- **`<SpeakerNotes>`** — full Markdown, in `.mdx` slides:
+- **`<SpeakerNotes>`** in an `.mdx` slide. You can use any Markdown inside:
 
   ```mdx
   # My Slide
@@ -89,7 +101,7 @@ Notes are hidden from the audience and show in the presenter window (`p`) and th
   </SpeakerNotes>
   ```
 
-- **A comment at the end of the slide** — like Slidev and Marp; works in `.md`, `.mdx` and `.html` slides, Markdown included:
+- **An HTML comment at the end of the slide**, as in Slidev and Marp. This works in `.md`, `.mdx` and `.html` slides, and the comment can contain Markdown:
 
   ```md
   # My Slide
@@ -102,45 +114,65 @@ Notes are hidden from the audience and show in the presenter window (`p`) and th
   -->
   ```
 
-  Only a comment that *ends* the slide becomes notes — comments elsewhere stay comments. (In `.mdx`, HTML comments are otherwise not allowed; use `{/* … */}` for those.)
+  Only the comment that *ends* the slide becomes notes. Comments anywhere else stay ordinary comments. In `.mdx`, that last comment is the only HTML comment allowed; write other comments as `{/* … */}`.
 
-- **Frontmatter** — `notes: "…"` for a short line.
+- **`notes: "…"` in the frontmatter**, for a single short line.
 
-If a slide has more than one, `<SpeakerNotes>` wins, then frontmatter `notes`, then the trailing comment. `<Notes>` still works as an alias of `<SpeakerNotes>`.
+If a slide has notes in more than one place, Astlide uses `<SpeakerNotes>` first, then the frontmatter `notes`, then the trailing comment. The older name `<Notes>` still works the same as `<SpeakerNotes>`.
 
-:::note[Notes stay off the deployed site]
-By default (`notes: "dev"`) notes are included while running `astro dev` and in the build `astlide export` makes, so PowerPoint exports keep them — but not in pages you build with `astro build` and deploy. A deployed deck's presenter window says its notes aren't published. `astlide export` builds into its own folder (`node_modules/.astro/astlide-export`), so `dist/` never gets the notes.
+:::note[Notes are left out of the deployed site]
+With the default setting, `notes: "dev"`, notes are included in two places: pages served by `astro dev`, and the build that `astlide export` makes. That keeps them in your PowerPoint exports. Pages you build with `astro build` and deploy don't include them, and the deployed presenter window says the notes aren't published. `astlide export` builds into its own folder (`node_modules/.astro/astlide-export`), so its notes never end up in `dist/`.
 
-To present from the deployed site with your notes, include them in every page — which also lets anyone who can open the deck read them (`n`, `?presenter`, the page source):
+If you want to present from the deployed site with your notes, include them in every page:
 
 ```ts
 astlide({ notes: "public" })
 ```
+
+Anyone who can open the deck can then read the notes, through `n`, `?presenter` or the page source.
 :::
 
 ## Editing in the browser
 
-Editing is turned on once per browser: when `astro dev` starts, it prints a link —
+While `astro dev` is running, you can edit a slide's source file next to the slide.
+
+### Turn on editing in your browser
+
+You need to do this once per browser. When `astro dev` starts, it prints a link:
 
 ```
 [astlide] Slide editor: open http://localhost:4321/__astlide/editor?code=… in your browser to enable editing (works once, for 30 minutes)
 ```
 
-Open it in the browser you edit in. The code works once and expires after 30 minutes; every start of `astro dev` prints a new one. The browser stays enabled for this project and port — also across restarts — through a cookie derived from a secret kept in `node_modules/.astro/astlide-editor-secret` (delete that file to turn editing off in every browser). Until then the panel says editing is off.
+Open the link in the browser you'll edit in. The code in it works once and expires after 30 minutes, and each start of `astro dev` prints a new one. Don't share this link.
 
-While `astro dev` is running, press <kbd>e</kbd> on a slide to open its source file in a panel next to it, and just type: changes are saved a moment after you stop typing (or right away with <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>S</kbd>) and the slide updates **live, without a page reload**: only the parts of the slide you changed are swapped in, so nothing flickers — your caret, the current fragment step, rendered diagrams and things like the camera or a running recording stay as they are. <kbd>Esc</kbd> (or ✕) saves and closes the panel.
+After that, the browser stays enabled for this project and port, even when you restart the dev server. The browser keeps a cookie derived from a secret stored in `node_modules/.astro/astlide-editor-secret`. To turn editing off in every browser, delete that file. A browser that isn't enabled yet shows that editing is off in the panel.
 
-Speaker notes follow along too — frontmatter `notes` and `<Notes>` alike: the notes overlay and every other window showing the same slide (such as the presenter window) update in place.
+### Edit a slide
 
-Adding, removing or renaming slide files is picked up live too: every window on the deck updates its slide count and outline and stays on the slide it was showing (now perhaps at a different number), at the same step. If that slide's file was removed, it shows the slide now at that position.
+Press <kbd>e</kbd> on a slide. A panel opens next to it with the slide's source file, and you can start typing.
 
-The panel stays open as you move between slides and switches to each slide's source.
+- Changes are saved shortly after you stop typing. Press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>S</kbd> to save right away.
+- The slide updates without reloading the page. Only the parts you changed are replaced, so nothing flickers. Your cursor, the current [fragment](/guides/fragments/) step, rendered diagrams, the camera and a running recording all stay as they are.
+- Speaker notes update the same way, whether they're in frontmatter `notes` or `<Notes>`. The notes overlay and every other window on the same slide, such as the presenter window, update in place.
+- The panel stays open when you move to another slide and switches to that slide's file.
+- <kbd>Esc</kbd> or ✕ saves and closes the panel.
 
-- Dev server only: the editor and its endpoint don't exist in production builds.
-- It edits existing slide files in `src/content/decks/` (`.mdx`, `.md`, `.html`) and nothing else — it never creates files — and only from the dev server's own pages on the machine running it. Open the deck at `localhost` (or `127.0.0.1`): with `astro dev --host`, or through a tunnel or reverse proxy (ngrok, cloudflared, port forwarding), you can still view slides from elsewhere, but the editor neither loads nor saves there. Writing also needs a browser enabled through the printed link, which only appears in your terminal — so even a raw port forward (`ssh -R`), which looks like a local browser to the dev server, can't save anything. Don't share that link.
-- Scripts in Markdown, HTML and PowerPoint slides (`<script>`, `onclick` and the like, `javascript:` links) are removed when the slide is rendered — in `astro dev` too — so a slide from someone else can't drive the editor (or anything else) in your browser. MDX slides keep theirs. Set [`slideScripts: true`](/reference/configuration/) only for decks whose content you fully trust.
-- Edits are written to disk as you type — use undo in the panel or your version control to roll back.
+Adding, removing or renaming slide files also shows up right away. Every window on the deck updates its slide count and outline, and stays on the same slide and step, although the slide's number may change. If the file of the slide on screen was removed, the window shows whichever slide now has that number.
+
+### Limits
+
+- The editor exists only on the dev server. Production builds don't include it or its endpoint.
+- It edits slide files that already exist in `src/content/decks/` (`.mdx`, `.md`, `.html`). It can't create files or edit anything else.
+- It only works on the machine running the dev server, with the deck opened at `localhost` or `127.0.0.1`. With `astro dev --host`, or through a tunnel or reverse proxy such as ngrok, cloudflared or port forwarding, others can still view the slides, but the editor won't load or save there.
+- Saving also requires a browser enabled through the printed link, which only appears in your terminal. A raw port forward (`ssh -R`) looks like a local browser to the dev server, but it still can't save anything without that link.
+- Scripts in Markdown, HTML and PowerPoint slides (`<script>`, attributes like `onclick`, `javascript:` links) are removed when the slide is rendered, in `astro dev` too. A slide someone else wrote can't control the editor, or anything else, in your browser. MDX slides keep their scripts. Set [`slideScripts: true`](/reference/configuration/) only for decks whose content you fully trust.
+- Edits are written to disk as you type. To roll back, use undo in the panel or your version control.
 
 ## Hidden slides
 
-`hidden: true` keeps a slide in development but skips it in production builds: <kbd>←</kbd> / <kbd>→</kbd>, <kbd>Home</kbd> / <kbd>End</kbd>, the toolbar, the presenter window's next-slide preview, the overview and the go-to dialog all jump over it, and a direct link redirects to the next visible slide.
+Add `hidden: true` to a slide's frontmatter to drop it from the deployed deck while keeping the file.
+
+- In `astro dev`, the slide is shown as usual.
+- In a production build, it is skipped everywhere you navigate: <kbd>←</kbd> / <kbd>→</kbd>, <kbd>Home</kbd> / <kbd>End</kbd>, the toolbar, the next-slide preview in the presenter window, the overview and the go-to dialog. A direct link to it redirects to the next visible slide.
+- The print view (`/<deck>/all`) and PDF / PowerPoint exports always leave it out, in development too.

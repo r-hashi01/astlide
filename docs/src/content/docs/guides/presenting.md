@@ -3,6 +3,8 @@ title: Presenting
 description: Keyboard shortcuts, the presenter window, overview, go-to-slide, pen and laser pointer, and the toolbar.
 ---
 
+Everything on this page works the same in `astro dev` and on a deployed deck, except where noted.
+
 ## Keyboard shortcuts
 
 | Key | Action |
@@ -11,62 +13,67 @@ description: Keyboard shortcuts, the presenter window, overview, go-to-slide, pe
 | `←` | Previous step or slide |
 | `Home` / `↑` | First slide |
 | `End` / `↓` | Last slide |
-| `o` | Overview — all slides in a grid |
-| `g` | Go to slide — type a number or part of a title, `↑`/`↓` to pick, `Enter` to jump |
-| `d` | Pen — draw on the slide; `c` clears the current slide, `Shift+C` the whole deck |
+| `o` | Overview: all slides in a grid |
+| `g` | Go to slide: type a number or part of a title, pick with `↑`/`↓`, jump with `Enter` |
+| `d` | Pen: draw on the slide. While it's on, `c` clears the current slide and `Shift+C` the whole deck |
 | `l` | Laser pointer |
 | `v` | Camera bubble |
 | `r` | Start / stop recording |
 | `p` | Open the presenter window |
 | `n` | Notes overlay |
-| `s` | Share mode — hide all chrome for screen sharing |
+| `s` | Share mode: hides the toolbar, progress bar and notes so only the slide shows when you share your screen |
 | `f` | Fullscreen |
-| `Esc` | Exit pen / laser, fullscreen, close overlays |
-| `e` | Live-edit the slide's source in the browser (`astro dev` only — see [Creating a Deck](/guides/decks/#editing-in-the-browser)) |
+| `Esc` | Turn off the pen or laser, leave fullscreen, close an overlay |
+| `e` | Edit the slide's source in the browser (`astro dev` only, see [Creating a Deck](/guides/decks/#editing-in-the-browser)) |
 
-On touch devices, swipe left / right to navigate.
+`o`, `p`, `n`, `s`, `f` and `e` work in the audience window only. The other keys work in both windows.
+
+On a touch device, swipe left or right to change slides.
 
 ## Presenter window
 
-Press `p` to open the presenter window. It shows:
+Press `p` to open the presenter window. Run the talk from there: the audience window follows every slide change, [fragment and code step](/guides/fragments/), pen stroke and laser movement. The two windows talk over `BroadcastChannel`, so they must be in the same browser.
 
-- the current slide, a **live preview of the next slide** and how many **steps remain** on this one;
-- speaker notes (font size adjustable with `A−` / `A+` or `Shift+,` / `Shift+.`) — on a deployed deck only with `notes: "public"` (see [Speaker notes](/guides/decks/#speaker-notes));
-- a timer.
+The presenter window shows:
 
-The two windows stay in sync over `BroadcastChannel`: slide changes, [fragment and code steps](/guides/fragments/), pen strokes and the laser pointer. Drive the talk from the presenter window; the audience window follows.
+- the current slide;
+- a live preview of the next slide, with the number of steps left on the current one;
+- your speaker notes. Change their font size with the `A−` / `A+` buttons or `Shift+,` / `Shift+.`;
+- a timer. Click ▶ to start or pause it and ↺ to reset it.
+
+Speaker notes are left out of `astro build` by default, so a deployed deck has none. To present from the deployed site with notes, set `astlide({ notes: "public" })`. Anyone with the URL can then read them. See [Speaker notes](/guides/decks/#speaker-notes).
 
 ## Go to slide
 
-`g` opens a dialog listing every slide by number and title. Type a number or part of a title to filter. Titles come from frontmatter `title`, else the slide's first heading.
+Press `g` to open a list of every slide with its number and title. Type a number or part of a title to filter it. A slide's title is its frontmatter `title`, or its first heading when there is none.
 
 ## Pen & laser pointer
 
-- `d` toggles the **pen**. Strokes are kept per slide while you navigate and come back when you return; `c` clears the current slide, `Shift+C` the whole deck.
-- `l` toggles the **laser pointer**.
-- Both are drawn in slide coordinates, so they line up in every window even when the slides render at different sizes — annotate in the presenter window and it shows on the audience screen.
-- Colors: `--astlide-pen-color`, `--astlide-laser-color`.
-
-## Camera & recording
-
-- `v` shows your **webcam** in a round bubble over the slides. Drag it anywhere — the position is remembered — and it keeps playing as you change slides. Resize it with `--astlide-camera-size` (default `220px`).
-- `r` **records the talk**: the browser asks which screen, window or tab to capture (it suggests the current tab), the microphone is mixed in, and a red indicator with the elapsed time appears. Press `r` again — or stop sharing from the browser — to download `<deck>-<date>.webm`. Recording continues while you move through the deck.
-
-Turn the camera on first if you want it in the recording. Both need a secure context (`https://` or `localhost`) and your permission; recording relies on the browser's screen-capture support (Chromium-based browsers and Firefox; Safari's support is more limited).
+- `d` turns the **pen** on and off. Each slide keeps its own drawing, so it's still there when you come back. With the pen on, `c` clears the current slide and `Shift+C` clears every slide in the deck.
+- `l` turns the **laser pointer** on and off.
+- Both are positioned in slide coordinates. They line up in every window even when the slide is drawn at a different size, so you can draw in the presenter window and the audience sees it in the same place.
+- Set their colors with `--astlide-pen-color` and `--astlide-laser-color`.
 
 ### Keeping drawings
 
-By default drawings last for the browser session. To keep them across reloads — and the next time the deck is opened in the same browser — enable persistence:
+By default, drawings stay until you reload the page or close the tab. To keep them across reloads, and for the next time you open the deck in the same browser, turn on persistence:
 
 ```js
 astlide({ drawings: { persist: true } });
 ```
 
-Drawings are stored per deck in `localStorage`. `Shift+C` (with the pen active) clears them.
+Drawings are then saved per deck in `localStorage`. To delete them, turn the pen on and press `Shift+C`.
+
+## Camera & recording
+
+- `v` shows your **webcam** in a round bubble over the slides. Drag it wherever you like and it stays there next time. It keeps playing when you change slides. Set its size with `--astlide-camera-size` (default `220px`).
+- `r` **records the talk**. The browser asks which screen, window or tab to capture and suggests the current tab. Your microphone is recorded too, and a red dot with the elapsed time shows while recording. Changing slides doesn't stop it. Press `r` again, or stop sharing in the browser, to download `<deck>-<date>.webm`.
+
+If you want your camera in the recording, turn it on before you start recording. Both features ask for permission and only work over `https://` or on `localhost`. Recording uses the browser's screen capture: it works in Chromium-based browsers and Firefox, and support in Safari is limited.
 
 ## Toolbar
 
-Compose the floating bottom toolbar from an ordered list of actions. It reveals on hover and keyboard focus, and stays visible on touch devices.
+The toolbar floats at the bottom of the slide. List the buttons you want, in order:
 
 ```js
 astlide({
@@ -77,7 +84,7 @@ astlide({
 | Action | |
 |---|---|
 | `home` | Back to the deck index |
-| `prev` / `next` / `counter` | Navigation and `n / total` |
+| `prev` / `next` / `counter` | Previous / next slide, and the `n / total` counter |
 | `notes` | Notes overlay |
 | `overview` | Overview grid |
 | `goto` | Go-to-slide dialog |
@@ -87,8 +94,8 @@ astlide({
 | `fullscreen` | Toggle fullscreen |
 | `print` / `share` | Print mode / share mode |
 | `download` | In-browser PDF ([experimental](/guides/export/)) |
-| `spacer` | Flexible gap |
+| `spacer` | Flexible gap that pushes the following buttons to the right |
 
-Default: `["prev", "counter", "next"]`.
+The default is `["prev", "counter", "next"]`. The toolbar appears when you hover over it or move keyboard focus to it. On touch devices it's always visible.
 
-The toolbar, progress bar and presenter panel read CSS custom properties (`--astlide-nav-bg`, `--astlide-nav-fg`, `--astlide-nav-btn-bg`, `--astlide-progress-color`, `--astlide-presenter-bg`, `--astlide-presenter-fg`, `--astlide-presenter-accent`, …) so themes can restyle them without `!important`.
+The toolbar, progress bar and presenter window take their colors from CSS custom properties such as `--astlide-nav-bg`, `--astlide-nav-fg`, `--astlide-nav-btn-bg`, `--astlide-progress-color`, `--astlide-presenter-bg`, `--astlide-presenter-fg` and `--astlide-presenter-accent`. A theme can set these without `!important`.

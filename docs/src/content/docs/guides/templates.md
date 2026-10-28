@@ -1,9 +1,11 @@
 ---
 title: PowerPoint templates
-description: Use a PowerPoint or Google Slides template as a theme, and write the slides in Markdown.
+description: Register a PowerPoint or Google Slides template as a theme and write the slides in Markdown.
 ---
 
-Register a PowerPoint template as a theme, and Markdown slides come out in its design: the template's backgrounds and artwork, its theme colors and fonts, and its slide numbers. Each slide's content goes where the template's placeholders are, with their text style.
+If your company has a PowerPoint template, you can register it as a theme and keep writing slides in Markdown. The slides then use the template's backgrounds and artwork, theme colors, fonts and slide numbers, and their text goes into the template's placeholders with the placeholders' text style.
+
+Register the file under a theme name in `astro.config.mjs`:
 
 ```js
 // astro.config.mjs
@@ -19,16 +21,18 @@ export default defineConfig({
 });
 ```
 
+Then use that name as the deck's theme:
+
 ```json
 // src/content/decks/q3-review/_config.json
 { "title": "Q3 review", "theme": "brand" }
 ```
 
-The template can be a `.pptx`, a `.potx` template, or an Office theme file (`.thmx`). For Google Slides, download the template with File → Download → Microsoft PowerPoint. Editing the file reloads the deck in `astro dev`.
+The file can be a presentation (`.pptx`), a template (`.potx`) or an Office theme (`.thmx`). For a Google Slides template, choose File → Download → Microsoft PowerPoint and use the downloaded file. While `astro dev` is running, saving the template file reloads the deck.
 
-## Where content goes
+## Where the content goes
 
-In a slide, the first heading goes into the layout's title placeholder and everything else into its body placeholder, styled like the template's text: font, size, color, alignment and insets.
+If a slide starts with a heading, that heading goes into the layout's title placeholder. Everything else goes into the body placeholder. The text takes the placeholder's font, size, color, alignment and insets.
 
 ```md
 ---
@@ -41,11 +45,11 @@ slideLayout: default
 - Templates as themes
 ```
 
-In a layout with two content placeholders side by side, `<Left>` and `<Right>` fill them, with the template's gap between them. A layout's slide-number placeholder shows the slide's number.
+In a layout with two content placeholders side by side, `<Left>` fills the first and `<Right>` the second, with the same gap between them as in the template. If the layout has a slide-number placeholder, the slide's number appears there.
 
 ## Layouts
 
-The built-in layouts use the template's own:
+Each built-in layout uses a matching layout from the template:
 
 | `slideLayout` | Template layout |
 |---|---|
@@ -55,13 +59,15 @@ The built-in layouts use the template's own:
 | `two-column` | Two Content |
 | `code` | Title Only (else Title and Content) |
 
-They are found by the layout's type in PowerPoint, or by name ("Title slide", "Section header" …), as in Google Slides exports. Every layout of the template is also available by its name as a slug: `slideLayout: comparison`, `slideLayout: title-only`, `slideLayout: picture-with-caption` …
+Astlide finds the match by the layout's type in PowerPoint. Files exported from Google Slides often have untyped layouts, so it also matches by name, such as "Title slide" or "Section header". If nothing matches `default`, the first layout with a title and one body placeholder is used.
 
-Other built-in layouts (`quote`, `statement`, `image-left` …) keep their own arrangement on the template's master background. A slide with its own `background` shows that instead of the template's artwork.
+You can also use any of the template's layouts directly. Write its name as a slug: `slideLayout: comparison`, `slideLayout: title-only`, `slideLayout: picture-with-caption` and so on.
+
+The other built-in layouts (`quote`, `statement`, `image-left` …) keep their own arrangement and sit on the template's master background. If a slide sets its own `background`, that replaces the template's artwork.
 
 ## Theme variables
 
-The template's theme sets the theme variables, so components and custom CSS follow it:
+Astlide sets the theme variables from the template, so components and your own CSS pick up its colors and fonts:
 
 | Variable | From the template |
 |---|---|
@@ -71,9 +77,11 @@ The template's theme sets the theme variables, so components and custom CSS foll
 | `--font-heading` / `--font-body` | Heading / body font |
 | `--font-size-base` / `--font-size-h1` | Body / title text size of Title and Content |
 
-Install the template's fonts where the slides are viewed (or embed them in the template: PowerPoint's "Embed fonts in the file"), as for any theme.
+The template's fonts must be available where the slides are viewed, as with any theme. Install them there, or embed them in the template with PowerPoint's "Embed fonts in the file" option.
 
 ## From code
+
+`@astlide/core/pptx` reads a template without the integration:
 
 ```ts
 import { pptxToTemplate, templateCss } from "@astlide/core/pptx";
@@ -88,6 +96,6 @@ templateCss(template, "brand"); // the theme's CSS
 
 ## Limits
 
-- Slides are 16:9. A 4:3 template is drawn centered, with its background color at the sides.
-- Placeholders for pictures, charts and tables, and date and footer placeholders, are not filled.
-- Exported PPTX files draw the template's artwork as shapes, not as a PowerPoint master.
+- Slides are 16:9. A 4:3 template is centered, and the sides are filled with its background color.
+- Picture, chart and table placeholders stay empty, and so do date and footer placeholders.
+- In an exported PPTX file, the template's artwork is drawn as shapes on each slide. It doesn't become a PowerPoint slide master.

@@ -3,7 +3,9 @@ title: Export
 description: Export decks to PDF, PNG or PowerPoint.
 ---
 
-## One command
+Use `astlide export` when you need a deck as a file: a PDF to send around, a PNG image of each slide, or a PowerPoint file someone can edit.
+
+## Run the export
 
 ```bash
 bunx astlide export my-talk                 # → exports/my-talk.pdf
@@ -12,32 +14,93 @@ bunx astlide export my-talk --png           # → exports/my-talk-slides/*.png
 bunx astlide export --all --pdf --pptx      # every deck, both formats
 ```
 
-Projects created with `bun create astlide` also have it as a script: `bun run export my-talk --pptx`.
+`my-talk` is the deck's folder name under `src/content/decks/`. Without a format flag you get a PDF. PNG files are named `slide-001.png`, `slide-002.png` and so on.
 
-A deck can also be given as a path (`src/content/decks/my-talk`, `dist/my-talk`, …); the project is found from it, as it is when you run the command in any folder inside the project.
+Projects created with `bun create astlide` have the same command as a script: `bun run export my-talk --pptx`.
 
-- **PDF / PNG** are rendered in a headless browser ([Playwright](https://playwright.dev); run `bunx playwright install chromium` once). `astlide export` builds your site and serves it on a free port for the export, so there's no server to start, and Astro's [`base`](/guides/deploy/) is picked up automatically. Every slide is shown in its final state (all fragment / code steps applied), and diagrams finish rendering first.
+You can run the command from any folder inside the project. You can also pass the deck as a path, such as `src/content/decks/my-talk` or `dist/my-talk`, and Astlide finds the project from that path.
 
-  Chromium keeps its sandbox while it renders the slides. On Linux that needs unprivileged user namespaces; if your system restricts them (Ubuntu 24.04, many containers), the export stops with how to allow them for Chromium only (see [Chromium sandbox on Linux](#chromium-sandbox-on-linux)). `ASTLIDE_CHROMIUM_SANDBOX=0` turns the sandbox off — only for decks whose content you trust.
-- **PPTX** needs no browser: the built slides are laid out by Astlide's own CSS layout engine and written as native shapes and editable text boxes. The fonts your theme loads are embedded in the file, so PowerPoint shows the slides in them without the fonts installed (fonts whose license forbids embedding are left out). Tables become PowerPoint tables, and boxes, CSS `::before` / `::after` text and simple inline SVG drawings (rectangles, circles, lines and arrows, paths, text) become shapes you can edit. Mermaid diagrams are rendered without a browser too (the project's `mermaid` install) and placed as pictures, as are SVG drawings that use more than that (gradients, arcs …); PNG and SVG images are included. Speaker notes go into PowerPoint's notes pane. Japanese (and other East Asian) text is given an East Asian font — the CJK font your CSS names, else Yu Gothic, which comes with Office — and is laid out with a Japanese font, so lines break as in the browser.
+## PDF and PNG
 
-Exports start from a build of their own, in `node_modules/.astro/astlide-export` rather than `dist/`. It includes speaker notes (they go into the PPTX) whatever the [`notes` option](/guides/decks/#speaker-notes) says, and leaves the `dist/` you deploy untouched.
+PDF and PNG are rendered in a headless Chromium through [Playwright](https://playwright.dev). Install it once:
+
+```bash
+bunx playwright install chromium
+```
+
+You don't need to start a server. `astlide export` builds the site, serves it on a free port while it renders, and stops it afterwards. Astro's [`base`](/guides/deploy/) is applied for you.
+
+Each slide is captured in its final state, with every fragment and code step shown. Mermaid diagrams finish rendering before the capture.
+
+Chromium runs with its sandbox on. On Linux the sandbox needs unprivileged user namespaces, which Ubuntu 24.04 and many containers restrict. When that happens, the export stops and tells you how to allow them for Chromium only. See [Chromium sandbox on Linux](#chromium-sandbox-on-linux).
+
+## PowerPoint (PPTX)
+
+PPTX export doesn't use a browser, so it works without Playwright. Astlide lays out the built slides with its own CSS layout engine and writes them as PowerPoint shapes and text boxes you can edit.
+
+What ends up in the file:
+
+- Text becomes editable text boxes, and tables become PowerPoint tables.
+- Boxes, text from CSS `::before` / `::after`, and simple inline SVG (rectangles, circles, lines and arrows, paths, text) become editable shapes.
+- Mermaid diagrams are rendered with the project's own `mermaid` package and placed as pictures. SVG that uses anything more, such as gradients or arcs, is placed as a picture too.
+- PNG and SVG images are included.
+- An `<iframe>` is exported according to what it shows. See [static stand-ins](/guides/layouts-and-components/#static-stand-ins-for-your-own-embeds).
+- Speaker notes go into PowerPoint's notes pane.
+
+The fonts your theme loads are embedded in the file, so the slides keep their fonts on a computer that doesn't have them installed. A font whose license forbids embedding is left out, and the export prints a warning. For Japanese and other East Asian text, see [Japanese text in PowerPoint](#japanese-text-in-powerpoint).
+
+## Speaker notes and `dist/`
+
+Every export starts with a build of its own in `node_modules/.astro/astlide-export`. Your `dist/` isn't touched, so exporting never changes what you deploy.
+
+The export build always includes speaker notes, whatever the [`notes` option](/guides/decks/#speaker-notes) says, so they can go into the PPTX. A normal `astro build` leaves them out unless you set `notes: "public"`.
+
+## Options
 
 | Option | |
 |---|---|
-| `--pdf` `--pptx` `--png` | Formats, combine as needed (default `--pdf`) |
-| `--all` | Every deck |
-| `--out-dir <dir>` | Where exports go (default `exports/`) |
-| `-o, --output <path>` | Exact output path (one deck, one format) |
-| `--no-build` | Reuse the last export build instead of building first (else `dist/`, which has speaker notes only with `notes: "public"`) |
-| `--base-url <url>` | PDF / PNG: render from a dev / preview server you already run (include the `base`, e.g. `http://localhost:4321/my-repo`) |
-| `--width` / `--height` | PDF / PNG: slide size in px (default 1920×1080) |
+| `--pdf` `--pptx` `--png` | Formats to export. Combine them as you like. Default: `--pdf` |
+| `-a, --all` | Export every deck |
+| `--out-dir <dir>` | Folder for the exports. Default: `exports/` |
+| `-o, --output <path>` | Exact output path. Only for one deck in one format. For PNG this is a folder |
+| `--no-build` | Skip the build and reuse the last export build. Without one, `dist/` is used, which has speaker notes only if it was built with `notes: "public"` |
+| `--base-url <url>` | PDF / PNG: render from a dev or preview server you already run. Include the `base`, for example `http://localhost:4321/my-repo` |
+| `--width` / `--height` | PDF / PNG: slide size in pixels. Default: 1920×1080 |
+| `--cwd <dir>` | Project root, when you run the command from outside the project |
 
-If `astro dev` is running for the same project, pass `--base-url` so a PDF / PNG export doesn't build alongside it.
+If `astro dev` is already running for the project, pass `--base-url`. Otherwise a PDF or PNG export runs a second build alongside it.
+
+## Japanese text in PowerPoint
+
+When a slide contains Japanese (or other East Asian) text, the PPTX export decides two things:
+
+- **The font PowerPoint shows.** The text is given an East Asian font: the first CJK font your CSS names, such as Noto Sans JP. If the CSS names none, it uses Yu Gothic, which comes with Office.
+- **Where lines break.** Text is measured with a Japanese font: the CJK font from your CSS if it was loaded, otherwise Noto Sans JP from Google Fonts. Lines then wrap close to where they do in the browser.
+
+To make the browser, the PDF and the PPTX look the same, load a Japanese web font with the `font` option and add it to your [custom theme](/guides/themes-and-plugins/#custom-theme):
+
+```js
+// astro.config.mjs
+astlide({
+  font: "https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Noto+Sans+JP:wght@400;700&family=JetBrains+Mono&display=swap",
+});
+```
+
+```css
+/* themes/my-theme.css */
+[data-theme="my-theme"] {
+  --font-body: "Inter", "Noto Sans JP", sans-serif;
+  --font-heading: "Inter", "Noto Sans JP", sans-serif;
+}
+```
+
+Because the theme loads the font, it is embedded in the PPTX. PowerPoint shows it even where Noto Sans JP isn't installed.
 
 ## Chromium sandbox on Linux
 
-PDF / PNG export keeps Chromium's sandbox on, and on Linux the sandbox needs unprivileged user namespaces. Ubuntu 23.10 and later (and other distributions with AppArmor's restriction on) only allow them for programs whose AppArmor profile says so. Give Playwright's Chromium such a profile — the way Ubuntu does it for Google Chrome — rather than lifting the restriction for the whole machine:
+PDF and PNG export keep Chromium's sandbox on. On Linux the sandbox needs unprivileged user namespaces. Ubuntu 23.10 and later, and other distributions that turn on AppArmor's restriction, only allow them for programs whose AppArmor profile says so.
+
+Don't lift the restriction for the whole machine. Give Playwright's Chromium its own profile instead, the same way Ubuntu does for Google Chrome:
 
 ```text title="/etc/apparmor.d/astlide-chromium"
 abi <abi/4.0>,
@@ -54,14 +117,18 @@ profile astlide-chromium @{HOME}/.cache/ms-playwright/chromium-*/chrome-linux*/c
 sudo apparmor_parser -r /etc/apparmor.d/astlide-chromium
 ```
 
-The path is where `bunx playwright install chromium` puts Chromium; with `PLAYWRIGHT_BROWSERS_PATH` set, use that folder instead. The profile only lets that one binary create user namespaces — which is what its sandbox needs — and leaves everything else as it is.
+The path is where `bunx playwright install chromium` puts Chromium. If you set `PLAYWRIGHT_BROWSERS_PATH`, use that folder instead. The profile lets only this one binary create user namespaces, which is all its sandbox needs. Nothing else on the system changes.
 
-In Docker, use the render service's seccomp profile (see [Render service](/guides/server/#security)). `ASTLIDE_CHROMIUM_SANDBOX=0` turns the sandbox off instead — only for decks whose content you trust.
+In Docker, use the render service's seccomp profile (see [Render service](/guides/server/#security)).
+
+You can also turn the sandbox off with `ASTLIDE_CHROMIUM_SANDBOX=0`. Only do this for decks whose content you trust.
 
 ## In-browser PDF (experimental)
 
-Add `"download"` to the [toolbar](/guides/presenting/#toolbar) for a one-click PDF of the current deck. It uses the optional, pre-1.0 [`@astlide/crispdf`](https://www.npmjs.com/package/@astlide/crispdf), whose output may still change — prefer the CLI for stable results.
+Add `"download"` to the [toolbar](/guides/presenting/#toolbar) to get a button that saves the current deck as a PDF. It needs the optional [`@astlide/crispdf`](https://www.npmjs.com/package/@astlide/crispdf) package:
 
 ```bash
 bun add -D @astlide/crispdf
 ```
+
+The package hasn't reached 1.0 yet, and its output may change. For stable results, use the CLI.

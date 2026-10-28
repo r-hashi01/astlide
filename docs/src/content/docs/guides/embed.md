@@ -3,13 +3,13 @@ title: Embedding a deck
 description: Show a deck inside a blog post, a docs page or a React / Vue app with the <astlide-deck> element.
 ---
 
-A built deck can be placed inside any other page — a blog post, a docs page, a Next.js or Nuxt app. The `<astlide-deck>` custom element loads the deck in an iframe, keeps it at 16:9 at the width of its container, and lets the page drive it: next / previous / go to slide, fullscreen, and an event whenever the slide changes.
+You can show a built deck inside another page: a blog post, a docs page, or a Next.js or Nuxt app. The `<astlide-deck>` custom element loads the deck in an iframe and keeps it at 16:9 across the width of its container. Your page can move through the slides, open the deck in fullscreen, and listen for slide changes.
 
-Inside the frame the deck hides its own chrome (toolbar, progress bar, notes) and only shows the slide. Click into it and the arrow keys, Space, Page Up / Down, Home and End move through it; moving through slides doesn't add entries to the host page's history.
+An embedded deck shows only the slide. The toolbar, progress bar and notes are hidden. Viewers click into the deck and use the arrow keys, Space, Page Up / Down, Home and End to move through it. Moving between slides doesn't add entries to the host page's history.
 
-## In another page of the same Astro site
+## In your Astro site
 
-Use the `DeckEmbed` component — it resolves the deck's URL against Astro's [`base`](/guides/deploy/):
+To embed a deck in another page of the same Astro site, use the `DeckEmbed` component. It adds Astro's [`base`](/guides/deploy/) to the deck's URL for you.
 
 ```astro
 ---
@@ -20,19 +20,19 @@ import DeckEmbed from "@astlide/core/components/DeckEmbed.astro";
 <DeckEmbed deck="my-talk" start={3} controls title="My talk" />
 ```
 
-It works in `.mdx` pages too. Without JavaScript a link to the deck is shown instead.
+It works in `.mdx` pages too. When JavaScript isn't available, a link to the deck is shown instead.
 
 | Prop | Default | |
 | --- | --- | --- |
-| `deck` | — | Deck name (its directory under `src/content/decks/`) |
-| `start` | `1` | Slide shown first |
-| `controls` | `false` | Show previous / next, a slide counter and fullscreen below the deck |
-| `title` | deck name | Accessible name of the frame |
+| `deck` | — | Deck name (its folder under `src/content/decks/`) |
+| `start` | `1` | Slide to show first |
+| `controls` | `false` | Show previous / next buttons, a slide counter and a fullscreen button below the deck |
+| `title` | deck name | Accessible name of the frame, read out by screen readers |
 | `class` | — | Extra CSS class |
 
-## In any HTML page
+## In any other page
 
-Import the element once — from a bundler (`import "@astlide/core/embed"`) — and point `src` at the deck's root URL:
+Import the element once, then point `src` at the deck's root URL:
 
 ```html
 <script type="module">
@@ -42,15 +42,17 @@ Import the element once — from a bundler (`import "@astlide/core/embed"`) — 
 <astlide-deck src="https://example.com/talks/my-talk/" start="2" controls></astlide-deck>
 ```
 
-The trailing slash of `src` decides the slide URLs: `…/my-talk/` loads `…/my-talk/2/`, `…/my-talk` loads `…/my-talk/2` — match how the deck's site is built (the default `directory` format uses slashes).
+The import needs a bundler such as Vite, or a framework that bundles your scripts.
+
+Whether `src` ends in a slash decides the slide URLs. `…/my-talk/` loads `…/my-talk/2/`, and `…/my-talk` loads `…/my-talk/2`. Match the way the deck's site was built. With Astro's default `directory` format, use the trailing slash.
 
 ### Attributes
 
-| Attribute | | |
+| Attribute | Default | |
 | --- | --- | --- |
-| `src` | required | URL of the deck root, absolute (`http`/`https`) or relative to the page; other schemes such as `javascript:` are ignored |
-| `start` | `1` | Slide shown first. Changing it later moves the deck there |
-| `controls` | off | Show the control bar (previous, counter, next, fullscreen) |
+| `src` | required | URL of the deck root. Either an absolute `http` / `https` URL or a URL relative to the page. Other schemes, such as `javascript:`, are ignored |
+| `start` | `1` | Slide to show first. If you change it later, the deck moves to that slide |
+| `controls` | off | Show the control bar: previous, slide counter, next, fullscreen |
 | `label` | `"Slide deck"` | Accessible name of the frame |
 
 ### Methods and properties
@@ -68,11 +70,13 @@ deck.total; // number of slides
 deck.step;  // steps revealed on the current slide
 ```
 
-Calls made before the deck has loaded are queued and sent once it reports in. When the element itself has focus, ← / → / Home / End and `f` (fullscreen) work too.
+You can call the methods before the deck has loaded. The calls wait and run once the deck is ready.
+
+The element can take keyboard focus itself. While it has focus, ← / →, Page Up / Down, Space, Home, End and `f` (fullscreen) work as well.
 
 ### Events
 
-`slidechange` fires once the deck has loaded and every time the slide or step changes. It bubbles, and `event.detail` is:
+The element fires `slidechange` once when the deck has loaded, and again every time the slide or step changes. The event bubbles. Its `event.detail` looks like this:
 
 ```ts
 interface SlideChangeDetail {
@@ -92,7 +96,7 @@ deck.addEventListener("slidechange", (e) => {
 
 ### Sizing
 
-The element is a block as wide as its container, with a 16:9 frame. For decks of another shape, set `--astlide-aspect-ratio`:
+The element is a block as wide as its container, with a 16:9 frame. If your deck has a different shape, set `--astlide-aspect-ratio`:
 
 ```css
 astlide-deck {
@@ -101,7 +105,7 @@ astlide-deck {
 }
 ```
 
-The parts are stylable with `::part(frame)`, `::part(iframe)` and `::part(controls)`.
+To style the inner parts, use `::part(frame)`, `::part(iframe)` and `::part(controls)`.
 
 ## React
 
@@ -125,7 +129,7 @@ export function Talk() {
 }
 ```
 
-The ref is the element, so its methods and properties are available. The component renders on the server too (Next.js, Remix …); the element comes alive in the browser. `react` is an optional peer dependency of `@astlide/core`.
+The ref points at the `<astlide-deck>` element, so you can use the methods and properties above. The component also renders on the server (Next.js, Remix and so on), and the element starts working once it reaches the browser. `react` is an optional peer dependency of `@astlide/core`.
 
 ## Vue
 
@@ -149,10 +153,14 @@ const deck = ref();
 </template>
 ```
 
-`slidechange` is emitted with the event's detail. The component exposes `next()`, `prev()`, `goTo(n)`, `requestFullscreen()` and `element`. It renders on the server too (Nuxt …). `vue` is an optional peer dependency of `@astlide/core`.
+The `slidechange` handler receives the event's `detail`. Through the component ref you can call `next()`, `prev()`, `goTo(n)` and `requestFullscreen()`, and reach the element itself as `element`. The component also renders on the server (Nuxt and so on). `vue` is an optional peer dependency of `@astlide/core`.
 
 ## How it works
 
-The element and the deck talk over `postMessage`. The deck page only listens when it is framed, and only to its parent window; it reports to the origin of the page that greeted it. The element only accepts messages from its own frame and the deck's origin. Commands can only move within the deck.
+The element and the deck talk to each other with `postMessage`. Both sides limit what they accept:
 
-A deck hosted on another domain can be embedded as long as that host allows framing — check for `X-Frame-Options` or a `frame-ancestors` Content Security Policy on the deck's server.
+- The deck page listens only when it is inside a frame, and only to its parent window. It sends its state only to the origin of the page that first contacted it.
+- The element accepts messages only from its own iframe, and only from the deck's origin.
+- The messages can only move around within the deck.
+
+You can embed a deck hosted on another domain if that server allows framing. Check whether it sends `X-Frame-Options` or a Content Security Policy with `frame-ancestors`. To control who can embed your own decks, see [Framing and headers](/reference/configuration/#framing-and-headers).

@@ -1,20 +1,23 @@
 ---
 title: Render service (HTTP API)
-description: Run Astlide as an HTTP service — Markdown in, PowerPoint / PDF / PNG out — with an OpenAPI spec for Dify, n8n and other tools.
+description: Run Astlide as an HTTP service that turns Markdown into PowerPoint, PDF or PNG. Its OpenAPI spec lets Dify, n8n and similar tools call it.
 ---
 
-`@astlide/server` (`packages/server` in the repository) wraps Astlide in a small HTTP API, so tools that can call an API but don't run Node or Astro can make slides: Dify or n8n custom tools, chat bots, internal apps.
+`@astlide/server` (`packages/server` in the repository) runs Astlide behind a small HTTP API. Use it when the thing that needs slides can call an HTTP API but can't run Node or Astro itself, such as a Dify or n8n tool, a chat bot or an internal app.
 
-- `POST /render` — Markdown slides, with a built-in theme or an uploaded PowerPoint template → editable **PPTX**, **PDF**, or **PNG** (a ZIP, one image per slide)
-- `POST /import` — a `.pptx` (or a Google Slides URL) → the slides as HTML, with titles and speaker notes
-- `POST /templates/layouts` — a PowerPoint template → its layouts and where their placeholders are
-- `GET /openapi.json` — the OpenAPI 3.1 spec · `GET /health` — health check
+| Endpoint | What it does |
+| --- | --- |
+| `POST /render` | Takes Markdown slides and returns an editable **PPTX**, a **PDF**, or **PNG** images (a ZIP with one image per slide). Styling comes from a built-in theme or an uploaded PowerPoint template. |
+| `POST /import` | Takes a `.pptx` file or a Google Slides URL and returns each slide as HTML, with its title and speaker notes. |
+| `POST /templates/layouts` | Takes a PowerPoint template and returns its layouts and the position of each placeholder. |
+| `GET /openapi.json` | The OpenAPI 3.1 spec. |
+| `GET /health` | Health check. |
 
-Nothing is kept: each render builds a throwaway Astro project, and it is deleted as soon as the response is ready. Uploaded files are never written anywhere else.
+The service keeps no data. Each render runs in a temporary Astro project that is deleted once the response is ready, and uploaded files are not written anywhere else.
 
 ## Run it with Docker
 
-The image has everything a render needs: Node and Bun, Chromium for PDF / PNG, and Noto CJK fonts so Japanese, Chinese and Korean text renders. Build it from the repository root:
+The Docker image contains everything a render needs: Node, Bun, Chromium for PDF and PNG, and Noto CJK fonts for Japanese, Chinese and Korean text. Build it from the repository root and start it with an API key:
 
 ```bash
 docker build -f packages/server/Dockerfile -t astlide-server .
@@ -23,14 +26,16 @@ docker run --rm -p 8787:8787 -e ASTLIDE_API_KEY \
   --security-opt seccomp=packages/server/chromium-seccomp.json astlide-server
 ```
 
-The image listens on all interfaces, so it won't start without an API key (see [Security](#security)). The seccomp profile lets Chromium run its sandbox for PDF / PNG (Docker's default profile plus the namespace calls the sandbox needs); without it, PDF / PNG renders fail rather than run unsandboxed. Add `-H "Authorization: Bearer $ASTLIDE_API_KEY"` to the requests below — `/health` and `/openapi.json` need none.
+The container listens on all interfaces, so it refuses to start without an API key (see [Security](#security)). The seccomp profile is Docker's default profile plus the namespace system calls that Chromium's sandbox needs. Without it, PDF and PNG renders fail; the service never falls back to running Chromium unsandboxed.
+
+Send the key with every request: `-H "Authorization: Bearer $ASTLIDE_API_KEY"`. The examples below leave it out for brevity. `/health` and `/openapi.json` work without it:
 
 ```bash
 curl localhost:8787/health
 # {"status":"ok","version":"0.0.0","queue":{"running":0,"waiting":0}}
 ```
 
-Without Docker, from a clone of the repository (Node 22.12+ and Bun; for PDF / PNG also `bunx playwright install chromium`):
+You can also run the server from a clone of the repository. You need Node 22.12 or later and Bun, and for PDF or PNG output, Chromium (`bunx playwright install chromium`):
 
 ```bash
 bun install
@@ -39,7 +44,7 @@ bun packages/server/src/cli.ts   # listens on 127.0.0.1 only
 
 ## Render slides
 
-Send all slides as one Markdown string, separated by lines that are exactly `---`. A slide can start with a frontmatter block — the same keys as in a deck (`slideLayout`, `title`, `notes`, `background`, `hidden` …):
+Put all slides in one Markdown string and separate them with lines that contain only `---`. Each slide can start with a frontmatter block. It takes the same keys as a slide in a deck, such as `slideLayout`, `title`, `notes`, `background` and `hidden`:
 
 ```bash
 curl -o review.pptx -H 'content-type: application/json' localhost:8787/render -d '{
@@ -50,7 +55,7 @@ curl -o review.pptx -H 'content-type: application/json' localhost:8787/render -d
 }'
 ```
 
-Or send `slides` as an array — Markdown strings, or objects with `markdown` (or `html`) and frontmatter:
+If you build slides one by one, send them as a `slides` array instead. Each item is either a Markdown string or an object with `markdown` (or `html`) plus frontmatter keys:
 
 ```json
 {
@@ -63,20 +68,22 @@ Or send `slides` as an array — Markdown strings, or objects with `markdown` (o
 }
 ```
 
-| Field | |
+| Field | Description |
 | --- | --- |
-| `markdown` / `slides` | The slides (one of them). |
-| `theme` | A built-in theme: `default`, `dark`, `minimal`, `corporate`, `gradient`, `rose`, `forest`. |
-| `template` | A PowerPoint template (`.pptx` / `.potx` / `.thmx`) to use as the theme instead — a file field in multipart, or `{ "filename": "brand.pptx", "data": "<base64>" }` in JSON. |
-| `format` | `pptx` (default), `pdf`, or `png` (a ZIP of one PNG per slide). |
-| `output` | `file` (default): the file itself. `base64`: JSON `{ filename, contentType, size, data }` for clients that only handle JSON. |
-| `title`, `author`, `date` | Deck metadata; the title also names the file. |
+| `markdown` / `slides` | The slides. Send one of the two. |
+| `theme` | A built-in theme: `default`, `dark`, `minimal`, `corporate`, `gradient`, `rose` or `forest`. |
+| `template` | A PowerPoint template (`.pptx`, `.potx` or `.thmx`) to use in place of a theme. In a multipart request, send it as a file field. In JSON, send `{ "filename": "brand.pptx", "data": "<base64>" }`. |
+| `format` | `pptx` (default), `pdf`, or `png` (a ZIP with one PNG per slide). |
+| `output` | `file` (default) returns the file itself. `base64` returns JSON `{ filename, contentType, size, data }`, for clients that can only handle JSON. |
+| `title`, `author`, `date` | Deck metadata. The title is also used for the file name. |
 
-Slides are Markdown (`.md`), not MDX: components and imports aren't available, which keeps requests from running code on the server. A middle segment made only of `key: value` lines is read as the next slide's frontmatter.
+Slides are processed as Markdown (`.md`), so components and `import` statements are not available. This keeps a request from running code on the server.
+
+When splitting the Markdown string, a section that contains only `key: value` lines is treated as the frontmatter of the slide that follows it.
 
 ### With a PowerPoint template
 
-Upload the template with the slides (multipart here). The built-in layouts map to the template's (`cover` → its title slide, `default` → title and content …), and every template layout can be picked by its id:
+Upload the template along with the slides. This example uses multipart:
 
 ```bash
 curl -o q3.pptx localhost:8787/render \
@@ -91,76 +98,105 @@ slideLayout: comparison
 # Before / after'
 ```
 
-`POST /templates/layouts` lists those ids, with each layout's title / body / slide-number placeholder boxes (px on a 1920×1080 canvas) — handy for an LLM choosing a layout per slide:
+Astlide's built-in layout names map to matching template layouts: `cover` uses the template's title slide, `default` uses title and content, and so on. You can also use any of the template's layouts by its id.
+
+To get those ids, send the template to `POST /templates/layouts`. The response also gives the title, body and slide-number placeholder boxes of each layout, in px on a 1920×1080 canvas. This is useful when an LLM picks a layout for each slide:
 
 ```bash
 curl -F file=@brand.pptx localhost:8787/templates/layouts
 # {"fonts":{…},"aliases":{"cover":"title-slide",…},"layouts":[{"id":"title-slide","name":"Title Slide","title":{"left":72,…},"body":[…]},…]}
 ```
 
-See [PowerPoint templates](/guides/templates/) for how content fills the placeholders.
+For how slide content fills the placeholders, see [PowerPoint templates](/guides/templates/).
 
 ## Import a deck
+
+Send a `.pptx` file, or the URL of a Google Slides deck:
 
 ```bash
 curl -F file=@kickoff.pptx localhost:8787/import
 curl -H 'content-type: application/json' -d '{"url":"https://docs.google.com/presentation/d/…"}' localhost:8787/import
 ```
 
-The answer has each slide as an Astlide HTML slide (pictures inlined as `data:` URLs), its title, speaker notes and whether it's hidden. The HTML can be sent back to `/render` as `{ "html": "…" }` slides. Google Slides decks must be shared as "Anyone with the link"; only `docs.google.com/presentation` URLs are fetched.
+The response has the deck's title, author, size and theme. For each slide it gives the slide as Astlide HTML (images inlined as `data:` URLs), its title, its speaker notes and whether it is hidden. You can send this HTML back to `/render` as `{ "html": "…" }` slides.
 
-## Use it from Dify, n8n and others
+The service only fetches `docs.google.com/presentation` URLs. Share the Google Slides deck as "Anyone with the link" first, or the download fails.
 
-The service describes itself at `GET /openapi.json` (OpenAPI 3.1, with `servers` set to the URL it was reached at — or `PUBLIC_URL`):
+## Use it from Dify, n8n and other tools
 
-- **Dify** — Tools → Custom → Create Custom Tool → *Import from URL*, and enter `http://<host>:8787/openapi.json`. Each operation (`renderSlides`, `importPresentation`, `listTemplateLayouts`) becomes a tool an agent or workflow can call. Use `output: base64` where a tool must answer JSON. If you set an API key, choose *API Key* → *Bearer* as the authorization.
-- **n8n** — an *HTTP Request* node (`POST /render`, response format *File*), or import the spec in tools that read OpenAPI.
+`GET /openapi.json` returns an OpenAPI 3.1 spec of the service. Its `servers` entry is the URL you used to reach the service, or `PUBLIC_URL` if you set it.
+
+- **Dify**: open Tools → Custom → Create Custom Tool, choose *Import from URL*, and enter `http://<host>:8787/openapi.json`. Each operation (`renderSlides`, `importPresentation`, `listTemplateLayouts`) becomes a tool that agents and workflows can call. If the tool has to return JSON, set `output: base64`. If the server has an API key, choose *API Key* → *Bearer* as the authorization type.
+- **n8n**: use an *HTTP Request* node that calls `POST /render`, with the response format set to *File*. Tools that read OpenAPI specs can import the spec directly.
 
 ## Settings
 
-Environment variables:
+Configure the server with environment variables:
 
-| Variable | Default | |
+| Variable | Default | Description |
 | --- | --- | --- |
-| `PORT` / `HOST` | `8787` / `127.0.0.1` (`0.0.0.0` in the Docker image) | Where the server listens. |
-| `ASTLIDE_API_KEY` | — | When set, requests need `Authorization: Bearer <key>` (or `X-API-Key`). `/health` and `/openapi.json` stay open. Required unless `HOST` is loopback. |
-| `ASTLIDE_ALLOW_UNAUTHENTICATED` | `0` | `1` lets the server listen beyond loopback without a key — only when something in front of it (a gateway, a private network) controls who can call it. |
-| `ASTLIDE_ALLOW_PRIVATE_NETWORK` | `0` | `1` lets the slides load from the server's own network (see [Security](#security)). |
-| `PUBLIC_URL` | from the request | The URL put in the OpenAPI spec's `servers`. |
-| `MAX_BODY_MB` | `50` | Largest request (413 beyond); also the largest Google Slides download. A request must arrive within 60 seconds. |
-| `MAX_SLIDES` | `200` | Most slides per render. |
-| `MAX_OUTPUT_MB` | `200` | Largest rendered file (PPTX, PDF or PNG ZIP); a bigger one is a 422. |
-| `RENDER_TIMEOUT_MS` | `180000` | A render (or the reading of an uploaded PowerPoint file) taking longer is stopped (504). |
-| `CONCURRENCY` / `MAX_QUEUE` | `2` / `16` | Renders at once, and how many may wait; more get 503 — before their upload is read. |
-| `ASTLIDE_CHROMIUM_SANDBOX` | `1` | Chromium's sandbox for PDF / PNG. `0` turns it off — only where every caller is trusted (see [Security](#security)). |
-| `ASTLIDE_WORK_DIR` | `.astlide-work` next to `node_modules` | Where per-request projects are made. It must share a parent directory with the installed packages. |
+| `PORT` / `HOST` | `8787` / `127.0.0.1` (`0.0.0.0` in the Docker image) | The port and address the server listens on. |
+| `ASTLIDE_API_KEY` | (none) | When set, requests must send `Authorization: Bearer <key>` or `X-API-Key: <key>`. `/health` and `/openapi.json` stay open. Required when `HOST` is not a loopback address. |
+| `ASTLIDE_ALLOW_UNAUTHENTICATED` | `0` | `1` lets the server listen beyond loopback without a key. Use it only when something in front of the server, such as a gateway or a private network, controls who can call it. |
+| `ASTLIDE_ALLOW_PRIVATE_NETWORK` | `0` | `1` lets slides load resources from the server's own network (see [Security](#security)). |
+| `PUBLIC_URL` | Taken from the request | The URL written to `servers` in the OpenAPI spec. |
+| `MAX_BODY_MB` | `50` | The largest request body. Larger requests get 413. This also caps Google Slides downloads. |
+| `MAX_SLIDES` | `200` | The most slides in one render. |
+| `MAX_OUTPUT_MB` | `200` | The largest output file (PPTX, PDF or PNG ZIP). Larger output gets 422. |
+| `RENDER_TIMEOUT_MS` | `180000` | A render, or the reading of an uploaded PowerPoint file, is stopped after this long and gets 504. |
+| `CONCURRENCY` / `MAX_QUEUE` | `2` / `16` | How many renders run at once, and how many can wait. Requests beyond that get 503 before their upload is read. |
+| `ASTLIDE_CHROMIUM_SANDBOX` | `1` | Chromium's sandbox for PDF and PNG. `0` turns it off. Do this only if you trust every caller (see [Security](#security)). |
+| `ASTLIDE_WORK_DIR` | `.astlide-work` next to `node_modules` | Where the per-request projects are created. It must share a parent directory with the installed packages. |
 
-Errors are JSON `{ "error": "…" }`: 400 for bad input (checked before anything is built — e.g. a frontmatter value the slide schema rejects), 422 when the build or export fails, with the end of its log.
+Errors come back as JSON `{ "error": "…" }`. Invalid input gets 400. Input is checked before anything is built, so a frontmatter value that the slide schema rejects fails at this point. If the build or export fails, the response is 422 and includes the end of the build log.
 
 ## Limits
 
-- Each render is a full Astro build: a small deck takes about 3–5 seconds (PPTX or PDF), more with many slides.
-- PPTX export fetches web fonts and images the slides use, so the server needs outbound internet access for them.
+- Every render is a full Astro build. A small deck takes about 3 to 5 seconds as PPTX or PDF, and more slides take longer.
+- PPTX export downloads the web fonts and images that the slides use, so the server needs outbound internet access.
 
 ## Security
 
-A request is someone else's slides: raw HTML in the Markdown is rendered as is, and PDF / PNG load it in Chromium on your server. So:
+Treat every request as untrusted content. Raw HTML in the Markdown is rendered as is, and for PDF and PNG it is loaded into Chromium on your server. The service protects itself as described below, and you can add your own measures on top.
 
-- **An API key is required** to listen beyond loopback. Without `ASTLIDE_API_KEY` the server refuses to start unless `HOST` is `127.0.0.1` / `localhost` (or you set `ASTLIDE_ALLOW_UNAUTHENTICATED=1` because something else controls access).
-- **Slides can't reach your network.** During a render, the slides and the exporter may load only from the deck itself, `data:` / `blob:` URLs and public internet hosts. Loopback, private ranges (`10/8`, `172.16/12`, `192.168/16`, `fc00::/7` …), link-local addresses (including cloud metadata at `169.254.169.254`) and other reserved ranges are refused, on every redirect too; WebSockets and service workers are blocked. Set `ASTLIDE_ALLOW_PRIVATE_NETWORK=1` only if every caller is trusted and the slides need intranet resources.
-- Chromium doesn't connect to other hosts itself: Astlide makes those requests and hands it the responses. Addresses are checked as each connection is made, so the connection goes to the address that was checked — a host can't pass with one DNS answer and connect with another (DNS rebinding) — and every redirect hop is checked the same way. Requests that aren't routed this way go to a proxy that doesn't exist, and WebRTC sends no UDP of its own.
-- Defense in depth: for a service exposed to untrusted callers, also restrict the container's outbound traffic (a firewall or egress policy that allows only the public internet).
-- **Downloads are bounded.** A PDF / PNG render fetches at most 6 things at a time, 20 MB each and 200 MB in all, and the page itself can't navigate away from the deck (a refresh or redirect doesn't replace what is rendered). A PPTX export shares one budget for images and embed previews: 6 at a time, 200 MB and 200 distinct URLs in all (images at most 20 MB, pages 2 MB); past it, they're skipped with a warning. Same-site iframes are laid out at most 32 documents per slide, and a page never inside itself. Google Fonts the slides ask for: at most 12 families per render, in a shared cache kept under 512 MB.
-- **Renders get only the environment they need** — `PATH`, `HOME`, temp folders, locale, `PLAYWRIGHT_BROWSERS_PATH` and the server's `ASTLIDE_*` settings — not the server's secrets, cloud credentials or proxy settings.
-- **Memory:** Chromium runs at most 4 renderer processes with a 512 MB JavaScript heap each, and on Linux each render is marked as the first to go when memory runs out (`oom_score_adj`), before the server. Give the container its own limits too:
+### Access
+
+- The server needs an API key to listen on anything other than loopback. If `ASTLIDE_API_KEY` is not set, it refuses to start unless `HOST` is `127.0.0.1`, `localhost` or `::1`. If a gateway or network in front of it already controls access, set `ASTLIDE_ALLOW_UNAUTHENTICATED=1` instead.
+- Without a valid key, every path except `/`, `/health` and `/openapi.json` returns 401, including paths that don't exist. The key is compared in constant time.
+
+### Network access during a render
+
+- Slides and the exporter can load only from the deck itself, `data:` and `blob:` URLs, and public internet hosts. Requests to loopback, private ranges (`10/8`, `172.16/12`, `192.168/16`, `fc00::/7` and others), link-local addresses (including the cloud metadata address `169.254.169.254`) and other reserved ranges are refused, and so are redirects to them. WebSockets and service workers are blocked. Set `ASTLIDE_ALLOW_PRIVATE_NETWORK=1` only if you trust every caller and the slides need intranet resources.
+- Chromium never connects to other hosts directly. Astlide makes each request on its behalf and passes the response back. The address is checked at the moment of connecting, and the connection goes to that checked address, so a host can't pass the check with one DNS answer and then connect to another (DNS rebinding). Each redirect hop is checked the same way. Any request that doesn't go through Astlide is sent to a proxy that doesn't exist, and WebRTC can't send UDP on its own.
+- If the service is open to untrusted callers, also restrict the container's outbound traffic with a firewall or egress policy that allows only the public internet.
+
+### Resource limits
+
+- PDF and PNG renders fetch at most 6 resources at a time, up to 20 MB each and 200 MB in total. The page can't navigate away from the deck, so a refresh or redirect can't replace what is rendered.
+- PPTX export has one shared budget for images and embed previews: 6 at a time, 200 MB and 200 distinct URLs in total, with images up to 20 MB and pages up to 2 MB each. Anything past the budget is skipped with a warning.
+- Same-site iframes are laid out up to 32 documents per slide, and a page is never laid out inside itself.
+- Google Fonts requested by the slides are limited to 12 families per render. The shared font cache is kept under 512 MB.
+- Chromium runs at most 4 renderer processes, each with a 512 MB JavaScript heap. On Linux, each render is marked so that the kernel kills it before the server when memory runs out (`oom_score_adj`). Set limits on the container as well:
 
   ```bash
   docker run --memory 4g --pids-limit 512 … astlide-server
   ```
-- Requests: the URL path is at most 2 KB (414), and a request body must arrive within 60 s (408).
-- **Images must be URLs.** A Markdown image with a file path (`![](../x.png)`) is refused with a 400 — Astro would read it from the server's disk. Use `https:` or `data:` URLs.
-- Slides are written with their own frontmatter block, so a slide body that starts with `---` stays body and can't slip past the frontmatter checks. Frontmatter may not use YAML anchors / aliases (`&a` / `*a`), and is at most 256 KB per slide.
-- **Uploaded PowerPoint files** (`/import`, `/templates/layouts`) are read in a child process, through the same queue as renders: a file that takes longer than `RENDER_TIMEOUT_MS` is stopped (504), an answer over `MAX_OUTPUT_MB` is refused (422), and neither can stall the server itself.
-- **Chromium runs with its sandbox**, so a bug in its renderer stays inside it. The sandbox needs user namespaces: in Docker, run with `--security-opt seccomp=packages/server/chromium-seccomp.json` (Docker's default profile plus `clone` / `clone3` / `unshare` / `setns`); on a Linux host that restricts them (Ubuntu 24.04), allow them for Playwright's Chromium only with an AppArmor profile (see [Chromium sandbox on Linux](/guides/export/#chromium-sandbox-on-linux)) — not by turning the restriction off for the whole machine. Where the sandbox can't start, PDF / PNG renders fail with how to fix it — they never fall back to running without it. `ASTLIDE_CHROMIUM_SANDBOX=0` turns it off (the server warns at startup). Renders never see `ASTLIDE_API_KEY` either way. When the sandbox can't start, API clients get a short error and the details (what to change on the host) go to the server log.
-- The seccomp profile applies to the whole container — the Bun server and the Astro build of each request too — so code running there may also create user namespaces. Stricter, if you can set it up: run the renders in a container of their own with the profile, and the API server in one without it.
-- Without the key, every route but `/health`, `/openapi.json` and `/` answers 401, unknown ones included; the key is compared in constant time.
+
+- A URL path can be at most 2 KB (414), and a request body must arrive within 60 seconds (408).
+
+### Input checks
+
+- Markdown images must use URLs. An image with a file path, such as `![](../x.png)`, is rejected with 400, because Astro would read that file from the server's disk. Use `https:` or `data:` URLs.
+- Each slide is written with its own frontmatter block. A slide body that starts with `---` stays part of the body and can't bypass the frontmatter checks.
+- Frontmatter can't use YAML anchors or aliases (`&a`, `*a`), and is limited to 256 KB per slide.
+- Uploaded PowerPoint files (`/import`, `/templates/layouts`) are read in a child process and go through the same queue as renders. Reading that takes longer than `RENDER_TIMEOUT_MS` is stopped (504), and a result larger than `MAX_OUTPUT_MB` is rejected (422). Neither case can stall the server itself.
+- Renders get only the environment variables they need: `PATH`, `HOME`, temp directories, locale settings, `PLAYWRIGHT_BROWSERS_PATH`, and the render settings the server passes in (slide limit, sandbox, network policy). They don't see the server's secrets, `ASTLIDE_API_KEY`, cloud credentials or proxy settings.
+
+### Chromium sandbox
+
+- Chromium runs inside its sandbox, so a bug in its renderer stays contained.
+- The sandbox needs user namespaces. In Docker, start the container with `--security-opt seccomp=packages/server/chromium-seccomp.json`. The profile is Docker's default profile plus `clone`, `clone3`, `unshare` and `setns`.
+- On a Linux host that restricts user namespaces (such as Ubuntu 24.04), allow them for Playwright's Chromium only, with an AppArmor profile (see [Chromium sandbox on Linux](/guides/export/#chromium-sandbox-on-linux)). Don't lift the restriction for the whole machine.
+- If the sandbox can't start, PDF and PNG renders fail. They never run without it. The API client gets a short error, and the details of what to change on the host go to the server log.
+- `ASTLIDE_CHROMIUM_SANDBOX=0` turns the sandbox off, and the server prints a warning at startup.
+- The seccomp profile applies to the whole container, including the Bun server and each request's Astro build, so code running there can also create user namespaces. For a stricter setup, run renders in their own container with the profile and the API server in a separate container without it.

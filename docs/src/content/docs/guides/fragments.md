@@ -1,11 +1,13 @@
 ---
 title: Fragments
-description: Reveal content step by step with <Fragment> and <Fragments>.
+description: Reveal parts of a slide one step at a time with <Fragment> and <Fragments>.
 ---
 
-Fragments reveal content one step at a time — press `→` / `Space` to go forward and `←` to go back. Once a slide has no steps left, `→` moves to the next slide.
+Fragments let you reveal parts of a slide one step at a time. Press `→` or `Space` to show the next step and `←` to go back. When a slide has no steps left, `→` moves on to the next slide.
 
 ## `<Fragment>`
+
+Wrap any content in `<Fragment>` to make it a step:
 
 ```mdx
 <Fragment index={1}>First point</Fragment>
@@ -16,10 +18,12 @@ Fragments reveal content one step at a time — press `→` / `Space` to go forw
 
 | Prop | Description |
 |---|---|
-| `index` | Step number. Fragments sharing an index reveal **together**. Unindexed fragments reveal one per step in document order, before indexed ones. |
-| `until` | Hide the fragment again when step `until` is reached. |
-| `hide` | Start visible and disappear at the fragment's step. |
+| `index` | Where the fragment falls in the order. Fragments with the same `index` appear **together**. Fragments without `index` each get their own step, in the order they appear in the file, before any fragment with an `index`. |
+| `until` | Hides the fragment again at the step with this `index`. Use it together with `index`. |
+| `hide` | Shows the fragment from the start and hides it at its own step. |
 | `effect` | `fade` (default) \| `slide-up` \| `zoom` \| `highlight` |
+
+`until` and `hide` let content leave the slide:
 
 ```mdx
 <Fragment index={1} until={3}>Visible for steps 1–2 only</Fragment>
@@ -28,7 +32,7 @@ Fragments reveal content one step at a time — press `→` / `Space` to go forw
 
 ## `<Fragments>`
 
-Reveal a list one item at a time. Each first-level list item — or each child element when there's no list — becomes its own step:
+To reveal a list one item at a time, wrap it in `<Fragments>`. Each top-level list item becomes its own step. If there is no list inside, each child element becomes a step instead.
 
 ```mdx
 <Fragments effect="slide-up">
@@ -40,19 +44,23 @@ Reveal a list one item at a time. Each first-level list item — or each child e
 </Fragments>
 ```
 
+`effect` applies to every item and takes the same values as on `<Fragment>`. The items work like fragments without an `index`.
+
 :::note
-Keep blank lines around the list inside `<Fragments>` so MDX parses it as Markdown.
+Leave a blank line before and after the list inside `<Fragments>`. Without them, MDX doesn't read the list as Markdown.
 :::
 
-## Ordering
+## Step order
 
-Fragments and [code highlight steps](/guides/code/#highlight-steps) share one sequence per slide:
+Each slide has one sequence of steps, shared by fragments and [code highlight steps](/guides/code/#highlight-steps). Astlide orders it like this:
 
-1. unindexed steps, in document order;
-2. then indexed steps, by `index` (steps sharing an index happen together).
+1. Steps without an `index` come first, in the order they appear in the file.
+2. Steps with an `index` follow, sorted by `index`. Steps with the same `index` happen at once.
+
+`index` values only set the order. Gaps don't add empty steps, so `index={1}` and `index={5}` on one slide are just two steps in a row. If a slide has two fragments without an `index`, a fragment with `index={1}` shows up on the third press.
 
 ## Presenting and exporting
 
-- Steps are **mirrored between the presenter and audience windows** — reveal from the presenter screen and the audience sees it.
-- The presenter panel shows how many steps are left on the current slide.
-- PDF export and the `/<deck>/all` print view show each slide's **final** state (fragments revealed, `until` / `hide` fragments hidden).
+- Steps stay **in sync between the presenter window and the audience window**. When you reveal a step from the presenter window, the audience sees it too.
+- The presenter window shows how many steps are left on the current slide.
+- PDF export and the print view (`/<deck>/all`) show every slide in its **final** state: all fragments are revealed, and fragments with `until` or `hide` are hidden.
