@@ -113,30 +113,13 @@ For how slide content fills the placeholders, see [PowerPoint templates](/guides
 
 ## Keep templates on the server
 
-If your team renders with the same few templates, upload them once and refer to them by name. Turn template storage on with `ASTLIDE_TEMPLATE_STORE`, set to a directory or to an S3 bucket.
-
-With a directory in Docker, mount a volume there so the templates survive a restart:
+If your team renders with the same few templates, upload them once and refer to them by name. Turn template storage on with `ASTLIDE_TEMPLATE_STORE`: a directory, or a bucket on Amazon S3 (or R2, MinIO), Google Cloud Storage or Azure Blob Storage. [Template storage](/guides/template-storage/) explains how to set up each one. For a quick start, a Docker volume will do:
 
 ```bash
 docker run --rm -p 8787:8787 -e ASTLIDE_API_KEY \
   -e ASTLIDE_TEMPLATE_STORE=/data/templates -v astlide-templates:/data/templates \
   --security-opt seccomp=packages/server/chromium-seccomp.json astlide-server
 ```
-
-With a bucket, the templates don't depend on the container at all, and several servers can read the same ones. Set `ASTLIDE_TEMPLATE_STORE=s3://<bucket>/<prefix>` and give the credentials in the usual AWS variables. Any storage with an S3-compatible API works: set its URL in `AWS_ENDPOINT_URL_S3`.
-
-```bash
-# AWS S3
--e ASTLIDE_TEMPLATE_STORE=s3://acme-assets/astlide/templates \
--e AWS_REGION=ap-northeast-1 -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY
-
-# Cloudflare R2
--e ASTLIDE_TEMPLATE_STORE=s3://astlide-templates \
--e AWS_ENDPOINT_URL_S3=https://<account-id>.r2.cloudflarestorage.com -e AWS_REGION=auto \
--e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY
-```
-
-The keys need to read, write, delete and list objects under the prefix (`s3:GetObject`, `s3:PutObject`, `s3:DeleteObject` and `s3:ListBucket` on AWS). The server only reads keys from these variables. It doesn't pick up an IAM role from the instance or the container, so create an access key for it. Renders never see these variables.
 
 Upload a template with a name. Names use lowercase letters, digits and hyphens, and can't be the name of a built-in theme. `label` is an optional display name:
 
@@ -166,9 +149,7 @@ Uploading again under the same name adds a new version, and renders switch to it
 
 Version numbers count up and are never reused, so a number always means the same file even after you delete versions.
 
-Each template is a `manifest.json` and one file per version, under a directory (or key prefix) named after the template. Several servers can share one store for renders, but let only one of them add or delete templates, since two uploads at the same moment could each overwrite the other's manifest.
-
-To use the store from your own code, import it from `@astlide/core/templates`. `createTemplateStore(dir)` keeps templates in a directory, and `createS3TemplateStore({ bucket, … })` in a bucket; both give you `list`, `info`, `get`, `put` and `remove`. For another storage service such as Google Cloud Storage or Azure Blob Storage, implement `ObjectStorage` (`read`, `write`, `delete` and `list` for objects) and pass it to `createObjectTemplateStore()`.
+Several servers can render from one store, but let only one of them add or delete templates (see [How templates are kept](/guides/template-storage/#how-templates-are-kept)).
 
 ## Import a deck
 
@@ -207,9 +188,7 @@ Configure the server with environment variables:
 | `RENDER_TIMEOUT_MS` | `180000` | A render, or the reading of an uploaded PowerPoint file, is stopped after this long and gets 504. |
 | `CONCURRENCY` / `MAX_QUEUE` | `2` / `16` | How many renders run at once, and how many can wait. Requests beyond that get 503 before their upload is read. |
 | `ASTLIDE_CHROMIUM_SANDBOX` | `1` | Chromium's sandbox for PDF and PNG. `0` turns it off. Do this only if you trust every caller (see [Security](#security)). |
-| `ASTLIDE_TEMPLATE_STORE` | (none) | Turns template storage on: a directory, or `s3://<bucket>/<prefix>` (see [Keep templates on the server](#keep-templates-on-the-server)). Without it, the `/templates` routes return 404. |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` | (none) | Credentials for an `s3://` template store. The server doesn't start with an `s3://` store and no keys. |
-| `AWS_REGION` / `AWS_ENDPOINT_URL_S3` | `us-east-1` / AWS | The bucket's region, and the URL of an S3-compatible service such as R2 or MinIO. |
+| `ASTLIDE_TEMPLATE_STORE` | (none) | Turns template storage on: a directory, `s3://`, `gs://` or `azure://<bucket>/<prefix>`. The cloud credentials go in each provider's usual variables (see [Template storage](/guides/template-storage/)). Without it, the `/templates` routes return 404. |
 | `ASTLIDE_WORK_DIR` | `.astlide-work` next to `node_modules` | Where the per-request projects are created. It must share a parent directory with the installed packages. |
 
 Errors come back as JSON `{ "error": "…" }`. Invalid input gets 400. Input is checked before anything is built, so a frontmatter value that the slide schema rejects fails at this point. If the build or export fails, the response is 422 and includes the end of the build log.

@@ -1,6 +1,6 @@
 # @astlide/server
 
-An HTTP render service for [Astlide](https://github.com/r-hashi01/astlide): Markdown → editable PowerPoint / PDF / PNG, PowerPoint import, template layouts — with an OpenAPI 3.1 spec (`GET /openapi.json`) for Dify, n8n and other tools. Renders keep nothing; with `ASTLIDE_TEMPLATE_STORE` set (a folder or an S3 bucket), the service also stores PowerPoint templates by name (`/templates`).
+An HTTP render service for [Astlide](https://github.com/r-hashi01/astlide): Markdown → editable PowerPoint / PDF / PNG, PowerPoint import, template layouts — with an OpenAPI 3.1 spec (`GET /openapi.json`) for Dify, n8n and other tools. Renders keep nothing; with `ASTLIDE_TEMPLATE_STORE` set (a folder, or a bucket on S3, Cloud Storage or Azure), the service also stores PowerPoint templates by name (`/templates`).
 
 ```bash
 # From the repository root

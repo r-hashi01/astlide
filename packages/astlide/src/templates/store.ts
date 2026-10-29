@@ -54,7 +54,7 @@ export interface PutTemplateOptions {
 
 /**
  * Templates by name. {@link createObjectTemplateStore} implements it on any
- * {@link ObjectStorage} (a folder, S3 …); implement it yourself to keep
+ * {@link ObjectStorage} (a folder, S3, GCS, Azure …); implement it yourself to keep
  * templates some other way (a database …).
  */
 export interface TemplateStore {
@@ -96,8 +96,8 @@ function checkName(name: string): void {
 
 /**
  * Where a template store keeps its files: keys like `acme/manifest.json` and
- * `acme/v2.potx`. {@link folderStorage} and {@link s3Storage} implement it;
- * implement it for any other object storage (GCS, Azure Blob …).
+ * `acme/v2.potx`. Astlide has one for a folder, S3, Google Cloud Storage and
+ * Azure Blob Storage; implement it for any other storage.
  */
 export interface ObjectStorage {
 	/** The object's bytes, or undefined when there is none. */

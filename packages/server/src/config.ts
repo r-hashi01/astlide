@@ -45,9 +45,9 @@ export interface ServerOptions {
 	/** Serve without an API key on a non-loopback host (`ASTLIDE_ALLOW_UNAUTHENTICATED=1`). */
 	allowUnauthenticated: boolean;
 	/**
-	 * Where uploaded templates are kept (`ASTLIDE_TEMPLATE_STORE`: a folder or
-	 * `s3://<bucket>/<prefix>`). Unset, the server stores nothing and the
-	 * `/templates` routes answer 404.
+	 * Where uploaded templates are kept (`ASTLIDE_TEMPLATE_STORE`: a folder,
+	 * `s3://`, `gs://` or `azure://<bucket>/<prefix>`). Unset, the server
+	 * stores nothing and the `/templates` routes answer 404.
 	 */
 	templates?: TemplateStore;
 }
@@ -119,7 +119,7 @@ function templateStore(
 	env: Record<string, string | undefined>,
 ): TemplateStore | undefined {
 	if (!location) return undefined;
-	if (location.startsWith("s3://")) return openTemplateStore(location, env);
+	if (/^[a-z][a-z0-9+.-]*:\/\//i.test(location)) return openTemplateStore(location, env);
 	mkdirSync(location, { recursive: true });
 	return openTemplateStore(realpathSync(location));
 }

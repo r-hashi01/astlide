@@ -7,8 +7,9 @@
  *   MAX_BODY_MB (50), MAX_SLIDES (200), RENDER_TIMEOUT_MS (180000),
  *   CONCURRENCY (2), MAX_QUEUE (16), ASTLIDE_WORK_DIR, ASTLIDE_BUN,
  *   ASTLIDE_ALLOW_UNAUTHENTICATED (0), ASTLIDE_ALLOW_PRIVATE_NETWORK (0),
- *   ASTLIDE_TEMPLATE_STORE (a folder or s3://<bucket>/<prefix>; unset: templates aren't stored),
- *   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN, AWS_REGION, AWS_ENDPOINT_URL_S3 (for s3://)
+ *   ASTLIDE_TEMPLATE_STORE (a folder, s3://, gs:// or azure://<bucket>/<prefix>;
+ *   unset: templates aren't stored), with each cloud's usual credential variables
+ *   (see https://astlide.dev/guides/template-storage/)
  *
  * Without ASTLIDE_API_KEY it refuses to listen on anything but loopback.
  *
@@ -26,6 +27,17 @@ const refused = exposureError(hostname, options);
 if (refused) {
 	console.error(`astlide-server: ${refused}`);
 	process.exit(1);
+}
+// A template store that can't be reached is a setup mistake: say so now, not on the first upload.
+if (options.templates) {
+	try {
+		await options.templates.list();
+	} catch (e) {
+		console.error(
+			`astlide-server: can't use the template store (ASTLIDE_TEMPLATE_STORE): ${(e as Error).message}`,
+		);
+		process.exit(1);
+	}
 }
 // A render never lives longer than its timeout: older projects are leftovers.
 await removeStaleProjects(options.workDir, options.renderTimeoutMs * 2);

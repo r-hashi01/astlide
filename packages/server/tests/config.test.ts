@@ -131,23 +131,27 @@ describe("ASTLIDE_TEMPLATE_STORE", () => {
 		}
 	});
 
-	it("takes an S3 bucket, and refuses to start without credentials", () => {
-		expect(() => resolveOptions({ ASTLIDE_TEMPLATE_STORE: "s3://bucket/templates" })).toThrow(
-			/AWS_ACCESS_KEY_ID/,
-		);
-		const options = resolveOptions({
-			ASTLIDE_TEMPLATE_STORE: "s3://bucket/templates",
-			AWS_ACCESS_KEY_ID: "id",
-			AWS_SECRET_ACCESS_KEY: "secret",
-		});
-		expect(options.templates).toBeDefined();
+	it("takes a bucket on S3, Cloud Storage or Azure", () => {
+		for (const location of ["s3://bucket/templates", "gs://bucket", "azure://container/x"])
+			expect(
+				resolveOptions({ ASTLIDE_TEMPLATE_STORE: location, AZURE_STORAGE_ACCOUNT: "acct" })
+					.templates,
+			).toBeDefined();
+		expect(() => resolveOptions({ ASTLIDE_TEMPLATE_STORE: "ftp://x" })).toThrow(/unknown/);
 	});
 
-	it("keeps the S3 credentials away from renders", () => {
+	it("keeps the storage credentials away from renders", () => {
 		const env = renderEnv(
 			{ maxSlides: 1, chromiumSandbox: true, allowPrivateNetwork: false },
-			{ PATH: "/bin", AWS_ACCESS_KEY_ID: "id", AWS_SECRET_ACCESS_KEY: "secret" },
+			{
+				PATH: "/bin",
+				AWS_ACCESS_KEY_ID: "id",
+				AWS_SECRET_ACCESS_KEY: "secret",
+				GOOGLE_APPLICATION_CREDENTIALS: "/keys/sa.json",
+				AZURE_STORAGE_CONNECTION_STRING: "AccountKey=…",
+				AZURE_CLIENT_SECRET: "secret",
+			},
 		);
-		expect(Object.keys(env).filter((k) => k.startsWith("AWS_"))).toEqual([]);
+		expect(Object.keys(env).filter((k) => /^(AWS|GOOGLE|AZURE)_/.test(k))).toEqual([]);
 	});
 });

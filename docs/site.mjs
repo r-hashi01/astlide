@@ -28,6 +28,7 @@ export const sidebar = [
 			{ slug: "guides/import" },
 			{ slug: "guides/templates" },
 			{ slug: "guides/server" },
+			{ slug: "guides/template-storage" },
 			{ slug: "guides/agents" },
 			{ slug: "guides/deploy" },
 			{ slug: "guides/embed" },

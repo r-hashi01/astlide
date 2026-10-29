@@ -57,13 +57,29 @@
 	"peerDependencies": {
 		"astro": "^7.2.10",
 		"react": ">=18",
-		"vue": ">=3.3"
+		"vue": ">=3.3",
+		"@aws-sdk/client-s3": "^3.700.0",
+		"@google-cloud/storage": "^7.0.0 || ^8.0.0",
+		"@azure/storage-blob": "^12.20.0",
+		"@azure/identity": "^4.0.0"
 	},
 	"peerDependenciesMeta": {
 		"react": {
 			"optional": true
 		},
 		"vue": {
+			"optional": true
+		},
+		"@aws-sdk/client-s3": {
+			"optional": true
+		},
+		"@google-cloud/storage": {
+			"optional": true
+		},
+		"@azure/storage-blob": {
+			"optional": true
+		},
+		"@azure/identity": {
 			"optional": true
 		}
 	},
@@ -115,6 +131,10 @@
 	],
 	"license": "MIT",
 	"devDependencies": {
+		"@aws-sdk/client-s3": "^3.1159.0",
+		"@azure/identity": "^4.14.0",
+		"@azure/storage-blob": "^12.34.0",
+		"@google-cloud/storage": "^8.4.0",
 		"@types/fontkit": "^2.0.9",
 		"@types/jsdom": "^30.0.0",
 		"@types/react": "^19.3.0",

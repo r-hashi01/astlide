@@ -2,4 +2,4 @@
 "@astlide/core": minor
 ---
 
-Add `@astlide/core/templates`: a store that keeps PowerPoint templates by name, with every uploaded version, in a folder (`createTemplateStore`), in S3 or any S3-compatible storage such as R2 or MinIO (`createS3TemplateStore`, no AWS SDK needed), or in any storage you plug in through `ObjectStorage`. `openTemplateStore("s3://bucket/prefix")` reads the usual AWS variables. The render service uses it for its new `/templates` routes.
+Add `@astlide/core/templates`: a store that keeps PowerPoint templates by name, with every uploaded version. Keep them in a folder, in Amazon S3 or an S3-compatible service (R2, MinIO …), Google Cloud Storage or Azure Blob Storage, or in any storage you plug in through `ObjectStorage`. `openTemplateStore("gs://bucket/prefix")` picks the storage from a location; the cloud SDKs are optional peer dependencies, and credentials come from each SDK's usual chain (IAM roles, service accounts, managed identities). The render service uses it for its new `/templates` routes.
