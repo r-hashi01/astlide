@@ -71,10 +71,7 @@ const scaler = (inner: string) =>
 describe("<DeckPage>", () => {
 	it("renders the markup of @astlide/core/runtime/chrome around the slide", () => {
 		const react = renderToStaticMarkup(
-			createElement(DeckPage, {
-				...props,
-				children: createElement(Slide, { ...slide, children: createElement("h1", null, "Q3") }),
-			}),
+			createElement(DeckPage, props, createElement(Slide, slide, createElement("h1", null, "Q3"))),
 		);
 		const core =
 			deckChromeBefore(chrome) +
@@ -86,11 +83,7 @@ describe("<DeckPage>", () => {
 
 	it("puts the slide in the presenter panel for the presenter window", () => {
 		const html = renderToStaticMarkup(
-			createElement(DeckPage, {
-				...props,
-				presenter: true,
-				children: createElement(Slide, { ...slide, children: "x" }),
-			}),
+			createElement(DeckPage, { ...props, presenter: true }, createElement(Slide, slide, "x")),
 		);
 		const doc = parseFragment(`<body>${html}</body>`);
 		const text = serialize(doc);
@@ -100,13 +93,11 @@ describe("<DeckPage>", () => {
 
 	it("says when notes aren't published, and disables links past the ends", () => {
 		const html = renderToStaticMarkup(
-			createElement(DeckPage, {
-				...props,
-				slideNumber: 1,
-				notesHtml: undefined,
-				notesPublished: false,
-				children: createElement(Slide, { ...slide, children: "x" }),
-			}),
+			createElement(
+				DeckPage,
+				{ ...props, slideNumber: 1, notesHtml: undefined, notesPublished: false },
+				createElement(Slide, slide, "x"),
+			),
 		);
 		expect(html).toContain("Speaker notes are not published with this deck.");
 		expect(html).toContain(

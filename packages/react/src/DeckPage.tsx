@@ -69,7 +69,7 @@ export interface DeckPageProps {
 	 */
 	loadPdfExport?: () => Promise<typeof import("@astlide/core/internal/pdf-export")>;
 	/** The slide (`<Slide>`). */
-	children: ReactNode;
+	children?: ReactNode;
 }
 
 /** A slide page; see the module notes. */

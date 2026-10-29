@@ -66,6 +66,31 @@
 					}
 				}
 			}
+		},
+		{
+			"includes": [
+				"packages/react/src/DeckPage.tsx",
+				"packages/react/src/Slide.tsx",
+				"packages/react/src/components.tsx",
+				"packages/react/src/index.ts"
+			],
+			"linter": {
+				"rules": {
+					"a11y": {
+						"useAriaPropsSupportedByRole": "off",
+						"useValidAnchor": "off",
+						"noAriaHiddenOnFocusable": "off",
+						"useSemanticElements": "off",
+						"useButtonType": "off",
+						"noNoninteractiveElementToInteractiveRole": "off",
+						"noRedundantRoles": "off",
+						"useAnchorContent": "off"
+					},
+					"suspicious": {
+						"noShadowRestrictedNames": "off"
+					}
+				}
+			}
 		}
 	]
 }

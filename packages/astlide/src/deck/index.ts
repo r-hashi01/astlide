@@ -42,7 +42,6 @@ import {
 	type SlideMarkdownRenderer,
 } from "./markdown";
 
-export { createSlideMarkdownRenderer, type SlideMarkdownOptions, type SlideMarkdownRenderer };
 export {
 	compileSlideMdx,
 	evaluateSlideMdx,
@@ -50,6 +49,7 @@ export {
 	type SlideMdxRuntime,
 } from "./mdx";
 export { renderNotesHtml } from "./notes";
+export { createSlideMarkdownRenderer, type SlideMarkdownOptions, type SlideMarkdownRenderer };
 
 export type SlideFormat = "md" | "mdx" | "html" | "pptx";
 

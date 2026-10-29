@@ -14,8 +14,8 @@ import {
 	satteriHighlightPlugin,
 } from "@astrojs/markdown-satteri";
 import { evaluate, mdxToJs } from "satteri";
-import { stripTrailingComment } from "../utils/comment-notes";
 import { astlideCodeHighlight } from "../utils/code-highlight";
+import { stripTrailingComment } from "../utils/comment-notes";
 import { astlideMermaid } from "../utils/mermaid";
 
 export interface SlideMdxOptions {
@@ -65,7 +65,10 @@ async function compileOptions(options: SlideMdxOptions) {
 }
 
 /** An MDX slide (without frontmatter) as an ES module: `export default MDXContent`. */
-export async function compileSlideMdx(source: string, options: SlideMdxOptions = {}): Promise<string> {
+export async function compileSlideMdx(
+	source: string,
+	options: SlideMdxOptions = {},
+): Promise<string> {
 	const result = await mdxToJs(withoutNotesComment(source), await compileOptions(options));
 	return result.code;
 }
