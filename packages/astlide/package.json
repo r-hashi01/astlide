@@ -9,6 +9,7 @@
 		"./plugin": "./src/plugin.ts",
 		"./loader": "./src/loader.ts",
 		"./pptx": "./src/pptx/index.ts",
+		"./render": "./src/render/index.ts",
 		"./deck": "./src/deck/index.ts",
 		"./runtime": "./src/runtime/index.ts",
 		"./runtime/chrome": "./src/runtime/chrome.ts",

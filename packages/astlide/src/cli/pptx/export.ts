@@ -875,7 +875,6 @@ function plainText(el: Element): string {
 }
 
 export async function exportPptx(deck: string, options: PptxOptions): Promise<void> {
-	const engine = await import("@astlide/core/engine");
 	if (options.build !== false) {
 		const { buildSite } = await import("../site-server");
 		await buildSite(options.root);
@@ -886,7 +885,19 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 	const dist = site.dir;
 	const html = join(dist, deck, "all", "index.html");
 	if (!existsSync(html)) throw new Error(`no print view at ${html}`);
+	await pptxFromPrintView({
+		html,
+		site: dist,
+		root: options.root,
+		deck,
+		config: await readDeckConfig(options.root, deck),
+		output: options.output,
+	});
+}
 
+/** The page's fonts loaded, and its ```mermaid diagrams drawn as pictures. */
+async function pageWithDiagrams(engine: Engine, html: string, dist: string, root: string) {
+	const options = { root };
 	const fonts = new engine.FontRegistry();
 	const css = engine.pageCss(html, dist);
 	const { familiesIn } = engine;
@@ -922,10 +933,47 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 			return fonts.pick(first?.style.get("font-family") ?? "sans-serif", 400, false);
 		},
 	});
+	return { fonts, eaFont, source, vp };
+}
+
+/**
+ * A print view with its ```mermaid diagrams drawn as pictures (with the
+ * page's fonts), for exporters that render it without its scripts.
+ */
+export async function diagramsInPrintView(
+	html: string,
+	site: string,
+	root: string,
+): Promise<string> {
+	const engine = await import("@astlide/core/engine");
+	return (await pageWithDiagrams(engine, html, site, root)).source;
+}
+
+export interface PrintViewPptxOptions {
+	/** The print view page (`<site>/<deck>/all/index.html`). */
+	html: string;
+	/** The site folder its root-relative URLs (styles, pictures) resolve in. */
+	site: string;
+	/** Where `mermaid` is resolved from and download caches live (`node_modules/.cache`). */
+	root: string;
+	deck: string;
+	/** The deck's `_config.json` (title, author, theme). */
+	config: Record<string, unknown>;
+	output: string;
+}
+
+/**
+ * A print view laid out into an editable PowerPoint file: from an Astro
+ * build ({@link exportPptx}) or a page written without one (`renderDeck`).
+ */
+export async function pptxFromPrintView(o: PrintViewPptxOptions): Promise<void> {
+	const engine = await import("@astlide/core/engine");
+	const { html, site: dist, deck, config } = o;
+	const options = { root: o.root, output: o.output };
+	const { fonts, eaFont, source, vp } = await pageWithDiagrams(engine, html, dist, options.root);
 	const layouts = engine.layoutPage(html, dist, fonts, vp, source);
 	const notes = speakerNotes(source);
 
-	const config = await readDeckConfig(options.root, deck);
 	const slides: SlideSpec[] = [];
 	const used: TextItem[] = [];
 	// Remote images (video thumbnails …) are fetched up front.

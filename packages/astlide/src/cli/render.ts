@@ -22,6 +22,19 @@ export interface RenderOptions {
 	baseUrl: string;
 	width: number;
 	height: number;
+	/**
+	 * Render from the print view (`/<deck>/all`) only — for a site written
+	 * without Astro, which has no page per slide: the slides are counted
+	 * there, and PNGs are its slides one by one.
+	 */
+	printViewOnly?: boolean;
+}
+
+/** The slides in the print view (a deck's own script can't raise it past ASTLIDE_MAX_SLIDES). */
+async function printViewSlideCount(page: Page): Promise<number> {
+	const count = await page.evaluate(() => document.querySelectorAll("section.slide").length);
+	const max = Number(process.env.ASTLIDE_MAX_SLIDES);
+	return max > 0 ? Math.min(count, max) : count;
 }
 
 async function getSlideCount(
@@ -62,7 +75,11 @@ async function exportToPDF(
 
 	// Navigate to the /[deck]/all route which stacks every slide with page-break-after,
 	// then let Chromium emit a multi-page PDF in one call. Removes the need for pdf-lib.
-	process.stdout.write(`  Rendering ${slideCount} slide${slideCount === 1 ? "" : "s"}…\r`);
+	process.stdout.write(
+		slideCount
+			? `  Rendering ${slideCount} slide${slideCount === 1 ? "" : "s"}…\r`
+			: "  Rendering…\r",
+	);
 	await page.goto(`${baseUrl}/${deck}/all`);
 	await page.waitForLoadState("networkidle");
 	await page.waitForFunction(() => document.fonts.ready);
@@ -81,6 +98,36 @@ async function exportToPDF(
 
 	await mkdir(dirname(outputPath), { recursive: true });
 	await writeFile(outputPath, pdfBytes);
+}
+
+/** PNGs of the print view's slides (see {@link RenderOptions.printViewOnly}). */
+async function exportPrintViewToPNG(
+	context: BrowserContext,
+	deck: string,
+	outputDir: string,
+	baseUrl: string,
+	width: number,
+	height: number,
+): Promise<number> {
+	const page = await context.newPage();
+	await page.setViewportSize({ width, height });
+	await mkdir(outputDir, { recursive: true });
+	await page.goto(`${baseUrl}/${deck}/all`);
+	await page.waitForLoadState("networkidle");
+	await page.waitForFunction(() => document.fonts.ready);
+	await waitForDiagrams(page);
+	const count = await printViewSlideCount(page);
+	const slides = await page.$$("section.slide");
+	for (let i = 0; i < count; i++) {
+		process.stdout.write(`  Slide ${i + 1}/${count}\r`);
+		await slides[i]?.screenshot({
+			path: join(outputDir, `slide-${String(i + 1).padStart(3, "0")}.png`),
+			type: "png",
+		});
+	}
+	console.log("");
+	await page.close();
+	return count;
 }
 
 async function exportToPNG(
@@ -129,8 +176,23 @@ export async function exportDeck(deck: string, options: RenderOptions): Promise<
 	try {
 		const context = await browser.newContext({ serviceWorkers: "block" });
 		if (guarded) await guardNetwork(context, options.baseUrl);
-		const slideCount = await getSlideCount(context, options.baseUrl, deck);
-		console.log(`  ${slideCount} slides found`);
+		if (options.printViewOnly && options.format === "png") {
+			const outputDir = options.output || `./dist/${deck}-slides`;
+			const n = await exportPrintViewToPNG(
+				context,
+				deck,
+				outputDir,
+				options.baseUrl,
+				options.width,
+				options.height,
+			);
+			console.log(`  ✓ ${n} slides saved to ${outputDir}/`);
+			return;
+		}
+		const slideCount = options.printViewOnly
+			? 0
+			: await getSlideCount(context, options.baseUrl, deck);
+		if (!options.printViewOnly) console.log(`  ${slideCount} slides found`);
 
 		if (options.format === "png") {
 			const outputDir = options.output || `./dist/${deck}-slides`;
