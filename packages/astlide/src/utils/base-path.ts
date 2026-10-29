@@ -14,7 +14,14 @@
  * under a sub-path. Works whether `BASE_URL` ends in a slash or not (that
  * depends on Astro's `trailingSlash` setting).
  */
-export const basePath: string = (import.meta.env.BASE_URL ?? "/").replace(/\/+$/, "");
+// `import.meta.env` is Vite's (Astro); other bundlers (webpack in Next.js) leave it
+// undefined. Written out in full so Vite still replaces it at build time.
+type Env = { BASE_URL?: string } | undefined;
+// biome-ignore lint/suspicious/noTsIgnore: typed in Vite (Astro), untyped elsewhere: expect-error would fail one of the two
+// @ts-ignore -- `env` isn't on ImportMeta outside Vite's types
+const env = (typeof import.meta.env === "object" ? import.meta.env : undefined) as Env;
+const viteBase = env?.BASE_URL;
+export const basePath: string = (viteBase ?? "/").replace(/\/+$/, "");
 
 declare const __ASTLIDE_TRAILING_SLASH__: boolean | undefined;
 

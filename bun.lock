@@ -54,6 +54,7 @@
         "rehype-stringify": "^10.0.0",
         "remark-parse": "^11.0.0",
         "remark-rehype": "^11.0.0",
+        "satteri": "^0.10.5",
         "svgdom": "^0.1.29",
         "unified": "^11.0.0",
         "yoga-layout": "^3.2.1",
@@ -116,6 +117,24 @@
         "typescript": "^7.0.2",
       },
     },
+    "packages/react": {
+      "name": "@astlide/react",
+      "version": "0.0.0",
+      "dependencies": {
+        "@astlide/core": "workspace:*",
+        "katex": "^0.19.1",
+      },
+      "devDependencies": {
+        "@types/react": "^19.3.0",
+        "@types/react-dom": "^19.3.0",
+        "react": "^19.3.1",
+        "react-dom": "^19.3.1",
+      },
+      "peerDependencies": {
+        "react": ">=18",
+        "react-dom": ">=18",
+      },
+    },
     "packages/server": {
       "name": "@astlide/server",
       "version": "0.0.0",
@@ -163,6 +182,8 @@
     "@astlide/core": ["@astlide/core@workspace:packages/astlide"],
 
     "@astlide/crispdf": ["@astlide/crispdf@0.0.1", "", { "dependencies": { "@pdf-lib/standard-fonts": "^1.0.0", "fontkit": "^2.0.4", "html-to-image": "^1.11.13", "woff2-encoder": "^2.0.0" }, "peerDependencies": { "pdfjs-dist": "^5.0.0" }, "optionalPeers": ["pdfjs-dist"] }, "sha512-37n7hAoXbi5/OJNiesFgpb6ZsSwM+IuM6DzN6XmBWSXh4QjCb7sSVLFRn97iQmkNB1W+UZ2EC/fTgExp4wBRCg=="],
+
+    "@astlide/react": ["@astlide/react@workspace:packages/react"],
 
     "@astlide/server": ["@astlide/server@workspace:packages/server"],
 

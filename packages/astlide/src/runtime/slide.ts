@@ -47,24 +47,38 @@ export interface SlideShell {
 	templateNumber: boolean;
 }
 
-/** The background as CSS declarations (empty when none, or when unsafe). */
-export function backgroundStyle(
+/** The background as CSS declarations, `[property, value]` (none when absent or unsafe). */
+export function backgroundDeclarations(
 	background: string | undefined,
 	resolveUrl: (path: string) => string = (p) => p,
-): string {
+): [string, string][] {
 	const safe = background ? sanitizeBackground(background) : undefined;
-	if (!safe) return "";
+	if (!safe) return [];
 	if (safe.startsWith("linear-gradient") || safe.startsWith("radial-gradient"))
-		return `background: ${safe};`;
+		return [["background", safe]];
 	if (safe.startsWith("url(") || /\.(png|jpe?g|gif|webp|svg)(\?|$)/.test(safe)) {
 		const raw = safe.startsWith("url(") ? safe.slice(4, -1).trim() : safe;
 		// Keep any quotes, but resolve a root-relative path.
 		const quote = /^["']/.test(raw) ? raw[0] : "";
 		const path = quote ? raw.slice(1, -1) : raw;
 		const url = path.startsWith("/") && !path.startsWith("//") ? resolveUrl(path) : path;
-		return `background-image: url(${quote}${url}${quote}); background-size: cover; background-position: center;`;
+		return [
+			["background-image", `url(${quote}${url}${quote})`],
+			["background-size", "cover"],
+			["background-position", "center"],
+		];
 	}
-	return `background-color: ${safe};`;
+	return [["background-color", safe]];
+}
+
+/** The background as a CSS declaration list (empty when absent or unsafe). */
+export function backgroundStyle(
+	background: string | undefined,
+	resolveUrl?: (path: string) => string,
+): string {
+	return backgroundDeclarations(background, resolveUrl)
+		.map(([property, value]) => `${property}: ${value};`)
+		.join(" ");
 }
 
 /** The parts of a slide's markup for these props. */

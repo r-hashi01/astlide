@@ -7,7 +7,6 @@
  * Pages without diagrams are marked ready immediately and never load mermaid.
  */
 
-import { loadMermaid } from "virtual:astlide/mermaid";
 import { MERMAID_CLASS, mermaidThemeFor } from "@astlide/core/utils/mermaid";
 
 let warnedMissing = false;
@@ -74,7 +73,23 @@ interface RenderResult {
 	bindFunctions?: (element: Element) => void;
 }
 
-export async function renderDiagrams(): Promise<void> {
+/** Loads the `mermaid` package (`() => import("mermaid")`), or null when there is none. */
+export type MermaidLoader =
+	| (() => Promise<{
+			default: {
+				initialize(config: Record<string, unknown>): void;
+				render: (id: string, text: string, container?: Element) => Promise<RenderResult>;
+			};
+	  }>)
+	| null
+	| undefined;
+
+/**
+ * Render the page's ```mermaid blocks with the `mermaid` that `loadMermaid`
+ * loads (without one, they stay as source). Framework-agnostic; Astro pages
+ * use {@link renderDiagrams}.
+ */
+export async function renderDiagramsWith(loadMermaid: MermaidLoader): Promise<void> {
 	const root = document.documentElement;
 	try {
 		const nodes = Array.from(

@@ -150,10 +150,12 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 	const scaler = document.getElementById("slide-scaler");
 	const slideEl = scaler ? scaler.querySelector(".slide") : null;
 
-	// Move slide content into presenter area if in presenter mode
+	// Move slide content into presenter area if in presenter mode — unless the
+	// host already rendered it there (a framework that owns the DOM, like React).
 	if (isPresenter && scaler) {
 		const presenterCurrent = document.querySelector(".presenter-current");
-		if (presenterCurrent) presenterCurrent.appendChild(scaler);
+		if (presenterCurrent && scaler.parentElement !== presenterCurrent)
+			presenterCurrent.appendChild(scaler);
 	}
 
 	function updateScale() {
@@ -757,7 +759,7 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 			/* unavailable or corrupt storage: start empty */
 		}
 	}
-	let saveTimer = 0;
+	let saveTimer: ReturnType<typeof setTimeout> | undefined;
 	function saveDrawings() {
 		if (!persistDrawings) return;
 		clearTimeout(saveTimer);
@@ -779,7 +781,7 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 	}
 	let tool: "draw" | "laser" | null = null;
 	let activeStroke: Stroke | null = null;
-	let laserTimer = 0;
+	let laserTimer: ReturnType<typeof setTimeout> | undefined;
 
 	function slideStrokes() {
 		drawings[drawingKey] ??= [];
@@ -1607,4 +1609,25 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 			window.__astlide_cleanup = undefined;
 		}
 	};
+}
+
+/**
+ * Mark the document for the page's mode, from the URL: `data-presenter`
+ * (`?presenter`, or the presenter popup), `data-print`, `data-share`, and
+ * `data-embed` inside an iframe. Call it before {@link mountDeck} (Astro does
+ * it in the page head, before the first paint).
+ */
+export function applyPageFlags(doc: Document = document, search: string = location.search): void {
+	let sticky = false;
+	try {
+		sticky = window.name === "astlide-presenter";
+	} catch {
+		// cross-origin opener: not the presenter popup
+	}
+	const params = new URLSearchParams(search);
+	const root = doc.documentElement;
+	root.toggleAttribute("data-presenter", params.has("presenter") || sticky);
+	root.toggleAttribute("data-print", params.has("print"));
+	root.toggleAttribute("data-share", params.has("share"));
+	root.toggleAttribute("data-embed", window.self !== window.top);
 }

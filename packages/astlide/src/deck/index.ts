@@ -43,6 +43,13 @@ import {
 } from "./markdown";
 
 export { createSlideMarkdownRenderer, type SlideMarkdownOptions, type SlideMarkdownRenderer };
+export {
+	compileSlideMdx,
+	evaluateSlideMdx,
+	type SlideMdxOptions,
+	type SlideMdxRuntime,
+} from "./mdx";
+export { renderNotesHtml } from "./notes";
 
 export type SlideFormat = "md" | "mdx" | "html" | "pptx";
 
@@ -183,7 +190,8 @@ export async function readDeck(dir: string, options: ReadDeckOptions = {}): Prom
 			: /\.mdx$/i.test(file)
 				? "mdx"
 				: "md";
-		const commentNotes = format === "mdx" ? undefined : extractCommentNotes(body);
+		// Trailing-comment notes, in every format (compileSlideMdx drops the comment from MDX).
+		const commentNotes = extractCommentNotes(body);
 		let html: string | undefined;
 		if (format === "html") html = clean(htmlWithoutNotes(body));
 		else if (format === "md") {

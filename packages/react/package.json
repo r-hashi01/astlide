@@ -1,0 +1,33 @@
+{
+	"name": "@astlide/react",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Astlide for React: slides, layouts and components, the deck page with its presenter mode, and MDX decks — the same slides as an Astlide site",
+	"type": "module",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/r-hashi01/astlide.git",
+		"directory": "packages/react"
+	},
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"files": [
+		"src"
+	],
+	"peerDependencies": {
+		"react": ">=18",
+		"react-dom": ">=18"
+	},
+	"dependencies": {
+		"@astlide/core": "workspace:*",
+		"katex": "^0.19.1"
+	},
+	"devDependencies": {
+		"@types/react": "^19.3.0",
+		"@types/react-dom": "^19.3.0",
+		"react": "^19.3.1",
+		"react-dom": "^19.3.1"
+	}
+}

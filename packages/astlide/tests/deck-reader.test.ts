@@ -99,6 +99,16 @@ describe("readDeck", () => {
 		expect(mdx?.body).toContain("<Fragment>step</Fragment>");
 	});
 
+	it("reads an MDX slide's trailing comment as its notes", async () => {
+		// Its own folder: not one more deck for readDecks below.
+		const dir = mkdtempSync(join(tmpdir(), "astlide-mdx-notes-"));
+		writeFileSync(join(dir, "01.mdx"), "# Hi\n\n<!--\nMDX notes\n-->\n");
+		const [slide] = (await readDeck(dir)).slides;
+		expect(slide?.notes).toBe("MDX notes");
+		const { compileSlideMdx } = await import("../src/deck");
+		expect(await compileSlideMdx(slide?.body ?? "")).not.toContain("MDX notes");
+	});
+
 	it("keeps scripts when asked", async () => {
 		const kept = await readDeck(join(base, "q3"), { slideScripts: true });
 		expect(kept.slides[4]?.html).toContain("<script>x()</script>");

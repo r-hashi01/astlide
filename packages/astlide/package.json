@@ -108,6 +108,7 @@
 		"rehype-stringify": "^10.0.0",
 		"remark-parse": "^11.0.0",
 		"remark-rehype": "^11.0.0",
+		"satteri": "^0.10.5",
 		"svgdom": "^0.1.29",
 		"unified": "^11.0.0",
 		"yoga-layout": "^3.2.1",

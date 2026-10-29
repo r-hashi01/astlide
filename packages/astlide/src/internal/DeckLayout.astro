@@ -198,7 +198,7 @@ const runtimeConfig = JSON.stringify({
 
     <!-- Module script: render ```mermaid diagrams (loads mermaid only when a slide has one). -->
     <script>
-      import { renderDiagrams } from '@astlide/core/internal/diagrams';
+      import { renderDiagrams } from '@astlide/core/internal/diagrams-astro';
       // Fires on the first load and after every ClientRouter navigation.
       document.addEventListener('astro:page-load', () => { renderDiagrams(); });
     </script>

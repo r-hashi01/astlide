@@ -14,7 +14,7 @@
 		"export": "bun packages/astlide/src/cli/astlide.ts export --cwd playground",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"typecheck": "cd playground && bunx astro sync && node --import ../scripts/use-typescript6.mjs ../scripts/typecheck.mjs && tsc -p ../packages/server",
+		"typecheck": "cd playground && bunx astro sync && node --import ../scripts/use-typescript6.mjs ../scripts/typecheck.mjs && tsc -p ../packages/server && tsc -p ../packages/react",
 		"test:e2e": "vitest run --config vitest.config.e2e.ts",
 		"lint": "biome check .",
 		"lint:fix": "biome check --fix .",
