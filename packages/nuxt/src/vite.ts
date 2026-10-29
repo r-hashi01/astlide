@@ -25,7 +25,15 @@ export interface DecksPluginOptions {
 
 const DECKS = "virtual:astlide-nuxt/decks";
 const SLIDE = "virtual:astlide-nuxt/slide/";
-const json = (value: unknown) => JSON.stringify(value) ?? "undefined";
+const UNSAFE: Record<string, string> = {
+	"<": "\\u003C",
+	">": "\\u003E",
+	"\u2028": "\\u2028",
+	"\u2029": "\\u2029",
+};
+/** A value as a JavaScript literal in generated code (`JSON.stringify`, with nothing that could end a script). */
+const json = (value: unknown) =>
+	(JSON.stringify(value) ?? "undefined").replace(/[<>\u2028\u2029]/g, (c) => UNSAFE[c] ?? c);
 /** MDX slides' JSX runtime, resolved from here (the app needn't depend on `@astlide/vue`). */
 const JSX_RUNTIME = "@astlide/vue/jsx-runtime";
 
