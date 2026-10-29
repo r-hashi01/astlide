@@ -52,15 +52,18 @@ export function NextDeckPage({
 	);
 }
 
-/** The print view's setup: page flags and diagrams (exporters wait for `data-diagrams-ready`). */
-export function PrintViewSetup() {
+/**
+ * The print view's setup: its `<html>` attributes (again after client-side
+ * navigation, where the page's script doesn't run), page flags and diagrams
+ * (exporters wait for `data-diagrams-ready`).
+ */
+export function PrintViewSetup({ attributes }: { attributes: Record<string, string> }) {
 	useEffect(() => {
+		for (const [k, v] of Object.entries(attributes)) document.documentElement.setAttribute(k, v);
 		applyPageFlags();
-		document.documentElement.setAttribute("data-print", "");
-		document.documentElement.setAttribute("data-astlide-all", "");
 		void import("@astlide/core/internal/diagrams").then((m) =>
 			m.renderDiagramsWith(hasMermaid() ? loadMermaid : null),
 		);
-	}, []);
+	}, [attributes]);
 	return null;
 }

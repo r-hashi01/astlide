@@ -14,6 +14,11 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
+import {
+	type PrintViewInfo,
+	printViewAttributes,
+	readPrintViewMeta,
+} from "@astlide/core/deck/print-view";
 import { FetchBudget } from "@astlide/core/utils/network.ts";
 import render from "dom-serializer";
 import { type ChildNode, type Element, isTag, Text } from "domhandler";
@@ -24,8 +29,8 @@ export interface SitePrintView {
 	html: string;
 	/** The folder its root-relative URLs resolve in. */
 	site: string;
-	/** What the page says about the deck (`<html data-theme>`, `<title>`, `<meta name="author">`). */
-	config: { theme?: string; title?: string; author?: string };
+	/** The deck's title, author and theme, from the page's `astlide:*` meta tags. */
+	config: PrintViewInfo;
 }
 
 const PAGE_LIMIT = 20 * 1024 * 1024;
@@ -163,13 +168,14 @@ export async function savePrintView(
 		}
 	}
 
-	// What the page's scripts would set on <html> (Next.js sets them from a script:
-	// the root layout owns <html>): it is the print view, in the deck's theme.
-	html.attribs["data-print"] ??= "";
-	html.attribs["data-astlide-all"] ??= "";
-	const metaTheme = all.find((e) => e.name === "meta" && e.attribs.name === "astlide:theme");
-	if (!html.attribs["data-theme"] && metaTheme?.attribs.content)
-		html.attribs["data-theme"] = metaTheme.attribs.content;
+	// The deck, as the print view states it (`@astlide/core/deck/print-view`), and
+	// the <html> attributes a print view has: a page may set them from a script
+	// (Next.js: the root layout owns <html>), and scripts don't run here.
+	const config = readPrintViewMeta(
+		(name) => all.find((e) => e.name === "meta" && e.attribs.name === name)?.attribs.content,
+		{ deck },
+	);
+	for (const [k, v] of Object.entries(printViewAttributes(config))) html.attribs[k] ??= v;
 
 	const slides = topSlides(body);
 	for (const slide of slides)
@@ -206,17 +212,5 @@ export async function savePrintView(
 	await mkdir(dirname(file), { recursive: true });
 	await writeFile(file, source);
 
-	const title = all.find((e) => e.name === "title");
-	const author = all.find((e) => e.name === "meta" && e.attribs.name === "author")?.attribs.content;
-	return {
-		html: file,
-		site,
-		config: {
-			theme: html.attribs["data-theme"],
-			title: title
-				? title.children.map((c) => (c instanceof Text ? c.data : "")).join("")
-				: undefined,
-			author,
-		},
-	};
+	return { html: file, site, config };
 }

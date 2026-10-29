@@ -12,6 +12,7 @@
 		"./deck": "./src/deck/index.ts",
 		"./deck/files": "./src/deck/files.ts",
 		"./deck/pages": "./src/deck/pages.ts",
+		"./deck/print-view": "./src/deck/print-view.ts",
 		"./runtime": "./src/runtime/index.ts",
 		"./runtime/chrome": "./src/runtime/chrome.ts",
 		"./runtime/slide": "./src/runtime/slide.ts",

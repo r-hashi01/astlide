@@ -233,8 +233,19 @@ function resolveProject(options: Options): void {
 	);
 }
 
+/**
+ * Export from one of two places: an Astro project (decks in
+ * src/content/decks; PPTX from its build, PDF / PNG from it served or from
+ * --base-url), or, outside one, the running site at --base-url (any
+ * framework; every format from the site).
+ */
 async function runExport(options: Options): Promise<void> {
 	resolveProject(options);
+	if (options.fromSite) return exportFromSite(options, options.baseUrl as string);
+	return exportFromProject(options);
+}
+
+async function exportFromProject(options: Options): Promise<void> {
 	if (options.cwd !== process.cwd())
 		console.log(`Project: ${relative(process.cwd(), options.cwd) || "."}`);
 	const known = await getDecks(options.cwd).catch(() => [] as string[]);
@@ -242,48 +253,13 @@ async function runExport(options: Options): Promise<void> {
 	if (decks.length === 0) {
 		fail(options.all ? "no decks found in src/content/decks" : "name a deck, or pass --all");
 	}
-	if (options.fromSite) {
-		// Without a local project, a deck is one the site has a print view of.
-		for (const deck of decks) {
-			const url = `${options.baseUrl}/${encodeURIComponent(deck)}/all`;
-			const status = await fetch(url, { method: "GET" }).then(
-				(r) => r.status,
-				(e: Error) => fail(`can't reach ${url}: ${e.message}`),
-			);
-			if (status !== 200) fail(`no deck "${deck}" at ${options.baseUrl} (${url}: HTTP ${status})`);
-		}
-	} else {
-		for (const deck of decks) {
-			if (!known.includes(deck)) fail(`no deck "${deck}" (known: ${known.join(", ") || "none"})`);
-		}
+	for (const deck of decks) {
+		if (!known.includes(deck)) fail(`no deck "${deck}" (known: ${known.join(", ") || "none"})`);
 	}
-	if (options.output && (decks.length > 1 || options.formats.size > 1)) {
-		fail("--output works with one deck and one format; use --out-dir otherwise");
-	}
-
-	// Without a local project, PPTX is made from the site's print view.
-	if (options.formats.has("pptx") && options.fromSite) {
-		const { pptxFromPrintView } = await import("./pptx/export");
-		const { savePrintView } = await import("./pptx/site-print-view");
-		for (const deck of decks) {
-			console.log(`\nPPTX: ${deck} (from ${options.baseUrl})`);
-			const dir = await mkdtemp(join(tmpdir(), "astlide-site-"));
-			try {
-				const view = await savePrintView(options.baseUrl as string, deck, dir);
-				await pptxFromPrintView({
-					...view,
-					root: options.cwd,
-					deck,
-					output: outputFor(options, deck, "pptx"),
-				});
-			} finally {
-				await rm(dir, { recursive: true, force: true });
-			}
-		}
-	}
+	checkOutput(options, decks);
 
 	// PPTX first: it needs the build but no browser or server.
-	if (options.formats.has("pptx") && !options.fromSite) {
+	if (options.formats.has("pptx")) {
 		const { exportPptx } = await import("./pptx/export");
 		for (const [n, deck] of decks.entries()) {
 			console.log(`\nPPTX: ${deck}`);
@@ -296,41 +272,85 @@ async function runExport(options: Options): Promise<void> {
 		}
 		options.build = false;
 	}
+	if (!options.formats.has("pdf") && !options.formats.has("png")) return;
 
-	const rendered = (["pdf", "png"] as const).filter((f) => options.formats.has(f));
-	if (rendered.length === 0) return;
-
-	// Imported only now so PPTX-only exports work without Playwright installed.
-	const { exportDeck } = await import("./render");
-	let server: { url: string; stop(): Promise<void> } | undefined;
-	let baseUrl = options.baseUrl;
-	if (!baseUrl) {
-		if (
-			!options.build &&
-			!existsSync(exportBuildDir(options.cwd)) &&
-			!existsSync(join(options.cwd, "dist"))
-		) {
-			fail("--no-build needs an earlier export build or a dist/ (run astro build first)");
-		}
-		console.log(options.build ? "\nBuilding the site…" : "\nServing the built site…");
-		const { startSite } = await import("./site-server");
-		server = await startSite({ root: options.cwd, build: options.build });
-		baseUrl = server.url;
+	if (options.baseUrl) return renderFromSite(options, decks, options.baseUrl);
+	if (
+		!options.build &&
+		!existsSync(exportBuildDir(options.cwd)) &&
+		!existsSync(join(options.cwd, "dist"))
+	) {
+		fail("--no-build needs an earlier export build or a dist/ (run astro build first)");
 	}
+	console.log(options.build ? "\nBuilding the site…" : "\nServing the built site…");
+	const { startSite } = await import("./site-server");
+	const server = await startSite({ root: options.cwd, build: options.build });
 	try {
+		await renderFromSite(options, decks, server.url);
+	} finally {
+		await server.stop();
+	}
+}
+
+async function exportFromSite(options: Options, baseUrl: string): Promise<void> {
+	const decks = options.decks;
+	if (decks.length === 0) fail("name a deck (--all needs an Astro project)");
+	checkOutput(options, decks);
+	// A deck is one the site has a print view of.
+	for (const deck of decks) {
+		const url = `${baseUrl}/${encodeURIComponent(deck)}/all`;
+		const status = await fetch(url).then(
+			(r) => r.status,
+			(e: Error) => fail(`can't reach ${url}: ${e.message}`),
+		);
+		if (status !== 200) fail(`no deck "${deck}" at ${baseUrl} (${url}: HTTP ${status})`);
+	}
+
+	// PPTX from the site's print view, saved as the exporter reads a build.
+	if (options.formats.has("pptx")) {
+		const { pptxFromPrintView } = await import("./pptx/export");
+		const { savePrintView } = await import("./pptx/site-print-view");
 		for (const deck of decks) {
-			for (const format of rendered) {
-				await exportDeck(deck, {
-					format,
-					baseUrl,
-					output: outputFor(options, deck, format),
-					width: options.width,
-					height: options.height,
+			console.log(`\nPPTX: ${deck} (from ${baseUrl})`);
+			const dir = await mkdtemp(join(tmpdir(), "astlide-site-"));
+			try {
+				const view = await savePrintView(baseUrl, deck, dir);
+				await pptxFromPrintView({
+					...view,
+					root: options.cwd,
+					deck,
+					output: outputFor(options, deck, "pptx"),
 				});
+			} finally {
+				await rm(dir, { recursive: true, force: true });
 			}
 		}
-	} finally {
-		await server?.stop();
+	}
+	await renderFromSite(options, decks, baseUrl);
+}
+
+function checkOutput(options: Options, decks: string[]): void {
+	if (options.output && (decks.length > 1 || options.formats.size > 1)) {
+		fail("--output works with one deck and one format; use --out-dir otherwise");
+	}
+}
+
+/** PDF / PNG of `decks`, rendered by a browser from the site at `baseUrl`. */
+async function renderFromSite(options: Options, decks: string[], baseUrl: string): Promise<void> {
+	const formats = (["pdf", "png"] as const).filter((f) => options.formats.has(f));
+	if (formats.length === 0) return;
+	// Imported only now so PPTX-only exports work without Playwright installed.
+	const { exportDeck } = await import("./render");
+	for (const deck of decks) {
+		for (const format of formats) {
+			await exportDeck(deck, {
+				format,
+				baseUrl,
+				output: outputFor(options, deck, format),
+				width: options.width,
+				height: options.height,
+			});
+		}
 	}
 }
 

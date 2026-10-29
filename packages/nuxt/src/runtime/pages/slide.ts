@@ -1,10 +1,11 @@
 /** A slide page: `<DeckPage>` driven by Nuxt's router, the presenter window from the URL. */
 
 import { slidePage } from "@astlide/core/deck/pages";
+import { themeName } from "@astlide/core/deck/print-view";
 import { DeckPage, Slide } from "@astlide/vue";
 import { defineComponent, h, onMounted, ref } from "vue";
 import { createError, navigateTo, useHead, useRoute } from "#app";
-import { findDeck, mermaidLoader, options, themeOf, useMdxComponents } from "../shared";
+import { findDeck, mermaidLoader, options, useMdxComponents } from "../shared";
 
 export default defineComponent({
 	name: "AstlideSlidePage",
@@ -26,7 +27,7 @@ export default defineComponent({
 		const title = `${deck.config.title ?? deck.name} - Slide ${number}`;
 		useHead({
 			title,
-			htmlAttrs: { "data-theme": themeOf(deck.config.theme) },
+			htmlAttrs: { "data-theme": themeName(deck.config.theme) },
 			meta: [
 				{ name: "description", content: slide.description ?? title },
 				{ name: "robots", content: "noindex, nofollow" },

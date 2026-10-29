@@ -24,6 +24,7 @@ import { tmpdir } from "node:os";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Deck, readDeck } from "../deck/index";
+import { printViewAttributes, printViewMeta } from "../deck/print-view";
 import { renderSlideHtml, type SlideTemplate } from "../runtime/slide";
 import { THEMES } from "../schema";
 import { storePptxAsset } from "../utils/pptx-assets";
@@ -83,6 +84,11 @@ const styles = (name: string) => fileURLToPath(new URL(`../styles/${name}`, impo
 const escapeText = (s: string) =>
 	s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const escapeAttr = (s: string) => escapeText(s).replace(/"/g, "&quot;");
+/** ` name="value"` for each attribute (`value` empty: the bare name). */
+const attributes = (attrs: Record<string, string>) =>
+	Object.entries(attrs)
+		.map(([k, v]) => (v ? ` ${k}="${escapeAttr(v)}"` : ` ${k}`))
+		.join("");
 
 /** A template's theme CSS and artwork, its pictures and fonts stored in the site. */
 async function loadTemplate(
@@ -212,10 +218,13 @@ export async function writePrintView(
 	const title = deck.config.title ?? deck.name;
 	// Diagrams are drawn before export (no client script), so the page is ready as written.
 	const page = `<!DOCTYPE html>
-<html lang="en" data-theme="${escapeAttr(theme)}" data-print data-astlide-all data-diagrams-ready>
+<html lang="en"${attributes(printViewAttributes({ theme }))} data-diagrams-ready>
 <head>
 <meta charset="UTF-8" />
 <title>${escapeText(title)} — all slides</title>
+${printViewMeta({ name: deck.name, config: { ...deck.config, theme } })
+	.map((m) => `<meta name="${m.name}" content="${escapeAttr(m.content)}" />`)
+	.join("\n")}
 ${font ? `<link href="${escapeAttr(font)}" rel="stylesheet" />` : ""}
 ${links.map((href) => `<link rel="stylesheet" href="${href}" />`).join("\n")}
 </head>

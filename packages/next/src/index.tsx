@@ -36,6 +36,7 @@
 import { join } from "node:path";
 import { type Deck, evaluateSlideMdx, readDecks, renderNotesHtml } from "@astlide/core/deck";
 import { printSlides, slidePage } from "@astlide/core/deck/pages";
+import { printViewAttributes, printViewMeta, themeName } from "@astlide/core/deck/print-view";
 import { slideTitle } from "@astlide/core/utils/slide-title";
 import { mdxComponents, Slide } from "@astlide/react";
 import type { ComponentType, ReactNode } from "react";
@@ -59,8 +60,6 @@ export interface DeckRoutesOptions {
 
 type SlideParams = { deck: string; slide: string };
 type DeckParams = { deck: string };
-
-const escapeAttr = (s: string) => s.replace(/[^\w-]/g, "");
 
 /** Routes and pages for the decks in one folder; see the module notes. */
 export function createDeckRoutes(options: DeckRoutesOptions = {}) {
@@ -103,12 +102,12 @@ export function createDeckRoutes(options: DeckRoutesOptions = {}) {
 		return { node: <Content components={mdxComponents} /> };
 	}
 
-	/** The theme on <html> before the first paint (the root layout owns <html>). */
-	const themeScript = (theme: string, print = false) => (
+	/** Attributes on <html> before the first paint (the root layout owns <html>). */
+	const htmlAttributesScript = (attrs: Record<string, string>) => (
 		<script
-			// biome-ignore lint/security/noDangerouslySetInnerHtml: a constant script with a sanitized theme name
+			// biome-ignore lint/security/noDangerouslySetInnerHtml: a constant script setting sanitized attributes
 			dangerouslySetInnerHTML={{
-				__html: `document.documentElement.dataset.theme=${JSON.stringify(escapeAttr(theme))};${print ? 'document.documentElement.setAttribute("data-print","");document.documentElement.setAttribute("data-astlide-all","");' : ""}`,
+				__html: `for(const[k,v]of ${JSON.stringify(Object.entries(attrs))})document.documentElement.setAttribute(k,v);`,
 			}}
 		/>
 	);
@@ -131,7 +130,7 @@ export function createDeckRoutes(options: DeckRoutesOptions = {}) {
 		const theme = deck.config.theme ?? "default";
 		return (
 			<>
-				{themeScript(theme)}
+				{htmlAttributesScript({ "data-theme": themeName(theme) })}
 				<NextDeckPage
 					theme={theme}
 					deck={deck.name}
@@ -171,8 +170,8 @@ export function createDeckRoutes(options: DeckRoutesOptions = {}) {
 		const rendered = await Promise.all(slides.map(content));
 		return (
 			<>
-				{themeScript(deck.config.theme ?? "default", true)}
-				<PrintViewSetup />
+				{htmlAttributesScript(printViewAttributes(deck.config))}
+				<PrintViewSetup attributes={printViewAttributes(deck.config)} />
 				{slides.map((slide, i) => {
 					const { html, node } = rendered[i] ?? {};
 					return (
@@ -227,16 +226,16 @@ export function createDeckRoutes(options: DeckRoutesOptions = {}) {
 			),
 		/** `generateStaticParams` for `[deck]/all`. */
 		deckParams: async (): Promise<DeckParams[]> => (await decks()).map((d) => ({ deck: d.name })),
-		/** `generateMetadata` for `[deck]/all`: the deck's title, author and theme (`astlide export --pptx --base-url` reads them). */
+		/** `generateMetadata` for `[deck]/all`: its title, and the deck's `astlide:*` meta tags (`astlide export --pptx --base-url` reads them). */
 		printMetadata: async ({ params }: { params: Promise<DeckParams> }) => {
 			const name = decodeURIComponent((await params).deck);
 			const deck = (await decks()).find((d) => d.name === name);
 			return {
 				title: deck ? (deck.config.title ?? deck.name) : "Deck",
-				...(deck?.config.author ? { authors: [{ name: deck.config.author }] } : {}),
-				// <html data-theme> is set by a script (the root layout owns <html>); exporters
-				// that don't run scripts read the theme here.
-				other: { "astlide:theme": escapeAttr(deck?.config.theme ?? "default") },
+				// What exporters read without running the page (`@astlide/core/deck/print-view`).
+				...(deck
+					? { other: Object.fromEntries(printViewMeta(deck).map((m) => [m.name, m.content])) }
+					: {}),
 				robots: { index: false, follow: false },
 			};
 		},

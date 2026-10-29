@@ -1,11 +1,12 @@
 /** The print view: every slide, for PDF export and printing (exporters wait for `data-diagrams-ready`). */
 
 import { printSlides } from "@astlide/core/deck/pages";
+import { printViewAttributes, printViewMeta } from "@astlide/core/deck/print-view";
 import { applyPageFlags } from "@astlide/core/runtime";
 import { Slide } from "@astlide/vue";
 import { defineComponent, Fragment, h, onMounted } from "vue";
 import { useHead, useRoute } from "#app";
-import { findDeck, mermaidLoader, themeOf, useMdxComponents } from "../shared";
+import { findDeck, mermaidLoader, useMdxComponents } from "../shared";
 
 export default defineComponent({
 	name: "AstlidePrintPage",
@@ -13,16 +14,8 @@ export default defineComponent({
 		const deck = findDeck(useRoute().params.deck);
 		useHead({
 			title: deck.config.title ?? deck.name,
-			htmlAttrs: {
-				"data-theme": themeOf(deck.config.theme),
-				"data-print": "",
-				"data-astlide-all": "",
-			},
-			meta: [
-				{ name: "robots", content: "noindex, nofollow" },
-				// The file's author for `astlide export --pptx --base-url`.
-				...(deck.config.author ? [{ name: "author", content: deck.config.author }] : []),
-			],
+			htmlAttrs: printViewAttributes(deck.config),
+			meta: [{ name: "robots", content: "noindex, nofollow" }, ...printViewMeta(deck)],
 		});
 		const components = useMdxComponents();
 		onMounted(() => {

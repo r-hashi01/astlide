@@ -25,6 +25,3 @@ export const mermaidLoader = () =>
 	typeof window !== "undefined" && window.__astlide_load_mermaid
 		? (window.__astlide_load_mermaid as () => Promise<never>)
 		: null;
-
-/** The deck's theme name, safe in an attribute. */
-export const themeOf = (theme: string | undefined) => (theme ?? "default").replace(/[^\w-]/g, "");

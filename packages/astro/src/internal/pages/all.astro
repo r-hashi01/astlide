@@ -8,6 +8,7 @@
  * "download PDF" button only.
  */
 import { printSlides } from '@astlide/core/deck/pages';
+import { printViewAttributes, printViewMeta } from '@astlide/core/deck/print-view';
 import { getCollection, render } from 'astro:content';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -90,7 +91,7 @@ const rendered = await Promise.all(
 );
 ---
 <!DOCTYPE html>
-<html lang="en" data-theme={deckConfig.theme} data-print data-astlide-all>
+<html lang="en" {...printViewAttributes(deckConfig)}>
   <head>
     <meta charset="UTF-8" />
     {cspContent && <meta http-equiv="Content-Security-Policy" content={cspContent} data-astlide-csp={cspHashable(cspOption) || undefined} />}
@@ -98,6 +99,7 @@ const rendered = await Promise.all(
     <Favicon />
     <FontLinks />
     <meta name="robots" content="noindex, nofollow" />
+    {printViewMeta({ name: deckName, config: deckConfig }).map((m) => <meta name={m.name} content={m.content} />)}
   </head>
   <body>
     {rendered.map(({ slide, Content }, i) => (
