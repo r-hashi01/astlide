@@ -1,4 +1,5 @@
 ---
+import '@astlide/core/styles/components.css';
 /**
  * YouTube — プライバシー強化モードの YouTube 埋め込みコンポーネント。
  *
@@ -44,7 +45,7 @@ const thumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 ---
 
 {videoId && (
-<div class:list={['youtube-embed', className]}>
+<div class:list={['youtube-embed', className]} data-astlide-c>
   <iframe
     src={src}
     title={title}
@@ -61,45 +62,3 @@ const thumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
   </a>
 </div>
 )}
-
-<style>
-  .youtube-embed {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    border-radius: var(--radius, 8px);
-    overflow: hidden;
-    background: #000;
-  }
-
-  .youtube-static {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .youtube-static img {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    /* hqdefault is 4:3 with letterbox bars: cover crops them away. */
-    object-fit: cover;
-  }
-
-  .youtube-play {
-    position: relative;
-    width: 4.25em;
-    height: 3em;
-  }
-
-  .youtube-embed iframe {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    border: none;
-  }
-</style>

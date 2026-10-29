@@ -1,4 +1,5 @@
 ---
+import '@astlide/core/styles/components.css';
 /**
  * Columns — flexible multi-column layout component.
  *
@@ -44,18 +45,6 @@ const style = [
 ].filter(Boolean).join('; ');
 ---
 
-<div class:list={['columns', className]} style={style}>
+<div class:list={['columns', className]} style={style} data-astlide-c>
 	<slot />
 </div>
-
-<style>
-	.columns {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
-		width: 100%;
-	}
-
-	.columns > :global(*) {
-		min-width: 0;
-	}
-</style>

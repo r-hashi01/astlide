@@ -1,4 +1,5 @@
 ---
+import '@astlide/core/styles/components.css';
 interface Props {
   class?: string;
 }
@@ -6,13 +7,6 @@ interface Props {
 const { class: className } = Astro.props;
 ---
 
-<div class:list={['column', 'column-right', className]}>
+<div class:list={['column', 'column-right', className]} data-astlide-c>
   <slot />
 </div>
-
-<style>
-  .column-right {
-    flex: 1;
-    padding-left: 2rem;
-  }
-</style>

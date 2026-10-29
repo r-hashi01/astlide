@@ -1,4 +1,5 @@
 ---
+import '@astlide/core/styles/components.css';
 /**
  * Tweet — Twitter/X ツイートの静的スタイルドカード。
  *
@@ -48,6 +49,7 @@ const displayHandle = handle.startsWith('@') ? handle : `@${handle}`;
   target="_blank"
   rel="noopener noreferrer"
   class:list={['tweet-card', className]}
+  data-astlide-c
   aria-label={`Tweet by ${author}: ${text}`}
 >
   <div class="tweet-header">
@@ -67,88 +69,3 @@ const displayHandle = handle.startsWith('@') ? handle : `@${handle}`;
   <p class="tweet-text">{text}</p>
   {date && <time class="tweet-date">{date}</time>}
 </a>
-
-<style>
-  .tweet-card {
-    display: block;
-    max-width: min(480px, 100%);
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 16px;
-    padding: 1rem 1.25rem;
-    text-decoration: none;
-    color: inherit;
-    transition: background 0.15s;
-  }
-
-  .tweet-card:hover {
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  .tweet-header {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .tweet-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    object-fit: cover;
-    flex-shrink: 0;
-  }
-
-  .tweet-avatar-placeholder {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: rgba(29, 155, 240, 0.2);
-    flex-shrink: 0;
-  }
-
-  .tweet-author {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-width: 0;
-  }
-
-  .tweet-name {
-    font-weight: 600;
-    font-size: 0.95rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .tweet-handle {
-    font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.5);
-  }
-
-  .tweet-logo {
-    flex-shrink: 0;
-  }
-
-  .tweet-text {
-    font-size: 1rem;
-    line-height: 1.6;
-    margin: 0;
-    white-space: pre-wrap;
-  }
-
-  .tweet-date {
-    display: block;
-    margin-top: 0.75rem;
-    font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.45);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .tweet-card {
-      transition: none;
-    }
-  }
-</style>

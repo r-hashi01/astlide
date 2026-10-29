@@ -1,4 +1,5 @@
 ---
+import '@astlide/core/styles/components.css';
 /**
  * TextPanel — the text side of image-left / image-right layouts.
  */
@@ -8,17 +9,6 @@ interface Props {
 const { class: className } = Astro.props;
 ---
 
-<div class:list={['text-panel', className]}>
+<div class:list={['text-panel', className]} data-astlide-c>
   <slot />
 </div>
-
-<style>
-  .text-panel {
-    flex: 1;
-    padding: var(--slide-padding, 4rem);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 1rem;
-  }
-</style>

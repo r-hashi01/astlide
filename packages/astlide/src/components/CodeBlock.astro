@@ -1,4 +1,5 @@
 ---
+import '@astlide/core/styles/components.css';
 /**
  * CodeBlock — enhanced code block wrapper with filename bar and copy button.
  *
@@ -26,7 +27,7 @@ const { title, class: className } = Astro.props;
 const uid = `cb-${Math.random().toString(36).slice(2, 9)}`;
 ---
 
-<div class:list={['code-block', className]} id={uid}>
+<div class:list={['code-block', className]} id={uid} data-astlide-c>
   <div class="code-block-header">
     {title && <span class="code-block-title">{title}</span>}
     <button
@@ -41,68 +42,6 @@ const uid = `cb-${Math.random().toString(36).slice(2, 9)}`;
   </div>
 </div>
 
-<style>
-  .code-block {
-    border-radius: var(--radius, 8px);
-    overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    font-size: 0.9em;
-    margin: 0.5em 0;
-  }
-
-  .code-block-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.4rem 1rem;
-    background: rgba(0, 0, 0, 0.35);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    min-height: 2.25rem;
-  }
-
-  .code-block-title {
-    font-size: 0.8rem;
-    font-family: var(--font-mono, ui-monospace, monospace);
-    color: rgba(255, 255, 255, 0.65);
-  }
-
-  .code-block-copy {
-    font-size: 0.75rem;
-    padding: 0.2rem 0.6rem;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 4px;
-    color: rgba(255, 255, 255, 0.6);
-    cursor: pointer;
-    transition:
-      background 0.15s,
-      color 0.15s;
-    line-height: 1.4;
-  }
-
-  .code-block-copy:hover {
-    background: rgba(255, 255, 255, 0.18);
-    color: rgba(255, 255, 255, 0.9);
-  }
-
-  .code-block-copy[data-copied] {
-    background: rgba(74, 222, 128, 0.15);
-    border-color: rgba(74, 222, 128, 0.35);
-    color: rgb(74, 222, 128);
-  }
-
-  .code-block-content :global(pre) {
-    margin: 0 !important;
-    border-radius: 0 !important;
-    border: none !important;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .code-block-copy {
-      transition: none;
-    }
-  }
-</style>
 
 <script>
   // Use event delegation so dynamically-inserted code blocks are also handled

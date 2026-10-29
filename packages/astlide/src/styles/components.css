@@ -1,0 +1,268 @@
+/*
+ * Astlide's slide components (Columns, Left / Right, ImageSide, TextPanel,
+ * Fragment, SpeakerNotes, CodeBlock, Math, YouTube, Tweet), for every host.
+ * A component's root element carries [data-astlide-c], and every rule goes through
+ * it, so these styles reach the components only, never an element of a
+ * slide that happens to use the same class name. tests/components-css.test.ts
+ * checks it.
+ */
+
+/* ── Left ── */
+.column-left[data-astlide-c] {
+	flex: 1;
+	padding-right: 2rem;
+}
+
+/* ── Right ── */
+.column-right[data-astlide-c] {
+	flex: 1;
+	padding-left: 2rem;
+}
+
+/* ── Columns ── */
+.columns[data-astlide-c] {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+	width: 100%;
+}
+
+.columns[data-astlide-c] > * {
+	min-width: 0;
+}
+
+/* ── ImageSide ── */
+.image-side[data-astlide-c] {
+	height: 100%;
+	overflow: hidden;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.image-side[data-astlide-c] img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	border-radius: 0;
+}
+
+/* ── TextPanel ── */
+.text-panel[data-astlide-c] {
+	flex: 1;
+	padding: var(--slide-padding, 4rem);
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 1rem;
+}
+
+/* ── Fragment ── */
+.fragment[data-astlide-c] {
+	display: inline-block;
+	/* On its own line it's a flex / grid item, where inline-block is ignored and
+	     it would stretch to the full width (a full-width bar with "highlight").
+	     fit-content keeps it hugging its content and still wraps long text. */
+	width: fit-content;
+	max-width: 100%;
+}
+
+/* ── SpeakerNotes ── */
+/* Hidden from normal view — picked up by DeckLayout JS */
+.slide-notes[data-astlide-c] {
+	display: none !important;
+}
+
+/* ── CodeBlock ── */
+.code-block[data-astlide-c] {
+	border-radius: var(--radius, 8px);
+	overflow: hidden;
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	font-size: 0.9em;
+	margin: 0.5em 0;
+}
+
+.code-block[data-astlide-c] .code-block-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0.4rem 1rem;
+	background: rgba(0, 0, 0, 0.35);
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	min-height: 2.25rem;
+}
+
+.code-block[data-astlide-c] .code-block-title {
+	font-size: 0.8rem;
+	font-family: var(--font-mono, ui-monospace, monospace);
+	color: rgba(255, 255, 255, 0.65);
+}
+
+.code-block[data-astlide-c] .code-block-copy {
+	font-size: 0.75rem;
+	padding: 0.2rem 0.6rem;
+	background: rgba(255, 255, 255, 0.08);
+	border: 1px solid rgba(255, 255, 255, 0.18);
+	border-radius: 4px;
+	color: rgba(255, 255, 255, 0.6);
+	cursor: pointer;
+	transition:
+		background 0.15s,
+		color 0.15s;
+	line-height: 1.4;
+}
+
+.code-block[data-astlide-c] .code-block-copy:hover {
+	background: rgba(255, 255, 255, 0.18);
+	color: rgba(255, 255, 255, 0.9);
+}
+
+.code-block[data-astlide-c] .code-block-copy[data-copied] {
+	background: rgba(74, 222, 128, 0.15);
+	border-color: rgba(74, 222, 128, 0.35);
+	color: rgb(74, 222, 128);
+}
+
+.code-block[data-astlide-c] .code-block-content pre {
+	margin: 0 !important;
+	border-radius: 0 !important;
+	border: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.code-block[data-astlide-c] .code-block-copy {
+		transition: none;
+	}
+}
+
+/* ── Math ── */
+.math-display[data-astlide-c] {
+	display: block;
+	text-align: center;
+	margin: 0.5em 0;
+	overflow-x: auto;
+}
+
+/* ── YouTube ── */
+.youtube-embed[data-astlide-c] {
+	position: relative;
+	width: 100%;
+	aspect-ratio: 16 / 9;
+	border-radius: var(--radius, 8px);
+	overflow: hidden;
+	background: #000;
+}
+
+.youtube-embed[data-astlide-c] .youtube-static {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.youtube-embed[data-astlide-c] .youtube-static img {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	/* hqdefault is 4:3 with letterbox bars: cover crops them away. */
+	object-fit: cover;
+}
+
+.youtube-embed[data-astlide-c] .youtube-play {
+	position: relative;
+	width: 4.25em;
+	height: 3em;
+}
+
+.youtube-embed[data-astlide-c] iframe {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	border: none;
+}
+
+/* ── Tweet ── */
+.tweet-card[data-astlide-c] {
+	display: block;
+	max-width: min(480px, 100%);
+	background: rgba(255, 255, 255, 0.06);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 16px;
+	padding: 1rem 1.25rem;
+	text-decoration: none;
+	color: inherit;
+	transition: background 0.15s;
+}
+
+.tweet-card[data-astlide-c]:hover {
+	background: rgba(255, 255, 255, 0.1);
+}
+
+.tweet-card[data-astlide-c] .tweet-header {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	margin-bottom: 0.75rem;
+}
+
+.tweet-card[data-astlide-c] .tweet-avatar {
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+	object-fit: cover;
+	flex-shrink: 0;
+}
+
+.tweet-card[data-astlide-c] .tweet-avatar-placeholder {
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+	background: rgba(29, 155, 240, 0.2);
+	flex-shrink: 0;
+}
+
+.tweet-card[data-astlide-c] .tweet-author {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-width: 0;
+}
+
+.tweet-card[data-astlide-c] .tweet-name {
+	font-weight: 600;
+	font-size: 0.95rem;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.tweet-card[data-astlide-c] .tweet-handle {
+	font-size: 0.85rem;
+	color: rgba(255, 255, 255, 0.5);
+}
+
+.tweet-card[data-astlide-c] .tweet-logo {
+	flex-shrink: 0;
+}
+
+.tweet-card[data-astlide-c] .tweet-text {
+	font-size: 1rem;
+	line-height: 1.6;
+	margin: 0;
+	white-space: pre-wrap;
+}
+
+.tweet-card[data-astlide-c] .tweet-date {
+	display: block;
+	margin-top: 0.75rem;
+	font-size: 0.8rem;
+	color: rgba(255, 255, 255, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.tweet-card[data-astlide-c] {
+		transition: none;
+	}
+}

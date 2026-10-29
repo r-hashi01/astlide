@@ -1,4 +1,5 @@
 ---
+import '@astlide/core/styles/components.css';
 /**
  * Math — KaTeX による LaTeX 数式レンダリングコンポーネント（ビルド時 SSR）。
  *
@@ -34,13 +35,4 @@ const rawHtml = katex.renderToString(formula, {
 const html = sanitizeKaTeXOutput(rawHtml);
 ---
 
-<span class:list={['math', { 'math-display': display }, className]} set:html={html} />
-
-<style>
-  .math-display {
-    display: block;
-    text-align: center;
-    margin: 0.5em 0;
-    overflow-x: auto;
-  }
-</style>
+<span class:list={['math', { 'math-display': display }, className]} data-astlide-c set:html={html} />
