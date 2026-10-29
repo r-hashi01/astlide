@@ -1,6 +1,6 @@
 {
 	"name": "@astlide/core",
-	"version": "2.9.2",
+	"version": "2.10.0",
 	"description": "Slides that live in your Astro site: an Astro integration for MDX / Markdown / HTML presentations — many decks per site, presenter view, PDF and editable PowerPoint (PPTX) export in your own template, PPTX / Google Slides import",
 	"type": "module",
 	"types": "./src/index.ts",

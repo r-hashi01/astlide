@@ -1,5 +1,15 @@
 # @astlide/core
 
+## 2.10.0
+
+### Minor Changes
+
+- [#250](https://github.com/r-hashi01/astlide/pull/250) [`d8b9cff`](https://github.com/r-hashi01/astlide/commit/d8b9cffdc15757cc6d748109e01bdada6aba6e8c) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Add `@astlide/core/templates`: a store that keeps PowerPoint templates by name, with every uploaded version. Keep them in a folder, in Amazon S3 or an S3-compatible service (R2, MinIO …), Google Cloud Storage or Azure Blob Storage, or in any storage you plug in through `ObjectStorage`. `openTemplateStore("gs://bucket/prefix")` picks the storage from a location; the cloud SDKs are optional peer dependencies, and credentials come from each SDK's usual chain (IAM roles, service accounts, managed identities). The render service uses it for its new `/templates` routes.
+
+### Patch Changes
+
+- [#244](https://github.com/r-hashi01/astlide/pull/244) [`bc22b52`](https://github.com/r-hashi01/astlide/commit/bc22b52615726c101d597212bae8033638f33fbe) Thanks [@r-hashi01](https://github.com/r-hashi01)! - A plugin theme's `cssEntrypoint` can now be a project path starting with `./` or `../`, resolved from the project root like layout and decorator entrypoints. Previously the build failed with "Module not found". Entrypoints starting with `/` are now left for Vite to resolve (from the project root, or as an absolute file path) instead of being treated as file-system paths.
+
 ## 2.9.2
 
 ### Patch Changes

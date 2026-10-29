@@ -1,5 +1,11 @@
 # create-astlide
 
+## 0.2.7
+
+### Patch Changes
+
+- [#245](https://github.com/r-hashi01/astlide/pull/245) [`471e58f`](https://github.com/r-hashi01/astlide/commit/471e58f4a4cf85360bce3a7a6d928c1d7ea97f5a) Thanks [@r-hashi01](https://github.com/r-hashi01)! - New projects load every slide format. The template's `src/content.config.ts` now uses `astlideDeckLoader()`, so `.md` and `.html` slides, `.pptx` files in a deck and slides written by `astlide import` show up. Before, it used a `.mdx`-only `glob()` loader.
+
 ## 0.2.6
 
 ### Patch Changes
