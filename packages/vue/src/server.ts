@@ -7,10 +7,10 @@
 
 import { evaluateSlideMdx, type SlideMdxOptions } from "@astlide/core/deck";
 import { type Component, h } from "vue";
-import * as runtime from "vue/jsx-runtime";
 import { renderToString } from "vue/server-renderer";
 import type { AstlideSettings } from "./components";
 import { createMdxComponents } from "./index";
+import * as runtime from "./jsx-runtime";
 
 /** Compile an MDX slide for Vue: its component (pass Astlide's components as `components`). */
 export async function compileMdxComponent(

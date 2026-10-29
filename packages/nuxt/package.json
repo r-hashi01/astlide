@@ -1,0 +1,38 @@
+{
+	"name": "@astlide/nuxt",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Astlide for Nuxt: decks from a folder as pages, presenter mode, print view and exports — the same Markdown, HTML and MDX decks as an Astlide site",
+	"type": "module",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/r-hashi01/astlide.git",
+		"directory": "packages/nuxt"
+	},
+	"exports": {
+		".": "./src/module.ts"
+	},
+	"files": [
+		"src"
+	],
+	"peerDependencies": {
+		"nuxt": ">=4",
+		"vue": ">=3.4",
+		"mermaid": ">=11"
+	},
+	"peerDependenciesMeta": {
+		"mermaid": {
+			"optional": true
+		}
+	},
+	"dependencies": {
+		"@astlide/core": "workspace:*",
+		"@astlide/vue": "workspace:*",
+		"@nuxt/kit": "^4.6.3"
+	},
+	"devDependencies": {
+		"nuxt": "^4.6.3",
+		"vue": "^3.5.44"
+	}
+}

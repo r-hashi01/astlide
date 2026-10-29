@@ -1,0 +1,18 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"strict": true,
+		"noEmit": true,
+		"skipLibCheck": true,
+		"resolveJsonModule": true,
+		"types": ["node"],
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"paths": {
+			// Nuxt's alias for its app composables (in a Nuxt app, `.nuxt/tsconfig` maps it).
+			"#app": ["../../node_modules/nuxt/dist/app/index"]
+		}
+	},
+	"include": ["src"]
+}

@@ -56,7 +56,7 @@ export async function buildVueHarness(decks: string[], out: string): Promise<voi
 				const id = `${name.replace(/\W/g, "_")}_${s.number}`;
 				writeFileSync(
 					join(src, "slides", `${id}.js`),
-					await compileSlideMdx(s.body, { jsxImportSource: "vue" }),
+					await compileSlideMdx(s.body, { jsxImportSource: "@astlide/vue" }),
 				);
 				imports.push(`import ${id} from "./slides/${id}.js";`);
 				content = id;
