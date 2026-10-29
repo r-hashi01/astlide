@@ -40,6 +40,7 @@ WORKDIR /app
 # dependencies are installed.
 COPY package.json bun.lock bunfig.toml ./
 COPY packages/astlide/package.json packages/astlide/
+COPY packages/astro/package.json packages/astro/
 COPY packages/server/package.json packages/server/
 COPY packages/create-astlide/package.json packages/create-astlide/
 COPY playground/package.json playground/
