@@ -51,7 +51,7 @@
 	},
 	"overrides": [
 		{
-			"includes": ["packages/astlide/src/styles/deck.css"],
+			"includes": ["packages/astlide/src/styles/deck.css", "packages/astlide/src/styles/slide.css"],
 			"linter": {
 				"rules": {
 					"complexity": {

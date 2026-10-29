@@ -12,6 +12,7 @@
 		"./deck": "./src/deck/index.ts",
 		"./runtime": "./src/runtime/index.ts",
 		"./runtime/chrome": "./src/runtime/chrome.ts",
+		"./runtime/slide": "./src/runtime/slide.ts",
 		"./templates": "./src/templates/index.ts",
 		"./mcp": "./src/mcp/index.ts",
 		"./embed": "./src/embed/index.ts",
