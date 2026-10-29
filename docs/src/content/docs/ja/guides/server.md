@@ -10,10 +10,11 @@ description: Astlide を HTTP サービスとして動かし、Markdown から P
 | `POST /render` | Markdown のスライドから、編集できる **PPTX**、**PDF**、**PNG** 画像（スライド 1 枚ごとに 1 画像を入れた ZIP）を作ります。デザインは組み込みテーマか、アップロードした PowerPoint テンプレートで決まります。 |
 | `POST /import` | `.pptx` ファイルか Google スライドの URL を受け取り、スライドを 1 枚ずつ HTML にして返します。タイトルと発表者ノートも付きます。 |
 | `POST /templates/layouts` | PowerPoint テンプレートを受け取り、レイアウトの一覧と各プレースホルダーの位置を返します。 |
+| `GET` `POST /templates`<br>`GET` `DELETE /templates/{name}`<br>`GET /templates/{name}/file` | PowerPoint テンプレートに名前を付けてサーバーに保存しておき、レンダリングのたびにアップロードしなくて済むようにします。テンプレートの保存を有効にしたときだけ使えます（[テンプレートをサーバーに保存する](#テンプレートをサーバーに保存する)を参照）。 |
 | `GET /openapi.json` | OpenAPI 3.1 の仕様を返します。 |
 | `GET /health` | ヘルスチェックです。 |
 
-サーバーにはデータが残りません。レンダリングはリクエストごとに一時的な Astro プロジェクトで行い、レスポンスを返す準備ができた時点で削除します。アップロードされたファイルをほかの場所に保存することもありません。
+レンダリングはリクエストごとに一時的な Astro プロジェクトで行い、レスポンスを返す準備ができた時点で削除します。レンダリングや取り込みで送られたファイルを、ほかの場所に保存することもありません。サーバーに残るのは `/templates` にアップロードしたテンプレートだけで、それもテンプレートの保存を有効にした場合に限ります。
 
 ## Docker で動かす
 
@@ -74,7 +75,8 @@ curl -o review.pptx -H 'content-type: application/json' localhost:8787/render -d
 | --- | --- |
 | `markdown` / `slides` | スライドの中身です。どちらか一方を指定します。 |
 | `theme` | 組み込みテーマの名前です。`default`、`dark`、`minimal`、`corporate`、`gradient`、`rose`、`forest` から選びます。 |
-| `template` | テーマの代わりに使う PowerPoint テンプレート（`.pptx`、`.potx`、`.thmx`）です。multipart ではファイルとして送ります。JSON では `{ "filename": "brand.pptx", "data": "<base64>" }` の形で送ります。 |
+| `template` | テーマの代わりに使う PowerPoint テンプレート（`.pptx`、`.potx`、`.thmx`）です。multipart ではファイルとして送ります。JSON では `{ "filename": "brand.pptx", "data": "<base64>" }` の形で送ります。[サーバーに保存したテンプレート](#テンプレートをサーバーに保存する)なら、名前を書くだけで済みます。 |
+| `templateVersion` | 保存したテンプレートを名前で指定するときに、使う版の番号を指定します。省略すると最新の版を使います。 |
 | `format` | `pptx`（デフォルト）、`pdf`、`png` のいずれかです。`png` はスライドごとの PNG を ZIP にまとめて返します。 |
 | `output` | `file`（デフォルト）ではファイルそのものを返します。`base64` では JSON の `{ filename, contentType, size, data }` を返します。JSON しか扱えないクライアントで使います。 |
 | `title`、`author`、`date` | デッキのメタデータです。タイトルはファイル名にも使います。 |
@@ -111,6 +113,50 @@ curl -F file=@brand.pptx localhost:8787/templates/layouts
 
 スライドの内容がプレースホルダーにどう収まるかは、[PowerPoint テンプレート](/ja/guides/templates/)で説明しています。
 
+## テンプレートをサーバーに保存する
+
+チームで使うテンプレートが決まっているなら、一度アップロードしておけば、あとは名前で指定するだけでレンダリングできます。保存を有効にするには、`ASTLIDE_TEMPLATE_DIR` に保存先のディレクトリを指定します。Docker ではそこにボリュームをマウントしておくと、コンテナを作り直してもテンプレートが消えません。
+
+```bash
+docker run --rm -p 8787:8787 -e ASTLIDE_API_KEY \
+  -e ASTLIDE_TEMPLATE_DIR=/data/templates -v astlide-templates:/data/templates \
+  --security-opt seccomp=packages/server/chromium-seccomp.json astlide-server
+```
+
+テンプレートは名前を付けてアップロードします。名前に使えるのは英小文字・数字・ハイフンで、組み込みテーマと同じ名前は付けられません。`label` には画面などに出す表示名を入れられます（省略可）。
+
+```bash
+curl localhost:8787/templates -F name=acme -F label="Acme 2026" -F file=@acme.potx
+# {"name":"acme","label":"Acme 2026","latest":1,"versions":[{"version":1,"ext":".potx",…}],…}
+```
+
+レンダリングでは、ファイルの代わりに名前を書きます。
+
+```bash
+curl -o q3.pptx -H 'content-type: application/json' localhost:8787/render -d '{
+  "markdown": "# Q3 review\n---\n# Highlights\n\n- Revenue up 12%",
+  "template": "acme"
+}'
+```
+
+同じ名前でもう一度アップロードすると新しい版として追加され、以降のレンダリングはその版を使います。前の版も残っているので、`"templateVersion": 1` のように指定すれば元のデザインで書き出せますし、ファイルをダウンロードすることもできます。
+
+アップロードされたファイルは、保存する前に一度読み込みます。PowerPoint のテンプレートとして読めないファイルはその場で拒否し、読めたものはレイアウトの情報と一緒に保存します。
+
+| リクエスト | 内容 |
+| --- | --- |
+| `GET /templates` | 保存しているテンプレートと、それぞれの版の一覧を返します。 |
+| `POST /templates` | テンプレートを保存します（`name`、`file`、省略可の `label`）。すでにある名前なら新しい版として追加します。新しいテンプレートなら 201、版の追加なら 200 を返します。 |
+| `GET /templates/{name}` | テンプレートの版の一覧と、最新版のレイアウトを返します。レイアウトの形式は `POST /templates/layouts` と同じです。`?version=` を付けると、その版のレイアウトを返します。 |
+| `GET /templates/{name}/file` | アップロードされたときのままのファイルをダウンロードします。前の版は `?version=` で指定します。 |
+| `DELETE /templates/{name}` | テンプレートを版ごとすべて削除します。`?version=` を付けると、その版だけを削除します。最後の版を削除すると、テンプレートそのものがなくなります。 |
+
+版の番号は 1、2、3 と増えていき、削除した版の番号を使い回すことはありません。同じ番号はいつも同じファイルを指します。
+
+保存先はふつうのファイルです。テンプレートごとにディレクトリを作り、その中に `manifest.json` と版ごとのファイルを置きます。1 つの保存先ディレクトリを使うサーバーは 1 台だけにしてください。
+
+S3 やデータベースに保存したい場合や、自分でサービスを作る場合は、同じ仕組みを `@astlide/core/templates` から使えます。`createTemplateStore(dir)` が `list`・`info`・`get`・`put`・`remove` を持つオブジェクトを返します。`TemplateStore` インターフェースを実装すれば、保存先を差し替えられます。
+
 ## デッキを取り込む
 
 `.pptx` ファイルか、Google スライドの URL を送ります。
@@ -128,7 +174,7 @@ Google スライドは、`docs.google.com/presentation` の URL だけを取得�
 
 `GET /openapi.json` で、このサービスの OpenAPI 3.1 仕様を取得できます。仕様の `servers` には、サービスへのアクセスに使った URL が入ります。`PUBLIC_URL` を設定していれば、その値が入ります。
 
-- **Dify**: ツール → カスタム → カスタムツールを作成 と進み、*URL からインポート* で `http://<host>:8787/openapi.json` を入力します。`renderSlides`、`importPresentation`、`listTemplateLayouts` の各オペレーションが、エージェントやワークフローから呼べるツールとして登録されます。ツールの戻り値を JSON にしたいときは `output: base64` を指定してください。サーバーに API キーを設定している場合は、認証方式で *API Key* → *Bearer* を選びます。
+- **Dify**: ツール → カスタム → カスタムツールを作成 と進み、*URL からインポート* で `http://<host>:8787/openapi.json` を入力します。`renderSlides`、`importPresentation`、`listTemplateLayouts` や、`listTemplates` などのテンプレート管理の各オペレーションが、エージェントやワークフローから呼べるツールとして登録されます。ツールの戻り値を JSON にしたいときは `output: base64` を指定してください。サーバーに API キーを設定している場合は、認証方式で *API Key* → *Bearer* を選びます。
 - **n8n**: *HTTP Request* ノードで `POST /render` を呼び、レスポンス形式を *File* にします。OpenAPI の仕様を読み込めるツールであれば、仕様をそのままインポートしても使えます。
 
 ## 設定
@@ -148,6 +194,7 @@ Google スライドは、`docs.google.com/presentation` の URL だけを取得�
 | `RENDER_TIMEOUT_MS` | `180000` | レンダリングと、アップロードされた PowerPoint ファイルの読み込みの制限時間です。超えると処理を止めて 504 を返します。 |
 | `CONCURRENCY` / `MAX_QUEUE` | `2` / `16` | 同時に実行するレンダリングの数と、待機できるリクエストの数です。これを超えたリクエストには、アップロードを読み込む前に 503 を返します。 |
 | `ASTLIDE_CHROMIUM_SANDBOX` | `1` | PDF と PNG の出力に使う Chromium のサンドボックスです。`0` で無効になります。無効にするのは、呼び出し元をすべて信頼できる場合に限ってください（[セキュリティ](#セキュリティ)を参照）。 |
+| `ASTLIDE_TEMPLATE_DIR` | （なし） | テンプレートの保存先です。指定するとテンプレートの保存が有効になります（[テンプレートをサーバーに保存する](#テンプレートをサーバーに保存する)を参照）。指定しない場合、`/templates` 以下は 404 を返します。 |
 | `ASTLIDE_WORK_DIR` | `node_modules` と同じ階層の `.astlide-work` | リクエストごとの一時プロジェクトを作る場所です。インストール済みのパッケージと共通の親ディレクトリの下に置く必要があります。 |
 
 エラーは JSON の `{ "error": "…" }` で返します。入力が不正なときは 400 です。入力はビルドを始める前に検査するので、スライドのスキーマに合わない frontmatter の値もこの段階で弾かれます。ビルドやエクスポートが失敗したときは 422 を返し、ビルドログの末尾を付けます。
@@ -165,6 +212,7 @@ Google スライドは、`docs.google.com/presentation` の URL だけを取得�
 
 - ループバック以外で待ち受けるには API キーが必要です。`ASTLIDE_API_KEY` が設定されていない場合、`HOST` が `127.0.0.1`、`localhost`、`::1` のいずれかでなければ起動しません。前段のゲートウェイやネットワークで呼び出し元を制限しているなら、`ASTLIDE_ALLOW_UNAUTHENTICATED=1` を設定して起動できます。
 - 正しいキーがないリクエストには、`/`、`/health`、`/openapi.json` 以外のすべてのパスで 401 を返します。存在しないパスも同じ扱いです。キーの比較には、比較にかかる時間から内容を推測されない方式（定数時間比較）を使います。
+- テンプレートの保存を有効にすると、API キーを持っている人なら誰でもテンプレートを追加・ダウンロード・削除できます。呼び出し元にテンプレートを変更させたくない場合は、前段にゲートウェイを置き、`GET /templates…` と `POST /render` だけを通すようにしてください。
 
 ### レンダリング中の通信
 
@@ -191,7 +239,7 @@ Google スライドは、`docs.google.com/presentation` の URL だけを取得�
 - Markdown の画像は URL で指定してください。`![](../x.png)` のようにファイルパスを指定した画像は 400 で拒否します。Astro がサーバーのディスクからそのファイルを読み込んでしまうためです。`https:` か `data:` の URL を使います。
 - スライドは必ず専用の frontmatter ブロックを付けてファイルに書き出します。本文が `---` で始まっていても本文として扱うので、frontmatter の検査を迂回することはできません。
 - frontmatter では YAML のアンカーとエイリアス（`&a`、`*a`）を使えません。サイズは 1 スライドあたり 256 KB までです。
-- アップロードされた PowerPoint ファイル（`/import`、`/templates/layouts`）は、レンダリングと同じキューに並べたうえで子プロセスで読み込みます。読み込みが `RENDER_TIMEOUT_MS` を超えると中止し（504）、結果が `MAX_OUTPUT_MB` を超えると拒否します（422）。どちらの場合もサーバー本体が止まることはありません。
+- アップロードされた PowerPoint ファイル（`/import`、`/templates/layouts`、`POST /templates`）は、レンダリングと同じキューに並べたうえで子プロセスで読み込みます。読み込みが `RENDER_TIMEOUT_MS` を超えると中止し（504）、結果が `MAX_OUTPUT_MB` を超えると拒否します（422）。どちらの場合もサーバー本体が止まることはありません。
 - レンダリングのプロセスには、必要な環境変数だけを渡します。渡すのは `PATH`、`HOME`、一時ディレクトリ、ロケールの設定、`PLAYWRIGHT_BROWSERS_PATH` と、サーバーが指定するレンダリング用の設定（スライド数の上限、サンドボックス、通信の制限）です。サーバーの秘密情報、`ASTLIDE_API_KEY`、クラウドの認証情報、プロキシの設定は渡しません。
 
 ### Chromium のサンドボックス

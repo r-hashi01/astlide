@@ -3,7 +3,7 @@
 	"info": {
 		"title": "Astlide render service",
 		"version": "0.0.0",
-		"description": "Turn Markdown slides into editable PowerPoint, PDF or PNG, import PowerPoint decks as HTML slides, and read a PowerPoint template's layouts. Nothing is stored: every request's files are deleted once its response is ready.",
+		"description": "Turn Markdown slides into editable PowerPoint, PDF or PNG, import PowerPoint decks as HTML slides, and read a PowerPoint template's layouts. Every request's files are deleted once its response is ready. With ASTLIDE_TEMPLATE_DIR set, the service also keeps PowerPoint templates by name (/templates), so renders can pick one without uploading it.",
 		"license": { "name": "MIT", "identifier": "MIT" }
 	},
 	"servers": [{ "url": "http://localhost:8787" }],
@@ -54,16 +54,20 @@
 										"description": "Slides as a JSON array (same shape as in the JSON body)."
 									},
 									"template": {
-										"type": "string",
-										"format": "binary",
-										"description": "A PowerPoint template (.pptx / .potx / .thmx) to use as the theme."
+										"description": "A PowerPoint template (.pptx / .potx / .thmx) to use as the theme, or the name of a stored template.",
+										"oneOf": [{ "type": "string", "format": "binary" }, { "type": "string" }]
 									},
 									"theme": { "$ref": "#/components/schemas/Theme" },
 									"format": { "$ref": "#/components/schemas/Format" },
 									"output": { "$ref": "#/components/schemas/Output" },
 									"title": { "type": "string" },
 									"author": { "type": "string" },
-									"date": { "type": "string" }
+									"date": { "type": "string" },
+									"templateVersion": {
+										"type": "integer",
+										"minimum": 1,
+										"description": "With a stored template's name: the version to use (default: the latest)."
+									}
 								}
 							}
 						}
@@ -92,7 +96,8 @@
 					"413": { "$ref": "#/components/responses/Error" },
 					"422": { "$ref": "#/components/responses/Error" },
 					"503": { "$ref": "#/components/responses/Error" },
-					"504": { "$ref": "#/components/responses/Error" }
+					"504": { "$ref": "#/components/responses/Error" },
+					"404": { "$ref": "#/components/responses/Error" }
 				}
 			}
 		},
@@ -182,6 +187,200 @@
 					"422": { "$ref": "#/components/responses/Error" },
 					"503": { "$ref": "#/components/responses/Error" },
 					"504": { "$ref": "#/components/responses/Error" }
+				}
+			}
+		},
+		"/templates": {
+			"get": {
+				"operationId": "listTemplates",
+				"summary": "List stored templates",
+				"responses": {
+					"200": {
+						"description": "Every stored template, by name.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": ["templates"],
+									"properties": {
+										"templates": {
+											"type": "array",
+											"items": { "$ref": "#/components/schemas/StoredTemplate" }
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": { "$ref": "#/components/responses/Error" },
+					"404": { "$ref": "#/components/responses/Error" }
+				}
+			},
+			"post": {
+				"operationId": "addTemplate",
+				"summary": "Store a template",
+				"description": "Stores a PowerPoint template under a name. Uploading to a name that exists adds a new version, which renders then use. The file is read before it is stored: one that isn't a template is refused, and its layouts are kept (see GET /templates/{name}).",
+				"requestBody": {
+					"required": true,
+					"content": {
+						"multipart/form-data": {
+							"schema": {
+								"type": "object",
+								"required": ["name", "file"],
+								"properties": {
+									"name": {
+										"type": "string",
+										"description": "Lowercase letters, digits and hyphens (1–64). Not a built-in theme name."
+									},
+									"label": {
+										"type": "string",
+										"description": "A display name (kept when not sent)."
+									},
+									"file": {
+										"type": "string",
+										"format": "binary",
+										"description": "The template (.pptx / .potx / .thmx)."
+									}
+								}
+							}
+						},
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": ["name", "file"],
+								"properties": {
+									"name": {
+										"type": "string",
+										"description": "Lowercase letters, digits and hyphens (1–64). Not a built-in theme name."
+									},
+									"label": {
+										"type": "string",
+										"description": "A display name (kept when not sent)."
+									},
+									"file": { "$ref": "#/components/schemas/Base64File" }
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "A new template (version 1).",
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/StoredTemplate" } }
+						}
+					},
+					"200": {
+						"description": "A new version of an existing template.",
+						"content": {
+							"application/json": { "schema": { "$ref": "#/components/schemas/StoredTemplate" } }
+						}
+					},
+					"400": { "$ref": "#/components/responses/Error" },
+					"401": { "$ref": "#/components/responses/Error" },
+					"404": { "$ref": "#/components/responses/Error" },
+					"413": { "$ref": "#/components/responses/Error" },
+					"422": { "$ref": "#/components/responses/Error" },
+					"503": { "$ref": "#/components/responses/Error" },
+					"504": { "$ref": "#/components/responses/Error" }
+				}
+			}
+		},
+		"/templates/{name}": {
+			"parameters": [
+				{
+					"name": "name",
+					"in": "path",
+					"required": true,
+					"schema": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$" }
+				}
+			],
+			"get": {
+				"operationId": "getTemplate",
+				"summary": "A stored template's versions and layouts",
+				"parameters": [
+					{
+						"name": "version",
+						"in": "query",
+						"required": false,
+						"schema": { "type": "integer", "minimum": 1 },
+						"description": "The version whose layouts to return (default: the latest)."
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "The template, and one version's layouts.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/StoredTemplateDetail" }
+							}
+						}
+					},
+					"400": { "$ref": "#/components/responses/Error" },
+					"401": { "$ref": "#/components/responses/Error" },
+					"404": { "$ref": "#/components/responses/Error" }
+				}
+			},
+			"delete": {
+				"operationId": "deleteTemplate",
+				"summary": "Delete a stored template, or one version",
+				"description": "Deleting the last version deletes the template.",
+				"parameters": [
+					{
+						"name": "version",
+						"in": "query",
+						"required": false,
+						"schema": { "type": "integer", "minimum": 1 },
+						"description": "Delete only this version."
+					}
+				],
+				"responses": {
+					"204": { "description": "Deleted." },
+					"400": { "$ref": "#/components/responses/Error" },
+					"401": { "$ref": "#/components/responses/Error" },
+					"404": { "$ref": "#/components/responses/Error" }
+				}
+			}
+		},
+		"/templates/{name}/file": {
+			"parameters": [
+				{
+					"name": "name",
+					"in": "path",
+					"required": true,
+					"schema": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$" }
+				}
+			],
+			"get": {
+				"operationId": "downloadTemplate",
+				"summary": "Download a stored template",
+				"parameters": [
+					{
+						"name": "version",
+						"in": "query",
+						"required": false,
+						"schema": { "type": "integer", "minimum": 1 },
+						"description": "The version to download (default: the latest)."
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "The file as uploaded.",
+						"content": {
+							"application/vnd.openxmlformats-officedocument.presentationml.presentation": {
+								"schema": { "type": "string", "format": "binary" }
+							},
+							"application/vnd.openxmlformats-officedocument.presentationml.template": {
+								"schema": { "type": "string", "format": "binary" }
+							},
+							"application/vnd.ms-officetheme": {
+								"schema": { "type": "string", "format": "binary" }
+							}
+						}
+					},
+					"400": { "$ref": "#/components/responses/Error" },
+					"401": { "$ref": "#/components/responses/Error" },
+					"404": { "$ref": "#/components/responses/Error" }
 				}
 			}
 		},
@@ -316,12 +515,26 @@
 						"items": { "anyOf": [{ "type": "string" }, { "$ref": "#/components/schemas/Slide" }] }
 					},
 					"theme": { "$ref": "#/components/schemas/Theme" },
-					"template": { "$ref": "#/components/schemas/Base64File" },
+					"template": {
+						"anyOf": [
+							{
+								"type": "string",
+								"description": "The name of a stored template (see /templates)."
+							},
+							{ "$ref": "#/components/schemas/Base64File" }
+						],
+						"description": "The template to use as the theme: a stored template's name, or the file itself."
+					},
 					"format": { "$ref": "#/components/schemas/Format" },
 					"output": { "$ref": "#/components/schemas/Output" },
 					"title": { "type": "string", "description": "Deck title (also names the file)." },
 					"author": { "type": "string" },
-					"date": { "type": "string" }
+					"date": { "type": "string" },
+					"templateVersion": {
+						"type": "integer",
+						"minimum": 1,
+						"description": "With a stored template's name: the version to use (default: the latest)."
+					}
 				}
 			},
 			"RenderedFile": {
@@ -409,6 +622,52 @@
 						}
 					}
 				}
+			},
+			"TemplateVersion": {
+				"type": "object",
+				"required": ["version", "ext", "size", "sha256", "createdAt"],
+				"properties": {
+					"version": {
+						"type": "integer",
+						"description": "1 for the first upload, then 2, 3 … (numbers of deleted versions aren't reused)."
+					},
+					"ext": { "type": "string", "enum": [".pptx", ".potx", ".thmx"] },
+					"size": { "type": "integer", "description": "Bytes." },
+					"sha256": { "type": "string" },
+					"createdAt": { "type": "string", "format": "date-time" }
+				}
+			},
+			"StoredTemplate": {
+				"type": "object",
+				"required": ["name", "latest", "versions", "updatedAt"],
+				"properties": {
+					"name": { "type": "string" },
+					"label": { "type": ["string", "null"] },
+					"latest": {
+						"type": "integer",
+						"description": "The version renders use unless templateVersion is given."
+					},
+					"updatedAt": { "type": "string", "format": "date-time" },
+					"versions": {
+						"type": "array",
+						"items": { "$ref": "#/components/schemas/TemplateVersion" },
+						"description": "Oldest first."
+					}
+				}
+			},
+			"StoredTemplateDetail": {
+				"allOf": [
+					{ "$ref": "#/components/schemas/StoredTemplate" },
+					{
+						"type": "object",
+						"properties": {
+							"version": { "type": "integer", "description": "The version `outline` describes." },
+							"outline": {
+								"anyOf": [{ "$ref": "#/components/schemas/TemplateLayouts" }, { "type": "null" }]
+							}
+						}
+					}
+				]
 			}
 		}
 	}

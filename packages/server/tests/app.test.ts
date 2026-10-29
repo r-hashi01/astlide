@@ -1,4 +1,7 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHandler, readBody } from "../src/app";
 import { resolveOptions, type ServerOptions } from "../src/config";
 import { deckFixture, templateFixture } from "./fixtures";
@@ -230,5 +233,102 @@ describe("uploaded PowerPoint files are read in a child process", () => {
 		);
 		expect(res.status).toBe(422);
 		expect((await res.json()).error).toMatch(/larger than/);
+	});
+});
+
+describe("stored templates", () => {
+	let dir: string;
+	let stored: (req: Request) => Promise<Response>;
+	beforeAll(() => {
+		dir = mkdtempSync(join(tmpdir(), "astlide-server-templates-"));
+		stored = createHandler({ ...options, templateDir: dir });
+	});
+	afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+	const call = (path: string, init?: RequestInit) =>
+		stored(new Request(`http://test${path}`, init));
+	const upload = (fields: Record<string, string | Blob>, filename?: string) =>
+		call("/templates", { method: "POST", body: form(fields, filename) });
+
+	it("are off without ASTLIDE_TEMPLATE_DIR", async () => {
+		const res = await handle(new Request("http://test/templates"));
+		expect(res.status).toBe(404);
+		expect((await res.json()).error).toMatch(/ASTLIDE_TEMPLATE_DIR/);
+		const render = await postJson("/render", { markdown: "# a", template: "acme" });
+		expect(render.status).toBe(404);
+	});
+
+	it("keeps uploads as versions, with their layouts", async () => {
+		const first = await upload(
+			{ name: "acme", label: "Acme", file: new Blob([template]) },
+			"acme.potx",
+		);
+		expect(first.status).toBe(201);
+		expect(await first.json()).toMatchObject({
+			name: "acme",
+			label: "Acme",
+			latest: 1,
+			versions: [{ version: 1, ext: ".potx", size: template.length }],
+		});
+		const second = await upload({ name: "acme", file: new Blob([template]) });
+		expect(second.status).toBe(200);
+		expect((await second.json()).latest).toBe(2);
+
+		const list = await (await call("/templates")).json();
+		expect(list.templates.map((t: { name: string }) => t.name)).toEqual(["acme"]);
+		expect(JSON.stringify(list)).not.toContain("outline");
+
+		const one = await (await call("/templates/acme")).json();
+		expect(one).toMatchObject({ name: "acme", label: "Acme", version: 2 });
+		expect(one.outline.aliases).toMatchObject({ cover: "title-slide" });
+		expect((await (await call("/templates/acme?version=1")).json()).version).toBe(1);
+
+		const file = await call("/templates/acme/file?version=1");
+		expect(file.headers.get("content-type")).toContain("presentationml.template");
+		expect(file.headers.get("content-disposition")).toContain("acme-v1.potx");
+		expect(new Uint8Array(await file.arrayBuffer())).toEqual(template);
+	});
+
+	it("deletes a version, then the template", async () => {
+		await upload({ name: "gone", file: new Blob([template]) });
+		await upload({ name: "gone", file: new Blob([template]) });
+		expect((await call("/templates/gone?version=1", { method: "DELETE" })).status).toBe(204);
+		expect((await (await call("/templates/gone")).json()).versions).toHaveLength(1);
+		expect((await call("/templates/gone", { method: "DELETE" })).status).toBe(204);
+		expect((await call("/templates/gone")).status).toBe(404);
+		expect((await call("/templates/gone", { method: "DELETE" })).status).toBe(404);
+	});
+
+	it("refuses bad names, files and versions", async () => {
+		const bad = async (res: Promise<Response>, status: number, message: RegExp) => {
+			const r = await res;
+			expect(r.status).toBe(status);
+			expect((await r.json()).error).toMatch(message);
+		};
+		await bad(upload({ file: new Blob([template]) }), 400, /name/);
+		await bad(upload({ name: "Acme!", file: new Blob([template]) }), 400, /lowercase/);
+		await bad(upload({ name: "dark", file: new Blob([template]) }), 400, /built-in/);
+		await bad(upload({ name: "layouts", file: new Blob([template]) }), 400, /reserved/);
+		await bad(upload({ name: "x", file: new Blob(["hello"]) }), 400, /not a/);
+		await bad(upload({ name: "x", file: new Blob([template]) }, "x.key"), 400, /\.pptx/);
+		await bad(call("/templates/acme?version=0"), 400, /version/);
+		await bad(call("/templates/nope"), 404, /no template/);
+		await bad(call("/templates/..%2F..%2Fetc"), 404, /no template/);
+		const render = (body: unknown) =>
+			call("/render", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify(body),
+			});
+		await bad(render({ markdown: "# a", template: "nope" }), 404, /no template "nope"/);
+		await bad(render({ markdown: "# a", template: "acme", templateVersion: 9 }), 404, /version 9/);
+		await bad(render({ markdown: "# a", template: "acme", templateVersion: "x" }), 400, /version/);
+		expect((await call("/templates/acme", { method: "PUT" })).status).toBe(405);
+	});
+
+	it("need the API key like every other route", async () => {
+		const locked = createHandler({ ...options, templateDir: dir, apiKey: "k".repeat(32) });
+		expect((await locked(new Request("http://test/templates"))).status).toBe(401);
+		expect((await locked(new Request("http://test/templates/acme/file"))).status).toBe(401);
 	});
 });

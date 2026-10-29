@@ -1,5 +1,11 @@
 {
-	"entryPoints": ["src/index.ts", "src/schema.ts", "src/utils/sanitize.ts", "src/embed/index.ts"],
+	"entryPoints": [
+		"src/index.ts",
+		"src/schema.ts",
+		"src/utils/sanitize.ts",
+		"src/embed/index.ts",
+		"src/templates.ts"
+	],
 	"entryPointStrategy": "expand",
 	"tsconfig": "./tsconfig.typedoc.json",
 	"out": "../../docs/public/api",

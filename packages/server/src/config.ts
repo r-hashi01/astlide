@@ -43,6 +43,11 @@ export interface ServerOptions {
 	allowPrivateNetwork: boolean;
 	/** Serve without an API key on a non-loopback host (`ASTLIDE_ALLOW_UNAUTHENTICATED=1`). */
 	allowUnauthenticated: boolean;
+	/**
+	 * Where uploaded templates are kept (`ASTLIDE_TEMPLATE_DIR`). Unset, the
+	 * server stores nothing and the `/templates` routes answer 404.
+	 */
+	templateDir?: string;
 }
 
 const positive = (value: string | undefined, fallback: number): number => {
@@ -103,7 +108,14 @@ export function resolveOptions(
 		publicUrl: (env.PUBLIC_URL && trimTrailingSlashes(env.PUBLIC_URL)) || undefined,
 		allowPrivateNetwork: env.ASTLIDE_ALLOW_PRIVATE_NETWORK === "1",
 		allowUnauthenticated: env.ASTLIDE_ALLOW_UNAUTHENTICATED === "1",
+		templateDir: templateDir(env.ASTLIDE_TEMPLATE_DIR),
 	};
+}
+
+function templateDir(dir: string | undefined): string | undefined {
+	if (!dir) return undefined;
+	mkdirSync(dir, { recursive: true });
+	return realpathSync(dir);
 }
 
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);

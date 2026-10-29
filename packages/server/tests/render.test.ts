@@ -3,7 +3,9 @@
  * Astro build + export per request). Slow — seconds per render.
  */
 
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import JSZip from "jszip";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHandler } from "../src/app";
@@ -90,6 +92,35 @@ describe("POST /render (end to end)", () => {
 		expect(body).toMatchObject({ filename: "slides.pptx", contentType: expect.any(String) });
 		const texts = await slideTexts(Buffer.from(body.data, "base64"));
 		expect(texts.join(" ")).toContain("Agenda");
+	}, 180_000);
+
+	it("renders with a stored template, by name", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "astlide-render-templates-"));
+		try {
+			const handle = createHandler({ ...options, templateDir: dir });
+			const upload = new FormData();
+			upload.append("name", "brand");
+			upload.append("file", new Blob([await templateFixture()]), "brand.pptx");
+			const added = await handle(
+				new Request("http://test/templates", { method: "POST", body: upload }),
+			);
+			expect(added.status).toBe(201);
+			const res = await handle(
+				new Request("http://test/render", {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						slides: [{ markdown: "# Stored agenda\n\n- One", slideLayout: "title-and-content" }],
+						template: "brand",
+					}),
+				}),
+			);
+			const body = await res.arrayBuffer();
+			expect(res.status, Buffer.from(body).toString()).toBe(200);
+			expect((await slideTexts(body)).join(" ")).toContain("Stored agenda");
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	}, 180_000);
 
 	it("renders a PDF when Chromium is installed", async (ctx) => {

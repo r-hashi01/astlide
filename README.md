@@ -530,7 +530,7 @@ astlide({ templates: { brand: './templates/brand.pptx' } })   // .pptx / .potx /
 
 ## Render service (HTTP API)
 
-`packages/server` is a small HTTP service around Astlide, for tools that can call an API but don't run Node / Astro — Dify or n8n custom tools, internal apps. Send Markdown (and a theme or a PowerPoint template), get an editable PPTX, a PDF or PNGs back; import a PowerPoint as HTML slides; list a template's layouts. Its OpenAPI spec is served at `/openapi.json`, and nothing is stored.
+`packages/server` is a small HTTP service around Astlide, for tools that can call an API but don't run Node / Astro — Dify or n8n custom tools, internal apps. Send Markdown (and a theme or a PowerPoint template), get an editable PPTX, a PDF or PNGs back; import a PowerPoint as HTML slides; list a template's layouts. Its OpenAPI spec is served at `/openapi.json`. Renders keep nothing, and you can turn on storage for your PowerPoint templates so callers pick one by name.
 
 ```bash
 docker build -f packages/server/Dockerfile -t astlide-server .

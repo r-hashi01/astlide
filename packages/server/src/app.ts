@@ -4,9 +4,12 @@
  * - `POST /render` — Markdown slides (+ theme or uploaded template) → PPTX / PDF / PNG (zip)
  * - `POST /import` — PPTX (or Google Slides URL) → slides as HTML
  * - `POST /templates/layouts` — a template's layouts and placeholders
+ * - `GET|POST /templates`, `GET|DELETE /templates/{name}`, `GET /templates/{name}/file`
+ *   — stored templates, when `ASTLIDE_TEMPLATE_DIR` is set
  * - `GET /openapi.json`, `GET /health`
  *
- * Nothing is kept: each render's project is deleted when its response is ready.
+ * Each render's project is deleted when its response is ready. Only templates
+ * uploaded to `/templates` are kept, and only with `ASTLIDE_TEMPLATE_DIR` set.
  *
  * @module
  */
@@ -15,9 +18,16 @@ import { timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { extname } from "node:path";
 import { THEMES } from "@astlide/core/schema";
+import {
+	createTemplateStore,
+	type TemplateExtension,
+	type TemplateInfo,
+	type TemplateStore,
+	templateNameError,
+} from "@astlide/core/templates";
 import { type ServerOptions, trimTrailingSlashes } from "./config";
 import { BadRequest, type DeckSettings, deckFiles, parseSlides } from "./deck";
-import { fetchGoogleSlides, parsePptx, TEMPLATE_EXTS } from "./importer";
+import { fetchGoogleSlides, isZip, parsePptx, TEMPLATE_EXTS } from "./importer";
 import { createProject, removeProject, TEMPLATE_THEME } from "./project";
 import { Queue, QueueFull } from "./queue";
 import { FORMATS, type Format, renderProject } from "./render";
@@ -175,9 +185,41 @@ function downloadName(title: string | undefined, ext: string): string {
 	return `${base}.${ext}`;
 }
 
+/** A version number from a query or a field, or undefined when not given. */
+function versionParam(value: unknown, key: string): number | undefined {
+	if (value === undefined || value === null || value === "") return undefined;
+	const n = typeof value === "number" ? value : Number(value);
+	if (!Number.isInteger(n) || n < 1)
+		throw new BadRequest(`"${key}" must be a version number (1, 2, …)`);
+	return n;
+}
+
+/** A template as listed: its versions without their metadata. */
+const templateSummary = (info: TemplateInfo) => ({
+	name: info.name,
+	label: info.label ?? null,
+	latest: info.latest,
+	updatedAt: info.updatedAt,
+	versions: info.versions.map(({ meta: _, ...v }) => v),
+});
+
+const CONTENT_TYPES: Record<string, string> = {
+	".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+	".potx": "application/vnd.openxmlformats-officedocument.presentationml.template",
+	".thmx": "application/vnd.ms-officetheme",
+};
+
+/** `/templates/{name}` and `/templates/{name}/file`. */
+const TEMPLATE_PATH = /^\/templates\/([^/]+)(\/file)?$/;
+
 /** Create the fetch handler. */
 export function createHandler(options: ServerOptions) {
 	const queue = new Queue(options.concurrency, options.maxQueued);
+	const store: TemplateStore | undefined = options.templateDir
+		? createTemplateStore(options.templateDir)
+		: undefined;
+	const storeOff = () =>
+		new HttpError(404, "template storage is off: start the server with ASTLIDE_TEMPLATE_DIR set");
 
 	async function render(req: Request): Promise<Response> {
 		// Refuse before reading the body: a full queue shouldn't buffer more uploads.
@@ -201,8 +243,20 @@ export function createHandler(options: ServerOptions) {
 			date: optionalString(fields, "date"),
 		};
 		const upload = files.template;
+		const stored = optionalString(fields, "template");
 		let template: { ext: string; data: Uint8Array } | undefined;
-		if (upload) {
+		if (stored !== undefined) {
+			if (!store) throw storeOff();
+			const version = versionParam(fields.templateVersion, "templateVersion");
+			const found = await store.get(stored, version);
+			if (!found)
+				throw new HttpError(
+					404,
+					`no template "${stored}"${version ? ` with version ${version}` : ""}`,
+				);
+			template = { ext: found.version.ext, data: found.data };
+			settings.theme = TEMPLATE_THEME;
+		} else if (upload) {
 			const ext = extname(upload.name).toLowerCase() || ".pptx";
 			if (!TEMPLATE_EXTS.includes(ext))
 				throw new BadRequest(`"template" must be a ${TEMPLATE_EXTS.join(" / ")} file`);
@@ -278,6 +332,69 @@ export function createHandler(options: ServerOptions) {
 		return json(await queue.run(() => parsePptx("layouts", file.data, parseOptions)));
 	}
 
+	/** `POST /templates`: store a template (a new version when the name exists). */
+	async function addTemplate(req: Request): Promise<Response> {
+		if (!store) throw storeOff();
+		const { fields, files } = await parseInput(req, options.maxBodyBytes);
+		const name = optionalString(fields, "name");
+		if (!name) throw new BadRequest('send the template\'s "name"');
+		const nameError = name === "layouts" ? '"layouts" is reserved' : templateNameError(name);
+		if (nameError) throw new BadRequest(nameError);
+		const file = files.file ?? files.template;
+		if (!file) throw new BadRequest('send the template as "file"');
+		const ext = extname(file.name).toLowerCase() || ".pptx";
+		if (!TEMPLATE_EXTS.includes(ext))
+			throw new BadRequest(`"file" must be a ${TEMPLATE_EXTS.join(" / ")} file`);
+		if (!isZip(file.data)) throw new BadRequest(`not a ${TEMPLATE_EXTS.join(" / ")} file`);
+		// Read it once now: a file that isn't a template is refused, and its layouts are kept.
+		const outline = await queue.run(() => parsePptx("layouts", file.data, parseOptions));
+		const info = await store.put(name, file.data, {
+			ext: ext as TemplateExtension,
+			label: optionalString(fields, "label"),
+			meta: { outline },
+		});
+		return json(templateSummary(info), info.latest === 1 && info.versions.length === 1 ? 201 : 200);
+	}
+
+	async function listTemplates(): Promise<Response> {
+		if (!store) throw storeOff();
+		return json({ templates: (await store.list()).map(templateSummary) });
+	}
+
+	/** `GET|DELETE /templates/{name}` and `GET /templates/{name}/file`. */
+	async function templateRoute(req: Request, name: string, file: boolean): Promise<Response> {
+		if (!store) throw storeOff();
+		const url = new URL(req.url);
+		const version = versionParam(url.searchParams.get("version"), "version");
+		const missing = () =>
+			new HttpError(404, `no template "${name}"${version ? ` with version ${version}` : ""}`);
+		const method = req.method === "HEAD" ? "GET" : req.method;
+		if (file) {
+			if (method !== "GET") throw new HttpError(405, "use GET");
+			const found = await store.get(name, version);
+			if (!found) throw missing();
+			return new Response(new Uint8Array(found.data), {
+				headers: {
+					"content-type": CONTENT_TYPES[found.version.ext] ?? "application/octet-stream",
+					"content-disposition": `attachment; filename="${name}-v${found.version.version}${found.version.ext}"`,
+				},
+			});
+		}
+		if (method === "DELETE") {
+			if (!(await store.remove(name, version))) throw missing();
+			return new Response(null, { status: 204 });
+		}
+		if (method !== "GET") throw new HttpError(405, "use GET / DELETE");
+		const info = await store.info(name);
+		const chosen = info?.versions.find((v) => v.version === (version ?? info.latest));
+		if (!info || !chosen) throw missing();
+		return json({
+			...templateSummary(info),
+			version: chosen.version,
+			outline: chosen.meta?.outline ?? null,
+		});
+	}
+
 	function openapi(req: Request): Response {
 		const origin = options.publicUrl ?? new URL(req.url).origin;
 		return json({ ...SPEC, info: { ...SPEC.info, version: VERSION }, servers: [{ url: origin }] });
@@ -291,6 +408,7 @@ export function createHandler(options: ServerOptions) {
 		"/render": { POST: render },
 		"/import": { POST: importRoute },
 		"/templates/layouts": { POST: layoutsRoute },
+		"/templates": { GET: listTemplates, POST: addTemplate },
 	};
 	const open = new Set(["/health", "/openapi.json"]);
 
@@ -309,7 +427,7 @@ export function createHandler(options: ServerOptions) {
 
 	/** Requests reading a body or holding a parsed upload; beyond the queue's room they get 503. */
 	let busy = 0;
-	const heavy = new Set(["/render", "/import", "/templates/layouts"]);
+	const heavy = new Set(["/render", "/import", "/templates/layouts", "/templates"]);
 
 	return async function handle(req: Request): Promise<Response> {
 		const { pathname } = new URL(req.url);
@@ -320,12 +438,14 @@ export function createHandler(options: ServerOptions) {
 			if (path === "/") return json({ name: "astlide-server", openapi: "/openapi.json" });
 			// Before anything else: without the key, not even which routes exist.
 			if (!open.has(path) && !authorized(req)) throw new HttpError(401, "missing or wrong API key");
+			const stored = routes[path] ? undefined : path.match(TEMPLATE_PATH);
+			if (stored) return await templateRoute(req, stored[1] as string, !!stored[2]);
 			const route = routes[path];
 			if (!route) throw new HttpError(404, "not found");
 			const method = req.method === "HEAD" ? "GET" : req.method;
 			const fn = route[method];
 			if (!fn) throw new HttpError(405, `use ${Object.keys(route).join(" / ")}`);
-			if (!heavy.has(path)) return await fn(req);
+			if (!heavy.has(path) || method !== "POST") return await fn(req);
 			if (busy >= options.concurrency + options.maxQueued) throw new QueueFull();
 			busy++;
 			try {

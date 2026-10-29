@@ -10,10 +10,11 @@ description: Run Astlide as an HTTP service that turns Markdown into PowerPoint,
 | `POST /render` | Takes Markdown slides and returns an editable **PPTX**, a **PDF**, or **PNG** images (a ZIP with one image per slide). Styling comes from a built-in theme or an uploaded PowerPoint template. |
 | `POST /import` | Takes a `.pptx` file or a Google Slides URL and returns each slide as HTML, with its title and speaker notes. |
 | `POST /templates/layouts` | Takes a PowerPoint template and returns its layouts and the position of each placeholder. |
+| `GET` `POST /templates`<br>`GET` `DELETE /templates/{name}`<br>`GET /templates/{name}/file` | Keep PowerPoint templates on the server by name, so renders can use one without uploading it. Only when template storage is on (see [Keep templates on the server](#keep-templates-on-the-server)). |
 | `GET /openapi.json` | The OpenAPI 3.1 spec. |
 | `GET /health` | Health check. |
 
-The service keeps no data. Each render runs in a temporary Astro project that is deleted once the response is ready, and uploaded files are not written anywhere else.
+Each render runs in a temporary Astro project that is deleted once the response is ready, and files sent with a render or an import are not written anywhere else. The only data the service keeps is the templates you upload to `/templates`, and only when you turn template storage on.
 
 ## Run it with Docker
 
@@ -72,7 +73,8 @@ If you build slides one by one, send them as a `slides` array instead. Each item
 | --- | --- |
 | `markdown` / `slides` | The slides. Send one of the two. |
 | `theme` | A built-in theme: `default`, `dark`, `minimal`, `corporate`, `gradient`, `rose` or `forest`. |
-| `template` | A PowerPoint template (`.pptx`, `.potx` or `.thmx`) to use in place of a theme. In a multipart request, send it as a file field. In JSON, send `{ "filename": "brand.pptx", "data": "<base64>" }`. |
+| `template` | A PowerPoint template (`.pptx`, `.potx` or `.thmx`) to use in place of a theme. In a multipart request, send it as a file field. In JSON, send `{ "filename": "brand.pptx", "data": "<base64>" }`. Or send the name of a [stored template](#keep-templates-on-the-server). |
+| `templateVersion` | With a stored template's name: the version to use. The latest version is used when you leave it out. |
 | `format` | `pptx` (default), `pdf`, or `png` (a ZIP with one PNG per slide). |
 | `output` | `file` (default) returns the file itself. `base64` returns JSON `{ filename, contentType, size, data }`, for clients that can only handle JSON. |
 | `title`, `author`, `date` | Deck metadata. The title is also used for the file name. |
@@ -109,6 +111,48 @@ curl -F file=@brand.pptx localhost:8787/templates/layouts
 
 For how slide content fills the placeholders, see [PowerPoint templates](/guides/templates/).
 
+## Keep templates on the server
+
+If your team renders with the same few templates, upload them once and refer to them by name. Turn template storage on by pointing `ASTLIDE_TEMPLATE_DIR` at a directory. In Docker, mount a volume there so the templates survive a restart:
+
+```bash
+docker run --rm -p 8787:8787 -e ASTLIDE_API_KEY \
+  -e ASTLIDE_TEMPLATE_DIR=/data/templates -v astlide-templates:/data/templates \
+  --security-opt seccomp=packages/server/chromium-seccomp.json astlide-server
+```
+
+Upload a template with a name. Names use lowercase letters, digits and hyphens, and can't be the name of a built-in theme. `label` is an optional display name:
+
+```bash
+curl localhost:8787/templates -F name=acme -F label="Acme 2026" -F file=@acme.potx
+# {"name":"acme","label":"Acme 2026","latest":1,"versions":[{"version":1,"ext":".potx",…}],…}
+```
+
+Then render with the name in place of the file:
+
+```bash
+curl -o q3.pptx -H 'content-type: application/json' localhost:8787/render -d '{
+  "markdown": "# Q3 review\n---\n# Highlights\n\n- Revenue up 12%",
+  "template": "acme"
+}'
+```
+
+Uploading again under the same name adds a new version, and renders switch to it. Earlier versions stay, so you can go back to one with `"templateVersion": 1` or download it. The service reads each file before storing it: a file that isn't a PowerPoint template is refused, and the layouts are saved alongside it.
+
+| Request | What it does |
+| --- | --- |
+| `GET /templates` | Lists the stored templates and their versions. |
+| `POST /templates` | Stores a template (`name`, `file`, optional `label`), or adds a version to an existing one. Returns 201 for a new template and 200 for a new version. |
+| `GET /templates/{name}` | Returns the template's versions, and the layouts of the latest version in the same form as `POST /templates/layouts`. Add `?version=` for another version's layouts. |
+| `GET /templates/{name}/file` | Downloads the file as it was uploaded (`?version=` for an earlier one). |
+| `DELETE /templates/{name}` | Deletes the template with all its versions, or only one with `?version=`. Deleting the last version deletes the template. |
+
+Version numbers count up and are never reused, so a number always means the same file even after you delete versions.
+
+Templates are stored as plain files: one directory per template, holding a `manifest.json` and one file per version. Only run one server per template directory.
+
+To keep templates somewhere else, or to build your own service, use the same store from `@astlide/core/templates`. `createTemplateStore(dir)` gives you `list`, `info`, `get`, `put` and `remove`, and you can implement the `TemplateStore` interface on top of S3 or a database.
+
 ## Import a deck
 
 Send a `.pptx` file, or the URL of a Google Slides deck:
@@ -126,7 +170,7 @@ The service only fetches `docs.google.com/presentation` URLs. Share the Google S
 
 `GET /openapi.json` returns an OpenAPI 3.1 spec of the service. Its `servers` entry is the URL you used to reach the service, or `PUBLIC_URL` if you set it.
 
-- **Dify**: open Tools → Custom → Create Custom Tool, choose *Import from URL*, and enter `http://<host>:8787/openapi.json`. Each operation (`renderSlides`, `importPresentation`, `listTemplateLayouts`) becomes a tool that agents and workflows can call. If the tool has to return JSON, set `output: base64`. If the server has an API key, choose *API Key* → *Bearer* as the authorization type.
+- **Dify**: open Tools → Custom → Create Custom Tool, choose *Import from URL*, and enter `http://<host>:8787/openapi.json`. Each operation (`renderSlides`, `importPresentation`, `listTemplateLayouts`, and the template operations such as `listTemplates`) becomes a tool that agents and workflows can call. If the tool has to return JSON, set `output: base64`. If the server has an API key, choose *API Key* → *Bearer* as the authorization type.
 - **n8n**: use an *HTTP Request* node that calls `POST /render`, with the response format set to *File*. Tools that read OpenAPI specs can import the spec directly.
 
 ## Settings
@@ -146,6 +190,7 @@ Configure the server with environment variables:
 | `RENDER_TIMEOUT_MS` | `180000` | A render, or the reading of an uploaded PowerPoint file, is stopped after this long and gets 504. |
 | `CONCURRENCY` / `MAX_QUEUE` | `2` / `16` | How many renders run at once, and how many can wait. Requests beyond that get 503 before their upload is read. |
 | `ASTLIDE_CHROMIUM_SANDBOX` | `1` | Chromium's sandbox for PDF and PNG. `0` turns it off. Do this only if you trust every caller (see [Security](#security)). |
+| `ASTLIDE_TEMPLATE_DIR` | (none) | Turns template storage on and keeps the templates in this directory (see [Keep templates on the server](#keep-templates-on-the-server)). Without it, the `/templates` routes return 404. |
 | `ASTLIDE_WORK_DIR` | `.astlide-work` next to `node_modules` | Where the per-request projects are created. It must share a parent directory with the installed packages. |
 
 Errors come back as JSON `{ "error": "…" }`. Invalid input gets 400. Input is checked before anything is built, so a frontmatter value that the slide schema rejects fails at this point. If the build or export fails, the response is 422 and includes the end of the build log.
@@ -163,6 +208,7 @@ Treat every request as untrusted content. Raw HTML in the Markdown is rendered a
 
 - The server needs an API key to listen on anything other than loopback. If `ASTLIDE_API_KEY` is not set, it refuses to start unless `HOST` is `127.0.0.1`, `localhost` or `::1`. If a gateway or network in front of it already controls access, set `ASTLIDE_ALLOW_UNAUTHENTICATED=1` instead.
 - Without a valid key, every path except `/`, `/health` and `/openapi.json` returns 401, including paths that don't exist. The key is compared in constant time.
+- With template storage on, anyone with the key can add, download and delete templates. If callers shouldn't change the templates, put a gateway in front that only lets `GET /templates…` and `POST /render` through for them.
 
 ### Network access during a render
 
@@ -189,7 +235,7 @@ Treat every request as untrusted content. Raw HTML in the Markdown is rendered a
 - Markdown images must use URLs. An image with a file path, such as `![](../x.png)`, is rejected with 400, because Astro would read that file from the server's disk. Use `https:` or `data:` URLs.
 - Each slide is written with its own frontmatter block. A slide body that starts with `---` stays part of the body and can't bypass the frontmatter checks.
 - Frontmatter can't use YAML anchors or aliases (`&a`, `*a`), and is limited to 256 KB per slide.
-- Uploaded PowerPoint files (`/import`, `/templates/layouts`) are read in a child process and go through the same queue as renders. Reading that takes longer than `RENDER_TIMEOUT_MS` is stopped (504), and a result larger than `MAX_OUTPUT_MB` is rejected (422). Neither case can stall the server itself.
+- Uploaded PowerPoint files (`/import`, `/templates/layouts`, `POST /templates`) are read in a child process and go through the same queue as renders. Reading that takes longer than `RENDER_TIMEOUT_MS` is stopped (504), and a result larger than `MAX_OUTPUT_MB` is rejected (422). Neither case can stall the server itself.
 - Renders get only the environment variables they need: `PATH`, `HOME`, temp directories, locale settings, `PLAYWRIGHT_BROWSERS_PATH`, and the render settings the server passes in (slide limit, sandbox, network policy). They don't see the server's secrets, `ASTLIDE_API_KEY`, cloud credentials or proxy settings.
 
 ### Chromium sandbox

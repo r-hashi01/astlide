@@ -9,6 +9,7 @@
 		"./plugin": "./src/plugin.ts",
 		"./loader": "./src/loader.ts",
 		"./pptx": "./src/pptx/index.ts",
+		"./templates": "./src/templates.ts",
 		"./mcp": "./src/mcp/index.ts",
 		"./embed": "./src/embed/index.ts",
 		"./embed/react": "./src/embed/react.ts",
