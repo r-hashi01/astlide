@@ -9,7 +9,7 @@ description: PowerPoint や Google スライドのテンプレートをテーマ
 
 ```js
 // astro.config.mjs
-import astlide from "@astlide/core";
+import astlide from "@astlide/astro";
 import { defineConfig } from "astro/config";
 
 export default defineConfig({

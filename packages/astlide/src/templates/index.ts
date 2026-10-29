@@ -17,7 +17,7 @@
  * `@azure/identity` for Microsoft Entra ID sign-in). The files are kept as
  * uploaded; read one with `pptxToTemplate()` from `@astlide/core/pptx`.
  *
- * @module
+ * @module @astlide/core/templates
  */
 
 import { createAzureBlobTemplateStore } from "./azure";

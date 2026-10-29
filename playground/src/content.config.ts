@@ -1,5 +1,5 @@
 import { defineCollection } from "astro:content";
-import { astlideDeckLoader, slideSchema } from "@astlide/core";
+import { astlideDeckLoader, slideSchema } from "@astlide/astro";
 
 const decks = defineCollection({
 	// Renders .mdx, .md, and .html slides from src/content/decks/<deck>/

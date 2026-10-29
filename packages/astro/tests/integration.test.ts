@@ -2,9 +2,9 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { exportBuildDir } from "@astlide/core/utils/export-build";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import astlide from "../src/index";
-import { exportBuildDir } from "../src/utils/export-build";
 
 // ── Helpers ──
 
@@ -77,25 +77,25 @@ describe("astlide integration", () => {
 			// Pictures / fonts of .pptx slides (a static first segment, so it beats /[deck]/…).
 			expect(args.injectRoute).toHaveBeenNthCalledWith(1, {
 				pattern: "/_astlide/pptx/[file]",
-				entrypoint: "@astlide/core/internal/pages/pptx-asset.ts",
+				entrypoint: "@astlide/astro/internal/pages/pptx-asset.ts",
 			});
 
 			// Print route (must be injected before the generic slide pattern so it wins).
 			expect(args.injectRoute).toHaveBeenNthCalledWith(2, {
 				pattern: "/[deck]/all",
-				entrypoint: "@astlide/core/internal/pages/all.astro",
+				entrypoint: "@astlide/astro/internal/pages/all.astro",
 			});
 
 			// Slide route
 			expect(args.injectRoute).toHaveBeenNthCalledWith(3, {
 				pattern: "/[deck]/[...slide]",
-				entrypoint: "@astlide/core/internal/pages/slide.astro",
+				entrypoint: "@astlide/astro/internal/pages/slide.astro",
 			});
 
 			// Index route
 			expect(args.injectRoute).toHaveBeenNthCalledWith(4, {
 				pattern: "/",
-				entrypoint: "@astlide/core/internal/pages/index.astro",
+				entrypoint: "@astlide/astro/internal/pages/index.astro",
 			});
 		});
 

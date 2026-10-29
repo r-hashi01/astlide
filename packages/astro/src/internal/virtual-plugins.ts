@@ -1,5 +1,5 @@
+import type { ResolvedPlugins } from "@astlide/core/plugin";
 import type { Plugin } from "vite";
-import type { ResolvedPlugins } from "../plugin";
 
 /**
  * Vite plugin that exposes Astlide plugin contributions as virtual modules.

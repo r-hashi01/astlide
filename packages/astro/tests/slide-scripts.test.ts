@@ -1,13 +1,13 @@
-import type { LoaderContext } from "astro/loaders";
-import { parseFragment } from "parse5";
-import { describe, expect, it } from "vitest";
-import { withoutSlideScripts } from "../src/loader";
-import { withoutNotesComment } from "../src/utils/comment-notes";
+import { withoutNotesComment } from "@astlide/core/utils/comment-notes";
 import {
 	SLIDE_SCRIPTS_VERSION,
 	stripSlideContent,
 	stripSlideScripts,
-} from "../src/utils/slide-scripts";
+} from "@astlide/core/utils/slide-scripts";
+import type { LoaderContext } from "astro/loaders";
+import { parseFragment } from "parse5";
+import { describe, expect, it } from "vitest";
+import { withoutSlideScripts } from "../src/loader";
 
 /** Every attribute name a browser would build from `html` (parse5 parses as browsers do). */
 function attributeNames(html: string): string[] {

@@ -38,6 +38,7 @@
 import { createHash } from "node:crypto";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { slideContentMarks } from "@astlide/core/utils/slide-mark";
 import idle from "astro/runtime/client/idle.prebuilt.js";
 import load from "astro/runtime/client/load.prebuilt.js";
 import media from "astro/runtime/client/media.prebuilt.js";
@@ -45,7 +46,6 @@ import only from "astro/runtime/client/only.prebuilt.js";
 import visible from "astro/runtime/client/visible.prebuilt.js";
 import island from "astro/runtime/server/astro-island.prebuilt.js";
 import { Parser } from "htmlparser2";
-import { slideContentMarks } from "./slide-mark";
 
 /** Attribute on a CSP `<meta>` whose `script-src` gets the page's script hashes. */
 export const CSP_HASH_MARKER = "data-astlide-csp";

@@ -64,7 +64,7 @@
  *
  * Consume from `astro.config.mjs`:
  * ```ts
- * import astlide from '@astlide/core';
+ * import astlide from '@astlide/astro';
  * import acme from 'astlide-plugin-acme';
  *
  * export default defineConfig({

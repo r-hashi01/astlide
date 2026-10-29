@@ -1,5 +1,3 @@
-import { describe, expect, it } from "vitest";
-import { astlideVirtualPlugin } from "../src/internal/virtual-plugins";
 import {
 	BUILT_IN_LAYOUTS,
 	BUILT_IN_PLUGIN,
@@ -7,7 +5,9 @@ import {
 	BUILT_IN_TRANSITIONS,
 	defineAstlidePlugin,
 	resolvePlugins,
-} from "../src/plugin";
+} from "@astlide/core/plugin";
+import { describe, expect, it } from "vitest";
+import { astlideVirtualPlugin } from "../src/internal/virtual-plugins";
 
 describe("defineAstlidePlugin", () => {
 	it("returns the plugin object as-is for type inference", () => {

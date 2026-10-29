@@ -11,7 +11,7 @@ Every option is optional. Here is the full set, each at its default:
 
 ```js
 // astro.config.mjs
-import astlide from "@astlide/core";
+import astlide from "@astlide/astro";
 import { defineConfig } from "astro/config";
 
 export default defineConfig({
@@ -108,7 +108,7 @@ If `_config.json` isn't valid JSON, or a field has the wrong type, the deck uses
 | Import | What it provides |
 |---|---|
 | `@astlide/core` | The integration (default export), `astlideDeckLoader`, `slideSchema`, `deckConfigSchema`, `THEMES`, `defineAstlidePlugin`, `getDeckContext`, `getClientDeckContext` |
-| `@astlide/core/loader` | `astlideDeckLoader` |
+| `@astlide/astro/loader` | `astlideDeckLoader` |
 | `@astlide/core/schema` | `slideSchema`, `deckConfigSchema`, `THEMES` |
 | `@astlide/core/plugin` | `defineAstlidePlugin` and the plugin types |
 | `@astlide/core/context` | `getDeckContext`, `getClientDeckContext` |

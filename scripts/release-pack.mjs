@@ -15,7 +15,7 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join, relative, resolve, sep } from "node:path";
+import { basename, join, relative, resolve, sep } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
 const out = join(root, "release");
@@ -100,14 +100,17 @@ for (const entry of readdirSync(join(root, "packages"))) {
 }
 const manifest = [];
 for (const pkg of dependenciesFirst(candidates)) {
-	// --ignore-scripts: what gets published is what the build step produced.
-	const file = execFileSync("npm", ["pack", "--ignore-scripts", "--pack-destination", out], {
-		cwd: pkg.dir,
-		encoding: "utf-8",
-	})
-		.trim()
-		.split("\n")
-		.pop();
+	// --ignore-scripts: what gets published is what the build step produced. bun's
+	// pack, not npm's: it turns `workspace:*` dependencies into the versions.
+	const file = basename(
+		execFileSync("bun", ["pm", "pack", "--ignore-scripts", "--quiet", "--destination", out], {
+			cwd: pkg.dir,
+			encoding: "utf-8",
+		})
+			.trim()
+			.split("\n")
+			.pop() ?? "",
+	);
 	manifest.push({ name: pkg.name, version: pkg.version, file, notes: notes(pkg.dir, pkg.version) });
 	console.log(`packed ${pkg.name}@${pkg.version} → ${file}`);
 }

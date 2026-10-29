@@ -23,7 +23,7 @@ bun run dev
 パッケージをインストールします。
 
 ```bash
-bun add @astlide/core
+bun add @astlide/astro
 ```
 
 Astro の設定ファイルにインテグレーションを追加します。
@@ -31,7 +31,7 @@ Astro の設定ファイルにインテグレーションを追加します。
 ```js
 // astro.config.mjs
 import { defineConfig } from "astro/config";
-import astlide from "@astlide/core";
+import astlide from "@astlide/astro";
 
 export default defineConfig({
   integrations: [astlide()],
@@ -43,7 +43,7 @@ export default defineConfig({
 ```ts
 // src/content.config.ts
 import { defineCollection } from "astro:content";
-import { astlideDeckLoader, slideSchema } from "@astlide/core";
+import { astlideDeckLoader, slideSchema } from "@astlide/astro";
 
 const decks = defineCollection({
   // Renders .mdx, .md, and .html slides from src/content/decks/<deck>/

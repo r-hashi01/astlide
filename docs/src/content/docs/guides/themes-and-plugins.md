@@ -46,7 +46,7 @@ A plugin can add themes, layouts, transitions, Shiki languages and themes, and s
 ```js
 // astro.config.mjs
 import { defineConfig } from "astro/config";
-import astlide from "@astlide/core";
+import astlide from "@astlide/astro";
 import { defineAstlidePlugin } from "@astlide/core/plugin";
 
 const myPlugin = defineAstlidePlugin({

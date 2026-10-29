@@ -1,4 +1,10 @@
-import { z } from "astro/zod";
+/**
+ * The frontmatter (`slideSchema`) and `_config.json` (`deckConfigSchema`) schemas.
+ *
+ * @module @astlide/core/schema
+ */
+
+import { z } from "zod";
 
 /** All built-in theme names. Used for both schema validation and type-safe IDE completion. */
 export const THEMES = [

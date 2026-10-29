@@ -2,9 +2,9 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { slideSchema } from "@astlide/core/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { astlideDeckLoader, withoutMarkdownNotes } from "../src/loader";
-import { slideSchema } from "../src/schema";
 
 /** Minimal in-memory DataStore matching the subset the loader uses. */
 function createStore() {

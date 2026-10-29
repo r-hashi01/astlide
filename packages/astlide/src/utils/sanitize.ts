@@ -1,3 +1,9 @@
+/**
+ * The HTML sanitizers Astlide uses for slide content, KaTeX output and backgrounds.
+ *
+ * @module @astlide/core/utils/sanitize
+ */
+
 import render from "dom-serializer";
 import { type ChildNode, isTag } from "domhandler";
 import { decodeHTML } from "entities";

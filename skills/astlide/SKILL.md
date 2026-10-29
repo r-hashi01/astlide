@@ -26,7 +26,7 @@ Without the MCP server, use the CLI: `bunx astlide export <deck> --pptx --pdf`, 
 
 ## Workflow
 
-1. **Set up** (only if there is no project): `bun create astlide my-slides && cd my-slides && bun install`. In an existing Astro site: `bun add @astlide/core`, add `astlide()` to `integrations` in `astro.config.mjs`, and define the `decks` collection (see [references/setup.md](references/setup.md)).
+1. **Set up** (only if there is no project): `bun create astlide my-slides && cd my-slides && bun install`. In an existing Astro site: `bun add @astlide/astro`, add `astlide()` to `integrations` in `astro.config.mjs`, and define the `decks` collection (see [references/setup.md](references/setup.md)).
 2. **Plan the deck**: one idea per slide; a title plus 3–6 short bullets is a full slide. If the user gave a template, call `template_layouts` first and use its layout ids.
 3. **Write** `src/content/decks/<deck>/_config.json` and the numbered slide files.
 4. **Check**: call `check_deck`. For every issue, shorten the text, split the slide into two, or switch to a roomier layout. Repeat until it reports that all slides fit.

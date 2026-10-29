@@ -421,7 +421,7 @@ async function refreshSlide(): Promise<void> {
 			w.__astlide_resync_steps?.();
 			syncNotes(doc);
 			// New ```mermaid blocks need rendering; unchanged ones were left alone.
-			const { renderDiagrams } = await import("@astlide/core/internal/diagrams-astro");
+			const { renderDiagrams } = await import("@astlide/astro/internal/diagrams-astro");
 			void renderDiagrams();
 			return;
 		}

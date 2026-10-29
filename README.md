@@ -51,7 +51,7 @@ bun run dev
 Or add to an existing Astro project:
 
 ```bash
-bun add @astlide/core
+bun add @astlide/astro
 ```
 
 Then configure:
@@ -59,7 +59,7 @@ Then configure:
 ```js
 // astro.config.mjs
 import { defineConfig } from 'astro/config';
-import astlide from '@astlide/core';
+import astlide from '@astlide/astro';
 
 export default defineConfig({
   integrations: [astlide()],
@@ -69,7 +69,7 @@ export default defineConfig({
 ```ts
 // src/content.config.ts
 import { defineCollection } from 'astro:content';
-import { astlideDeckLoader, slideSchema } from '@astlide/core';
+import { astlideDeckLoader, slideSchema } from '@astlide/astro';
 
 const decks = defineCollection({
   // Renders .mdx, .md, and .html slides from src/content/decks/<deck>/
@@ -361,7 +361,7 @@ Plugins extend Astlide with custom themes, layout names, transition names, and S
 ```ts
 // astro.config.mjs
 import { defineConfig } from 'astro/config';
-import astlide from '@astlide/core';
+import astlide from '@astlide/astro';
 import { defineAstlidePlugin } from '@astlide/core/plugin';
 
 const myPlugin = defineAstlidePlugin({
@@ -562,7 +562,7 @@ Show a deck inside another page — a blog post, a docs page, a React or Vue app
 
 ```astro
 ---
-import DeckEmbed from '@astlide/core/components/DeckEmbed.astro';
+import DeckEmbed from '@astlide/astro/components/DeckEmbed.astro';
 ---
 <DeckEmbed deck="my-talk" start={2} controls />
 ```

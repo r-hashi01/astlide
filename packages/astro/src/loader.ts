@@ -12,7 +12,7 @@
  * ```ts
  * // src/content.config.ts
  * import { defineCollection } from 'astro:content';
- * import { astlideDeckLoader, slideSchema } from '@astlide/core';
+ * import { astlideDeckLoader, slideSchema } from '@astlide/astro';
  *
  * const decks = defineCollection({
  *   loader: astlideDeckLoader(),
@@ -37,22 +37,26 @@ import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Loader, LoaderContext } from "astro/loaders";
-import { glob } from "astro/loaders";
 import {
 	HTML_EXTENSION,
 	htmlWithoutNotes,
 	PPTX_EXTENSION,
 	splitFrontmatter,
 	toEntryId,
-} from "./deck/files";
+} from "@astlide/core/deck/files";
 import {
 	extractCommentNotes,
 	stripTrailingComment,
 	withoutNotesComment,
-} from "./utils/comment-notes";
-import { pptxAssetDir, storePptxAsset } from "./utils/pptx-assets";
-import { SLIDE_SCRIPTS_VERSION, slideScriptsKept, stripSlideScripts } from "./utils/slide-scripts";
+} from "@astlide/core/utils/comment-notes";
+import { pptxAssetDir, storePptxAsset } from "@astlide/core/utils/pptx-assets";
+import {
+	SLIDE_SCRIPTS_VERSION,
+	slideScriptsKept,
+	stripSlideScripts,
+} from "@astlide/core/utils/slide-scripts";
+import type { Loader, LoaderContext } from "astro/loaders";
+import { glob } from "astro/loaders";
 
 /** Options for {@link astlideDeckLoader}. */
 export interface AstlideDeckLoaderOptions {
@@ -235,7 +239,7 @@ async function syncPptxSlides(context: LoaderContext, baseUrl: URL): Promise<voi
 	}
 	const seen = new Set<string>();
 	if (files.length > 0) {
-		const { pptxToSlides } = await import("./pptx/index");
+		const { pptxToSlides } = await import("@astlide/core/pptx");
 		// Pictures and fonts become files served by the integration (not inlined in every slide).
 		const assets = pptxAssetDir(config.root);
 		const media = (file: { name: string; data: Buffer }) =>

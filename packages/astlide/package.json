@@ -1,16 +1,16 @@
 {
 	"name": "@astlide/core",
 	"version": "2.11.0",
-	"description": "Slides that live in your Astro site: an Astro integration for MDX / Markdown / HTML presentations — many decks per site, presenter view, PDF and editable PowerPoint (PPTX) export in your own template, PPTX / Google Slides import",
+	"description": "Astlide's framework-agnostic core: deck reader, slide rendering and runtime, themes, PowerPoint import / export, PDF, the astlide CLI and MCP server — used by @astlide/astro, @astlide/react, @astlide/next, @astlide/vue and @astlide/nuxt",
 	"type": "module",
 	"types": "./src/index.ts",
 	"exports": {
 		".": "./src/index.ts",
 		"./plugin": "./src/plugin.ts",
-		"./loader": "./src/loader.ts",
 		"./pptx": "./src/pptx/index.ts",
 		"./render": "./src/render/index.ts",
 		"./deck": "./src/deck/index.ts",
+		"./deck/files": "./src/deck/files.ts",
 		"./runtime": "./src/runtime/index.ts",
 		"./runtime/chrome": "./src/runtime/chrome.ts",
 		"./runtime/slide": "./src/runtime/slide.ts",
@@ -22,8 +22,6 @@
 		"./engine": "./src/engine/index.ts",
 		"./context": "./src/context.ts",
 		"./schema": "./src/schema.ts",
-		"./components/*": "./src/components/*",
-		"./internal/*.astro": "./src/internal/*.astro",
 		"./internal/*.ts": "./src/internal/*.ts",
 		"./internal/*": "./src/internal/*.ts",
 		"./styles/*": "./src/styles/*",
@@ -51,7 +49,6 @@
 	},
 	"sideEffects": [
 		"*.css",
-		"*.astro",
 		"./src/embed/*.ts"
 	],
 	"publishConfig": {
@@ -60,7 +57,6 @@
 	"homepage": "https://astlide.dev/",
 	"bugs": "https://github.com/r-hashi01/astlide/issues",
 	"peerDependencies": {
-		"astro": "^7.2.10",
 		"react": ">=18",
 		"vue": ">=3.3",
 		"@aws-sdk/client-s3": "^3.700.0",
@@ -90,7 +86,6 @@
 	},
 	"dependencies": {
 		"@astrojs/markdown-satteri": "^0.4.5",
-		"@astrojs/mdx": "^8.1.1",
 		"@modelcontextprotocol/sdk": "^1.32.2",
 		"@resvg/resvg-js": "^2.6.2",
 		"css-select": "^7.0.0",
@@ -119,9 +114,6 @@
 		"@astlide/crispdf": "^0.0.1"
 	},
 	"keywords": [
-		"astro",
-		"astro-integration",
-		"astro-loader",
 		"tooling",
 		"slides",
 		"presentation",

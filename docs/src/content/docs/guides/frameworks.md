@@ -17,7 +17,7 @@ bunx astro add react    # or: vue, svelte, solid-js, preact
 
 ```js
 // astro.config.mjs
-import astlide from "@astlide/core";
+import astlide from "@astlide/astro";
 import react from "@astrojs/react";
 import { defineConfig } from "astro/config";
 

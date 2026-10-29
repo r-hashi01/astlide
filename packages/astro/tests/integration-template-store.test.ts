@@ -2,10 +2,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { createTemplateStore, type TemplateStore } from "@astlide/core/templates";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { templateFixture } from "../../astlide/tests/fixtures/pptx-template";
 import astlide from "../src/index";
-import { createTemplateStore, type TemplateStore } from "../src/templates";
-import { templateFixture } from "./fixtures/pptx-template";
 
 type Plugin = { name: string; load?: (id: string) => unknown };
 

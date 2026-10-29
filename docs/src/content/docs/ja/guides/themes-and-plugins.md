@@ -46,7 +46,7 @@ description: 組み込みテーマの選び方と独自テーマの作り方、�
 ```js
 // astro.config.mjs
 import { defineConfig } from "astro/config";
-import astlide from "@astlide/core";
+import astlide from "@astlide/astro";
 import { defineAstlidePlugin } from "@astlide/core/plugin";
 
 const myPlugin = defineAstlidePlugin({

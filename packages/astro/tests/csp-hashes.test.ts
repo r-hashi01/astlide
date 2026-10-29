@@ -3,16 +3,16 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { cspHashable, DEFAULT_DECK_CSP } from "@astlide/core/utils/csp.ts";
+import { slideContentComments, slideContentMarks } from "@astlide/core/utils/slide-mark.ts";
+import island from "astro/runtime/server/astro-island.prebuilt.js";
+import { describe, expect, it } from "vitest";
 import {
 	hashBuiltPages,
 	inlineScripts,
 	markedCspMeta,
 	withPageHashes,
 	withScriptHashes,
-} from "@astlide/core/utils/csp-hashes.ts";
-import { slideContentComments, slideContentMarks } from "@astlide/core/utils/slide-mark.ts";
-import island from "astro/runtime/server/astro-island.prebuilt.js";
-import { describe, expect, it } from "vitest";
+} from "../src/csp-hashes";
 
 const sha = (s: string) => `'sha256-${createHash("sha256").update(s).digest("base64")}'`;
 const MARK = "0123abcd";

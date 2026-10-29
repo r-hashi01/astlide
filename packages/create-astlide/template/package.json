@@ -10,6 +10,6 @@
   },
   "dependencies": {
     "astro": "^7.2.10",
-    "@astlide/core": "^2.0.0"
+    "@astlide/astro": "^3.0.0"
   }
 }

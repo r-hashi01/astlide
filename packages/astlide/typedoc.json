@@ -1,6 +1,7 @@
 {
 	"entryPoints": [
 		"src/index.ts",
+		"../astro/src/index.ts",
 		"src/schema.ts",
 		"src/utils/sanitize.ts",
 		"src/embed/index.ts",
@@ -9,7 +10,7 @@
 	"entryPointStrategy": "expand",
 	"tsconfig": "./tsconfig.typedoc.json",
 	"out": "../../docs/public/api",
-	"name": "@astlide/core API Reference",
+	"name": "Astlide API Reference",
 	"readme": "none",
 	"excludePrivate": true,
 	"excludeInternal": true,

@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * Smoke test: pack @astlide/core, scaffold a fresh project from the create-astlide
- * template, swap in the local tarball, install, and build.
+ * Smoke test: pack @astlide/core and @astlide/astro, scaffold a fresh project
+ * from the create-astlide template, swap in the local tarballs, install, and
+ * build.
  *
- * Catches: template breakage, missing files in @astlide/core's `files` field,
+ * Catches: template breakage, missing files in the packages' `files` fields,
  * broken `exports` map, peerDependency drift.
  *
  * Used by CI (.github/workflows/ci.yml `template-smoke` job) and runnable locally:
@@ -25,6 +26,7 @@ import { join, resolve } from "node:path";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
 const CORE_DIR = join(REPO_ROOT, "packages/astlide");
+const ASTRO_DIR = join(REPO_ROOT, "packages/astro");
 const TEMPLATE_DIR = join(REPO_ROOT, "packages/create-astlide/template");
 
 function run(cmd, args, cwd) {
@@ -40,11 +42,15 @@ const work = mkdtempSync(join(tmpdir(), "astlide-template-smoke-"));
 console.log(`Workspace: ${work}`);
 
 try {
-	// 1. Pack @astlide/core into a tarball — exercises the `files` field.
-	run("npm", ["pack", "--pack-destination", work], CORE_DIR);
-	const corePkg = JSON.parse(readFileSync(join(CORE_DIR, "package.json"), "utf-8"));
-	const tarballName = `astlide-core-${corePkg.version}.tgz`;
-	const tarballPath = join(work, tarballName);
+	// 1. Pack the packages into tarballs — exercises the `files` fields. bun's
+	// pack turns @astlide/astro's `workspace:*` into a version, as publishing does.
+	const pack = (dir, name) => {
+		run("bun", ["pm", "pack", "--destination", work], dir);
+		const { version } = JSON.parse(readFileSync(join(dir, "package.json"), "utf-8"));
+		return join(work, `${name}-${version}.tgz`);
+	};
+	const coreTarball = pack(CORE_DIR, "astlide-core");
+	const astroTarball = pack(ASTRO_DIR, "astlide-astro");
 
 	// 2. Copy template into a fresh project dir.
 	const projectDir = join(work, "my-slides");
@@ -58,10 +64,11 @@ try {
 	writeFileSync(join(deckDir, "01-markdown.md"), "# A Markdown slide\n");
 	writeFileSync(join(deckDir, "02-html.html"), "<h1>An HTML slide</h1>\n");
 
-	// 3. Repoint @astlide/core to the local tarball.
+	// 3. Repoint @astlide/astro and the @astlide/core it depends on to the tarballs.
 	const projPkgPath = join(projectDir, "package.json");
 	const projPkg = JSON.parse(readFileSync(projPkgPath, "utf-8"));
-	projPkg.dependencies["@astlide/core"] = `file:${tarballPath}`;
+	projPkg.dependencies["@astlide/astro"] = `file:${astroTarball}`;
+	projPkg.overrides = { "@astlide/core": `file:${coreTarball}` };
 	writeFileSync(projPkgPath, JSON.stringify(projPkg, null, 2));
 
 	// 4. Install with bun. --no-save to avoid lockfile drift in tests.

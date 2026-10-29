@@ -15,13 +15,13 @@ Add a deck with `bunx create-astlide deck my-talk --theme dark --format md` (or 
 ## Existing Astro site
 
 ```bash
-bun add @astlide/core
+bun add @astlide/astro
 ```
 
 ```js
 // astro.config.mjs
 import { defineConfig } from "astro/config";
-import astlide from "@astlide/core";
+import astlide from "@astlide/astro";
 
 export default defineConfig({
   integrations: [
@@ -36,7 +36,7 @@ export default defineConfig({
 ```ts
 // src/content.config.ts
 import { defineCollection } from "astro:content";
-import { astlideDeckLoader, slideSchema } from "@astlide/core";
+import { astlideDeckLoader, slideSchema } from "@astlide/astro";
 
 const decks = defineCollection({ loader: astlideDeckLoader(), schema: slideSchema });
 

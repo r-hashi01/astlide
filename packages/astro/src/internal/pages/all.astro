@@ -15,23 +15,23 @@ import type { DeckConfig } from '@astlide/core/schema';
 import '@astlide/core/styles/base.css';
 import '@astlide/core/styles/print.css';
 import 'virtual:astlide/themes';
-import Slide from '@astlide/core/components/Slide.astro';
-import Left from '@astlide/core/components/Left.astro';
-import Right from '@astlide/core/components/Right.astro';
-import ImageSide from '@astlide/core/components/ImageSide.astro';
-import TextPanel from '@astlide/core/components/TextPanel.astro';
+import Slide from '@astlide/astro/components/Slide.astro';
+import Left from '@astlide/astro/components/Left.astro';
+import Right from '@astlide/astro/components/Right.astro';
+import ImageSide from '@astlide/astro/components/ImageSide.astro';
+import TextPanel from '@astlide/astro/components/TextPanel.astro';
 // Aliased: Astro 7's compiler injects its own `Fragment` binding into every .astro file.
-import SlideFragment from '@astlide/core/components/Fragment.astro';
-import Fragments from '@astlide/core/components/Fragments.astro';
-import Notes from '@astlide/core/components/Notes.astro';
-import Favicon from '@astlide/core/internal/Favicon.astro';
-import FontLinks from '@astlide/core/internal/FontLinks.astro';
-import SpeakerNotes from '@astlide/core/components/SpeakerNotes.astro';
-import Columns from '@astlide/core/components/Columns.astro';
-import CodeBlock from '@astlide/core/components/CodeBlock.astro';
-import Math from '@astlide/core/components/Math.astro';
-import YouTube from '@astlide/core/components/YouTube.astro';
-import Tweet from '@astlide/core/components/Tweet.astro';
+import SlideFragment from '@astlide/astro/components/Fragment.astro';
+import Fragments from '@astlide/astro/components/Fragments.astro';
+import Notes from '@astlide/astro/components/Notes.astro';
+import Favicon from '@astlide/astro/internal/Favicon.astro';
+import FontLinks from '@astlide/astro/internal/FontLinks.astro';
+import SpeakerNotes from '@astlide/astro/components/SpeakerNotes.astro';
+import Columns from '@astlide/astro/components/Columns.astro';
+import CodeBlock from '@astlide/astro/components/CodeBlock.astro';
+import Math from '@astlide/astro/components/Math.astro';
+import YouTube from '@astlide/astro/components/YouTube.astro';
+import Tweet from '@astlide/astro/components/Tweet.astro';
 import { extractCommentNotes } from '@astlide/core/utils/comment-notes';
 import { slideContentComments } from '@astlide/core/utils/slide-mark';
 import { notesIncluded } from '@astlide/core/utils/notes';
@@ -121,7 +121,7 @@ const rendered = await Promise.all(
 
 <script>
   // Render ```mermaid diagrams; sets <html data-diagrams-ready> for the PDF exporters.
-  import { renderDiagrams } from '@astlide/core/internal/diagrams-astro';
+  import { renderDiagrams } from '@astlide/astro/internal/diagrams-astro';
   renderDiagrams();
 </script>
 

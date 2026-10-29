@@ -11,7 +11,7 @@ description: astlide() インテグレーションの全オプション、デッ
 
 ```js
 // astro.config.mjs
-import astlide from "@astlide/core";
+import astlide from "@astlide/astro";
 import { defineConfig } from "astro/config";
 
 export default defineConfig({
@@ -108,7 +108,7 @@ GitHub Pages では、レスポンスヘッダーを設定できません。
 | import 先 | 含まれるもの |
 |---|---|
 | `@astlide/core` | インテグレーション本体（デフォルトエクスポート）、`astlideDeckLoader`、`slideSchema`、`deckConfigSchema`、`THEMES`、`defineAstlidePlugin`、`getDeckContext`、`getClientDeckContext` |
-| `@astlide/core/loader` | `astlideDeckLoader` |
+| `@astlide/astro/loader` | `astlideDeckLoader` |
 | `@astlide/core/schema` | `slideSchema`、`deckConfigSchema`、`THEMES` |
 | `@astlide/core/plugin` | `defineAstlidePlugin` とプラグインの型 |
 | `@astlide/core/context` | `getDeckContext`、`getClientDeckContext` |

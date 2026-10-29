@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const MARK = "[data-astlide-c]";
 const css = readFileSync(new URL("../src/styles/components.css", import.meta.url), "utf-8");
-const components = new URL("../src/components/", import.meta.url);
+const components = new URL("../../astro/src/components/", import.meta.url);
 
 describe("components.css", () => {
 	it("styles components only through their marked root element", () => {

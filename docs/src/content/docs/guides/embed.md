@@ -13,7 +13,7 @@ To embed a deck in another page of the same Astro site, use the `DeckEmbed` comp
 
 ```astro
 ---
-import DeckEmbed from "@astlide/core/components/DeckEmbed.astro";
+import DeckEmbed from "@astlide/astro/components/DeckEmbed.astro";
 ---
 
 <DeckEmbed deck="my-talk" />

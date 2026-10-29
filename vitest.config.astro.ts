@@ -1,20 +1,20 @@
 /// <reference types="vitest/config" />
 import { fileURLToPath } from "node:url";
 import { getViteConfig } from "astro/config";
-import { astlideVirtualPlugin } from "./packages/astlide/src/internal/virtual-plugins";
 import {
 	BUILT_IN_PLUGIN,
 	defineAstlidePlugin,
 	resolvePlugins,
 } from "./packages/astlide/src/plugin";
 import { astlideTemplatesPlugin } from "./packages/astlide/src/utils/pptx-templates";
+import { astlideVirtualPlugin } from "./packages/astro/src/internal/virtual-plugins";
 
 // Slide.astro imports `virtual:astlide/layouts`; the integration emits that
 // virtual module at build time, but in Container API tests the integration
 // doesn't run. Register the same Vite plugin manually here, and include a
 // test fixture so we can verify the dispatch path.
 const fixturePath = fileURLToPath(
-	new URL("./packages/astlide/tests/fixtures/FixtureLayout.astro", import.meta.url),
+	new URL("./packages/astro/tests/fixtures/FixtureLayout.astro", import.meta.url),
 );
 const resolved = resolvePlugins([
 	BUILT_IN_PLUGIN,

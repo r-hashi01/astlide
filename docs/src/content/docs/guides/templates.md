@@ -9,7 +9,7 @@ Register the file under a theme name in `astro.config.mjs`:
 
 ```js
 // astro.config.mjs
-import astlide from "@astlide/core";
+import astlide from "@astlide/astro";
 import { defineConfig } from "astro/config";
 
 export default defineConfig({

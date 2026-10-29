@@ -6,7 +6,7 @@
  */
 
 import { loadMermaid } from "virtual:astlide/mermaid";
-import { renderDiagramsWith } from "./diagrams";
+import { renderDiagramsWith } from "@astlide/core/internal/diagrams";
 
 export function renderDiagrams(): Promise<void> {
 	return renderDiagramsWith(loadMermaid as never);

@@ -131,7 +131,7 @@ slideLayout: default
 │  └─ 02-numbers.md
 ├─ onboarding/
 └─ talks-2026/`,
-	config: `import astlide from "@astlide/core";
+	config: `import astlide from "@astlide/astro";
 import { defineConfig } from "astro/config";
 
 export default defineConfig({

@@ -2,10 +2,15 @@
 	"extends": "./tsconfig.json",
 	"include": [
 		"src/index.ts",
+		"../astro/src/index.ts",
 		"src/schema.ts",
 		"src/utils/sanitize.ts",
 		"src/embed/index.ts",
-		"src/templates/index.ts"
+		"src/templates/index.ts",
+		"../astro/src/virtual-modules.d.ts"
 	],
-	"exclude": ["src/cli/**", "src/internal/**", "tests/**"]
+	"exclude": ["src/cli/**", "src/internal/**", "tests/**"],
+	"compilerOptions": {
+		"types": ["node"]
+	}
 }

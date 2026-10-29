@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { deckConfigSchema } from '@astlide/core/schema';
 import { pageUrl } from '@astlide/core/utils/base-path';
-import Favicon from '@astlide/core/internal/Favicon.astro';
-import FontLinks from '@astlide/core/internal/FontLinks.astro';
+import Favicon from '@astlide/astro/internal/Favicon.astro';
+import FontLinks from '@astlide/astro/internal/FontLinks.astro';
 import { cspFor, cspHashable, DEFAULT_INDEX_CSP } from '@astlide/core/utils/csp';
 
 declare const __ASTLIDE_CSP__: boolean | string;

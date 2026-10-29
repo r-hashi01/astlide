@@ -10,8 +10,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, inject, it } from "vitest";
 import { DEFAULT_DECK_CSP } from "../packages/astlide/src/utils/csp";
-import { hashBuiltPages } from "../packages/astlide/src/utils/csp-hashes";
 import { slideContentMarks } from "../packages/astlide/src/utils/slide-mark";
+import { hashBuiltPages } from "../packages/astro/src/csp-hashes";
 import { useBrowser } from "./helpers/browser";
 
 const browser = useBrowser();

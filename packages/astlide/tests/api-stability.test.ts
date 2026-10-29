@@ -18,23 +18,13 @@ describe("@astlide/core export surface", () => {
 		expect(Object.keys(core).sort()).toMatchInlineSnapshot(`
 			[
 			  "THEMES",
-			  "astlideDeckLoader",
 			  "deckConfigSchema",
-			  "default",
 			  "defineAstlidePlugin",
 			  "getClientDeckContext",
 			  "getDeckContext",
 			  "slideSchema",
 			]
 		`);
-	});
-
-	it("default export (the integration factory) is callable", () => {
-		expect(typeof core.default).toBe("function");
-		// astlide() should produce an Astro integration object.
-		const integration = core.default();
-		expect(integration.name).toBe("astlide");
-		expect(typeof integration.hooks).toBe("object");
 	});
 });
 

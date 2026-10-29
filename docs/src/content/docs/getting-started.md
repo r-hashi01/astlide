@@ -23,7 +23,7 @@ Once the dev server is running, open `http://localhost:4321`. The deck index lis
 Install the package:
 
 ```bash
-bun add @astlide/core
+bun add @astlide/astro
 ```
 
 Add the integration to your Astro config:
@@ -31,7 +31,7 @@ Add the integration to your Astro config:
 ```js
 // astro.config.mjs
 import { defineConfig } from "astro/config";
-import astlide from "@astlide/core";
+import astlide from "@astlide/astro";
 
 export default defineConfig({
   integrations: [astlide()],
@@ -43,7 +43,7 @@ Then define a content collection named `decks` with Astlide's loader and schema:
 ```ts
 // src/content.config.ts
 import { defineCollection } from "astro:content";
-import { astlideDeckLoader, slideSchema } from "@astlide/core";
+import { astlideDeckLoader, slideSchema } from "@astlide/astro";
 
 const decks = defineCollection({
   // Renders .mdx, .md, and .html slides from src/content/decks/<deck>/

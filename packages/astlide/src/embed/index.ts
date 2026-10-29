@@ -5,7 +5,7 @@
  * (sized by its container's width) and drives it over a small `postMessage`
  * protocol. Works in plain HTML, Markdown/MDX pages, and any framework; see
  * `@astlide/core/embed/react` and `@astlide/core/embed/vue` for thin wrappers
- * and `@astlide/core/components/DeckEmbed.astro` for Astro sites.
+ * and `@astlide/astro/components/DeckEmbed.astro` for Astro sites.
  *
  * ```html
  * <script type="module">import "@astlide/core/embed";</script>
@@ -24,7 +24,7 @@
  * `hello` with `{ source: "astlide-deck", type: "slidechange", deck, slide, total, step, steps }`.
  * The element in turn only accepts messages from its own iframe and the deck's origin.
  *
- * @module
+ * @module @astlide/core/embed
  */
 
 /** `source` of messages the host page sends to the deck. */

@@ -3,7 +3,9 @@
 bun workspaces モノレポ。パッケージマネージャーは **bun**。
 
 ```
-packages/astlide/          — @astlide/core (Astro Integration)
+packages/astlide/          — @astlide/core (framework-agnostic core: deck reader, runtime, styles, CLI, MCP)
+packages/astro/            — @astlide/astro (Astro Integration)
+packages/{react,next,vue,nuxt}/ — @astlide/react, @astlide/next, @astlide/vue, @astlide/nuxt
 packages/create-astlide/   — create-astlide (CLI scaffolder)
 skills/astlide/            — エージェント用スキル (SKILL.md)
 playground/                — 開発用 Astro プロジェクト
@@ -31,7 +33,7 @@ bun run changeset    # changeset 作成
 ## 絶対に守るルール
 
 - ❌ frontmatter で `layout` を使わない → ✅ `slideLayout` を使う（`layout` は Astro MDX 予約語）
-- ❌ パッケージ内部で相対パス import → ✅ `@astlide/core/...` パスを使う（`exports` マップで解決）
+- ❌ パッケージ内部で相対パス import → ✅ `@astlide/core/...` / `@astlide/astro/...` パスを使う（`exports` マップで解決）。Astro 依存のコードは `packages/astro` に置き、core に `astro` を import させない
 - ❌ npm/pnpm → ✅ bun のみ
 - スライドファイル名: `01-name.mdx` の番号付き。`.mdx` / `.md` / `.html` を混在可（`astlideDeckLoader()` が処理、番号順にソート）
 - デッキ設定: `_config.json` (title, author, date, theme)
@@ -47,16 +49,16 @@ bun run changeset    # changeset 作成
 
 ## キーファイル
 
-- `packages/astlide/src/index.ts` — Integration エントリ（`toolbar` / `font` / `slideDecorators` オプション）
+- `packages/astro/src/index.ts` — Integration エントリ（`toolbar` / `font` / `slideDecorators` オプション）
 - `packages/astlide/src/schema.ts` — Zod スキーマ (`slideSchema`)
-- `packages/astlide/src/loader.ts` — `astlideDeckLoader()`（.mdx/.md/.html を扱う content loader）
+- `packages/astro/src/loader.ts` — `astlideDeckLoader()`（.mdx/.md/.html を扱う content loader）
 - `packages/astlide/src/mcp/` — MCP サーバー（`astlide mcp` / `@astlide/core/mcp`。template_layouts・import_pptx・render_deck・check_deck）
 - `packages/astlide/src/context.ts` — 型付きメタデータ API (`getDeckContext` / `getClientDeckContext`)
 - `packages/astlide/src/plugin.ts` — プラグインAPI（themes/layouts/transitions/`decorators`）
-- `packages/astlide/src/internal/DeckLayout.astro` — ビューポートスケーリング・ナビ(toolbar)・プレゼンター・PDF
-- `packages/astlide/src/internal/virtual-plugins.ts` — `virtual:astlide/{themes,layouts,decorators}`
-- `packages/astlide/src/internal/pages/` — inject されるルート（`/`, `/[deck]/[...slide]`, `/[deck]/all`）
-- `packages/astlide/package.json` — `exports` マップ（公開API定義）
+- `packages/astro/src/internal/DeckLayout.astro` — ビューポートスケーリング・ナビ(toolbar)・プレゼンター・PDF
+- `packages/astro/src/internal/virtual-plugins.ts` — `virtual:astlide/{themes,layouts,decorators}`
+- `packages/astro/src/internal/pages/` — inject されるルート（`/`, `/[deck]/[...slide]`, `/[deck]/all`）
+- `packages/astlide/package.json` / `packages/astro/package.json` — `exports` マップ（公開API定義）
 
 ## ドキュメント運用
 

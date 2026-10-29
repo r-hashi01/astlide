@@ -13,7 +13,7 @@ description: <astlide-deck> 要素で、ブログ記事やドキュメント、R
 
 ```astro
 ---
-import DeckEmbed from "@astlide/core/components/DeckEmbed.astro";
+import DeckEmbed from "@astlide/astro/components/DeckEmbed.astro";
 ---
 
 <DeckEmbed deck="my-talk" />

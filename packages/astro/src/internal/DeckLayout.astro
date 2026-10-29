@@ -5,8 +5,8 @@ import '@astlide/core/styles/deck.css';
 // imports by the `virtual:astlide/themes` Vite virtual module.
 import 'virtual:astlide/themes';
 import { ClientRouter } from 'astro:transitions';
-import Favicon from '@astlide/core/internal/Favicon.astro';
-import FontLinks from '@astlide/core/internal/FontLinks.astro';
+import Favicon from '@astlide/astro/internal/Favicon.astro';
+import FontLinks from '@astlide/astro/internal/FontLinks.astro';
 import { sanitizeHTML } from '@astlide/core/utils/sanitize';
 import { renderMarkdown } from '@astlide/core/utils/markdown';
 import { basePath, pageUrl, trailingSlash, withBase } from '@astlide/core/utils/base-path';
@@ -188,7 +188,7 @@ const runtimeConfig = JSON.stringify({
     <!-- Module script: dev-only slide editor (e). Tree-shaken from production builds. -->
     <script>
       if (import.meta.env.DEV) {
-        import('@astlide/core/internal/editor').then(({ toggleEditor, initEditor }) => {
+        import('@astlide/astro/internal/editor').then(({ toggleEditor, initEditor }) => {
           window.__astlide_editor = { toggle: () => toggleEditor() };
           initEditor();
           document.addEventListener('astro:page-load', initEditor);
@@ -198,7 +198,7 @@ const runtimeConfig = JSON.stringify({
 
     <!-- Module script: render ```mermaid diagrams (loads mermaid only when a slide has one). -->
     <script>
-      import { renderDiagrams } from '@astlide/core/internal/diagrams-astro';
+      import { renderDiagrams } from '@astlide/astro/internal/diagrams-astro';
       // Fires on the first load and after every ClientRouter navigation.
       document.addEventListener('astro:page-load', () => { renderDiagrams(); });
     </script>
