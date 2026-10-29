@@ -8,13 +8,13 @@
  */
 
 import type { DeckContext } from "@astlide/core/context";
-import type { MermaidLoader } from "@astlide/core/internal/diagrams";
 import {
 	applyPageFlags,
 	type DeckRuntimeConfig,
 	mountDeck,
 	type OutlineEntry,
 } from "@astlide/core/runtime";
+import type { MermaidLoader } from "@astlide/core/runtime/diagrams";
 import {
 	computed,
 	defineComponent,
@@ -68,7 +68,7 @@ export const DeckPage = defineComponent({
 		navigate: Function as PropType<(url: string, options: { replace: boolean }) => void>,
 		loadMermaid: Function as PropType<NonNullable<MermaidLoader>>,
 		loadPdfExport: Function as PropType<
-			() => Promise<typeof import("@astlide/core/internal/pdf-export")>
+			() => Promise<typeof import("@astlide/core/runtime/pdf-export")>
 		>,
 	},
 	setup(props, { slots }) {
@@ -115,13 +115,13 @@ export const DeckPage = defineComponent({
 				placeSlide: false,
 				...(props.navigate ? { navigate: props.navigate } : {}),
 			});
-			void import("@astlide/core/internal/diagrams").then((m) =>
+			void import("@astlide/core/runtime/diagrams").then((m) =>
 				m.renderDiagramsWith(props.loadMermaid),
 			);
-			void import("@astlide/core/internal/recording").then((m) => m.syncMediaUi());
+			void import("@astlide/core/runtime/media").then((m) => m.syncMediaUi());
 		};
 		onMounted(() => {
-			void import("@astlide/core/internal/recording").then(({ toggleCamera, toggleRecording }) => {
+			void import("@astlide/core/runtime/media").then(({ toggleCamera, toggleRecording }) => {
 				window.__astlide_media = {
 					toggleCamera,
 					toggleRecording: () => toggleRecording(window.__astlide?.deck ?? props.deck),

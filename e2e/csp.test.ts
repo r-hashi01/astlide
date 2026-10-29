@@ -9,9 +9,9 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, inject, it } from "vitest";
-import { DEFAULT_DECK_CSP } from "../packages/astlide/src/utils/csp";
-import { slideContentMarks } from "../packages/astlide/src/utils/slide-mark";
 import { hashBuiltPages } from "../packages/astro/src/csp-hashes";
+import { DEFAULT_DECK_CSP } from "../packages/astro/src/internal/csp";
+import { slideContentMarks } from "../packages/astro/src/internal/slide-mark";
 import { useBrowser } from "./helpers/browser";
 
 const browser = useBrowser();

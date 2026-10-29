@@ -26,7 +26,7 @@ import Math from '@astlide/astro/components/Math.astro';
 import YouTube from '@astlide/astro/components/YouTube.astro';
 import Tweet from '@astlide/astro/components/Tweet.astro';
 import { extractCommentNotes } from '@astlide/core/utils/comment-notes';
-import { slideContentComments } from '@astlide/core/utils/slide-mark';
+import { slideContentComments } from '@astlide/astro/internal/slide-mark';
 
 export async function getStaticPaths() {
   const allSlides = await getCollection('decks');

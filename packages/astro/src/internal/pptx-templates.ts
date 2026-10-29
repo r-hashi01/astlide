@@ -10,11 +10,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { pptxToTemplate, templateCss } from "@astlide/core/pptx";
+import type { TemplateStore } from "@astlide/core/templates";
+import { pptxAssetDir, referencedAssets, storePptxAsset } from "@astlide/core/utils/pptx-assets";
+import { slideScriptsKept, stripSlideScripts } from "@astlide/core/utils/slide-scripts";
 import type { Plugin, ViteDevServer } from "vite";
-import { pptxToTemplate, templateCss } from "../pptx/template";
-import type { TemplateStore } from "../templates/store";
-import { pptxAssetDir, referencedAssets, storePptxAsset } from "./pptx-assets";
-import { slideScriptsKept, stripSlideScripts } from "./slide-scripts";
 
 /** What a slide needs at render time: artwork per layout, aliases, the master's art. */
 export interface TemplateData {

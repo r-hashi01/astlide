@@ -15,14 +15,12 @@
  * @module @astlide/core/deck/print-view
  */
 
-import type { DeckConfig } from "../schema";
-
 /** A theme name as it may appear in an attribute (letters, digits, `-`, `_`). */
 export const themeName = (theme: string | undefined): string =>
 	(theme ?? "default").replace(/[^\w-]/g, "") || "default";
 
 /** The `<html>` attributes of a print view. */
-export function printViewAttributes(config: Pick<DeckConfig, "theme">): Record<string, string> {
+export function printViewAttributes(config: { theme?: string }): Record<string, string> {
 	return { "data-theme": themeName(config.theme), "data-print": "", "data-astlide-all": "" };
 }
 
@@ -38,7 +36,7 @@ const META = { title: "astlide:title", author: "astlide:author", theme: "astlide
 /** The `<meta>` tags of a print view: `{ name, content }` each. */
 export function printViewMeta(deck: {
 	name: string;
-	config: Pick<DeckConfig, "title" | "author" | "theme">;
+	config: { title?: string; author?: string; theme?: string };
 }): { name: string; content: string }[] {
 	return [
 		{ name: META.title, content: deck.config.title ?? deck.name },

@@ -20,7 +20,7 @@ export default defineComponent({
 		const components = useMdxComponents();
 		onMounted(() => {
 			applyPageFlags();
-			void import("@astlide/core/internal/diagrams").then((m) =>
+			void import("@astlide/core/runtime/diagrams").then((m) =>
 				m.renderDiagramsWith(mermaidLoader()),
 			);
 		});

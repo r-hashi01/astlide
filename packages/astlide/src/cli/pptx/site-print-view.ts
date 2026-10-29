@@ -19,7 +19,7 @@ import {
 	printViewAttributes,
 	readPrintViewMeta,
 } from "@astlide/core/deck/print-view";
-import { FetchBudget } from "@astlide/core/utils/network.ts";
+import { FetchBudget } from "@astlide/core/utils/network";
 import render from "dom-serializer";
 import { type ChildNode, type Element, isTag, Text } from "domhandler";
 import { parseDocument } from "htmlparser2";

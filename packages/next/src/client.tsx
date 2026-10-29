@@ -61,7 +61,7 @@ export function PrintViewSetup({ attributes }: { attributes: Record<string, stri
 	useEffect(() => {
 		for (const [k, v] of Object.entries(attributes)) document.documentElement.setAttribute(k, v);
 		applyPageFlags();
-		void import("@astlide/core/internal/diagrams").then((m) =>
+		void import("@astlide/core/runtime/diagrams").then((m) =>
 			m.renderDiagramsWith(hasMermaid() ? loadMermaid : null),
 		);
 	}, [attributes]);

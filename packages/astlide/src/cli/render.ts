@@ -11,7 +11,7 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { publicNetworkOnly, publicRequest, readBody } from "@astlide/core/utils/network.ts";
+import { publicNetworkOnly, publicRequest, readBody } from "@astlide/core/utils/network";
 import { type BrowserContext, chromium, type Page } from "playwright";
 
 export interface RenderOptions {

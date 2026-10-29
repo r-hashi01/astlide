@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { cspHashable, DEFAULT_DECK_CSP } from "@astlide/core/utils/csp.ts";
-import { slideContentComments, slideContentMarks } from "@astlide/core/utils/slide-mark.ts";
+import { cspHashable, DEFAULT_DECK_CSP } from "@astlide/astro/internal/csp";
+import { slideContentComments, slideContentMarks } from "@astlide/astro/internal/slide-mark";
 import island from "astro/runtime/server/astro-island.prebuilt.js";
 import { describe, expect, it } from "vitest";
 import {

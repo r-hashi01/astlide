@@ -35,9 +35,9 @@ import Math from '@astlide/astro/components/Math.astro';
 import YouTube from '@astlide/astro/components/YouTube.astro';
 import Tweet from '@astlide/astro/components/Tweet.astro';
 import { extractCommentNotes } from '@astlide/core/utils/comment-notes';
-import { slideContentComments } from '@astlide/core/utils/slide-mark';
+import { slideContentComments } from '@astlide/astro/internal/slide-mark';
 import { notesIncluded } from '@astlide/core/utils/notes';
-import { cspFor, cspHashable, DEFAULT_DECK_CSP } from '@astlide/core/utils/csp';
+import { cspFor, cspHashable, DEFAULT_DECK_CSP } from '@astlide/astro/internal/csp';
 
 declare const __ASTLIDE_CSP__: boolean | string;
 

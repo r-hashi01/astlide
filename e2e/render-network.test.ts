@@ -13,8 +13,8 @@ import { guardedChromiumArgs, guardNetwork } from "../packages/astlide/src/cli/r
 // "https://public.test/…" stands in for a public host: /ok answers, /to-internal
 // redirects to the internal service. Everything else goes to the real check.
 const redirectTarget = { url: "" };
-vi.mock("@astlide/core/utils/network.ts", async (original) => {
-	const real = await original<typeof import("@astlide/core/utils/network.ts")>();
+vi.mock("@astlide/core/utils/network", async (original) => {
+	const real = await original<typeof import("@astlide/core/utils/network")>();
 	return {
 		...real,
 		publicRequest: async (url: string, init?: Parameters<typeof real.publicRequest>[1]) => {

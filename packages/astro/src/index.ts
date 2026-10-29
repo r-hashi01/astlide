@@ -11,21 +11,21 @@ import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { resolveFavicon } from "@astlide/astro/internal/favicon";
+import {
+	astlideTemplatesPlugin,
+	type LoadedTemplate,
+	loadTemplate,
+	storedTemplateFiles,
+} from "@astlide/astro/internal/pptx-templates";
 import { type AstlidePlugin, BUILT_IN_PLUGIN, resolvePlugins } from "@astlide/core/plugin";
 import type { TemplateStore } from "@astlide/core/templates";
 import { openTemplateStore } from "@astlide/core/templates";
 import { astlideCodeHighlight } from "@astlide/core/utils/code-highlight";
 import { astlideCommentNotesPlugin } from "@astlide/core/utils/comment-notes";
 import { EXPORT_BUILD_ENV, requestedExportBuild } from "@astlide/core/utils/export-build";
-import { resolveFavicon } from "@astlide/core/utils/favicon";
 import { astlideMermaid } from "@astlide/core/utils/mermaid";
 import { PPTX_ASSET_ROUTE, pptxAssetDir } from "@astlide/core/utils/pptx-assets";
-import {
-	astlideTemplatesPlugin,
-	type LoadedTemplate,
-	loadTemplate,
-	storedTemplateFiles,
-} from "@astlide/core/utils/pptx-templates";
 import {
 	astlideSlideScriptsPlugin,
 	setSlideScripts,

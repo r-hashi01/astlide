@@ -30,7 +30,7 @@ declare global {
 		__astlide_cleanup?: () => void;
 		/** Client-side navigation of the host (Astro's ClientRouter). */
 		__astlide_navigate?: (url: string, options?: { history?: "replace" }) => void;
-		/** Camera bubble and recording (internal/recording). */
+		/** Camera bubble and recording (`@astlide/core/runtime/media`). */
 		__astlide_media?: { toggleCamera(): void; toggleRecording(): void };
 		/** The dev slide editor (`e`). */
 		__astlide_editor?: { toggle(): void };

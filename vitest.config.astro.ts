@@ -6,7 +6,6 @@ import {
 	defineAstlidePlugin,
 	resolvePlugins,
 } from "./packages/astlide/src/plugin";
-import { astlideTemplatesPlugin } from "./packages/astlide/src/utils/pptx-templates";
 import { astlideVirtualPlugin } from "./packages/astro/src/internal/virtual-plugins";
 
 // Slide.astro imports `virtual:astlide/layouts`; the integration emits that
@@ -24,11 +23,11 @@ const resolved = resolvePlugins([
 	}),
 ]);
 
-// A PowerPoint template theme, as `virtual:astlide/templates` serves it.
+// A PowerPoint template theme, served as `virtual:astlide/templates` serves the
+// integration's (the real plugin, in internal/pptx-templates, imports
+// @astlide/core, which this config file can't load: Node runs it as is).
 const template = {
 	theme: "fixture-template",
-	source: "",
-	cssPath: "",
 	data: {
 		layouts: {
 			"title-slide": { art: '<i class="art">title art</i>', slideNumber: false },
@@ -39,8 +38,17 @@ const template = {
 	},
 };
 
+const templatesModule = {
+	name: "astlide:templates-fixture",
+	resolveId: (id: string) => (id === "virtual:astlide/templates" ? `\0${id}` : null),
+	load: (id: string) =>
+		id === "\0virtual:astlide/templates"
+			? `export const templates = ${JSON.stringify({ [template.theme]: template.data })};\nexport const templateAssets = [];\n`
+			: null,
+};
+
 export default getViteConfig({
-	plugins: [astlideVirtualPlugin(resolved), astlideTemplatesPlugin([template], (t) => t)],
+	plugins: [astlideVirtualPlugin(resolved), templatesModule],
 	// The integration sets this; without it notes are left out (fail closed).
 	define: { __ASTLIDE_NOTES__: "true" },
 	test: {

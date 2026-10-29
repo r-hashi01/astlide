@@ -14,13 +14,13 @@
  */
 
 import type { DeckContext } from "@astlide/core/context";
-import type { MermaidLoader } from "@astlide/core/internal/diagrams";
 import {
 	applyPageFlags,
 	type DeckRuntimeConfig,
 	mountDeck,
 	type OutlineEntry,
 } from "@astlide/core/runtime";
+import type { MermaidLoader } from "@astlide/core/runtime/diagrams";
 import { Fragment, type ReactNode, useEffect, useMemo } from "react";
 
 export interface DeckPageProps {
@@ -63,11 +63,11 @@ export interface DeckPageProps {
 	loadMermaid?: MermaidLoader;
 	/**
 	 * Loads the in-browser PDF export for the toolbar's `download` button:
-	 * `() => import("@astlide/core/internal/pdf-export")` (it needs the
+	 * `() => import("@astlide/core/runtime/pdf-export")` (it needs the
 	 * optional `@astlide/crispdf`). Without it, the button reports that PDF
 	 * download isn't available.
 	 */
-	loadPdfExport?: () => Promise<typeof import("@astlide/core/internal/pdf-export")>;
+	loadPdfExport?: () => Promise<typeof import("@astlide/core/runtime/pdf-export")>;
 	/** The slide (`<Slide>`). */
 	children?: ReactNode;
 }
@@ -137,14 +137,14 @@ export function DeckPage(props: DeckPageProps) {
 		// React places the slide (presenter panel or not); the runtime mustn't move it.
 		const unmount = mountDeck(config, { placeSlide: false, ...(navigate ? { navigate } : {}) });
 		// What an Astro slide page's other scripts do on each slide.
-		void import("@astlide/core/internal/diagrams").then((m) => m.renderDiagramsWith(loadMermaid));
-		void import("@astlide/core/internal/recording").then((m) => m.syncMediaUi());
+		void import("@astlide/core/runtime/diagrams").then((m) => m.renderDiagramsWith(loadMermaid));
+		void import("@astlide/core/runtime/media").then((m) => m.syncMediaUi());
 		return unmount;
 		// Again when the slide moves between the presenter panel and the page: a new element.
 	}, [config, navigate, loadMermaid, presenter]);
 	// Camera, recording and the toolbar's PDF download, set up once per page.
 	useEffect(() => {
-		void import("@astlide/core/internal/recording").then(({ toggleCamera, toggleRecording }) => {
+		void import("@astlide/core/runtime/media").then(({ toggleCamera, toggleRecording }) => {
 			window.__astlide_media = {
 				toggleCamera,
 				toggleRecording: () => toggleRecording(window.__astlide?.deck ?? deck),

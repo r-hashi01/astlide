@@ -5,7 +5,7 @@ import {
 	FetchBudget,
 	isPublicAddress,
 	isPublicUrl,
-} from "@astlide/core/utils/network.ts";
+} from "@astlide/core/utils/network";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 describe("isPublicAddress", () => {

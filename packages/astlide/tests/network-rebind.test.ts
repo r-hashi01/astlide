@@ -29,7 +29,7 @@ vi.mock("node:dns", async (original) => {
 	};
 });
 
-const { isPublicUrl, publicRequest, exportFetch } = await import("@astlide/core/utils/network.ts");
+const { isPublicUrl, publicRequest, exportFetch } = await import("@astlide/core/utils/network");
 
 let server: Server;
 let port = 0;

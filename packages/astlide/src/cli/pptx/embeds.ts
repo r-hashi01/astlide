@@ -12,7 +12,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { FetchBudget } from "@astlide/core/utils/network.ts";
+import { FetchBudget } from "@astlide/core/utils/network";
 import { Parser } from "htmlparser2";
 
 export interface EmbedInfo {

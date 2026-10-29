@@ -38,7 +38,7 @@
 import { createHash } from "node:crypto";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { slideContentMarks } from "@astlide/core/utils/slide-mark";
+import { slideContentMarks } from "@astlide/astro/internal/slide-mark";
 import idle from "astro/runtime/client/idle.prebuilt.js";
 import load from "astro/runtime/client/load.prebuilt.js";
 import media from "astro/runtime/client/media.prebuilt.js";

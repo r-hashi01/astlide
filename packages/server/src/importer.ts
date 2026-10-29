@@ -8,7 +8,7 @@
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { pptxToSlides, pptxToTemplate, type TemplateRegion } from "@astlide/core/pptx";
-import { exportFetch } from "@astlide/core/utils/network.ts";
+import { exportFetch } from "@astlide/core/utils/network";
 import { BadRequest } from "./deck";
 
 /** Template / deck file extensions accepted. */

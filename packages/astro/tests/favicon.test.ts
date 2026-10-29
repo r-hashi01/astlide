@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resolveFavicon } from "../src/utils/favicon";
+import { resolveFavicon } from "../src/internal/favicon";
 
 describe("resolveFavicon", () => {
 	let publicDir: string;

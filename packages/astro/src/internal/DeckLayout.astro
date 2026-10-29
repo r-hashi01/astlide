@@ -32,7 +32,7 @@ const cspContent = cspFor(cspOption, DEFAULT_DECK_CSP, import.meta.env.DEV);
 import type { DeckContext } from '@astlide/core/context';
 import type { DeckRuntimeConfig } from '@astlide/core/runtime';
 import { deckChromeAfter, deckChromeBefore, SLIDE_OVERLAYS, type DeckChromeProps } from '@astlide/core/runtime/chrome';
-import { cspFor, cspHashable, DEFAULT_DECK_CSP } from '@astlide/core/utils/csp';
+import { cspFor, cspHashable, DEFAULT_DECK_CSP } from '@astlide/astro/internal/csp';
 import { notesIncluded } from '@astlide/core/utils/notes';
 
 interface Props {
@@ -177,7 +177,7 @@ const runtimeConfig = JSON.stringify({
 
     <!-- Module script: camera bubble + recording (state survives navigations). -->
     <script>
-      import { toggleCamera, toggleRecording, syncMediaUi } from '@astlide/core/internal/recording';
+      import { toggleCamera, toggleRecording, syncMediaUi } from '@astlide/core/runtime/media';
       window.__astlide_media = {
         toggleCamera,
         toggleRecording: () => toggleRecording((window.__astlide && window.__astlide.deck) || 'astlide'),
@@ -206,7 +206,7 @@ const runtimeConfig = JSON.stringify({
     <!-- Module script: lazy-load the PDF export pipeline on demand. -->
     <script>
       window.__astlide_download_pdf = async function (opts) {
-        const mod = await import('@astlide/core/internal/pdf-export');
+        const mod = await import('@astlide/core/runtime/pdf-export');
         const result = await mod.exportDeckToPdf(opts);
         mod.downloadBlob(result.blob, opts.deck + '.pdf');
         return result;
