@@ -14,27 +14,27 @@
 
 **Slides that live in your Astro site.**
 
-Astlide is an [Astro](https://astro.build) integration for presentations. Every talk, report and pitch is content of one site: write slides in MDX, Markdown or plain HTML, present them on the web, and hand them over as editable PowerPoint in your company's template.
+Astlide is an [Astro](https://astro.build) integration for presentations. Write slides in MDX, Markdown or plain HTML, present them in the browser, and export them to PDF or to PowerPoint files anyone can edit.
 
 📖 **Documentation:** https://astlide.dev/ · 🎬 **Live demo:** https://astlide.dev/demo/tour/1/ · 🇯🇵 [日本語ドキュメント](https://astlide.dev/ja/)
 
 ## Why Astlide
 
-- **Many decks, one site.** Decks are content, not projects: every folder under `src/content/decks/` is a deck, with an index page out of the box. A year of talks, a team's reports or a product's training decks share themes, components and one deploy — where most slide tools build one deck per project.
-- **An SDK, not an app.** `astlide()` goes into any Astro site — your blog, your Starlight docs, a portal of your own design. The pieces work on their own too: the deck loader, PowerPoint import / templates (`@astlide/core/pptx`) and the layout engine (`@astlide/core/engine`).
-- **Your PowerPoint template, editable PPTX out.** Register a `.pptx` / `.potx` template as a theme and Markdown slides come out in its design. `astlide export --pptx` writes real text boxes, tables and shapes with speaker notes — laid out by Astlide's own engine, no browser or LibreOffice.
-- **PowerPoint & Google Slides in.** Drop a `.pptx` into a deck folder, or `astlide import` it into editable HTML slides.
-- **React, Vue & Svelte inside.** Slides are Astro, so components from any framework work on them — interactive while you present.
-- **Every slide is a real page.** `/my-talk/7` is static HTML: link straight to a slide, load fast, deploy anywhere (including sub-paths like GitHub Pages).
-- **Write in whatever fits.** Mix `.mdx`, `.md` and plain `.html` slides in one deck — paste hand-made or AI-generated HTML and it renders as-is. Frontmatter is validated with Zod.
+- **Keep every deck in one site.** A deck is a folder under `src/content/decks/`. Talks, weekly reports and training decks sit side by side: they share themes and components, deploy together and get an index page. Most slide tools give you one project per deck.
+- **Add it to the site you already have.** `astlide()` is an Astro integration, so it works in a blog, a Starlight docs site or any other Astro project. Some parts also work on their own: the deck loader, PowerPoint import and templates (`@astlide/core/pptx`), and the layout engine (`@astlide/core/engine`).
+- **Use your company's PowerPoint template.** Register a `.pptx` or `.potx` as a theme and your Markdown slides take on its layouts, fonts and colors. `astlide export --pptx` writes real text boxes, tables and shapes, with your speaker notes, that anyone can edit in PowerPoint. Astlide lays the slides out itself, so the export needs no browser and no LibreOffice.
+- **Bring in the slides you already have.** Put a `.pptx` from PowerPoint or Google Slides in a deck folder and its pages show up as slides. Or run `astlide import` to turn it into HTML slides you can edit.
+- **Use React, Vue or Svelte components.** Slides are Astro pages, so components from any of these work on a slide and stay interactive while you present.
+- **Link to any slide.** Each slide is a static page: `/my-talk/7` loads on its own and can be hosted anywhere, including under a sub-path such as a GitHub Pages project site.
+- **Pick the format slide by slide.** One deck can mix `.mdx`, `.md` and `.html` files. HTML is rendered as written, so you can paste in markup you wrote by hand or got from an AI tool. Frontmatter is checked with Zod.
 
-And everything you expect from a presentation tool:
+It also has what you'd expect from a presentation tool:
 
-- **Presenting** — presenter window with next-slide preview, steps left, notes and timer; overview, go-to-slide, pen and laser pointer, all mirrored to the audience screen
-- **Reveals & code** — `<Fragment>` / `<Fragments>` (with `until` / `hide`), Shiki highlighting with `{1|3-5|all}` line steps
-- **Diagrams & math** — Mermaid (loaded on demand) and KaTeX
-- **Export** — PDF / PNG via Playwright, editable PowerPoint (in your template, with notes), one-click in-browser PDF
-- **Make it yours** — 7 themes, PowerPoint templates as themes, a plugin API (themes, layouts, transitions), slide decorators, a composable toolbar
+- **Presenting**: a presenter window with your notes, the next slide, the remaining steps and a timer; an overview, go-to-slide, a pen and a laser pointer, all shown on the audience screen too
+- **Reveals and code**: `<Fragment>` / `<Fragments>` (with `until` / `hide`), and Shiki highlighting that steps through lines with `{1|3-5|all}`
+- **Diagrams and math**: Mermaid (loaded only on slides that use it) and KaTeX
+- **Export**: PDF and PNG via Playwright, editable PowerPoint (in your template, with notes), and a one-click PDF button in the browser
+- **Make it yours**: 7 themes, PowerPoint templates as themes, a plugin API (themes, layouts, transitions), slide decorators and a toolbar you put together yourself
 
 How it compares to Slidev, Marp, reveal.js and Quarto: [Why Astlide?](https://astlide.dev/why/)
 
@@ -382,7 +382,7 @@ export default defineConfig({
 });
 ```
 
-`cssEntrypoint` is resolved as a Vite import — use any module specifier that resolves to a CSS file (relative path, npm package, etc.). Built-in themes are registered as a synthetic plugin so the resolution path is unified.
+A `cssEntrypoint` starting with `./` or `../` is resolved from the project root. Anything else, such as a path inside an npm package, is passed to Vite as is. The built-in themes are registered the same way, as a plugin of their own.
 
 ### Distributing a plugin on npm
 
