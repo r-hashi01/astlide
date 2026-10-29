@@ -199,7 +199,7 @@ describe("openTemplateStore", () => {
 	it("tells which package to install when an SDK is missing", async () => {
 		// The SDKs are installed here; the hint's wording is what this checks.
 		const { lazySdk } = await import("../src/templates/sdk");
-		const load = lazySdk("@example/missing", () => import("@example/missing" as string));
+		const load = lazySdk("@example/missing");
 		await expect(load()).rejects.toThrow(
 			'needs the "@example/missing" package: bun add @example/missing',
 		);

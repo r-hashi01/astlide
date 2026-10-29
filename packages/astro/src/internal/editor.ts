@@ -35,7 +35,7 @@ const TOKEN_ENDPOINT = "/__astlide/editor-token";
 let token: Promise<string> | null = null;
 async function authHeaders(): Promise<Record<string, string>> {
 	token ??= fetch(TOKEN_ENDPOINT, { cache: "no-store" })
-		.then((res) => (res.ok ? (res.json() as Promise<{ token?: string }>) : {}))
+		.then((res) => (res.ok ? (res.json() as Promise<{ token?: string }>) : { token: "" }))
 		.then((data) => data.token ?? "")
 		.catch(() => "");
 	const value = await token;

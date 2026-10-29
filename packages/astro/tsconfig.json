@@ -1,3 +1,8 @@
 {
-	"extends": "astro/tsconfigs/strict"
+	"extends": "astro/tsconfigs/strict",
+	"compilerOptions": {
+		// What an Astro project gets from `astro sync`: `.astro` modules,
+		// `import.meta.hot`, `astro:*` modules.
+		"types": ["astro/client", "node"]
+	}
 }

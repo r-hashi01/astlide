@@ -57,8 +57,8 @@ async function fixture(): Promise<Buffer> {
 	s2.addImage({ data: `image/png;base64,${PNG}`, x: 4, y: 1, w: 1, h: 1 });
 	s2.addTable(
 		[
-			["A", "B"],
-			["1", "2"],
+			[{ text: "A" }, { text: "B" }],
+			[{ text: "1" }, { text: "2" }],
 		],
 		{ x: 1, y: 3, w: 4, colW: [2, 2], fontSize: 14 },
 	);

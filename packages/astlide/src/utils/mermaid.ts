@@ -15,10 +15,20 @@
 /** Class on the `<pre>` that carries a diagram's source until it is rendered. */
 export const MERMAID_CLASS = "astlide-mermaid";
 
-// Minimal structural types for the Shiki hook we use (see code-highlight.ts).
+// Minimal structural types for the Shiki hook we use (see code-highlight.ts),
+// precise enough that the transformer is a `ShikiTransformer` (hast's types).
 interface HastRootLike {
 	type: "root";
 	children: unknown[];
+}
+interface MermaidRoot {
+	type: "root";
+	children: {
+		type: "element";
+		tagName: "pre";
+		properties: { className: string[] };
+		children: { type: "text"; value: string }[];
+	}[];
 }
 interface TransformerContext {
 	options: { lang?: string };
@@ -28,7 +38,7 @@ interface TransformerContext {
 /** Shiki transformer shape returned by {@link astlideMermaid}. */
 export interface AstlideMermaidTransformer {
 	name: string;
-	root(this: TransformerContext, root: HastRootLike): HastRootLike | undefined;
+	root(this: TransformerContext, root: HastRootLike): MermaidRoot | undefined;
 }
 
 /**
