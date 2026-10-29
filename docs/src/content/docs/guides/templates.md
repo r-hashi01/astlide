@@ -30,6 +30,12 @@ Then use that name as the deck's theme:
 
 The file can be a presentation (`.pptx`), a template (`.potx`) or an Office theme (`.thmx`). For a Google Slides template, choose File → Download → Microsoft PowerPoint and use the downloaded file. While `astro dev` is running, saving the template file reloads the deck.
 
+If your team keeps its templates in a [template store](/guides/template-storage/) (a shared folder or a bucket), name the store instead, and every template in it becomes a theme:
+
+```js
+astlide({ templates: "s3://acme-assets/astlide/templates" })
+```
+
 ## Where the content goes
 
 If a slide starts with a heading, that heading goes into the layout's title placeholder. Everything else goes into the body placeholder. The text takes the placeholder's font, size, color, alignment and insets.

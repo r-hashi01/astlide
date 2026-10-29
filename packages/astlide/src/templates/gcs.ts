@@ -4,7 +4,6 @@
  * @module
  */
 
-import type { Storage, StorageOptions } from "@google-cloud/storage";
 import { lazySdk, normalizePrefix, statusOf } from "./sdk";
 import { createObjectTemplateStore, type ObjectStorage, type TemplateStore } from "./store";
 
@@ -18,17 +17,34 @@ export interface GcsStorageOptions {
 	 * (`GOOGLE_APPLICATION_CREDENTIALS`, the attached service account on
 	 * Cloud Run / GKE / Compute Engine, `gcloud auth application-default login`).
 	 */
-	storage?: Storage;
-	/** For the client made here: `projectId`, `keyFilename` … */
-	config?: StorageOptions;
+	storage?: GcsClientLike;
+	/** For the client made here (`StorageOptions`): `projectId`, `keyFilename`, `apiEndpoint` … */
+	config?: Record<string, unknown>;
 }
 
-const sdk = lazySdk("@google-cloud/storage", () => import("@google-cloud/storage"));
+/** What the store uses of a `Storage` client (from `@google-cloud/storage`). */
+export interface GcsClientLike {
+	bucket(name: string): {
+		file(name: string): {
+			download(): Promise<[Uint8Array]>;
+			save(data: Buffer, options: { resumable: boolean; contentType: string }): Promise<unknown>;
+			delete(options: { ignoreNotFound: boolean }): Promise<unknown>;
+		};
+		getFiles(query: {
+			prefix: string;
+			autoPaginate: boolean;
+		}): Promise<[{ name: string }[], ...unknown[]]>;
+	};
+}
+
+const sdk = lazySdk<{ Storage: new (config?: Record<string, unknown>) => GcsClientLike }>(
+	"@google-cloud/storage",
+);
 
 /** An {@link ObjectStorage} in a Cloud Storage bucket. */
 export function gcsStorage(options: GcsStorageOptions): ObjectStorage {
 	const prefix = normalizePrefix(options.prefix);
-	let client: Promise<Storage> | undefined;
+	let client: Promise<GcsClientLike> | undefined;
 	const bucket = async () => {
 		client ??= sdk().then(({ Storage }) => options.storage ?? new Storage(options.config));
 		return (await client).bucket(options.bucket);

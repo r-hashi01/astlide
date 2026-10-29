@@ -50,11 +50,14 @@ args = ["astlide", "mcp", "--root", "/path/to/your/slides"]
 
 Other MCP clients, such as Claude Desktop, use the same command: `bunx astlide mcp --root /path/to/your/slides`. Pass the project folder, or a folder that holds your projects, as `--root`. If the client sends MCP roots, you can leave `--root` out. [What the server may touch](#what-the-server-may-touch) explains how these folders are used.
 
+If your team keeps its PowerPoint templates in a [template store](/guides/template-storage/), add `--template-store <location>` (or set `ASTLIDE_TEMPLATE_STORE`), and agents can list the stored templates and read their layouts by name.
+
 ### Tools
 
 | Tool | Arguments | Returns |
 |---|---|---|
-| `template_layouts` | `templatePath` (`.pptx` / `.potx` / `.thmx`) | The template's layouts: the id to use as `slideLayout`, PowerPoint name and type, title / body / slide-number placeholders, and which built-in layouts (`cover`, `section`, `default`, `two-column`, `code`) are drawn with each; theme colors and fonts |
+| `list_templates` | none (only with a template store) | The stored templates: name (use it as the deck's `theme`), label, latest version and versions |
+| `template_layouts` | `templatePath` (`.pptx` / `.potx` / `.thmx`), or with a template store `template` (a stored template's name) and optional `version` | The template's layouts: the id to use as `slideLayout`, PowerPoint name and type, title / body / slide-number placeholders, and which built-in layouts (`cover`, `section`, `default`, `two-column`, `code`) are drawn with each; theme colors and fonts |
 | `import_pptx` | `path`, optional `projectRoot`, `deck`, `force`, `includeHtml` | Each slide's title, speaker notes and text as Markdown. With `projectRoot`, also writes an editable deck, like [`astlide import`](/guides/import/) |
 | `check_deck` | `projectRoot`, `deck`, optional `build` | Text and boxes that don't fit, per slide (below) |
 | `render_deck` | `projectRoot`, `deck`, `formats` (`pptx`, `pdf`), optional `outDir` (inside the project), `build` | The exported files' paths, as [`astlide export`](/guides/export/) writes them |
@@ -70,7 +73,7 @@ You don't need a dev server running. `check_deck` and `render_deck` build the si
 
 Building and exporting run the project's own code: its Astro config and integrations, its MDX slides, any `bunfig.toml` preload, and the `@astlide/core` installed in the project. `import_pptx` with `projectRoot` runs the project's `astlide` CLI. Because of this, the server limits what it does.
 
-**Approve calls one by one.** Only `template_layouts` is marked read-only. `check_deck` and `render_deck` are not, even though `check_deck` with `build: false` only reads. `import_pptx` is marked destructive, because `force` deletes an existing deck folder of the same name. Set your client to ask before each call of `check_deck`, `render_deck`, and `import_pptx` with a project, instead of approving them automatically.
+**Approve calls one by one.** Only `template_layouts` and `list_templates` are marked read-only. `check_deck` and `render_deck` are not, even though `check_deck` with `build: false` only reads. `import_pptx` is marked destructive, because `force` deletes an existing deck folder of the same name. Set your client to ask before each call of `check_deck`, `render_deck`, and `import_pptx` with a project, instead of approving them automatically.
 
 **Projects must be in an allowed folder.** The server picks the allowed folders like this:
 

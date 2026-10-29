@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import mdx from "@astrojs/mdx";
 import type { AstroIntegration } from "astro";
@@ -15,6 +15,8 @@ import {
 } from "./internal/editor-server";
 import { astlideVirtualPlugin } from "./internal/virtual-plugins";
 import { type AstlidePlugin, BUILT_IN_PLUGIN, resolvePlugins } from "./plugin";
+import { openTemplateStore } from "./templates/index";
+import type { TemplateStore } from "./templates/store";
 import { astlideCodeHighlight } from "./utils/code-highlight";
 import { astlideCommentNotesPlugin } from "./utils/comment-notes";
 import { hashBuiltPages } from "./utils/csp-hashes";
@@ -22,7 +24,12 @@ import { EXPORT_BUILD_ENV, requestedExportBuild } from "./utils/export-build";
 import { resolveFavicon } from "./utils/favicon";
 import { astlideMermaid } from "./utils/mermaid";
 import { PPTX_ASSET_ROUTE, pptxAssetDir } from "./utils/pptx-assets";
-import { astlideTemplatesPlugin, type LoadedTemplate, loadTemplate } from "./utils/pptx-templates";
+import {
+	astlideTemplatesPlugin,
+	type LoadedTemplate,
+	loadTemplate,
+	storedTemplateFiles,
+} from "./utils/pptx-templates";
 import { astlideSlideScriptsPlugin, setSlideScripts, stripBuiltPages } from "./utils/slide-scripts";
 
 // Re-export the typed deck/slide metadata API
@@ -187,12 +194,20 @@ export interface AstlideOptions {
 	 * → two content. Every template layout is also available by its name, as
 	 * a slug (`slideLayout: comparison`, `slideLayout: title-only` …).
 	 *
+	 * Or a template store (see `@astlide/core/templates`): its location — a
+	 * folder, `s3://`, `gs://` or `azure://<bucket>/<prefix>` — or the store
+	 * itself. Every stored template is then a theme of its name, in its latest
+	 * version, read when the server starts or the site builds. In dev, a
+	 * folder store is watched and the server restarts when a template
+	 * changes; for a bucket, restart the dev server.
+	 *
 	 * @example
 	 * ```ts
 	 * astlide({ templates: { brand: './templates/brand.pptx' } })
+	 * astlide({ templates: 's3://acme-assets/astlide/templates' })
 	 * ```
 	 */
-	templates?: Record<string, string>;
+	templates?: Record<string, string> | string | TemplateStore;
 	/**
 	 * Pen drawings (`d`).
 	 *
@@ -308,6 +323,35 @@ const decks = defineCollection({
 export const collections = { decks };
 `.trim();
 
+const isStore = (value: unknown): value is TemplateStore =>
+	typeof (value as TemplateStore | undefined)?.list === "function" &&
+	typeof (value as TemplateStore).get === "function";
+
+/** The template store the `templates` option names, if it names one. */
+function templateStoreOf(
+	option: AstlideOptions["templates"],
+	root: string,
+): { store: TemplateStore; storeDir?: string; label: string } | undefined {
+	if (isStore(option)) return { store: option, label: "template store" };
+	if (typeof option !== "string") return undefined;
+	if (/^[a-z][a-z0-9+.-]*:\/\//i.test(option))
+		return { store: openTemplateStore(option), label: `template store ${option}` };
+	const storeDir = resolve(root, option);
+	return { store: openTemplateStore(storeDir), storeDir, label: `template store ${option}` };
+}
+
+/** Every stored template downloaded into the cache: theme name → file. */
+async function storedSources(
+	stored: { store: TemplateStore; label: string },
+	root: string,
+): Promise<[string, string][]> {
+	try {
+		return await storedTemplateFiles(stored.store, root);
+	} catch (e) {
+		throw new Error(`[astlide] ${stored.label}: ${(e as Error).message}`);
+	}
+}
+
 /**
  * The Astlide Astro integration: slides that live in your Astro site.
  *
@@ -354,7 +398,7 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 	return {
 		name: "astlide",
 		hooks: {
-			"astro:config:setup": ({
+			"astro:config:setup": async ({
 				command,
 				config,
 				injectRoute,
@@ -386,8 +430,14 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 
 				// PowerPoint templates → themes (CSS from the cache) and their layout names.
 				const root = fileURLToPath(config.root);
+				// A store is read now (awaited only then: without one, setup stays synchronous).
+				const stored = templateStoreOf(options.templates, root);
+				const sources = stored
+					? await storedSources(stored, root)
+					: Object.entries((options.templates ?? {}) as Record<string, string>);
+				const storeDir = stored?.storeDir;
 				const templates: LoadedTemplate[] = [];
-				for (const [theme, source] of Object.entries(options.templates ?? {})) {
+				for (const [theme, source] of sources) {
 					let t: LoadedTemplate;
 					try {
 						t = loadTemplate(theme, source, root, config.base);
@@ -458,8 +508,10 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 						// `PluginOption`. The value is correct at runtime (build passes).
 						plugins: [
 							astlideVirtualPlugin(resolved, { hasMermaid }) as never,
-							astlideTemplatesPlugin(templates, (t) =>
-								loadTemplate(t.theme, t.source, root, config.base),
+							astlideTemplatesPlugin(
+								templates,
+								(t) => loadTemplate(t.theme, t.source, root, config.base),
+								command === "dev" ? storeDir : undefined,
 							) as never,
 							// Dev only: slide scripts also leave the final HTML responses.
 							...(options.slideScripts ? [] : [astlideSlideScriptsPlugin(slideMark) as never]),

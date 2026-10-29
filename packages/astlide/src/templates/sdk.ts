@@ -7,11 +7,15 @@
 
 import { TemplateStoreError } from "./store";
 
-/** `load()` once, on first use; a missing package becomes an install hint. */
-export function lazySdk<T>(name: string, load: () => Promise<T>): () => Promise<T> {
+/**
+ * The SDK `name`, imported once, on first use; a missing package becomes an
+ * install hint. The name is a variable on purpose: projects without the SDK
+ * must still type-check this file.
+ */
+export function lazySdk<T>(name: string): () => Promise<T> {
 	let loaded: Promise<T> | undefined;
 	return () => {
-		loaded ??= load().catch((e) => {
+		loaded ??= (import(/* @vite-ignore */ name) as Promise<T>).catch((e) => {
 			loaded = undefined;
 			if (
 				(e as { code?: string }).code === "ERR_MODULE_NOT_FOUND" ||

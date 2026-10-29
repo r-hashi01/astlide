@@ -290,6 +290,13 @@ describe("stored templates", () => {
 		expect(new Uint8Array(await file.arrayBuffer())).toEqual(template);
 	});
 
+	it("reads the layouts of a template stored without them (e.g. by the CLI)", async () => {
+		await createTemplateStore(dir).put("from-cli", template, { ext: ".pptx" });
+		const res = await call("/templates/from-cli");
+		expect(res.status).toBe(200);
+		expect((await res.json()).outline.aliases).toMatchObject({ cover: "title-slide" });
+	});
+
 	it("deletes a version, then the template", async () => {
 		await upload({ name: "gone", file: new Blob([template]) });
 		await upload({ name: "gone", file: new Blob([template]) });

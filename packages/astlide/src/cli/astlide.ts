@@ -5,6 +5,7 @@
  *   astlide export <deck> [--pdf] [--pptx] [--png]
  *   astlide export --all --pdf --pptx
  *   astlide import talk.pptx [--deck my-talk]
+ *   astlide template list | add | show | download | remove [--store <location>]
  *
  * Every format starts from the built site — a build of its own, in
  * node_modules/.astro/astlide-export (never dist/), with speaker notes. PDF
@@ -48,7 +49,11 @@ Usage:
     an editable deck: src/content/decks/<deck>/*.html, pictures in public/pptx/.
     A Google Slides URL works when the deck is shared as "Anyone with the link".
     (To show a .pptx as is, just put it in a deck folder.)
-  astlide mcp [--root <dir>]...
+  astlide template <list | add | show | download | remove> [--store <location>]
+    Manage the PowerPoint templates in a template store (a folder, s3://,
+    gs:// or azure://), the one the render service and astlide({ templates })
+    read. Run \`astlide template --help\` for details.
+  astlide mcp [--root <dir>]... [--template-store <location>]
     Run the Astlide MCP server over stdio, for coding agents:
     claude mcp add astlide -- bunx astlide mcp
     Its tools build and export only projects inside the client's MCP roots,
@@ -330,10 +335,34 @@ async function main(): Promise<void> {
 			console.error(
 				`astlide mcp: ${root} allows every project under it — name the project folder instead if you can`,
 			);
+		const { templateStoreArg } = await import("../mcp/project");
+		const location = templateStoreArg(rest) ?? process.env.ASTLIDE_TEMPLATE_STORE;
+		const { openTemplateStore } = await import("../templates/index");
+		const templateStore = location
+			? openTemplateStore(/^[a-z][a-z0-9+.-]*:\/\//i.test(location) ? location : resolve(location))
+			: undefined;
 		const transport = new StdioServerTransport();
 		transport.onclose = () => process.exit(0);
-		await createServer(roots.length ? { allowedRoots: roots } : {}).connect(transport);
+		await createServer({
+			...(roots.length ? { allowedRoots: roots } : {}),
+			...(templateStore ? { templateStore } : {}),
+		}).connect(transport);
 		return new Promise<never>(() => {});
+	}
+	if (command === "template") {
+		const { runTemplateCommand, TEMPLATE_HELP, TemplateUsageError } = await import("./template");
+		if (rest.length === 0 || rest.includes("-h") || rest.includes("--help")) {
+			console.log(TEMPLATE_HELP);
+			return;
+		}
+		try {
+			await runTemplateCommand(rest, { log: console.log, env: process.env, cwd: process.cwd() });
+		} catch (e) {
+			if (!(e instanceof TemplateUsageError)) throw e;
+			console.error(`Error: ${e.message}\n${TEMPLATE_HELP}`);
+			process.exit(1);
+		}
+		return;
 	}
 	if (command !== "export" && command !== "import") fail(`unknown command "${command}"`);
 	if (rest.includes("-h") || rest.includes("--help")) {
@@ -352,6 +381,7 @@ main()
 	.then(() => process.exit(0))
 	.catch((err) => {
 		// The message only: Bun would print the Error with a source excerpt.
-		console.error(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
+		const what = process.argv[2] === "template" ? "Error" : "Export failed";
+		console.error(`${what}: ${err instanceof Error ? err.message : String(err)}`);
 		process.exit(1);
 	});

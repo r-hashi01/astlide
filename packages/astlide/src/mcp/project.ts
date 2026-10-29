@@ -136,6 +136,20 @@ export function explicitRoots(
 	return roots.map((dir) => resolve(dir));
 }
 
+/** The `--template-store <location>` given to `astlide mcp`, if any. */
+export function templateStoreArg(args: string[]): string | undefined {
+	let location: string | undefined;
+	for (let i = 0; i < args.length; i++) {
+		const arg = args[i] as string;
+		if (arg === "--template-store") location = args[++i] ?? "";
+		else if (arg.startsWith("--template-store=")) location = arg.slice("--template-store=".length);
+		else continue;
+		if (!location || location.startsWith("-"))
+			throw new Error("--template-store needs a location: a folder, s3://, gs:// or azure://");
+	}
+	return location;
+}
+
 /** Whether `root` is `folder` itself or a folder directly in it (symlinks resolved). */
 function atOrJustBelow(root: string, folder: string): boolean {
 	const rel = relative(realPath(folder), realPath(root));

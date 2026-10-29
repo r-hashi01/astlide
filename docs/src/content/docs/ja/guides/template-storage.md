@@ -1,15 +1,23 @@
 ---
 title: テンプレートの保存先
-description: レンダリングサービスの PowerPoint テンプレートを、ディレクトリ、Amazon S3（R2・MinIO を含む）、Google Cloud Storage、Azure Blob Storage に保存する方法と、それぞれのアクセス権の設定をまとめています。
+description: チームの PowerPoint テンプレートを 1 か所（ディレクトリ、Amazon S3・R2・MinIO、Google Cloud Storage、Azure Blob Storage）にまとめ、レンダリングサービス・Astro のサイト・CLI・エージェントから使う方法をまとめています。
 ---
 
-[レンダリングサービス](/ja/guides/server/)は、PowerPoint テンプレートに名前を付けて保存できます。保存しておけば、呼び出す側は毎回ファイルを送らずに `"template": "acme"` と書くだけでレンダリングできます。このページでは、テンプレートをどこに保存するかと、保存先へのアクセスをどう許可するかを説明します。同じ保存の仕組みは、`@astlide/core/templates` から自分のプログラムでも使えます。
+テンプレートの保存先には、チームの PowerPoint テンプレートを名前を付けて保存します。アップロードした版もすべて残ります。同じ保存先を、Astlide のどこからでも使えます。
+
+- [レンダリングサービス](/ja/guides/server/)：呼び出す側は、毎回ファイルを送らずに `"template": "acme"` と書くだけでレンダリングできます
+- Astro のサイト：保存したテンプレートが、そのままテーマとして使えます（[サイトで使う](#サイトで使う)）
+- コマンドライン：`astlide template add`・`list`・`remove` などで管理できます（[コマンドラインで管理する](#コマンドラインで管理する)）
+- コーディングエージェント：MCP サーバーを通して一覧やレイアウトを調べられます（[エージェントから参照させる](#エージェントから参照させる)）
+- 自分のプログラム：`@astlide/core/templates` から使えます
+
+たとえば、デザイン担当が会社のテンプレートの新しい版を 1 回アップロードすれば、次のレンダリングでも、サイトのビルドでも、エージェントの作業でも、その版が使われます。このページでは、保存先の選び方、アクセス権の設定、それぞれの使い方を説明します。
 
 ## 保存先を選ぶ
 
-`ASTLIDE_TEMPLATE_STORE` に次のどれかを指定します。バケット名のあとのプレフィックスは省略できます。ほかの用途と共用しているバケットなら、プレフィックスを付けてテンプレートの置き場所を分けておくと管理しやすくなります。
+保存先は、次の表の形式で指定します。レンダリングサービス・CLI・MCP サーバーは環境変数 `ASTLIDE_TEMPLATE_STORE` を読みます。コマンドラインでは `--store`、サイトでは `astro.config.mjs` の `templates` でも指定できます。バケット名のあとのプレフィックスは省略できます。ほかの用途と共用しているバケットなら、プレフィックスを付けてテンプレートの置き場所を分けておくと管理しやすくなります。
 
-| `ASTLIDE_TEMPLATE_STORE` | 保存先 |
+| 指定する値 | 保存先 |
 | --- | --- |
 | `/data/templates` | サーバー上のディレクトリ |
 | `s3://<バケット>/<プレフィックス>` | Amazon S3。Cloudflare R2 や MinIO など、S3 互換の API を持つサービスもこちら |
@@ -18,7 +26,7 @@ description: レンダリングサービスの PowerPoint テンプレートを�
 
 サーバーが 1 台なら、ディレクトリがいちばん手軽です。コンテナを作り直す運用の場合や、複数のサーバーで同じテンプレートを使う場合は、バケットを選んでください。
 
-バケットやコンテナーは事前に作っておいてください。Astlide は作成しません。サーバーは起動時に保存先の一覧を一度取得します。接続できない場合や権限がない場合はエラーを表示して停止するので、設定の誤りには最初のアップロードを待たずにデプロイの時点で気づけます。
+バケットやコンテナーは事前に作っておいてください。Astlide は作成しません。レンダリングサービスは起動時に、サイトはビルド時と開発サーバーの起動時に、保存先を読みます。接続できない場合や権限がない場合はエラーを表示して止まるので、設定の誤りには最初のアップロードを待たずにすぐ気づけます。
 
 各クラウドとのやり取りには、それぞれの公式 SDK を使っています。認証情報も、各社のツールと同じ順序で探します。そのため、IAM ロール、サービスアカウントの割り当て、マネージド ID を使えば、設定にキーを書かずに済みます。ここで使う環境変数は、スライドを描画するビルドやブラウザーのプロセスには渡しません。
 
@@ -130,6 +138,49 @@ az role assignment create --assignee <ID のクライアント ID> \
 ```
 
 Azurite や、Azure Government などのソブリンクラウドを使う場合は、`AZURE_STORAGE_BLOB_ENDPOINT` に Blob のエンドポイントを指定します。Azurite なら `http://127.0.0.1:10000/devstoreaccount1` です。
+
+## コマンドラインで管理する
+
+`astlide template` で、テンプレートの追加・一覧・確認・削除ができます。対象は `ASTLIDE_TEMPLATE_STORE` の保存先か、`--store` で指定した保存先です。認証情報は、ここまでの説明と同じものを使います。
+
+```bash
+export ASTLIDE_TEMPLATE_STORE=gs://acme-assets/astlide/templates
+
+bunx astlide template add "Acme 2026.potx" --label "Acme 2026"   # → acme-2026 の版 1
+bunx astlide template add acme-new.potx --name acme-2026           # → acme-2026 の版 2
+bunx astlide template list
+bunx astlide template show acme-2026          # 版の一覧と、slideLayout に書く名前
+bunx astlide template download acme-2026 --version 1 -o old.potx
+bunx astlide template remove acme-2026 --version 1
+```
+
+`--name` を付けなければ、ファイル名から名前を作ります。`add` は保存する前にファイルを読み込み、PowerPoint のテンプレートとして読めないファイルは受け付けません。`list` と `show` に `--json` を付けると、JSON で出力します。
+
+## サイトで使う
+
+`templates` オプションに、ファイルの一覧ではなく保存先を指定します。保存先にあるテンプレートがすべて、同じ名前のテーマになります。使われるのは最新の版です。
+
+```js
+// astro.config.mjs
+astlide({ templates: "s3://acme-assets/astlide/templates" })
+```
+
+```json
+// src/content/decks/q3-review/_config.json
+{ "title": "Q3 review", "theme": "acme-2026" }
+```
+
+`"./templates"` のような相対パスは、プロジェクトのフォルダーを基準にします。保存先を読むのは、サイトのビルド時と開発サーバーの起動時です。保存先がディレクトリなら、テンプレートを追加・差し替え・削除したときに開発サーバーが自動で再起動します。バケットの場合は、新しい版を反映するには開発サーバーを再起動してください。クラウドの SDK は、プロジェクトにインストールしておく必要があります（次の節を参照）。
+
+## エージェントから参照させる
+
+MCP サーバーを保存先付きで起動すると、エージェントがチームのテンプレートを自分で探せるようになります。
+
+```bash
+claude mcp add astlide -- bunx astlide mcp --template-store s3://acme-assets/astlide/templates
+```
+
+読み取り専用の `list_templates` ツールが増え、`template_layouts` にはファイルの代わりに保存したテンプレートの名前（`template: "acme-2026"`）も渡せるようになります。エージェントはテンプレートを追加・削除できません。保存したテンプレートでスライドを書き出すには、エージェントがデッキの `theme` にその名前を指定します。プロジェクトの `templates` オプションが同じ保存先を指していれば、そのまま使えます。MCP サーバーのほかの機能は[エージェント](/ja/guides/agents/)で説明しています。
 
 ## 自分のプログラムから使う
 

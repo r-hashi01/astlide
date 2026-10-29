@@ -8,9 +8,11 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { Plugin, ViteDevServer } from "vite";
 import { pptxToTemplate, templateCss } from "../pptx/template";
+import type { TemplateStore } from "../templates/store";
 import { pptxAssetDir, referencedAssets, storePptxAsset } from "./pptx-assets";
 import { slideScriptsKept, stripSlideScripts } from "./slide-scripts";
 
@@ -62,13 +64,39 @@ export function loadTemplate(
 	};
 }
 
+/**
+ * Every template in `store` (its latest version), downloaded into the cache:
+ * theme name → file, ready for {@link loadTemplate}.
+ */
+export async function storedTemplateFiles(
+	store: TemplateStore,
+	root: string,
+): Promise<[theme: string, file: string][]> {
+	const dir = join(root, "node_modules", ".astro", "astlide-templates", "store");
+	await mkdir(dir, { recursive: true });
+	const files: [string, string][] = [];
+	for (const { name } of await store.list()) {
+		const stored = await store.get(name);
+		if (!stored) continue; // removed while listing
+		const file = join(dir, `${name}${stored.version.ext}`);
+		await writeFile(file, stored.data);
+		files.push([name, file]);
+	}
+	return files;
+}
+
 const VIRTUAL_ID = "virtual:astlide/templates";
 const RESOLVED_ID = `\0${VIRTUAL_ID}`;
 
-/** Serves `virtual:astlide/templates`; in dev, re-reads a template when its file changes. */
+/**
+ * Serves `virtual:astlide/templates`; in dev, re-reads a template when its
+ * file changes, and restarts the server when a template in `storeDir` (a
+ * folder template store) is added, replaced or removed.
+ */
 export function astlideTemplatesPlugin(
 	templates: LoadedTemplate[],
 	reload: (t: LoadedTemplate) => LoadedTemplate,
+	storeDir?: string,
 ): Plugin {
 	return {
 		name: "astlide:templates",
@@ -86,6 +114,20 @@ export function astlideTemplatesPlugin(
 			);
 		},
 		configureServer(server: ViteDevServer) {
+			if (storeDir) {
+				server.watcher.add(storeDir);
+				let timer: ReturnType<typeof setTimeout> | undefined;
+				const changed = (file: string) => {
+					if (!file.startsWith(storeDir) || !file.endsWith("manifest.json")) return;
+					// A store writes several files per change: restart once they're in.
+					clearTimeout(timer);
+					timer = setTimeout(() => {
+						server.config.logger.info("[astlide] template store changed: restarting");
+						void server.restart();
+					}, 200);
+				};
+				for (const event of ["add", "change", "unlink"] as const) server.watcher.on(event, changed);
+			}
 			if (!templates.length) return;
 			server.watcher.add(templates.map((t) => t.source));
 			server.watcher.on("change", (file) => {

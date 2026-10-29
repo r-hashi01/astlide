@@ -5,7 +5,6 @@
  * @module
  */
 
-import type { S3Client, S3ClientConfig } from "@aws-sdk/client-s3";
 import { errorCode, lazySdk, normalizePrefix } from "./sdk";
 import { createObjectTemplateStore, type ObjectStorage, type TemplateStore } from "./store";
 
@@ -18,18 +17,34 @@ export interface S3StorageOptions {
 	 * then come from the AWS SDK's usual chain (environment variables, shared
 	 * config files, IAM roles for EC2 / ECS / EKS …).
 	 */
-	client?: S3Client;
-	/** For the client made here: `region`, `endpoint`, `forcePathStyle` … */
-	config?: S3ClientConfig;
+	client?: S3ClientLike;
+	/** For the client made here (`S3ClientConfig`): `region`, `endpoint`, `forcePathStyle` … */
+	config?: Record<string, unknown>;
 }
 
-const sdk = lazySdk("@aws-sdk/client-s3", () => import("@aws-sdk/client-s3"));
+/** What the store uses of an `S3Client` (from `@aws-sdk/client-s3`). */
+export interface S3ClientLike {
+	// biome-ignore lint/suspicious/noExplicitAny: commands and results are the SDK's own types
+	send(command: any): Promise<any>;
+}
+
+type Command = new (input: Record<string, unknown>) => unknown;
+/** The parts of `@aws-sdk/client-s3` used here (its types aren't needed to type-check this file). */
+interface S3Sdk {
+	S3Client: new (config: Record<string, unknown>) => S3ClientLike;
+	GetObjectCommand: Command;
+	PutObjectCommand: Command;
+	DeleteObjectCommand: Command;
+	ListObjectsV2Command: Command;
+}
+
+const sdk = lazySdk<S3Sdk>("@aws-sdk/client-s3");
 
 /** An {@link ObjectStorage} in an S3 bucket. */
 export function s3Storage(options: S3StorageOptions): ObjectStorage {
 	const prefix = normalizePrefix(options.prefix);
 	const Bucket = options.bucket;
-	let client: Promise<S3Client> | undefined;
+	let client: Promise<S3ClientLike> | undefined;
 	const s3 = () => {
 		client ??= sdk().then(({ S3Client }) => options.client ?? new S3Client(options.config ?? {}));
 		return client;

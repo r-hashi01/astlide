@@ -384,11 +384,14 @@ export function createHandler(options: ServerOptions) {
 		const info = await store.info(name);
 		const chosen = info?.versions.find((v) => v.version === (version ?? info.latest));
 		if (!info || !chosen) throw missing();
-		return json({
-			...templateSummary(info),
-			version: chosen.version,
-			outline: chosen.meta?.outline ?? null,
-		});
+		// Added elsewhere (the CLI, your own code): read the layouts from the file, in the worker.
+		let outline = chosen.meta?.outline;
+		if (outline === undefined) {
+			const stored = await store.get(name, chosen.version);
+			if (!stored) throw missing();
+			outline = await queue.run(() => parsePptx("layouts", stored.data, parseOptions));
+		}
+		return json({ ...templateSummary(info), version: chosen.version, outline });
 	}
 
 	function openapi(req: Request): Response {

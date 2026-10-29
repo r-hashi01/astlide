@@ -29,11 +29,22 @@ import { type TemplateStore, TemplateStoreError } from "./store";
 export {
 	type AzureBlobStorageOptions,
 	azureBlobStorage,
+	type ContainerClientLike,
 	createAzureBlobTemplateStore,
 } from "./azure";
 export { createTemplateStore, folderStorage } from "./folder";
-export { createGcsTemplateStore, type GcsStorageOptions, gcsStorage } from "./gcs";
-export { createS3TemplateStore, type S3StorageOptions, s3Storage } from "./s3";
+export {
+	createGcsTemplateStore,
+	type GcsClientLike,
+	type GcsStorageOptions,
+	gcsStorage,
+} from "./gcs";
+export {
+	createS3TemplateStore,
+	type S3ClientLike,
+	type S3StorageOptions,
+	s3Storage,
+} from "./s3";
 export {
 	createObjectTemplateStore,
 	type ObjectStorage,

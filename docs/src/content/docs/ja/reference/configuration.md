@@ -40,7 +40,7 @@ export default defineConfig({
 | `toolbar` | `ToolbarItem[]` | `["prev", "counter", "next"]` | ツールバーに置くボタンを、左から順に並べます。使えるボタンは[プレゼンテーション](/ja/guides/presenting/#ツールバー)に一覧があります。 |
 | `slideDecorators` | `string[]` | `[]` | ロゴやフッターなど、全スライドに出すコンポーネントです。`"./src/components/DeckFooter.astro"` のように、モジュールのパスで指定します。 |
 | `plugins` | `AstlidePlugin[]` | `[]` | テーマ、レイアウト、トランジション、Shiki の言語とテーマ、デコレーターを追加するプラグインです。[プラグイン API](/ja/guides/themes-and-plugins/#プラグイン-api) を参照してください。 |
-| `templates` | `Record<string, string>` | `{}` | テーマとして使う PowerPoint テンプレートです。テーマ名をキーにして、`.pptx`・`.potx`・`.thmx` ファイルのパス（プロジェクトからの相対パス）を書きます。使うときは、そのテーマ名を `_config.json` の `theme` に指定します。詳しくは [PowerPoint テンプレート](/ja/guides/templates/)を参照してください。 |
+| `templates` | `Record<string, string> \| string \| TemplateStore` | `{}` | テーマとして使う PowerPoint テンプレートです。テーマ名をキーにして、`.pptx`・`.potx`・`.thmx` ファイルのパス（プロジェクトからの相対パス）を書きます。使うときは、そのテーマ名を `_config.json` の `theme` に指定します。[テンプレートの保存先](/ja/guides/template-storage/)（フォルダー、`s3://`・`gs://`・`azure://` の場所、または `TemplateStore`）を指定すると、保存先のテンプレートがすべて、それぞれの名前のテーマになります。詳しくは [PowerPoint テンプレート](/ja/guides/templates/)を参照してください。 |
 | `shikiTheme` | `string` | `"github-dark"` | コードブロックの配色に使う Shiki のテーマです。 |
 | `font` | `false \| string \| { href?, preconnect? }` | Google Fonts の Inter と JetBrains Mono | 読み込む Web フォントのスタイルシートです。文字列で URL を渡すと、そのオリジンへの preconnect も自動で入ります。preconnect 先を自分で決めたいときはオブジェクトで渡します。`false` にすると、フォントのスタイルシートを読み込みません。 |
 | `favicon` | `string \| false` | 説明を参照 | スライドのページとデッキ一覧のファビコンです。省略すると、`public/` にある `favicon.svg`・`favicon.ico`・`favicon.png` を使います。どれもなければ空のアイコンを設定します。これで、ブラウザがドメイン直下の `/favicon.ico` を取りに行かずに済みます。`/` で始まるパスには Astro の `base` を付けます。`false` にすると、ファビコンのリンクを出力しません。 |

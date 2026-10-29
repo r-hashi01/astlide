@@ -50,11 +50,14 @@ args = ["astlide", "mcp", "--root", "/path/to/your/slides"]
 
 Claude Desktop などほかの MCP クライアントでも、コマンドは `bunx astlide mcp --root /path/to/your/slides` で同じです。`--root` には、プロジェクトのフォルダーか、複数のプロジェクトをまとめて置いたフォルダーを渡します。クライアントが MCP ルートを送ってくる場合は、`--root` を省略できます。これらのフォルダーの扱いは「[サーバーが扱える範囲](#サーバーが扱える範囲)」で説明します。
 
+チームの PowerPoint テンプレートを[テンプレートの保存先](/ja/guides/template-storage/)で管理している場合は、`--template-store <保存先>` を付けて起動してください（`ASTLIDE_TEMPLATE_STORE` でも指定できます）。エージェントが、保存されたテンプレートの一覧や、名前を指定したレイアウトを調べられるようになります。
+
 ### ツール
 
 | ツール | 引数 | 戻り値 |
 |---|---|---|
-| `template_layouts` | `templatePath`（`.pptx` / `.potx` / `.thmx`） | テンプレートのレイアウト一覧とテーマの色・フォント。レイアウトごとに、`slideLayout` に書く ID、PowerPoint 上の名前と種類、タイトル・本文・スライド番号のプレースホルダー、そのレイアウトで描画する組み込みレイアウト（`cover`、`section`、`default`、`two-column`、`code`）を返します |
+| `list_templates` | なし（保存先を指定したときだけ使えます） | 保存されているテンプレートの一覧。名前（デッキの `theme` に指定する値）、表示名、最新の版、版の一覧を返します |
+| `template_layouts` | `templatePath`（`.pptx` / `.potx` / `.thmx`）。保存先を指定したときは、代わりに `template`（保存したテンプレートの名前）と、省略可の `version` も使えます | テンプレートのレイアウト一覧とテーマの色・フォント。レイアウトごとに、`slideLayout` に書く ID、PowerPoint 上の名前と種類、タイトル・本文・スライド番号のプレースホルダー、そのレイアウトで描画する組み込みレイアウト（`cover`、`section`、`default`、`two-column`、`code`）を返します |
 | `import_pptx` | `path`。省略可能: `projectRoot`、`deck`、`force`、`includeHtml` | 各スライドのタイトル、発表者ノート、Markdown に変換した本文。`projectRoot` を渡すと、[`astlide import`](/ja/guides/import/) と同じように編集可能なデッキも作成します |
 | `check_deck` | `projectRoot`、`deck`。省略可能: `build` | スライドに収まっていないテキストやボックスの一覧（詳しくは後述） |
 | `render_deck` | `projectRoot`、`deck`、`formats`（`pptx`、`pdf`）。省略可能: `outDir`（プロジェクト内）、`build` | 書き出したファイルのパス。出力は [`astlide export`](/ja/guides/export/) と同じです |
@@ -70,7 +73,7 @@ Claude Desktop などほかの MCP クライアントでも、コマンドは `b
 
 ビルドやエクスポートでは、プロジェクトのコードがそのまま実行されます。Astro の設定とインテグレーション、MDX のスライド、`bunfig.toml` の preload、プロジェクトにインストールされた `@astlide/core` がその対象です。`projectRoot` を渡した `import_pptx` も、プロジェクトの `astlide` CLI を実行します。そのため、サーバーは扱える範囲を制限しています。
 
-**ツールの呼び出しは毎回承認してください。** 読み取り専用と申告しているのは `template_layouts` だけです。`check_deck` と `render_deck` は読み取り専用として申告していません。`build: false` の `check_deck` は実際には読み取りしかしませんが、申告は変わりません。`import_pptx` は破壊的な操作として申告しています。`force` を付けると、同じ名前のデッキフォルダーを削除してから作り直すためです。`check_deck`、`render_deck`、プロジェクトを指定した `import_pptx` は自動承認にせず、呼び出しのたびに確認するようクライアントを設定してください。
+**ツールの呼び出しは毎回承認してください。** 読み取り専用と申告しているのは `template_layouts` と `list_templates` だけです。`check_deck` と `render_deck` は読み取り専用として申告していません。`build: false` の `check_deck` は実際には読み取りしかしませんが、申告は変わりません。`import_pptx` は破壊的な操作として申告しています。`force` を付けると、同じ名前のデッキフォルダーを削除してから作り直すためです。`check_deck`、`render_deck`、プロジェクトを指定した `import_pptx` は自動承認にせず、呼び出しのたびに確認するようクライアントを設定してください。
 
 **プロジェクトは許可されたフォルダーに置く必要があります。** 許可するフォルダーは、次の順で決まります。
 

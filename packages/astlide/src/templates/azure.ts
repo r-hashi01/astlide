@@ -5,7 +5,6 @@
  * @module
  */
 
-import type { ContainerClient } from "@azure/storage-blob";
 import { errorCode, lazySdk, normalizePrefix } from "./sdk";
 import {
 	createObjectTemplateStore,
@@ -19,7 +18,7 @@ export interface AzureBlobStorageOptions {
 	/** A blob name prefix, e.g. `astlide/templates`. */
 	prefix?: string;
 	/** A client of your own; the options below are then ignored. */
-	client?: ContainerClient;
+	client?: ContainerClientLike;
 	/** A storage account connection string (`DefaultEndpointsProtocol=…;AccountName=…;AccountKey=…`). */
 	connectionString?: string;
 	/** The storage account name, when there is no connection string. */
@@ -32,15 +31,39 @@ export interface AzureBlobStorageOptions {
 	endpoint?: string;
 }
 
-const blobSdk = lazySdk("@azure/storage-blob", () => import("@azure/storage-blob"));
-const identitySdk = lazySdk("@azure/identity", () => import("@azure/identity"));
+/** What the store uses of a `ContainerClient` (from `@azure/storage-blob`). */
+export interface ContainerClientLike {
+	getBlockBlobClient(name: string): {
+		downloadToBuffer(): Promise<Uint8Array>;
+		uploadData(data: Uint8Array): Promise<unknown>;
+		deleteIfExists(): Promise<unknown>;
+	};
+	listBlobsFlat(options: { prefix: string }): AsyncIterable<{ name: string }>;
+}
+
+interface ServiceClient {
+	getContainerClient(name: string): ContainerClientLike;
+}
+/** The parts of `@azure/storage-blob` used here (its types aren't needed to type-check this file). */
+interface BlobSdk {
+	BlobServiceClient: (new (
+		url: string,
+		credential?: unknown,
+	) => ServiceClient) & {
+		fromConnectionString(connectionString: string): ServiceClient;
+	};
+	StorageSharedKeyCredential: new (account: string, key: string) => unknown;
+}
+
+const blobSdk = lazySdk<BlobSdk>("@azure/storage-blob");
+const identitySdk = lazySdk<{ DefaultAzureCredential: new () => unknown }>("@azure/identity");
 
 /**
  * The container's client. With only `account`, it signs in with
  * `DefaultAzureCredential`: environment variables, workload identity, a
  * managed identity, or the Azure CLI's login.
  */
-async function containerClient(o: AzureBlobStorageOptions): Promise<ContainerClient> {
+async function containerClient(o: AzureBlobStorageOptions): Promise<ContainerClientLike> {
 	if (o.client) return o.client;
 	const { BlobServiceClient, StorageSharedKeyCredential } = await blobSdk();
 	if (o.connectionString)
@@ -68,7 +91,7 @@ async function containerClient(o: AzureBlobStorageOptions): Promise<ContainerCli
 /** An {@link ObjectStorage} in an Azure Blob Storage container. */
 export function azureBlobStorage(options: AzureBlobStorageOptions): ObjectStorage {
 	const prefix = normalizePrefix(options.prefix);
-	let client: Promise<ContainerClient> | undefined;
+	let client: Promise<ContainerClientLike> | undefined;
 	const container = () => {
 		client ??= containerClient(options).catch((e) => {
 			client = undefined;

@@ -1,15 +1,23 @@
 ---
 title: Template storage
-description: Keep the render service's PowerPoint templates in a directory, Amazon S3 (or R2, MinIO), Google Cloud Storage or Azure Blob Storage, and set up access for each.
+description: Keep your team's PowerPoint templates in one place (a directory, Amazon S3 or R2 / MinIO, Google Cloud Storage or Azure Blob Storage) and use them from the render service, your Astro site, the CLI and agents.
 ---
 
-The [render service](/guides/server/) can keep PowerPoint templates by name, so callers render with `"template": "acme"` instead of uploading the file every time. This page covers where those templates live and how to give the service access. The same store also works from your own code through `@astlide/core/templates`.
+A template store keeps your team's PowerPoint templates by name, with every version uploaded. Everything in Astlide can use the same store:
+
+- the [render service](/guides/server/): callers render with `"template": "acme"` instead of uploading the file every time
+- your Astro site: every stored template becomes a theme ([Use stored templates in a site](#use-stored-templates-in-a-site))
+- the command line: `astlide template add`, `list`, `remove` … ([Manage templates from the command line](#manage-templates-from-the-command-line))
+- coding agents, through the MCP server ([Let agents see the templates](#let-agents-see-the-templates))
+- your own code, through `@astlide/core/templates`
+
+So a designer can upload a new version of the company template once, and the next render, build and agent all pick it up. This page covers where the templates live, how to give access to them, and each way of using them.
 
 ## Choose where templates live
 
-Set `ASTLIDE_TEMPLATE_STORE` to one of these. The prefix after the bucket is optional; use it to keep the templates in one part of a bucket you share with other things.
+A store is named by its location. Give it in `ASTLIDE_TEMPLATE_STORE` (the render service, the CLI and the MCP server read it), with `--store` on the command line, or as `templates` in `astro.config.mjs`. The prefix after the bucket is optional; use it to keep the templates in one part of a bucket you share with other things.
 
-| `ASTLIDE_TEMPLATE_STORE` | Storage |
+| Location | Storage |
 | --- | --- |
 | `/data/templates` | A directory on the server |
 | `s3://<bucket>/<prefix>` | Amazon S3, or a service with an S3-compatible API such as Cloudflare R2 or MinIO |
@@ -18,7 +26,7 @@ Set `ASTLIDE_TEMPLATE_STORE` to one of these. The prefix after the bucket is opt
 
 A directory is the simplest choice for a single server. Pick a bucket when the service runs in containers that come and go, or when several servers render with the same templates.
 
-Create the bucket or container first; Astlide doesn't create one. When the server starts, it lists the store once. If it can't reach the store or isn't allowed in, it stops with the error, so a wrong setting shows up at deploy time rather than on the first upload.
+Create the bucket or container first; Astlide doesn't create one. The render service lists the store once when it starts, and the site reads it when it builds or its dev server starts. Either stops with the error if it can't reach the store or isn't allowed in, so a wrong setting shows up right away rather than on the first upload.
 
 Astlide talks to each cloud through the provider's official SDK, so it finds credentials the same way the provider's own tools do: an IAM role, an attached service account or a managed identity works without any key in your configuration. The variables involved are never passed to the build and browser processes that render slides.
 
@@ -130,6 +138,49 @@ az role assignment create --assignee <identity's client id> \
 ```
 
 For Azurite or a sovereign cloud, set the blob endpoint in `AZURE_STORAGE_BLOB_ENDPOINT` (for Azurite, `http://127.0.0.1:10000/devstoreaccount1`).
+
+## Manage templates from the command line
+
+`astlide template` adds, lists, inspects and removes templates. It works on the store in `ASTLIDE_TEMPLATE_STORE`, or the one you name with `--store`, with the same credentials as above:
+
+```bash
+export ASTLIDE_TEMPLATE_STORE=gs://acme-assets/astlide/templates
+
+bunx astlide template add "Acme 2026.potx" --label "Acme 2026"   # → acme-2026 v1
+bunx astlide template add acme-new.potx --name acme-2026           # → acme-2026 v2
+bunx astlide template list
+bunx astlide template show acme-2026          # versions, and the slideLayout names
+bunx astlide template download acme-2026 --version 1 -o old.potx
+bunx astlide template remove acme-2026 --version 1
+```
+
+The name comes from the file name unless you give `--name`. `add` reads the file first and refuses one that isn't a PowerPoint template. `list` and `show` print JSON with `--json`.
+
+## Use stored templates in a site
+
+Set the `templates` option to the store's location instead of a list of files. Every template in the store becomes a theme of the same name, in its latest version:
+
+```js
+// astro.config.mjs
+astlide({ templates: "s3://acme-assets/astlide/templates" })
+```
+
+```json
+// src/content/decks/q3-review/_config.json
+{ "title": "Q3 review", "theme": "acme-2026" }
+```
+
+A relative folder (`"./templates"`) is resolved from the project. The store is read when the site builds and when the dev server starts. With a folder, the dev server also restarts by itself when a template is added, replaced or removed; with a bucket, restart it to pick up a new version. The cloud SDK must be installed in the project (see below).
+
+## Let agents see the templates
+
+Start the MCP server with the store, and agents can find the team's templates on their own:
+
+```bash
+claude mcp add astlide -- bunx astlide mcp --template-store s3://acme-assets/astlide/templates
+```
+
+This adds a read-only `list_templates` tool, and `template_layouts` takes a stored template's name (`template: "acme-2026"`) as well as a file. Agents can't add or remove templates. To render with one, an agent sets the deck's `theme` to its name; that works when the project's `templates` option names the same store. See [Agents](/guides/agents/) for the rest of the MCP server.
 
 ## Use the store from your own code
 
