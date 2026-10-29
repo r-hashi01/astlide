@@ -1,7 +1,7 @@
 /**
- * A throwaway Astro project per render: the deck's files, a minimal
- * `astro.config.mjs` / `src/content.config.ts`, and a `node_modules` whose
- * entries link to the server's own install (nothing is installed per request).
+ * A throwaway folder per render: the deck's files in `deck/`, an uploaded
+ * template, and `node_modules/.cache/astlide-fonts` linked to a font cache
+ * shared by every render. `render-worker.ts` exports it; nothing is built.
  *
  * @module
  */
@@ -22,68 +22,29 @@ export interface ProjectSpec {
 	template?: { ext: string; data: Uint8Array };
 }
 
-const CONTENT_CONFIG = `import { defineCollection } from "astro:content";
-import { astlideDeckLoader, slideSchema } from "@astlide/core";
-
-export const collections = {
-	decks: defineCollection({ loader: astlideDeckLoader(), schema: slideSchema }),
-};
-`;
-
-function astroConfig(templateFile?: string): string {
-	const options = templateFile
-		? `{ templates: { ${JSON.stringify(TEMPLATE_THEME)}: ${JSON.stringify(`./${templateFile}`)} } }`
-		: "";
-	return `import astlide from "@astlide/core";
-import { defineConfig } from "astro/config";
-
-export default defineConfig({ integrations: [astlide(${options})] });
-`;
-}
-
-/**
- * `node_modules` for a project: a real directory (so per-project caches Astro
- * and Astlide write there stay in the project) with a link to each package of
- * the server's install. Downloaded web fonts share one cache across renders.
- */
-async function linkNodeModules(root: string, nodeModules: string, workDir: string): Promise<void> {
-	const dir = join(root, "node_modules");
-	await mkdir(join(dir, ".cache"), { recursive: true });
-	const type = process.platform === "win32" ? "junction" : "dir";
-	const entries = await readdir(nodeModules);
-	await Promise.all(
-		entries
-			.filter((name) => !name.startsWith("."))
-			.map((name) => symlink(join(nodeModules, name), join(dir, name), type)),
-	);
-	const fonts = join(workDir, ".font-cache");
-	await mkdir(fonts, { recursive: true });
-	await symlink(fonts, join(dir, ".cache", "astlide-fonts"), type);
-}
-
 /** Create a project in `workDir`; returns its root. */
 export async function createProject(
 	spec: ProjectSpec,
-	options: { workDir: string; nodeModules: string },
+	options: { workDir: string },
 ): Promise<string> {
 	const root = await mkdtemp(join(options.workDir, "render-"));
 	live.add(root);
 	try {
-		const deckDir = join(root, "src", "content", "decks", DECK);
+		const deckDir = join(root, DECK);
 		await mkdir(deckDir, { recursive: true });
-		let templateFile: string | undefined;
-		if (spec.template) {
-			templateFile = `template${spec.template.ext}`;
-			await writeFile(join(root, templateFile), spec.template.data);
-		}
+		// Downloaded web fonts: one cache for every render.
+		const fonts = join(options.workDir, ".font-cache");
+		await mkdir(fonts, { recursive: true });
+		await mkdir(join(root, "node_modules", ".cache"), { recursive: true });
+		await symlink(
+			fonts,
+			join(root, "node_modules", ".cache", "astlide-fonts"),
+			process.platform === "win32" ? "junction" : "dir",
+		);
 		await Promise.all([
-			linkNodeModules(root, options.nodeModules, options.workDir),
-			writeFile(
-				join(root, "package.json"),
-				`${JSON.stringify({ name: "astlide-render", private: true, type: "module" })}\n`,
-			),
-			writeFile(join(root, "astro.config.mjs"), astroConfig(templateFile)),
-			writeFile(join(root, "src", "content.config.ts"), CONTENT_CONFIG),
+			spec.template
+				? writeFile(join(root, `template${spec.template.ext}`), spec.template.data)
+				: undefined,
 			...Object.entries(spec.files).map(([name, content]) =>
 				writeFile(join(deckDir, name), content),
 			),

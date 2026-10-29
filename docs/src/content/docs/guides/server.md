@@ -14,7 +14,7 @@ description: Run Astlide as an HTTP service that turns Markdown into PowerPoint,
 | `GET /openapi.json` | The OpenAPI 3.1 spec. |
 | `GET /health` | Health check. |
 
-Each render runs in a temporary Astro project that is deleted once the response is ready, and files sent with a render or an import are not written anywhere else. The only data the service keeps is the templates you upload to `/templates`, and only when you turn template storage on.
+Each render works in a temporary folder that is deleted once the response is ready, and files sent with a render or an import are not written anywhere else. The only data the service keeps is the templates you upload to `/templates`, and only when you turn template storage on.
 
 ## Run it with Docker
 
@@ -189,13 +189,14 @@ Configure the server with environment variables:
 | `CONCURRENCY` / `MAX_QUEUE` | `2` / `16` | How many renders run at once, and how many can wait. Requests beyond that get 503 before their upload is read. |
 | `ASTLIDE_CHROMIUM_SANDBOX` | `1` | Chromium's sandbox for PDF and PNG. `0` turns it off. Do this only if you trust every caller (see [Security](#security)). |
 | `ASTLIDE_TEMPLATE_STORE` | (none) | Turns template storage on: a directory, `s3://`, `gs://` or `azure://<bucket>/<prefix>`. The cloud credentials go in each provider's usual variables (see [Template storage](/guides/template-storage/)). Without it, the `/templates` routes return 404. |
-| `ASTLIDE_WORK_DIR` | `.astlide-work` next to `node_modules` | Where the per-request projects are created. It must share a parent directory with the installed packages. |
+| `ASTLIDE_WORK_DIR` | `.astlide-work` next to `node_modules` | Where the per-request folders are created, and the shared font cache. |
 
 Errors come back as JSON `{ "error": "…" }`. Invalid input gets 400. Input is checked before anything is built, so a frontmatter value that the slide schema rejects fails at this point. If the build or export fails, the response is 422 and includes the end of the build log.
 
 ## Limits
 
-- Every render is a full Astro build. A small deck takes about 3 to 5 seconds as PPTX or PDF, and more slides take longer.
+- A render doesn't build an Astro site: the slides go straight to the exporters. A small deck takes about a second as PPTX or PDF, and more slides take longer.
+- Slides are Markdown or HTML, so MDX components (and an Astro site's slide decorators) aren't available.
 - PPTX export downloads the web fonts and images that the slides use, so the server needs outbound internet access.
 
 ## Security
@@ -230,7 +231,7 @@ Treat every request as untrusted content. Raw HTML in the Markdown is rendered a
 
 ### Input checks
 
-- Markdown images must use URLs. An image with a file path, such as `![](../x.png)`, is rejected with 400, because Astro would read that file from the server's disk. Use `https:` or `data:` URLs.
+- Markdown images must use URLs. An image with a file path, such as `![](../x.png)`, is rejected with 400, because the exporter would read that file from the server's disk. Use `https:` or `data:` URLs.
 - Each slide is written with its own frontmatter block. A slide body that starts with `---` stays part of the body and can't bypass the frontmatter checks.
 - Frontmatter can't use YAML anchors or aliases (`&a`, `*a`), and is limited to 256 KB per slide.
 - Uploaded PowerPoint files (`/import`, `/templates/layouts`, `POST /templates`) are read in a child process and go through the same queue as renders. Reading that takes longer than `RENDER_TIMEOUT_MS` is stopped (504), and a result larger than `MAX_OUTPUT_MB` is rejected (422). Neither case can stall the server itself.
@@ -243,4 +244,4 @@ Treat every request as untrusted content. Raw HTML in the Markdown is rendered a
 - On a Linux host that restricts user namespaces (such as Ubuntu 24.04), allow them for Playwright's Chromium only, with an AppArmor profile (see [Chromium sandbox on Linux](/guides/export/#chromium-sandbox-on-linux)). Don't lift the restriction for the whole machine.
 - If the sandbox can't start, PDF and PNG renders fail. They never run without it. The API client gets a short error, and the details of what to change on the host go to the server log.
 - `ASTLIDE_CHROMIUM_SANDBOX=0` turns the sandbox off, and the server prints a warning at startup.
-- The seccomp profile applies to the whole container, including the Bun server and each request's Astro build, so code running there can also create user namespaces. For a stricter setup, run renders in their own container with the profile and the API server in a separate container without it.
+- The seccomp profile applies to the whole container, including the Bun server and each render, so code running there can also create user namespaces. For a stricter setup, run renders in their own container with the profile and the API server in a separate container without it.

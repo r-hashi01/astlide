@@ -52,6 +52,8 @@ export interface RenderDeckOptions {
 	 * (`node_modules/.cache`). Default: the working directory.
 	 */
 	root?: string;
+	/** Where the print view is written while it renders (removed after). Default: the OS's temp folder. */
+	tempDir?: string;
 	/** PDF / PNG size in px. Default 1920 × 1080. */
 	width?: number;
 	height?: number;
@@ -246,7 +248,7 @@ async function drawDiagrams(view: PrintView, root: string): Promise<void> {
 /** Export a deck folder; see the module notes. Returns the print view's deck. */
 export async function renderDeck(options: RenderDeckOptions): Promise<Deck> {
 	const root = resolve(options.root ?? process.cwd());
-	const site = await mkdtemp(join(tmpdir(), "astlide-render-"));
+	const site = await mkdtemp(join(options.tempDir ?? tmpdir(), "astlide-render-"));
 	try {
 		const view = await writePrintView({ ...options, site });
 		const config = { ...view.deck.config, theme: view.theme };

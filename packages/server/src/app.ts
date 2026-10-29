@@ -271,7 +271,6 @@ export function createHandler(options: ServerOptions) {
 			const root = await createProject(deck, options);
 			try {
 				return await renderProject(root, format, {
-					cli: options.cli,
 					bun: options.bun,
 					timeoutMs: options.renderTimeoutMs,
 					allowPrivateNetwork: options.allowPrivateNetwork,

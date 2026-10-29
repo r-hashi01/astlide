@@ -1,7 +1,7 @@
 /**
- * Render a project's deck with the `astlide export` CLI (in a child process,
- * so a render can be stopped on timeout): PPTX by the layout engine in @astlide/core, PDF / PNG
- * by Playwright's Chromium.
+ * Render a project's deck in a child process (`render-worker.ts`, so a
+ * render can be stopped on timeout): `renderDeck` from @astlide/core — PPTX
+ * by the layout engine, PDF / PNG by Playwright's Chromium. No Astro build.
  *
  * @module
  */
@@ -10,6 +10,7 @@ import { spawn } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { DECK } from "./project";
 import { zip } from "./zip";
 
@@ -88,8 +89,9 @@ export function renderFailure(log: string, root: string): { client: string; serv
 	return { client: `render failed:\n${summary}` };
 }
 
+const WORKER = fileURLToPath(new URL("./render-worker.ts", import.meta.url));
+
 export interface RenderOptions {
-	cli: string;
 	bun: string;
 	timeoutMs: number;
 	/** Let the slides reach the server's own network (see `ServerOptions`). */
@@ -102,16 +104,16 @@ export interface RenderOptions {
 	chromiumSandbox?: boolean;
 }
 
-/** Run `astlide export` on the project; resolves with the rendered file. */
+/** Export the project's deck; resolves with the rendered file. */
 export async function renderProject(
 	root: string,
 	format: Format,
 	options: RenderOptions,
 ): Promise<Rendered> {
 	const out = join(root, "out");
-	const args = [options.cli, "export", DECK, `--${format}`, "--cwd", root, "--out-dir", out];
+	const args = [WORKER, root, format];
 	await new Promise<void>((resolve, reject) => {
-		// Its own process group: when it ends (or times out), Astro / Chromium children go too.
+		// Its own process group: when it ends (or times out), Chromium goes too.
 		const child = spawn(options.bun, args, {
 			cwd: root,
 			detached: process.platform !== "win32",
@@ -137,7 +139,7 @@ export async function renderProject(
 		});
 		child.on("exit", (code) => {
 			clearTimeout(timer);
-			// Whatever the CLI left running (a preview server, Chromium) goes with it.
+			// Whatever the worker left running (Chromium, the print view's server) goes with it.
 			killGroup(child.pid);
 			if (timedOut)
 				reject(
@@ -176,7 +178,7 @@ export async function renderProject(
 
 /** Kill a render's process group (the CLI and everything it started). */
 /**
- * On Linux, make the render (and Chromium, Astro … — children inherit it) the
+ * On Linux, make the render (and Chromium — children inherit it) the
  * first thing the kernel kills when memory runs out, before the server.
  * Best effort: without /proc or the right, nothing changes.
  */
