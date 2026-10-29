@@ -374,10 +374,10 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 	// to the iframe's viewport (see updateScale / isEmbedded).
 	if (isPresenter && !isEmbedded) {
 		const nextFrame = document.querySelector(".presenter-next-frame");
-		const nextSrc = nextFrame?.getAttribute("data-next-src");
-		if (nextFrame && nextSrc && !nextFrame.querySelector("iframe")) {
+		// The URL comes from the config, not from the page's markup.
+		if (nextFrame && nextSlide !== null && !nextFrame.querySelector("iframe")) {
 			const iframe = document.createElement("iframe");
-			iframe.src = nextSrc;
+			iframe.src = slideUrl(nextSlide);
 			iframe.title = "Next slide preview";
 			iframe.setAttribute("scrolling", "no");
 			iframe.tabIndex = -1;

@@ -55,4 +55,26 @@ describe("presenter sync", () => {
 		await expect.poll(() => slideOf(audience)).toBe(3);
 		await context.close();
 	});
+
+	it("previews the next slide in the presenter window, after navigating too", async () => {
+		const context = await browser().newContext({ viewport: { width: 1920, height: 1080 } });
+		const base = inject("baseUrl");
+		const presenter = await context.newPage();
+		await presenter.goto(`${base}/example-deck/1/?presenter`);
+		const preview = () =>
+			presenter.evaluate(() => {
+				const frame = document.querySelector<HTMLIFrameElement>(".presenter-next-frame iframe");
+				return frame ? new URL(frame.src).pathname : null;
+			});
+		await expect.poll(preview).toMatch(/^\/example-deck\/2\/?$/);
+		await presenter.keyboard.press("ArrowRight");
+		await expect.poll(() => slideOf(presenter)).toBe(2);
+		await expect.poll(preview).toMatch(/^\/example-deck\/3\/?$/);
+		// The audience window never loads a preview.
+		const audience = await context.newPage();
+		await audience.goto(`${base}/example-deck/1/`);
+		await audience.waitForSelector(".slide");
+		expect(await audience.locator(".presenter-next-frame iframe").count()).toBe(0);
+		await context.close();
+	});
 });
