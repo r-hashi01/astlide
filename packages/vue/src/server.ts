@@ -36,5 +36,11 @@ export async function renderMdxToHtml(
 		h(Content, { components: createMdxComponents(options.settings) }),
 	);
 	// Vue marks fragments with comments for hydration; static HTML doesn't need them.
-	return html.replace(/<!--\[-->|<!--\]-->/g, "");
+	// Until none is left: removing one must not leave another behind.
+	let out = html;
+	for (let prev = ""; prev !== out; ) {
+		prev = out;
+		out = out.replace(/<!--\[-->|<!--\]-->/g, "");
+	}
+	return out;
 }
