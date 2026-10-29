@@ -39,6 +39,7 @@ WORKDIR /app
 # package.json is needed for the frozen lockfile; only the server's
 # dependencies are installed.
 COPY package.json bun.lock bunfig.toml ./
+COPY patches patches/
 COPY packages/astlide/package.json packages/astlide/
 COPY packages/astro/package.json packages/astro/
 COPY packages/server/package.json packages/server/
