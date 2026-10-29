@@ -63,7 +63,9 @@ const escapeAttr = (s: string) => s.replace(/[^\w-]/g, "");
 /** Routes and pages for the decks in one folder; see the module notes. */
 export function createDeckRoutes(options: DeckRoutesOptions = {}) {
 	const dir = join(process.cwd(), options.dir ?? "decks");
-	const basePath = (options.basePath ?? "").replace(/\/+$/, "");
+	// Without trailing slashes (a loop: a regex like /\/+$/ backtracks on long runs of them).
+	let basePath = options.basePath ?? "";
+	while (basePath.endsWith("/")) basePath = basePath.slice(0, -1);
 	const showHidden = options.showHidden ?? process.env.NODE_ENV === "development";
 	const markdown = { shikiTheme: options.shikiTheme };
 

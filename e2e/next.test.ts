@@ -144,7 +144,12 @@ describe("@astlide/next", () => {
 					"--out-dir",
 					out,
 				],
-				{ stdio: "pipe" },
+				{
+					stdio: "pipe",
+					// The playground's own slides: CI's Ubuntu runners can't start Chromium's
+					// sandbox (user namespaces), which the exporter otherwise insists on.
+					env: { ...process.env, ASTLIDE_CHROMIUM_SANDBOX: "0" },
+				},
 			);
 			const pngs = readdirSync(join(out, "example-deck-slides")).filter((n) => n.endsWith(".png"));
 			expect(pngs).toHaveLength(11);
