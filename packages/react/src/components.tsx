@@ -9,9 +9,13 @@
 import { httpUrl, imageUrl } from "@astlide/core/utils/safe-url";
 import { sanitizeKaTeXOutput } from "@astlide/core/utils/sanitize";
 import katex from "katex";
-import { type CSSProperties, createContext, type ReactNode, useContext } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
-/** Settings the components read, given once by the deck page (or your app). */
+/**
+ * Settings for the components MDX slides use (see `createMdxComponents`).
+ * Plain props, no React context: the components also work as React Server
+ * Components (Next.js).
+ */
 export interface AstlideSettings {
 	/** Turns a root-relative path ("/photo.jpg") into a URL (a site's base path). Default: as is. */
 	resolveUrl?: (path: string) => string;
@@ -19,13 +23,9 @@ export interface AstlideSettings {
 	notes?: boolean;
 }
 
-export const AstlideSettingsContext = createContext<AstlideSettings>({});
-
 const cx = (...names: (string | false | undefined)[]) => names.filter(Boolean).join(" ");
-const resolve = (settings: AstlideSettings, src: string) =>
-	src.startsWith("/") && !src.startsWith("//") && settings.resolveUrl
-		? settings.resolveUrl(src)
-		: src;
+const resolve = (src: string, resolveUrl?: (path: string) => string) =>
+	src.startsWith("/") && !src.startsWith("//") && resolveUrl ? resolveUrl(src) : src;
 
 interface Children {
 	children?: ReactNode;
@@ -89,18 +89,19 @@ export interface ImageSideProps extends Children {
 	alt?: string;
 	/** Width of the image side, default `50%`. */
 	width?: string;
+	/** Resolves a root-relative `src` (see {@link AstlideSettings.resolveUrl}). */
+	resolveUrl?: (path: string) => string;
 }
 
 /** The picture of the `image-left` / `image-right` layouts. */
-export function ImageSide({ src, alt = "", width = "50%", ...props }: ImageSideProps) {
-	const settings = useContext(AstlideSettingsContext);
+export function ImageSide({ src, alt = "", width = "50%", resolveUrl, ...props }: ImageSideProps) {
 	return (
 		<div
 			className={cx("image-side", classOf(props))}
 			data-astlide-c=""
 			style={{ width, flexShrink: 0 }}
 		>
-			<img src={resolve(settings, src)} alt={alt} />
+			<img src={resolve(src, resolveUrl)} alt={alt} />
 		</div>
 	);
 }
@@ -155,8 +156,6 @@ export function Fragments({ effect = "fade", ...props }: Children & { effect?: F
 
 /** Speaker notes: hidden on the slide, shown in the presenter window and the notes overlay. */
 export function SpeakerNotes({ children }: { children?: ReactNode }) {
-	const settings = useContext(AstlideSettingsContext);
-	if (settings.notes === false) return null;
 	return (
 		<div className="slide-notes" data-slide-notes="" aria-hidden="true" data-astlide-c="">
 			{children}

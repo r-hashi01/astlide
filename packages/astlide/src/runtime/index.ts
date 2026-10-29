@@ -74,6 +74,12 @@ export interface DeckRuntimeOptions {
 	 * if set, else a full page load.
 	 */
 	navigate?: (url: string, options: { replace: boolean }) => void;
+	/**
+	 * In the presenter window, move the slide into the presenter panel
+	 * (default). A host that renders it there itself (React) passes false: the
+	 * runtime then leaves the DOM to it.
+	 */
+	placeSlide?: boolean;
 }
 
 /**
@@ -95,7 +101,7 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 		basePath,
 		persistDrawings,
 	} = config;
-	const { navigate } = options;
+	const { navigate, placeSlide = true } = options;
 
 	// ── 0. Publish typed deck/slide metadata for client scripts ──
 	// Replaces parsing document.title / body.dataset. See @astlide/core/context.
@@ -152,7 +158,7 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 
 	// Move slide content into presenter area if in presenter mode — unless the
 	// host already rendered it there (a framework that owns the DOM, like React).
-	if (isPresenter && scaler) {
+	if (isPresenter && scaler && placeSlide) {
 		const presenterCurrent = document.querySelector(".presenter-current");
 		if (presenterCurrent && scaler.parentElement !== presenterCurrent)
 			presenterCurrent.appendChild(scaler);

@@ -2,7 +2,7 @@
 	"name": "@astlide/react",
 	"version": "0.0.0",
 	"private": true,
-	"description": "Astlide for React: slides, layouts and components, the deck page with its presenter mode, and MDX decks — the same slides as an Astlide site",
+	"description": "Astlide for React: slides, layouts and components, the deck page with its presenter mode, and MDX decks \u2014 the same slides as an Astlide site",
 	"type": "module",
 	"license": "MIT",
 	"repository": {
@@ -11,7 +11,8 @@
 		"directory": "packages/react"
 	},
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.tsx",
+		"./server": "./src/server.tsx"
 	},
 	"files": [
 		"src"

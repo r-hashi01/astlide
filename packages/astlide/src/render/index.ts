@@ -11,15 +11,17 @@
  * await renderDeck({ dir: "decks/q3-review", format: "pptx", output: "q3.pptx" });
  * ```
  *
- * Markdown, HTML and PowerPoint slides only: MDX needs a build. Experimental.
+ * Markdown, HTML and PowerPoint slides; MDX ones with a `renderMdx` (e.g.
+ * `renderMdxToHtml` from `@astlide/react`). Experimental.
  *
  * @module
  */
 
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { extname, join, resolve, sep } from "node:path";
+import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Deck, readDeck } from "../deck/index";
 import { renderSlideHtml, type SlideTemplate } from "../runtime/slide";
@@ -52,6 +54,17 @@ export interface RenderDeckOptions {
 	 * (`node_modules/.cache`). Default: the working directory.
 	 */
 	root?: string;
+	/**
+	 * Renders an MDX slide's source to HTML: `renderMdxToHtml` from
+	 * `@astlide/react`, or your own. Without it, MDX slides are refused
+	 * (MDX is code: compiled by a framework).
+	 */
+	renderMdx?: (source: string) => Promise<string>;
+	/**
+	 * The site's public folder (`public/`): pictures and files the slides
+	 * name from the root (`/images/photo.png`) are looked up there.
+	 */
+	publicDir?: string;
 	/** Where the print view is written while it renders (removed after). Default: the OS's temp folder. */
 	tempDir?: string;
 	/** PDF / PNG size in px. Default 1920 × 1080. */
@@ -108,7 +121,10 @@ export interface PrintView {
  * Astlide site's `/<deck>/all` page: the same slide markup and styles.
  */
 export async function writePrintView(
-	options: Pick<RenderDeckOptions, "dir" | "template" | "shikiTheme" | "fontHref"> & {
+	options: Pick<
+		RenderDeckOptions,
+		"dir" | "template" | "shikiTheme" | "fontHref" | "renderMdx" | "publicDir"
+	> & {
 		site: string;
 	},
 ): Promise<PrintView> {
@@ -123,26 +139,54 @@ export async function writePrintView(
 		pptxMedia: (f) => storePptxAsset(assets, "/", f),
 	});
 	const mdx = deck.slides.filter((s) => s.format === "mdx");
-	if (mdx.length)
+	if (mdx.length && !options.renderMdx)
 		throw new Error(
-			`MDX slides need an Astro build (astlide export): ${mdx.map((s) => s.file).join(", ")}`,
+			`MDX slides need an Astro build (astlide export) or a renderMdx (renderMdxToHtml from @astlide/react): ${mdx.map((s) => s.file).join(", ")}`,
 		);
+	const mdxHtml = new Map<string, string>();
+	for (const slide of mdx) mdxHtml.set(slide.id, await options.renderMdx!(slide.body));
 
 	// Every built-in theme, as an Astlide site has them; a template as one more.
-	const sheets = ["base.css", ...THEMES.map((t) => `themes/${t}.css`), "slide.css"];
+	// The components' styles and KaTeX's (with its fonts) for MDX slides.
+	const sheets = [
+		"base.css",
+		...THEMES.map((t) => `themes/${t}.css`),
+		"slide.css",
+		"components.css",
+		"print.css",
+	];
 	for (const sheet of sheets)
 		await copyFile(styles(sheet), join(css, sheet.replace("themes/", "theme-")));
 	const links = sheets.map((s) => `/_astlide/css/${s.replace("themes/", "theme-")}`);
+	if (mdx.length) {
+		const katex = createRequire(import.meta.url).resolve("katex/dist/katex.min.css");
+		// Its font URLs from the site root, as a build writes them (the exporters resolve them there).
+		const katexCss = (await readFile(katex, "utf-8")).replace(
+			/url\(fonts\//g,
+			"url(/_astlide/css/fonts/",
+		);
+		await writeFile(join(css, "katex.css"), katexCss);
+		await cp(join(dirname(katex), "fonts"), join(css, "fonts"), { recursive: true });
+		links.push("/_astlide/css/katex.css");
+	}
 	let template: SlideTemplate | undefined;
 	let theme = deck.config.theme ?? "default";
 	if (options.template) {
 		const loaded = await loadTemplate(options.template, assets);
 		await writeFile(join(css, "template.css"), loaded.css);
-		links.splice(links.length - 1, 0, "/_astlide/css/template.css");
+		links.splice(links.indexOf("/_astlide/css/slide.css"), 0, "/_astlide/css/template.css");
 		template = loaded.template;
 		theme = TEMPLATE_THEME;
 	} else if (!(THEMES as readonly string[]).includes(theme)) {
 		throw new Error(`unknown theme "${theme}": use a built-in theme or a template`);
+	}
+
+	// The public folder's files at the site root, next to the print view. Copied, not
+	// linked: the exporters only read files that are really inside the site.
+	if (options.publicDir) {
+		const pub = resolve(options.publicDir);
+		for (const entry of await readdir(pub).catch(() => [] as string[]))
+			if (entry !== "_astlide") await cp(join(pub, entry), join(site, entry), { recursive: true });
 	}
 
 	const slides = deck.slides.filter((s) => !s.data.hidden);
@@ -158,7 +202,7 @@ export async function writePrintView(
 					totalSlides: slides.length,
 					template,
 				},
-				slide.html ?? "",
+				slide.html ?? mdxHtml.get(slide.id) ?? "",
 				// Notes for the PPTX exporter (speaker notes), hidden.
 				slide.notes ? `<div data-slide-notes="meta" hidden>${escapeText(slide.notes)}</div>` : "",
 			),

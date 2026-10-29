@@ -1,0 +1,79 @@
+/*
+ * The print view (`/<deck>/all`, html[data-astlide-all]): every slide stacked
+ * at its native size with page breaks, every step in its final state. For
+ * PDF / PNG / PPTX exports and the browser's print. Slides may sit in
+ * wrappers (frameworks), hence `.slide:not(.slide *)` rather than `body > .slide`.
+ */
+
+html[data-astlide-all],
+html[data-astlide-all] body {
+	margin: 0;
+	padding: 0;
+	background: #fff;
+}
+/* Stack slides at native 1920x1080 with hard page breaks. Force an opaque
+   background on every slide — the slide's own rule that
+   references `var(--color-background)`, but html-to-image's foreignObject
+   clone can drop scoped/inherited styles, leaving transparent pixels that
+   render as black when the PDF exporter rasterises to JPEG. */
+html[data-astlide-all] .slide:not(.slide *) {
+	display: flex;
+	background-color: var(--color-background, #ffffff);
+	page-break-after: always;
+	break-after: page;
+}
+/* The last slide: not :last-child, since Astro may append scripts to <body>,
+   which left a trailing page break (a blank last page in exported PDFs). */
+html[data-astlide-all] .slide:not(.slide *):not(:has(~ .slide)) {
+	page-break-after: auto;
+	break-after: auto;
+}
+/* Mermaid appends a hover tooltip <div> to <body>; its few pixels after the
+   last slide spilled onto an extra, blank PDF page. Nothing hovers here. */
+html[data-astlide-all] body > .mermaidTooltip {
+	display: none !important;
+}
+/* Slide transitions (e.g. `transition: zoom`) animate a slide as it appears:
+   here every slide is shown at once, already in place — an export could
+   otherwise capture one mid-animation (scaled down). */
+html[data-astlide-all] .slide:not(.slide *) {
+	animation: none !important;
+}
+/* Printed by a browser on smaller paper (or one that ignores @page size):
+   each slide shrinks to the page (see --astlide-print-scale in base.css). */
+@media print {
+	html[data-astlide-all] .slide:not(.slide *) {
+		zoom: var(--astlide-print-scale, 1);
+	}
+}
+/* No navigation runtime here, so render every step in its final state:
+   all <Fragment>s revealed and code highlight steps on their last segment. */
+html[data-astlide-all] .slide:not(.slide *) [data-fragment] {
+	opacity: 1;
+	transform: none;
+}
+/* …except fragments that end hidden: `hide`, or `until` a later step. */
+html[data-astlide-all] .slide:not(.slide *) [data-fragment][data-fragment-hide],
+html[data-astlide-all] .slide:not(.slide *) [data-fragment][data-fragment-until] {
+	opacity: 0;
+}
+html[data-astlide-all] .slide:not(.slide *) [data-fragment-group] > :is(ul, ol) > li,
+html[data-astlide-all] .slide:not(.slide *) [data-fragment-group] > :not(ul, ol) {
+	opacity: 1;
+}
+html[data-astlide-all] .slide:not(.slide *) [data-fragment-effect="highlight"] {
+	background: var(--color-accent, #f59e0b);
+	color: #000;
+	padding: 0.1em 0.3em;
+	border-radius: 0.2em;
+}
+html[data-astlide-all] .slide:not(.slide *) pre[data-code-steps] .line {
+	opacity: var(--code-dim-opacity, 0.35);
+}
+html[data-astlide-all] .slide:not(.slide *) pre[data-code-steps] .line.highlighted-last {
+	opacity: 1;
+}
+@page {
+	size: 1920px 1080px;
+	margin: 0;
+}

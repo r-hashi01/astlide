@@ -126,14 +126,22 @@ export function DeckPage(props: DeckPageProps) {
 		],
 	);
 	const { navigate, loadMermaid, loadPdfExport } = props;
+	// biome-ignore lint/correctness/useExhaustiveDependencies: `presenter` re-mounts the runtime on the slide's new element
 	useEffect(() => {
 		applyPageFlags();
-		const unmount = mountDeck(config, navigate ? { navigate } : {});
+		// What an Astro slide page has on <body> (exporters read the slide count there).
+		const body = document.body.dataset;
+		body.totalSlides = String(config.totalSlides);
+		body.currentSlide = String(config.currentSlide);
+		body.deck = config.deck;
+		// React places the slide (presenter panel or not); the runtime mustn't move it.
+		const unmount = mountDeck(config, { placeSlide: false, ...(navigate ? { navigate } : {}) });
 		// What an Astro slide page's other scripts do on each slide.
 		void import("@astlide/core/internal/diagrams").then((m) => m.renderDiagramsWith(loadMermaid));
 		void import("@astlide/core/internal/recording").then((m) => m.syncMediaUi());
 		return unmount;
-	}, [config, navigate, loadMermaid]);
+		// Again when the slide moves between the presenter panel and the page: a new element.
+	}, [config, navigate, loadMermaid, presenter]);
 	// Camera, recording and the toolbar's PDF download, set up once per page.
 	useEffect(() => {
 		void import("@astlide/core/internal/recording").then(({ toggleCamera, toggleRecording }) => {

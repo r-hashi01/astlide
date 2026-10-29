@@ -4,6 +4,7 @@
 	"workspaces": [
 		"packages/*",
 		"playground",
+		"playground-next",
 		"docs",
 		"tools/*"
 	],
@@ -14,7 +15,7 @@
 		"export": "bun packages/astlide/src/cli/astlide.ts export --cwd playground",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"typecheck": "cd playground && bunx astro sync && node --import ../scripts/use-typescript6.mjs ../scripts/typecheck.mjs && tsc -p ../packages/server && tsc -p ../packages/react",
+		"typecheck": "cd playground && bunx astro sync && node --import ../scripts/use-typescript6.mjs ../scripts/typecheck.mjs && tsc -p ../packages/server && tsc -p ../packages/react && tsc -p ../packages/next",
 		"test:e2e": "vitest run --config vitest.config.e2e.ts",
 		"lint": "biome check .",
 		"lint:fix": "biome check --fix .",
@@ -24,7 +25,7 @@
 		"docs:build": "bun run docs:api && bun run --filter astlide-docs build",
 		"changeset": "changeset",
 		"version": "changeset version && bun install --ignore-scripts",
-		"release": "echo 'Releases are published by CI only (Release workflow, with approval) — see RELEASING.md' && exit 1"
+		"release": "echo 'Releases are published by CI only (Release workflow, with approval) \u2014 see RELEASING.md' && exit 1"
 	},
 	"devDependencies": {
 		"@astrojs/language-server": "^2.17.3",

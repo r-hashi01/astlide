@@ -54,7 +54,8 @@
 			"includes": [
 				"packages/astlide/src/styles/deck.css",
 				"packages/astlide/src/styles/slide.css",
-				"packages/astlide/src/styles/components.css"
+				"packages/astlide/src/styles/components.css",
+				"packages/astlide/src/styles/print.css"
 			],
 			"linter": {
 				"rules": {
@@ -72,7 +73,7 @@
 				"packages/react/src/DeckPage.tsx",
 				"packages/react/src/Slide.tsx",
 				"packages/react/src/components.tsx",
-				"packages/react/src/index.ts"
+				"packages/react/src/index.tsx"
 			],
 			"linter": {
 				"rules": {

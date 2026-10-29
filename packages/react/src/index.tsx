@@ -14,6 +14,7 @@
  */
 
 import { CodeBlock } from "./CodeBlock";
+import type { AstlideSettings, ImageSideProps } from "./components";
 import {
 	Columns,
 	Fragment,
@@ -32,7 +33,6 @@ import {
 export { CodeBlock, type CodeBlockProps } from "./CodeBlock";
 export {
 	type AstlideSettings,
-	AstlideSettingsContext,
 	Columns,
 	type ColumnsProps,
 	Fragment,
@@ -57,21 +57,29 @@ export { DeckPage, type DeckPageProps } from "./DeckPage";
 export { Slide, type SlideProps } from "./Slide";
 
 /**
- * The components MDX slides use, by the names an Astlide site gives them:
- * pass it as `components` to a compiled MDX slide (or your MDX provider).
+ * The components MDX slides use, by the names an Astlide site gives them,
+ * with these settings: pass the result as `components` to a compiled MDX
+ * slide (or your MDX provider). Works in server and client components.
  */
-export const mdxComponents = {
-	Left,
-	Right,
-	Columns,
-	ImageSide,
-	TextPanel,
-	Fragment,
-	Fragments,
-	SpeakerNotes,
-	Notes,
-	CodeBlock,
-	Math,
-	YouTube,
-	Tweet,
-};
+export function createMdxComponents(settings: AstlideSettings = {}) {
+	const hidden = () => null;
+	return {
+		Left,
+		Right,
+		Columns,
+		// biome-ignore lint/correctness/noComponentHookFactories: a hook-free wrapper with the settings' resolveUrl
+		ImageSide: (props: ImageSideProps) => <ImageSide resolveUrl={settings.resolveUrl} {...props} />,
+		TextPanel,
+		Fragment,
+		Fragments,
+		SpeakerNotes: settings.notes === false ? hidden : SpeakerNotes,
+		Notes: settings.notes === false ? hidden : Notes,
+		CodeBlock,
+		Math,
+		YouTube,
+		Tweet,
+	};
+}
+
+/** {@link createMdxComponents} with the default settings. */
+export const mdxComponents = createMdxComponents();

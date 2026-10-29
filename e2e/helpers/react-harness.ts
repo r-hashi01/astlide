@@ -87,7 +87,7 @@ ${sheets.map((x) => `<link rel="stylesheet" href="/_css/${x.replace("themes/", "
 		join(src, "entry.jsx"),
 		`import { createRoot } from "react-dom/client";
 import { jsx } from "react/jsx-runtime";
-import { AstlideSettingsContext, DeckPage, Slide, mdxComponents } from "${join(repo, "packages/react/src/index.ts")}";
+import { DeckPage, Slide, mdxComponents } from "${join(repo, "packages/react/src/index.tsx")}";
 ${imports.join("\n")}
 const decks = { ${table.join(",\n")} };
 const [, deckName, n] = location.pathname.match(/^\\/([^/]+)\\/(\\d+)/) ?? [];
@@ -97,9 +97,7 @@ const slide = deck.slides[number - 1];
 const content = slide.Content ? jsx(slide.Content, { components: mdxComponents }) : undefined;
 document.title = \`\${deck.config.title ?? deckName} - Slide \${number}\`;
 createRoot(document.getElementById("root")).render(
-	jsx(AstlideSettingsContext.Provider, {
-		value: {},
-		children: jsx(DeckPage, {
+	jsx(DeckPage, {
 			deck: deckName,
 			slideNumber: number,
 			totalSlides: deck.slides.length,
@@ -118,7 +116,6 @@ createRoot(document.getElementById("root")).render(
 				totalSlides: deck.slides.length,
 				...(content ? { children: content } : { html: slide.html ?? "" }),
 			}),
-		}),
 	}),
 );
 `,

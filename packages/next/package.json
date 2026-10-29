@@ -1,0 +1,45 @@
+{
+	"name": "@astlide/next",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Astlide for Next.js (App Router): decks from a folder as pages, presenter mode, print view and exports \u2014 the same Markdown, HTML and MDX decks as an Astlide site",
+	"type": "module",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/r-hashi01/astlide.git",
+		"directory": "packages/next"
+	},
+	"exports": {
+		".": "./src/index.tsx",
+		"./config": "./src/config.ts",
+		"./client": "./src/client.tsx",
+		"./styles": "./src/styles.ts",
+		"./mermaid": "./src/mermaid.tsx"
+	},
+	"files": [
+		"src"
+	],
+	"peerDependencies": {
+		"next": ">=15",
+		"react": ">=19",
+		"react-dom": ">=19",
+		"mermaid": ">=11"
+	},
+	"dependencies": {
+		"@astlide/core": "workspace:*",
+		"@astlide/react": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/react": "^19.3.0",
+		"@types/react-dom": "^19.3.0",
+		"next": "^16.4.3",
+		"react": "^19.3.1",
+		"react-dom": "^19.3.1"
+	},
+	"peerDependenciesMeta": {
+		"mermaid": {
+			"optional": true
+		}
+	}
+}

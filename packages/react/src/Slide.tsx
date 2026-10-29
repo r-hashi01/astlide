@@ -11,10 +11,9 @@ import {
 	type SlideShellProps,
 	slideShell,
 } from "@astlide/core/runtime/slide";
-import { type CSSProperties, type ReactNode, useContext } from "react";
-import { AstlideSettingsContext } from "./components";
+import type { CSSProperties, ReactNode } from "react";
 
-export interface SlideProps extends Omit<SlideShellProps, "resolveUrl"> {
+export interface SlideProps extends SlideShellProps {
 	children?: ReactNode;
 	/**
 	 * The content as HTML instead of children: a Markdown, HTML or
@@ -29,8 +28,8 @@ const camel = (property: string) =>
 	property.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
 
 export function Slide({ children, html, decorations, ...props }: SlideProps) {
-	const { resolveUrl } = useContext(AstlideSettingsContext);
-	const shell = slideShell({ ...props, resolveUrl });
+	const { resolveUrl } = props;
+	const shell = slideShell(props);
 	const style = Object.fromEntries(
 		backgroundDeclarations(props.background, resolveUrl).map(([p, v]) => [camel(p), v]),
 	) as CSSProperties;
