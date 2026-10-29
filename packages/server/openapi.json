@@ -3,7 +3,7 @@
 	"info": {
 		"title": "Astlide render service",
 		"version": "0.0.0",
-		"description": "Turn Markdown slides into editable PowerPoint, PDF or PNG, import PowerPoint decks as HTML slides, and read a PowerPoint template's layouts. Every request's files are deleted once its response is ready. With ASTLIDE_TEMPLATE_DIR set, the service also keeps PowerPoint templates by name (/templates), so renders can pick one without uploading it.",
+		"description": "Turn Markdown slides into editable PowerPoint, PDF or PNG, import PowerPoint decks as HTML slides, and read a PowerPoint template's layouts. Every request's files are deleted once its response is ready. With ASTLIDE_TEMPLATE_STORE set (a folder or an S3 bucket), the service also keeps PowerPoint templates by name (/templates), so renders can pick one without uploading it.",
 		"license": { "name": "MIT", "identifier": "MIT" }
 	},
 	"servers": [{ "url": "http://localhost:8787" }],

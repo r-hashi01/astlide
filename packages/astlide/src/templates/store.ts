@@ -1,25 +1,12 @@
 /**
- * A place to keep PowerPoint templates by name, with every uploaded version.
- * The render service stores its templates here; any other tool can too.
- *
- * ```ts
- * import { createTemplateStore } from "@astlide/core/templates";
- *
- * const store = createTemplateStore("./templates");
- * await store.put("acme", await readFile("acme.potx"), { ext: ".potx", label: "Acme 2026" });
- * const latest = await store.get("acme"); // { info, version, data }
- * ```
- *
- * The files are kept as uploaded; read one with `pptxToTemplate()` from
- * `@astlide/core/pptx`.
+ * The template store: templates by name, every upload kept as a version, on
+ * top of any {@link ObjectStorage}.
  *
  * @module
  */
 
-import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
-import { THEMES } from "./schema";
+import { createHash } from "node:crypto";
+import { THEMES } from "../schema";
 
 /** File extensions a template can have. */
 export const TEMPLATE_EXTENSIONS = [".pptx", ".potx", ".thmx"] as const;
@@ -66,8 +53,9 @@ export interface PutTemplateOptions {
 }
 
 /**
- * Templates by name. {@link createTemplateStore} keeps them in a folder;
- * implement this to keep them somewhere else (S3, a database …).
+ * Templates by name. {@link createObjectTemplateStore} implements it on any
+ * {@link ObjectStorage} (a folder, S3 …); implement it yourself to keep
+ * templates some other way (a database …).
  */
 export interface TemplateStore {
 	/** Every template, by name. */
@@ -106,7 +94,24 @@ function checkName(name: string): void {
 	if (error) throw new TemplateStoreError(error);
 }
 
+/**
+ * Where a template store keeps its files: keys like `acme/manifest.json` and
+ * `acme/v2.potx`. {@link folderStorage} and {@link s3Storage} implement it;
+ * implement it for any other object storage (GCS, Azure Blob …).
+ */
+export interface ObjectStorage {
+	/** The object's bytes, or undefined when there is none. */
+	read(key: string): Promise<Uint8Array | undefined>;
+	/** Create or replace an object, all at once (a reader never sees half of it). */
+	write(key: string, data: Uint8Array): Promise<void>;
+	/** Delete an object; deleting a missing one is not an error. */
+	delete(key: string): Promise<void>;
+	/** Every key that starts with `prefix` (`""` or a path ending in `/`). */
+	list(prefix: string): Promise<string[]>;
+}
+
 const MANIFEST = "manifest.json";
+const MANIFEST_KEY = /^([^/]+)\/manifest\.json$/;
 
 /** What `manifest.json` holds: the info, and the highest version number ever used. */
 interface Manifest extends TemplateInfo {
@@ -114,38 +119,29 @@ interface Manifest extends TemplateInfo {
 }
 
 const toInfo = ({ counter: _, ...info }: Manifest): TemplateInfo => info;
-
-/** Write through a temporary file, so a reader never sees half a file. */
-async function writeAtomic(file: string, data: string | Uint8Array): Promise<void> {
-	const tmp = `${file}.${randomUUID()}.tmp`;
-	await writeFile(tmp, data);
-	await rename(tmp, file);
-}
+const fileKey = (name: string, v: Pick<TemplateVersion, "version" | "ext">) =>
+	`${name}/v${v.version}${v.ext}`;
 
 /**
- * A {@link TemplateStore} in a folder: one folder per template, holding a
- * `manifest.json` and one file per version (`v1.potx`, `v2.pptx` …). Changes
- * within this process are serialized per template; don't point two
- * processes that write at the same folder.
+ * A {@link TemplateStore} on `storage`: per template, a `manifest.json` and
+ * one object per version (`v1.potx`, `v2.pptx` …). Changes within this
+ * process are serialized per template; don't let two processes write to the
+ * same storage.
  */
-export function createTemplateStore(dir: string): TemplateStore {
-	const root = resolve(dir);
-	const folder = (name: string) => join(root, name);
-
+export function createObjectTemplateStore(storage: ObjectStorage): TemplateStore {
 	async function readManifest(name: string): Promise<Manifest | undefined> {
-		try {
-			return JSON.parse(await readFile(join(folder(name), MANIFEST), "utf-8")) as Manifest;
-		} catch (e) {
-			if ((e as NodeJS.ErrnoException).code === "ENOENT") return undefined;
-			throw e;
-		}
+		const data = await storage.read(`${name}/${MANIFEST}`);
+		return data && (JSON.parse(new TextDecoder().decode(data)) as Manifest);
 	}
 	const readInfo = async (name: string) => {
 		const manifest = await readManifest(name);
 		return manifest && toInfo(manifest);
 	};
 	const writeManifest = (manifest: Manifest) =>
-		writeAtomic(join(folder(manifest.name), MANIFEST), `${JSON.stringify(manifest, null, "\t")}\n`);
+		storage.write(
+			`${manifest.name}/${MANIFEST}`,
+			new TextEncoder().encode(`${JSON.stringify(manifest, null, "\t")}\n`),
+		);
 
 	// One change at a time per template.
 	const locks = new Map<string, Promise<unknown>>();
@@ -161,13 +157,10 @@ export function createTemplateStore(dir: string): TemplateStore {
 
 	return {
 		async list() {
-			const entries = await readdir(root, { withFileTypes: true }).catch((e) => {
-				if ((e as NodeJS.ErrnoException).code === "ENOENT") return [];
-				throw e;
-			});
-			const infos = await Promise.all(
-				entries.filter((e) => e.isDirectory() && NAME.test(e.name)).map((e) => readInfo(e.name)),
-			);
+			const names = (await storage.list(""))
+				.map((key) => key.match(MANIFEST_KEY)?.[1])
+				.filter((n): n is string => !!n && NAME.test(n));
+			const infos = await Promise.all(names.map(readInfo));
 			return infos
 				.filter((i): i is TemplateInfo => !!i)
 				.sort((a, b) => a.name.localeCompare(b.name));
@@ -182,8 +175,8 @@ export function createTemplateStore(dir: string): TemplateStore {
 			const info = await readInfo(name);
 			const v = info?.versions.find((x) => x.version === (version ?? info.latest));
 			if (!info || !v) return undefined;
-			const data = await readFile(join(folder(name), `v${v.version}${v.ext}`));
-			return { info, version: v, data: new Uint8Array(data) };
+			const data = await storage.read(fileKey(name, v));
+			return data && { info, version: v, data };
 		},
 
 		async put(name, data, options) {
@@ -193,7 +186,6 @@ export function createTemplateStore(dir: string): TemplateStore {
 					`a template is a ${TEMPLATE_EXTENSIONS.join(" / ")} file, not "${options.ext}"`,
 				);
 			return locked(name, async () => {
-				await mkdir(folder(name), { recursive: true });
 				const now = new Date().toISOString();
 				const manifest: Manifest = (await readManifest(name)) ?? {
 					name,
@@ -212,7 +204,7 @@ export function createTemplateStore(dir: string): TemplateStore {
 					...(options.meta ? { meta: options.meta } : {}),
 				};
 				// The file first: a manifest never names a version whose file isn't there.
-				await writeAtomic(join(folder(name), `v${number}${options.ext}`), data);
+				await storage.write(fileKey(name, version), data);
 				const next: Manifest = {
 					...manifest,
 					...(options.label !== undefined ? { label: options.label } : {}),
@@ -229,29 +221,30 @@ export function createTemplateStore(dir: string): TemplateStore {
 		async remove(name, version) {
 			if (templateNameError(name)) return false;
 			return locked(name, async () => {
-				const info = await readManifest(name);
-				if (!info) return false;
+				const manifest = await readManifest(name);
+				if (!manifest) return false;
 				const gone =
 					version === undefined
-						? info.versions
-						: info.versions.filter((v) => v.version === version);
+						? manifest.versions
+						: manifest.versions.filter((v) => v.version === version);
 				if (!gone.length) return false;
-				const kept = info.versions.filter((v) => !gone.includes(v));
+				const kept = manifest.versions.filter((v) => !gone.includes(v));
 				if (!kept.length) {
-					await rm(folder(name), { recursive: true, force: true });
+					// The manifest first, then everything else under the name (leftovers included).
+					await storage.delete(`${name}/${MANIFEST}`);
+					const keys = await storage.list(`${name}/`);
+					await Promise.all(keys.map((key) => storage.delete(key)));
 					return true;
 				}
 				// The manifest first: a version is never listed without its file.
 				// (`counter` stays, so a number never names two files.)
 				await writeManifest({
-					...info,
+					...manifest,
 					latest: kept[kept.length - 1]?.version ?? 0,
 					versions: kept,
 					updatedAt: new Date().toISOString(),
 				});
-				await Promise.all(
-					gone.map((v) => rm(join(folder(name), `v${v.version}${v.ext}`), { force: true })),
-				);
+				await Promise.all(gone.map((v) => storage.delete(fileKey(name, v))));
 				return true;
 			});
 		},

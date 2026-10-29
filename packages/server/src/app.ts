@@ -5,11 +5,11 @@
  * - `POST /import` — PPTX (or Google Slides URL) → slides as HTML
  * - `POST /templates/layouts` — a template's layouts and placeholders
  * - `GET|POST /templates`, `GET|DELETE /templates/{name}`, `GET /templates/{name}/file`
- *   — stored templates, when `ASTLIDE_TEMPLATE_DIR` is set
+ *   — stored templates, when `ASTLIDE_TEMPLATE_STORE` is set
  * - `GET /openapi.json`, `GET /health`
  *
  * Each render's project is deleted when its response is ready. Only templates
- * uploaded to `/templates` are kept, and only with `ASTLIDE_TEMPLATE_DIR` set.
+ * uploaded to `/templates` are kept, and only with `ASTLIDE_TEMPLATE_STORE` set.
  *
  * @module
  */
@@ -19,10 +19,8 @@ import { readFileSync } from "node:fs";
 import { extname } from "node:path";
 import { THEMES } from "@astlide/core/schema";
 import {
-	createTemplateStore,
 	type TemplateExtension,
 	type TemplateInfo,
-	type TemplateStore,
 	templateNameError,
 } from "@astlide/core/templates";
 import { type ServerOptions, trimTrailingSlashes } from "./config";
@@ -215,11 +213,9 @@ const TEMPLATE_PATH = /^\/templates\/([^/]+)(\/file)?$/;
 /** Create the fetch handler. */
 export function createHandler(options: ServerOptions) {
 	const queue = new Queue(options.concurrency, options.maxQueued);
-	const store: TemplateStore | undefined = options.templateDir
-		? createTemplateStore(options.templateDir)
-		: undefined;
+	const store = options.templates;
 	const storeOff = () =>
-		new HttpError(404, "template storage is off: start the server with ASTLIDE_TEMPLATE_DIR set");
+		new HttpError(404, "template storage is off: start the server with ASTLIDE_TEMPLATE_STORE set");
 
 	async function render(req: Request): Promise<Response> {
 		// Refuse before reading the body: a full queue shouldn't buffer more uploads.

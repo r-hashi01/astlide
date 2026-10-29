@@ -115,13 +115,30 @@ curl -F file=@brand.pptx localhost:8787/templates/layouts
 
 ## テンプレートをサーバーに保存する
 
-チームで使うテンプレートが決まっているなら、一度アップロードしておけば、あとは名前で指定するだけでレンダリングできます。保存を有効にするには、`ASTLIDE_TEMPLATE_DIR` に保存先のディレクトリを指定します。Docker ではそこにボリュームをマウントしておくと、コンテナを作り直してもテンプレートが消えません。
+チームで使うテンプレートが決まっているなら、一度アップロードしておけば、あとは名前で指定するだけでレンダリングできます。保存を有効にするには、`ASTLIDE_TEMPLATE_STORE` に保存先を指定します。保存先はディレクトリでも S3 のバケットでもかまいません。
+
+ディレクトリに保存する場合、Docker ではそこにボリュームをマウントしておくと、コンテナを作り直してもテンプレートが消えません。
 
 ```bash
 docker run --rm -p 8787:8787 -e ASTLIDE_API_KEY \
-  -e ASTLIDE_TEMPLATE_DIR=/data/templates -v astlide-templates:/data/templates \
+  -e ASTLIDE_TEMPLATE_STORE=/data/templates -v astlide-templates:/data/templates \
   --security-opt seccomp=packages/server/chromium-seccomp.json astlide-server
 ```
+
+バケットに保存すれば、テンプレートはコンテナと切り離して管理でき、複数のサーバーから同じテンプレートを使えます。`ASTLIDE_TEMPLATE_STORE=s3://<バケット>/<プレフィックス>` と指定し、認証情報は AWS でおなじみの環境変数で渡します。S3 互換の API を持つストレージなら、`AWS_ENDPOINT_URL_S3` にその URL を指定すれば同じように使えます。
+
+```bash
+# AWS S3
+-e ASTLIDE_TEMPLATE_STORE=s3://acme-assets/astlide/templates \
+-e AWS_REGION=ap-northeast-1 -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY
+
+# Cloudflare R2
+-e ASTLIDE_TEMPLATE_STORE=s3://astlide-templates \
+-e AWS_ENDPOINT_URL_S3=https://<アカウント ID>.r2.cloudflarestorage.com -e AWS_REGION=auto \
+-e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY
+```
+
+アクセスキーには、プレフィックス以下のオブジェクトの読み取り・書き込み・削除・一覧の権限が必要です。AWS なら `s3:GetObject`、`s3:PutObject`、`s3:DeleteObject`、`s3:ListBucket` です。サーバーが読むのはこれらの環境変数のキーだけで、インスタンスやコンテナに割り当てた IAM ロールは使いません。サーバー用のアクセスキーを発行してください。これらの環境変数がレンダリング処理に渡ることはありません。
 
 テンプレートは名前を付けてアップロードします。名前に使えるのは英小文字・数字・ハイフンで、組み込みテーマと同じ名前は付けられません。`label` には画面などに出す表示名を入れられます（省略可）。
 
@@ -153,9 +170,9 @@ curl -o q3.pptx -H 'content-type: application/json' localhost:8787/render -d '{
 
 版の番号は 1、2、3 と増えていき、削除した版の番号を使い回すことはありません。同じ番号はいつも同じファイルを指します。
 
-保存先はふつうのファイルです。テンプレートごとにディレクトリを作り、その中に `manifest.json` と版ごとのファイルを置きます。1 つの保存先ディレクトリを使うサーバーは 1 台だけにしてください。
+テンプレートは、名前と同じディレクトリ（バケットではプレフィックス）の下に、`manifest.json` と版ごとのファイルとして保存します。レンダリングだけなら複数のサーバーで同じ保存先を使えます。ただし、テンプレートを追加・削除するサーバーは 1 台にしてください。2 台が同時にアップロードすると、`manifest.json` を互いに上書きしてしまうおそれがあります。
 
-S3 やデータベースに保存したい場合や、自分でサービスを作る場合は、同じ仕組みを `@astlide/core/templates` から使えます。`createTemplateStore(dir)` が `list`・`info`・`get`・`put`・`remove` を持つオブジェクトを返します。`TemplateStore` インターフェースを実装すれば、保存先を差し替えられます。
+自分のプログラムからも、同じ仕組みを `@astlide/core/templates` から使えます。ディレクトリに保存するなら `createTemplateStore(dir)`、バケットなら `createS3TemplateStore({ bucket, … })` を使います。どちらも `list`・`info`・`get`・`put`・`remove` を持つオブジェクトを返します。Google Cloud Storage や Azure Blob Storage など別のストレージを使うなら、オブジェクトの `read`・`write`・`delete`・`list` を行う `ObjectStorage` を実装して、`createObjectTemplateStore()` に渡してください。
 
 ## デッキを取り込む
 
@@ -194,7 +211,9 @@ Google スライドは、`docs.google.com/presentation` の URL だけを取得�
 | `RENDER_TIMEOUT_MS` | `180000` | レンダリングと、アップロードされた PowerPoint ファイルの読み込みの制限時間です。超えると処理を止めて 504 を返します。 |
 | `CONCURRENCY` / `MAX_QUEUE` | `2` / `16` | 同時に実行するレンダリングの数と、待機できるリクエストの数です。これを超えたリクエストには、アップロードを読み込む前に 503 を返します。 |
 | `ASTLIDE_CHROMIUM_SANDBOX` | `1` | PDF と PNG の出力に使う Chromium のサンドボックスです。`0` で無効になります。無効にするのは、呼び出し元をすべて信頼できる場合に限ってください（[セキュリティ](#セキュリティ)を参照）。 |
-| `ASTLIDE_TEMPLATE_DIR` | （なし） | テンプレートの保存先です。指定するとテンプレートの保存が有効になります（[テンプレートをサーバーに保存する](#テンプレートをサーバーに保存する)を参照）。指定しない場合、`/templates` 以下は 404 を返します。 |
+| `ASTLIDE_TEMPLATE_STORE` | （なし） | テンプレートの保存先です。ディレクトリか `s3://<バケット>/<プレフィックス>` を指定すると、テンプレートの保存が有効になります（[テンプレートをサーバーに保存する](#テンプレートをサーバーに保存する)を参照）。指定しない場合、`/templates` 以下は 404 を返します。 |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` | （なし） | `s3://` の保存先に使う認証情報です。`s3://` を指定してキーがない場合、サーバーは起動しません。 |
+| `AWS_REGION` / `AWS_ENDPOINT_URL_S3` | `us-east-1` / AWS | バケットのリージョンと、R2 や MinIO など S3 互換サービスの URL です。 |
 | `ASTLIDE_WORK_DIR` | `node_modules` と同じ階層の `.astlide-work` | リクエストごとの一時プロジェクトを作る場所です。インストール済みのパッケージと共通の親ディレクトリの下に置く必要があります。 |
 
 エラーは JSON の `{ "error": "…" }` で返します。入力が不正なときは 400 です。入力はビルドを始める前に検査するので、スライドのスキーマに合わない frontmatter の値もこの段階で弾かれます。ビルドやエクスポートが失敗したときは 422 を返し、ビルドログの末尾を付けます。

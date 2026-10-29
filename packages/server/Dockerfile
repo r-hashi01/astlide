@@ -56,7 +56,7 @@ COPY packages/server/openapi.json packages/server/
 
 # Per-request projects live next to node_modules (Astro needs them to share a
 # parent directory with the packages) and are deleted after each request.
-# /data/templates is ready for ASTLIDE_TEMPLATE_DIR (mount a volume there).
+# /data/templates is ready for ASTLIDE_TEMPLATE_STORE (mount a volume there).
 RUN mkdir -p /app/.astlide-work /data/templates \
 	&& chown node:node /app/.astlide-work /data/templates
 USER node

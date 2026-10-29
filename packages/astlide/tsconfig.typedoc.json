@@ -5,7 +5,7 @@
 		"src/schema.ts",
 		"src/utils/sanitize.ts",
 		"src/embed/index.ts",
-		"src/templates.ts"
+		"src/templates/index.ts"
 	],
 	"exclude": ["src/cli/**", "src/internal/**", "tests/**"]
 }

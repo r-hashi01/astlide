@@ -7,6 +7,7 @@
 import { existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, sep } from "node:path";
+import { openTemplateStore, type TemplateStore } from "@astlide/core/templates";
 
 export interface ServerOptions {
 	/** Where per-request projects are created (and deleted). */
@@ -44,10 +45,11 @@ export interface ServerOptions {
 	/** Serve without an API key on a non-loopback host (`ASTLIDE_ALLOW_UNAUTHENTICATED=1`). */
 	allowUnauthenticated: boolean;
 	/**
-	 * Where uploaded templates are kept (`ASTLIDE_TEMPLATE_DIR`). Unset, the
-	 * server stores nothing and the `/templates` routes answer 404.
+	 * Where uploaded templates are kept (`ASTLIDE_TEMPLATE_STORE`: a folder or
+	 * `s3://<bucket>/<prefix>`). Unset, the server stores nothing and the
+	 * `/templates` routes answer 404.
 	 */
-	templateDir?: string;
+	templates?: TemplateStore;
 }
 
 const positive = (value: string | undefined, fallback: number): number => {
@@ -108,14 +110,18 @@ export function resolveOptions(
 		publicUrl: (env.PUBLIC_URL && trimTrailingSlashes(env.PUBLIC_URL)) || undefined,
 		allowPrivateNetwork: env.ASTLIDE_ALLOW_PRIVATE_NETWORK === "1",
 		allowUnauthenticated: env.ASTLIDE_ALLOW_UNAUTHENTICATED === "1",
-		templateDir: templateDir(env.ASTLIDE_TEMPLATE_DIR),
+		templates: templateStore(env.ASTLIDE_TEMPLATE_STORE, env),
 	};
 }
 
-function templateDir(dir: string | undefined): string | undefined {
-	if (!dir) return undefined;
-	mkdirSync(dir, { recursive: true });
-	return realpathSync(dir);
+function templateStore(
+	location: string | undefined,
+	env: Record<string, string | undefined>,
+): TemplateStore | undefined {
+	if (!location) return undefined;
+	if (location.startsWith("s3://")) return openTemplateStore(location, env);
+	mkdirSync(location, { recursive: true });
+	return openTemplateStore(realpathSync(location));
 }
 
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);

@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createTemplateStore } from "@astlide/core/templates";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHandler, readBody } from "../src/app";
 import { resolveOptions, type ServerOptions } from "../src/config";
@@ -241,7 +242,7 @@ describe("stored templates", () => {
 	let stored: (req: Request) => Promise<Response>;
 	beforeAll(() => {
 		dir = mkdtempSync(join(tmpdir(), "astlide-server-templates-"));
-		stored = createHandler({ ...options, templateDir: dir });
+		stored = createHandler({ ...options, templates: createTemplateStore(dir) });
 	});
 	afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -250,10 +251,10 @@ describe("stored templates", () => {
 	const upload = (fields: Record<string, string | Blob>, filename?: string) =>
 		call("/templates", { method: "POST", body: form(fields, filename) });
 
-	it("are off without ASTLIDE_TEMPLATE_DIR", async () => {
+	it("are off without ASTLIDE_TEMPLATE_STORE", async () => {
 		const res = await handle(new Request("http://test/templates"));
 		expect(res.status).toBe(404);
-		expect((await res.json()).error).toMatch(/ASTLIDE_TEMPLATE_DIR/);
+		expect((await res.json()).error).toMatch(/ASTLIDE_TEMPLATE_STORE/);
 		const render = await postJson("/render", { markdown: "# a", template: "acme" });
 		expect(render.status).toBe(404);
 	});
@@ -327,7 +328,11 @@ describe("stored templates", () => {
 	});
 
 	it("need the API key like every other route", async () => {
-		const locked = createHandler({ ...options, templateDir: dir, apiKey: "k".repeat(32) });
+		const locked = createHandler({
+			...options,
+			templates: createTemplateStore(dir),
+			apiKey: "k".repeat(32),
+		});
 		expect((await locked(new Request("http://test/templates"))).status).toBe(401);
 		expect((await locked(new Request("http://test/templates/acme/file"))).status).toBe(401);
 	});

@@ -6,6 +6,7 @@
 import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createTemplateStore } from "@astlide/core/templates";
 import JSZip from "jszip";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHandler } from "../src/app";
@@ -97,7 +98,7 @@ describe("POST /render (end to end)", () => {
 	it("renders with a stored template, by name", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "astlide-render-templates-"));
 		try {
-			const handle = createHandler({ ...options, templateDir: dir });
+			const handle = createHandler({ ...options, templates: createTemplateStore(dir) });
 			const upload = new FormData();
 			upload.append("name", "brand");
 			upload.append("file", new Blob([await templateFixture()]), "brand.pptx");

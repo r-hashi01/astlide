@@ -4,7 +4,7 @@
 		"src/schema.ts",
 		"src/utils/sanitize.ts",
 		"src/embed/index.ts",
-		"src/templates.ts"
+		"src/templates/index.ts"
 	],
 	"entryPointStrategy": "expand",
 	"tsconfig": "./tsconfig.typedoc.json",

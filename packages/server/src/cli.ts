@@ -7,7 +7,8 @@
  *   MAX_BODY_MB (50), MAX_SLIDES (200), RENDER_TIMEOUT_MS (180000),
  *   CONCURRENCY (2), MAX_QUEUE (16), ASTLIDE_WORK_DIR, ASTLIDE_BUN,
  *   ASTLIDE_ALLOW_UNAUTHENTICATED (0), ASTLIDE_ALLOW_PRIVATE_NETWORK (0),
- *   ASTLIDE_TEMPLATE_DIR (unset: templates aren't stored)
+ *   ASTLIDE_TEMPLATE_STORE (a folder or s3://<bucket>/<prefix>; unset: templates aren't stored),
+ *   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN, AWS_REGION, AWS_ENDPOINT_URL_S3 (for s3://)
  *
  * Without ASTLIDE_API_KEY it refuses to listen on anything but loopback.
  *

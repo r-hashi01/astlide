@@ -1,3 +1,6 @@
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { exposureError, resolveOptions } from "../src/config";
 import { renderEnv, renderFailure } from "../src/render";
@@ -109,5 +112,42 @@ describe("renderFailure", () => {
 		const failure = renderFailure("Error in /work/render-1/src/x.md: bad\n", "/work/render-1");
 		expect(failure.client).toBe("render failed:\nError in <project>/src/x.md: bad");
 		expect(failure.server).toBeUndefined();
+	});
+});
+
+describe("ASTLIDE_TEMPLATE_STORE", () => {
+	it("is off by default", () => {
+		expect(resolveOptions({}).templates).toBeUndefined();
+	});
+
+	it("takes a folder, created when missing", async () => {
+		const dir = join(mkdtempSync(join(tmpdir(), "astlide-config-")), "templates");
+		try {
+			const store = resolveOptions({ ASTLIDE_TEMPLATE_STORE: dir }).templates;
+			expect(existsSync(dir)).toBe(true);
+			expect(await store?.list()).toEqual([]);
+		} finally {
+			rmSync(dirname(dir), { recursive: true, force: true });
+		}
+	});
+
+	it("takes an S3 bucket, and refuses to start without credentials", () => {
+		expect(() => resolveOptions({ ASTLIDE_TEMPLATE_STORE: "s3://bucket/templates" })).toThrow(
+			/AWS_ACCESS_KEY_ID/,
+		);
+		const options = resolveOptions({
+			ASTLIDE_TEMPLATE_STORE: "s3://bucket/templates",
+			AWS_ACCESS_KEY_ID: "id",
+			AWS_SECRET_ACCESS_KEY: "secret",
+		});
+		expect(options.templates).toBeDefined();
+	});
+
+	it("keeps the S3 credentials away from renders", () => {
+		const env = renderEnv(
+			{ maxSlides: 1, chromiumSandbox: true, allowPrivateNetwork: false },
+			{ PATH: "/bin", AWS_ACCESS_KEY_ID: "id", AWS_SECRET_ACCESS_KEY: "secret" },
+		);
+		expect(Object.keys(env).filter((k) => k.startsWith("AWS_"))).toEqual([]);
 	});
 });
