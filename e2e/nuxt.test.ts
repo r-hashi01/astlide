@@ -128,24 +128,26 @@ describe("@astlide/nuxt", () => {
 		await page.close();
 	});
 
-	it("exports PNGs from the Nuxt site with astlide export", () => {
+	it("exports PNG, PDF and PPTX from the Nuxt site with astlide export, from the app's folder", () => {
 		const out = mkdtempSync(join(tmpdir(), "astlide-nuxt-export-"));
 		try {
+			// No Astro project here: every format comes from the site.
 			execFileSync(
 				"bun",
 				[
-					"packages/astlide/src/cli/astlide.ts",
+					resolve("packages/astlide/src/cli/astlide.ts"),
 					"export",
 					"example-deck",
 					"--png",
-					"--cwd",
-					"playground",
+					"--pdf",
+					"--pptx",
 					"--base-url",
 					base,
 					"--out-dir",
 					out,
 				],
 				{
+					cwd: app,
 					stdio: "pipe",
 					// The playground's own slides: CI's Ubuntu runners can't start Chromium's
 					// sandbox (user namespaces), which the exporter otherwise insists on.
@@ -159,8 +161,16 @@ describe("@astlide/nuxt", () => {
 					.subarray(1, 4)
 					.toString(),
 			).toBe("PNG");
+			expect(readFileSync(join(out, "example-deck.pdf")).subarray(0, 4).toString()).toBe("%PDF");
+			const pptx = join(out, "example-deck.pptx");
+			const entries = execFileSync("unzip", ["-Z1", pptx], { encoding: "utf-8" }).split("\n");
+			expect(entries.filter((e) => /^ppt\/slides\/slide\d+\.xml$/.test(e))).toHaveLength(11);
+			// The deck's title and author, read from the print view.
+			const core = execFileSync("unzip", ["-p", pptx, "docProps/core.xml"], { encoding: "utf-8" });
+			expect(core).toContain("<dc:title>Example Presentation</dc:title>");
+			expect(core).toContain("<dc:creator>Your Name</dc:creator>");
 		} finally {
 			rmSync(out, { recursive: true, force: true });
 		}
-	}, 180_000);
+	}, 240_000);
 });

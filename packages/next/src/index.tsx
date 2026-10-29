@@ -17,6 +17,7 @@
  *
  * // app/decks/[deck]/all/page.tsx — the print view (PDF export, printing)
  * export const generateStaticParams = decks.deckParams;
+ * export const generateMetadata = decks.printMetadata;
  * export default decks.PrintPage;
  *
  * // app/decks/page.tsx — the list of decks
@@ -229,6 +230,19 @@ export function createDeckRoutes(options: DeckRoutesOptions = {}) {
 			),
 		/** `generateStaticParams` for `[deck]/all`. */
 		deckParams: async (): Promise<DeckParams[]> => (await decks()).map((d) => ({ deck: d.name })),
+		/** `generateMetadata` for `[deck]/all`: the deck's title, author and theme (`astlide export --pptx --base-url` reads them). */
+		printMetadata: async ({ params }: { params: Promise<DeckParams> }) => {
+			const name = decodeURIComponent((await params).deck);
+			const deck = (await decks()).find((d) => d.name === name);
+			return {
+				title: deck ? (deck.config.title ?? deck.name) : "Deck",
+				...(deck?.config.author ? { authors: [{ name: deck.config.author }] } : {}),
+				// <html data-theme> is set by a script (the root layout owns <html>); exporters
+				// that don't run scripts read the theme here.
+				other: { "astlide:theme": escapeAttr(deck?.config.theme ?? "default") },
+				robots: { index: false, follow: false },
+			};
+		},
 		/** `generateMetadata` for `[deck]/[slide]`. */
 		slideMetadata: async ({ params }: { params: Promise<SlideParams> }) => {
 			const { deck: name, slide: n } = await params;

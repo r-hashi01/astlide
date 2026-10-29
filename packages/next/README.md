@@ -20,6 +20,7 @@ export default decks.SlidePage;
 
 // app/[deck]/all/page.tsx (print view: PDF export, printing)
 export const generateStaticParams = decks.deckParams;
+export const generateMetadata = decks.printMetadata;
 export default decks.PrintPage;
 ```
 

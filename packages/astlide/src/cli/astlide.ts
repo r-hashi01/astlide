@@ -15,6 +15,8 @@
  */
 
 import { existsSync, readdirSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { exportBuildDir } from "@astlide/core/utils/export-build";
 import { getDecks } from "./pptx/export";
@@ -34,6 +36,8 @@ interface Options {
 	cwd: string;
 	/** --cwd was given: don't infer the project from deck paths. */
 	cwdSet: boolean;
+	/** No Astro project: the decks come from the site at --base-url. */
+	fromSite?: boolean;
 }
 
 const HELP = `
@@ -72,7 +76,10 @@ Options:
   --no-build            Reuse the last export build (else dist/, without notes
                         unless notes: "public") instead of building first
   --base-url <url>      PDF / PNG: render from a running dev / preview server
-                        (include Astro's base, e.g. http://localhost:4321/my-repo)
+                        (include Astro's base, e.g. http://localhost:4321/my-repo).
+                        Outside an Astro project (a Next.js, Nuxt … site), every
+                        format comes from that site; run its production server
+                        for PPTX
   --width <px>          PDF / PNG: slide width (default: 1920)
   --height <px>         PDF / PNG: slide height (default: 1080)
   --cwd <dir>           Project root (default: current directory)
@@ -83,6 +90,7 @@ Examples:
   astlide export my-talk --pptx          # → exports/my-talk.pptx
   astlide export --all --pdf --pptx
   astlide export my-talk --base-url http://localhost:4321
+  astlide export my-talk --pdf --pptx --base-url http://localhost:3000   # a Next.js site
   astlide import ~/Downloads/kickoff.pptx --deck kickoff
 `;
 
@@ -204,12 +212,18 @@ function resolveProject(options: Options): void {
 	});
 	// The same deck named twice (e.g. by name and by path) is exported once.
 	options.decks = [...new Set(options.decks)];
-	if (options.cwdSet || existsSync(join(options.cwd, "src", "content", "decks"))) return;
-	const root = findProjectRoot(options.cwd);
+	if (existsSync(join(options.cwd, "src", "content", "decks"))) return;
+	const root = options.cwdSet ? null : findProjectRoot(options.cwd);
 	if (root) {
 		options.cwd = root;
 		return;
 	}
+	// A running site has the decks: no Astro project needed (Next.js, Nuxt …).
+	if (options.baseUrl && !options.all) {
+		options.fromSite = true;
+		return;
+	}
+	if (options.cwdSet) return;
 	const hints = nearbyProjects(options.cwd).map((d) => `--cwd ${d}`);
 	fail(
 		`no Astlide project here (no src/content/decks in ${options.cwd} or above).` +
@@ -228,15 +242,48 @@ async function runExport(options: Options): Promise<void> {
 	if (decks.length === 0) {
 		fail(options.all ? "no decks found in src/content/decks" : "name a deck, or pass --all");
 	}
-	for (const deck of decks) {
-		if (!known.includes(deck)) fail(`no deck "${deck}" (known: ${known.join(", ") || "none"})`);
+	if (options.fromSite) {
+		// Without a local project, a deck is one the site has a print view of.
+		for (const deck of decks) {
+			const url = `${options.baseUrl}/${encodeURIComponent(deck)}/all`;
+			const status = await fetch(url, { method: "GET" }).then(
+				(r) => r.status,
+				(e: Error) => fail(`can't reach ${url}: ${e.message}`),
+			);
+			if (status !== 200) fail(`no deck "${deck}" at ${options.baseUrl} (${url}: HTTP ${status})`);
+		}
+	} else {
+		for (const deck of decks) {
+			if (!known.includes(deck)) fail(`no deck "${deck}" (known: ${known.join(", ") || "none"})`);
+		}
 	}
 	if (options.output && (decks.length > 1 || options.formats.size > 1)) {
 		fail("--output works with one deck and one format; use --out-dir otherwise");
 	}
 
+	// Without a local project, PPTX is made from the site's print view.
+	if (options.formats.has("pptx") && options.fromSite) {
+		const { pptxFromPrintView } = await import("./pptx/export");
+		const { savePrintView } = await import("./pptx/site-print-view");
+		for (const deck of decks) {
+			console.log(`\nPPTX: ${deck} (from ${options.baseUrl})`);
+			const dir = await mkdtemp(join(tmpdir(), "astlide-site-"));
+			try {
+				const view = await savePrintView(options.baseUrl as string, deck, dir);
+				await pptxFromPrintView({
+					...view,
+					root: options.cwd,
+					deck,
+					output: outputFor(options, deck, "pptx"),
+				});
+			} finally {
+				await rm(dir, { recursive: true, force: true });
+			}
+		}
+	}
+
 	// PPTX first: it needs the build but no browser or server.
-	if (options.formats.has("pptx")) {
+	if (options.formats.has("pptx") && !options.fromSite) {
 		const { exportPptx } = await import("./pptx/export");
 		for (const [n, deck] of decks.entries()) {
 			console.log(`\nPPTX: ${deck}`);

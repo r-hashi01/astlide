@@ -17,7 +17,11 @@ export default defineComponent({
 				"data-print": "",
 				"data-astlide-all": "",
 			},
-			meta: [{ name: "robots", content: "noindex, nofollow" }],
+			meta: [
+				{ name: "robots", content: "noindex, nofollow" },
+				// The file's author for `astlide export --pptx --base-url`.
+				...(deck.config.author ? [{ name: "author", content: deck.config.author }] : []),
+			],
 		});
 		const components = useMdxComponents();
 		onMounted(() => {
