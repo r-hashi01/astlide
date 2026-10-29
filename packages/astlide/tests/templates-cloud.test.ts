@@ -205,3 +205,16 @@ describe("openTemplateStore", () => {
 		);
 	});
 });
+
+describe("normalizePrefix", () => {
+	it("trims slashes, in linear time on long runs of them", async () => {
+		const { normalizePrefix } = await import("../src/templates/sdk");
+		expect(normalizePrefix(undefined)).toBe("");
+		expect(normalizePrefix("///")).toBe("");
+		expect(normalizePrefix("/a/b/")).toBe("a/b/");
+		const started = performance.now();
+		expect(normalizePrefix(`${"/".repeat(100_000)}x${"/".repeat(100_000)}`)).toBe("x/");
+		expect(normalizePrefix(`a${"/".repeat(100_000)}`)).toBe("a/");
+		expect(performance.now() - started).toBeLessThan(100);
+	});
+});

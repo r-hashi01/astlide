@@ -28,7 +28,13 @@ export function lazySdk<T>(name: string, load: () => Promise<T>): () => Promise<
 
 /** A key prefix as stored: no leading slash, one trailing slash (or empty). */
 export const normalizePrefix = (prefix: string | undefined) => {
-	const trimmed = (prefix ?? "").replace(/^\/+|\/+$/g, "");
+	// Loops, not /^\/+|\/+$/: that regex backtracks on long runs of slashes.
+	const value = prefix ?? "";
+	let start = 0;
+	let end = value.length;
+	while (start < end && value.charCodeAt(start) === 47) start++;
+	while (end > start && value.charCodeAt(end - 1) === 47) end--;
+	const trimmed = value.slice(start, end);
 	return trimmed ? `${trimmed}/` : "";
 };
 
