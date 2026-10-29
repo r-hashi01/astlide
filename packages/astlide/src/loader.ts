@@ -39,7 +39,13 @@ import { relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Loader, LoaderContext } from "astro/loaders";
 import { glob } from "astro/loaders";
-import { load as parseYaml } from "js-yaml";
+import {
+	HTML_EXTENSION,
+	htmlWithoutNotes,
+	PPTX_EXTENSION,
+	splitFrontmatter,
+	toEntryId,
+} from "./deck/files";
 import {
 	extractCommentNotes,
 	stripTrailingComment,
@@ -55,29 +61,6 @@ export interface AstlideDeckLoaderOptions {
 	 * Default: `"src/content/decks"`.
 	 */
 	base?: string;
-}
-
-/** Extensions this loader treats as slides. */
-const SLIDE_EXTENSION = /\.(?:mdx|md|html?)$/i;
-const HTML_EXTENSION = /\.html?$/i;
-const PPTX_EXTENSION = /\.pptx$/i;
-
-/**
- * Derive a stable, extension-less entry ID from a path relative to the deck base.
- * Shared by the MDX/Markdown glob delegate and the HTML ingester so that, e.g.,
- * `example-deck/03-slide.html` and `example-deck/04-slide.mdx` sort together.
- */
-function toEntryId(relPath: string): string {
-	return relPath.replace(/\\/g, "/").replace(SLIDE_EXTENSION, "");
-}
-
-/** Split a leading `---\nYAML\n---` frontmatter block from an HTML slide body. */
-function splitFrontmatter(raw: string): { data: Record<string, unknown>; body: string } {
-	const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(raw);
-	if (!match) return { data: {}, body: raw };
-	const parsed = parseYaml(match[1]);
-	const data = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
-	return { data, body: raw.slice(match[0].length) };
 }
 
 /**
@@ -122,12 +105,6 @@ export function withoutSlideScripts(context: LoaderContext): LoaderContext {
 			},
 		}),
 	};
-}
-
-/** An HTML slide's body without its trailing notes comment. */
-function htmlWithoutNotes(body: string): string {
-	const notes = extractCommentNotes(body);
-	return (notes === undefined ? null : withoutNotesComment(body, notes)) ?? body;
 }
 
 /** Guard against re-registering dev watcher listeners each time `load()` re-runs. */

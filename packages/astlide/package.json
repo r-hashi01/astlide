@@ -9,6 +9,7 @@
 		"./plugin": "./src/plugin.ts",
 		"./loader": "./src/loader.ts",
 		"./pptx": "./src/pptx/index.ts",
+		"./deck": "./src/deck/index.ts",
 		"./runtime": "./src/runtime/index.ts",
 		"./runtime/chrome": "./src/runtime/chrome.ts",
 		"./templates": "./src/templates/index.ts",
@@ -86,6 +87,7 @@
 		}
 	},
 	"dependencies": {
+		"@astrojs/markdown-satteri": "^0.4.5",
 		"@astrojs/mdx": "^8.1.1",
 		"@modelcontextprotocol/sdk": "^1.32.2",
 		"@resvg/resvg-js": "^2.6.2",
