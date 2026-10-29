@@ -35,6 +35,7 @@
 
 import { join } from "node:path";
 import { type Deck, evaluateSlideMdx, readDecks, renderNotesHtml } from "@astlide/core/deck";
+import { printSlides, slidePage } from "@astlide/core/deck/pages";
 import { slideTitle } from "@astlide/core/utils/slide-title";
 import { mdxComponents, Slide } from "@astlide/react";
 import type { ComponentType, ReactNode } from "react";
@@ -73,12 +74,11 @@ export function createDeckRoutes(options: DeckRoutesOptions = {}) {
 	// Read once per server process in production; again on every request in development.
 	let cached: Promise<Deck[]> | undefined;
 	const decks = () => {
-		if (!cached || process.env.NODE_ENV === "development")
-			cached = readDecks(dir, { markdown }).then((all) =>
-				all.map((d) => ({ ...d, slides: d.slides.filter((s) => showHidden || !s.data.hidden) })),
-			);
+		if (!cached || process.env.NODE_ENV === "development") cached = readDecks(dir, { markdown });
 		return cached;
 	};
+	const slideHref = (deck: string, n: number) =>
+		`${basePath}/${encodeURIComponent(deck)}/${n}${options.trailingSlash ? "/" : ""}`;
 	const findDeck = async (name: string) => {
 		const deck = (await decks()).find((d) => d.name === decodeURIComponent(name));
 		if (!deck) {
@@ -117,12 +117,16 @@ export function createDeckRoutes(options: DeckRoutesOptions = {}) {
 	async function SlidePage({ params }: { params: Promise<SlideParams> }) {
 		const { deck: name, slide: n } = await params;
 		const deck = await findDeck(name);
-		const number = Number(n);
-		const slide = deck.slides[number - 1];
-		if (!slide || !Number.isInteger(number)) {
+		const page = slidePage(deck, Number(n), { showHidden });
+		if (!page) {
 			const { notFound } = await import("next/navigation");
 			return notFound();
 		}
+		if (page.redirectTo !== undefined) {
+			const { redirect } = await import("next/navigation");
+			return redirect(slideHref(deck.name, page.redirectTo));
+		}
+		const { slide, number, totalSlides } = page;
 		const { html, node } = await content(slide);
 		const theme = deck.config.theme ?? "default";
 		return (
@@ -132,20 +136,17 @@ export function createDeckRoutes(options: DeckRoutesOptions = {}) {
 					theme={theme}
 					deck={deck.name}
 					slideNumber={number}
-					totalSlides={deck.slides.length}
+					totalSlides={totalSlides}
+					prevSlide={page.prevSlide}
+					nextSlide={page.nextSlide}
+					firstSlide={page.firstSlide}
+					lastSlide={page.lastSlide}
 					basePath={basePath}
 					trailingSlash={options.trailingSlash}
 					toolbar={options.toolbar}
-					outline={deck.slides.map((s, i) => ({ n: i + 1, title: s.title ?? `Slide ${i + 1}` }))}
+					outline={page.outline}
 					notesHtml={slide.notes ? await renderNotesHtml(slide.notes) : undefined}
-					deckContext={{
-						deck: deck.name,
-						slideNumber: number,
-						totalSlides: deck.slides.length,
-						layout: slide.data.slideLayout ?? "default",
-						transition: slide.data.transition ?? "fade",
-						config: deck.config,
-					}}
+					deckContext={page.deckContext}
 				>
 					<Slide
 						layout={slide.data.slideLayout}
@@ -153,7 +154,7 @@ export function createDeckRoutes(options: DeckRoutesOptions = {}) {
 						background={slide.data.background}
 						className={slide.data.class}
 						slideNumber={number}
-						totalSlides={deck.slides.length}
+						totalSlides={totalSlides}
 						{...(html === undefined ? {} : { html })}
 					>
 						{node}
@@ -166,7 +167,7 @@ export function createDeckRoutes(options: DeckRoutesOptions = {}) {
 	// biome-ignore lint/correctness/noComponentHookFactories: server components over this folder's options (no hooks)
 	async function PrintPage({ params }: { params: Promise<DeckParams> }) {
 		const deck = await findDeck((await params).deck);
-		const slides = deck.slides.filter((s) => !s.data.hidden);
+		const slides = printSlides(deck.slides);
 		const rendered = await Promise.all(slides.map(content));
 		return (
 			<>
@@ -209,11 +210,7 @@ export function createDeckRoutes(options: DeckRoutesOptions = {}) {
 				<ul>
 					{all.map((d) => (
 						<li key={d.name}>
-							<a
-								href={`${basePath}/${encodeURIComponent(d.name)}/1${options.trailingSlash ? "/" : ""}`}
-							>
-								{d.config.title ?? d.name}
-							</a>
+							<a href={slideHref(d.name, 1)}>{d.config.title ?? d.name}</a>
 							{d.config.author ? ` — ${d.config.author}` : ""}
 						</li>
 					))}

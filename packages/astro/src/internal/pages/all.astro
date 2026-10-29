@@ -7,6 +7,7 @@
  * regular deck navigation — accessed by the CLI exporter and the in-browser
  * "download PDF" button only.
  */
+import { printSlides } from '@astlide/core/deck/pages';
 import { getCollection, render } from 'astro:content';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -52,9 +53,7 @@ export async function getStaticPaths() {
   const paths: Array<{ params: { deck: string }; props: { deckName: string; slides: typeof allSlides; deckConfig: DeckConfig } }> = [];
 
   for (const [deckName, slides] of deckMap) {
-    const sortedSlides = slides
-      .filter((s) => !s.data.hidden)
-      .sort((a, b) => a.id.localeCompare(b.id));
+    const sortedSlides = printSlides(slides.sort((a, b) => a.id.localeCompare(b.id)));
 
     const configPath = path.join(process.cwd(), 'src', 'content', 'decks', deckName, '_config.json');
     let deckConfig: DeckConfig = deckConfigSchema.parse({});

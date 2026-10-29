@@ -24,6 +24,6 @@ declare module "virtual:astlide-nuxt/decks" {
 		config: DeckConfig;
 		slides: NuxtDeckSlide[];
 	}
-	export const options: { basePath: string; toolbar?: string[] };
+	export const options: { basePath: string; toolbar?: string[]; showHidden: boolean };
 	export const decks: NuxtDeck[];
 }

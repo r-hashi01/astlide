@@ -11,6 +11,7 @@
 		"./render": "./src/render/index.ts",
 		"./deck": "./src/deck/index.ts",
 		"./deck/files": "./src/deck/files.ts",
+		"./deck/pages": "./src/deck/pages.ts",
 		"./runtime": "./src/runtime/index.ts",
 		"./runtime/chrome": "./src/runtime/chrome.ts",
 		"./runtime/slide": "./src/runtime/slide.ts",

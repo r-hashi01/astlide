@@ -18,9 +18,8 @@ import type { Plugin, ViteDevServer } from "vite";
 export interface DecksPluginOptions {
 	dir: string;
 	shikiTheme?: string;
-	showHidden: boolean;
 	/** Settings the pages read (`options` of the decks module). */
-	runtime: { basePath: string; toolbar?: string[] };
+	runtime: { basePath: string; toolbar?: string[]; showHidden: boolean };
 }
 
 const DECKS = "virtual:astlide-nuxt/decks";
@@ -41,12 +40,7 @@ export function astlideDecksPlugin(options: DecksPluginOptions): Plugin {
 	const markdown = { shikiTheme: options.shikiTheme };
 	let cached: Promise<Deck[]> | undefined;
 	const decks = () => {
-		cached ??= readDecks(options.dir, { markdown }).then((all) =>
-			all.map((d) => ({
-				...d,
-				slides: d.slides.filter((s) => options.showHidden || !s.data.hidden),
-			})),
-		);
+		cached ??= readDecks(options.dir, { markdown });
 		return cached;
 	};
 	const slideId = (deck: string, id: string) =>

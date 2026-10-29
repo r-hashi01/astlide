@@ -6,6 +6,7 @@ import { deckConfigSchema } from '@astlide/core/schema';
 import type { DeckConfig } from '@astlide/core/schema';
 import { setDeckContext } from '@astlide/core/context';
 import { slideTitle } from '@astlide/core/utils/slide-title';
+import { slidePage, type SlidePage } from '@astlide/core/deck/pages';
 import { pageUrl } from '@astlide/core/utils/base-path';
 import DeckLayout from '@astlide/astro/internal/DeckLayout.astro';
 import ErrorOverlay, { type Diagnostic } from '@astlide/astro/internal/ErrorOverlay.astro';
@@ -43,13 +44,9 @@ export async function getStaticPaths() {
     props: {
       slide: (typeof allSlides)[0];
       deckName: string;
-      slideNumber: number;
-      totalSlides: number;
       deckConfig: DeckConfig;
-      nextVisibleSlide: number;
-      nav: { prevSlide: number | null; nextSlide: number | null; firstSlide: number; lastSlide: number };
+      page: Omit<SlidePage, 'slide'>;
       configIssue: string | null;
-      outline: Array<{ n: number; title: string }>;
       sources: string[] | undefined;
     };
   }> = [];
@@ -75,55 +72,29 @@ export async function getStaticPaths() {
       }
     }
 
-    // Pre-compute first visible slide for fallback
-    const firstVisible = sortedSlides.find((s) => !s.data.hidden);
-
-    // Deck outline for the go-to-slide dialog (`g`). Hidden slides are omitted in
-    // production, where they redirect anyway.
-    const outline = sortedSlides
-      .map((s, i) => ({ n: i + 1, title: slideTitle(s) ?? `Slide ${i + 1}`, hidden: s.data.hidden }))
-      .filter((s) => !(s.hidden && import.meta.env.PROD))
-      .map(({ n, title }) => ({ n, title }));
+    // Numbering, navigation and outline as in every framework (`@astlide/core/deck/pages`):
+    // hidden slides keep their number; in production their page redirects on.
+    const deck = {
+      name: deckName,
+      config: deckConfig,
+      slides: sortedSlides.map((entry) => ({ entry, data: entry.data, title: slideTitle(entry) })),
+    };
 
     // Dev only: the deck's source files in order, so the live editor can find a
     // slide's new number after files are added or removed.
     const sources = import.meta.env.DEV ? sortedSlides.map((s) => s.filePath ?? '') : undefined;
 
-    // Slides navigation can land on: in production hidden slides only redirect,
-    // so ←/→, Home/End and the previews skip them.
-    const visitable = sortedSlides
-      .map((s, i) => ({ n: i + 1, hidden: s.data.hidden }))
-      .filter((s) => !(s.hidden && import.meta.env.PROD))
-      .map((s) => s.n);
-
     for (let i = 0; i < sortedSlides.length; i++) {
-      const n = i + 1;
-      const nav = {
-        prevSlide: visitable.filter((v) => v < n).at(-1) ?? null,
-        nextSlide: visitable.find((v) => v > n) ?? null,
-        firstSlide: visitable[0] ?? 1,
-        lastSlide: visitable.at(-1) ?? sortedSlides.length,
-      };
-      // Find the next non-hidden slide; fall back to first visible or slide 1
-      const nextVisible = sortedSlides.slice(i + 1).find((s) => !s.data.hidden);
-      const nextVisibleSlide = nextVisible
-        ? sortedSlides.indexOf(nextVisible) + 1
-        : firstVisible
-          ? sortedSlides.indexOf(firstVisible) + 1
-          : 1;
-
+      // The page without its slide (the entry goes in `slide`).
+      const { slide: _, ...page } = slidePage(deck, i + 1, { showHidden: import.meta.env.DEV })!;
       paths.push({
         params: { deck: deckName, slide: String(i + 1) },
         props: {
           slide: sortedSlides[i],
           deckName,
-          slideNumber: i + 1,
-          totalSlides: sortedSlides.length,
           deckConfig,    // typed as DeckConfig
-          nextVisibleSlide,
-          nav,
+          page,
           configIssue,
-          outline,
           sources,
         },
       });
@@ -133,7 +104,9 @@ export async function getStaticPaths() {
   return paths;
 }
 
-const { slide, deckName, slideNumber, totalSlides, deckConfig, nextVisibleSlide, configIssue, outline, sources, nav } = Astro.props;
+const { slide, deckName, deckConfig, page, configIssue, sources } = Astro.props;
+const { number: slideNumber, totalSlides, outline, deckContext } = page;
+const nav = { prevSlide: page.prevSlide, nextSlide: page.nextSlide, firstSlide: page.firstSlide, lastSlide: page.lastSlide };
 const { Content } = await render(slide);
 
 const {
@@ -142,27 +115,18 @@ const {
   background,
   class: className,
   notes: frontmatterNotes,
-  hidden,
 } = slide.data;
 // Speaker notes: frontmatter `notes`, else an HTML comment ending the slide.
 // (<SpeakerNotes> in the body overrides both, client-side in DeckLayout.)
 const notes = frontmatterNotes ?? extractCommentNotes(slide.body ?? '');
 
-// Skip hidden slides in production — redirect to next visible slide
-if (hidden && import.meta.env.PROD) {
-  return Astro.redirect(pageUrl(`/${deckName}/${nextVisibleSlide}`));
+// A hidden slide in production: on to the next visible one.
+if (page.redirectTo !== undefined) {
+  return Astro.redirect(pageUrl(`/${deckName}/${page.redirectTo}`));
 }
 
 // Publish typed deck/slide metadata for components rendered inside this slide
 // (server-side via getDeckContext(Astro); client-side via window.__astlide).
-const deckContext = {
-  deck: deckName,
-  slideNumber,
-  totalSlides,
-  layout,
-  transition,
-  config: deckConfig,
-};
 setDeckContext(Astro, deckContext);
 
 // Vite-defined plugin name lists (resolved at build time by the astlide() integration).

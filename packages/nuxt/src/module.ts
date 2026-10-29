@@ -84,8 +84,11 @@ export default defineNuxtModule<ModuleOptions>({
 			astlideDecksPlugin({
 				dir: resolve(nuxt.options.rootDir, options.dir),
 				shikiTheme: options.shikiTheme,
-				showHidden: options.showHidden ?? nuxt.options.dev,
-				runtime: { basePath, toolbar: options.toolbar },
+				runtime: {
+					basePath,
+					toolbar: options.toolbar,
+					showHidden: options.showHidden ?? nuxt.options.dev,
+				},
 			}),
 		);
 

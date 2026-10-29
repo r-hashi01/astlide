@@ -1,5 +1,6 @@
 /** A slide page: `<DeckPage>` driven by Nuxt's router, the presenter window from the URL. */
 
+import { slidePage } from "@astlide/core/deck/pages";
 import { DeckPage, Slide } from "@astlide/vue";
 import { defineComponent, h, onMounted, ref } from "vue";
 import { createError, navigateTo, useHead, useRoute } from "#app";
@@ -11,10 +12,17 @@ export default defineComponent({
 		// Nuxt's composables before the first `await` (they need the component).
 		const route = useRoute();
 		const deck = findDeck(route.params.deck);
-		const number = Number(route.params.slide);
-		const slide = deck.slides[number - 1];
-		if (!slide)
+		const page = slidePage(deck, Number(route.params.slide), { showHidden: options.showHidden });
+		if (!page)
 			throw createError({ statusCode: 404, statusMessage: "Slide not found", fatal: true });
+		if (page.redirectTo !== undefined) {
+			await navigateTo(`${options.basePath}/${encodeURIComponent(deck.name)}/${page.redirectTo}`, {
+				redirectCode: 302,
+				replace: true,
+			});
+			return () => null;
+		}
+		const { slide, number, totalSlides } = page;
 		const title = `${deck.config.title ?? deck.name} - Slide ${number}`;
 		useHead({
 			title,
@@ -44,19 +52,16 @@ export default defineComponent({
 				{
 					deck: deck.name,
 					slideNumber: number,
-					totalSlides: deck.slides.length,
+					totalSlides,
+					prevSlide: page.prevSlide,
+					nextSlide: page.nextSlide,
+					firstSlide: page.firstSlide,
+					lastSlide: page.lastSlide,
 					basePath: options.basePath,
 					toolbar: options.toolbar,
-					outline: deck.slides.map((s, i) => ({ n: i + 1, title: s.title ?? `Slide ${i + 1}` })),
+					outline: page.outline,
 					notesHtml: content.notesHtml,
-					deckContext: {
-						deck: deck.name,
-						slideNumber: number,
-						totalSlides: deck.slides.length,
-						layout: slide.data.slideLayout ?? "default",
-						transition: slide.data.transition ?? "fade",
-						config: deck.config,
-					},
+					deckContext: page.deckContext,
 					presenter: presenter.value,
 					navigate,
 					...(loadMermaid.value ? { loadMermaid: loadMermaid.value } : {}),
@@ -70,7 +75,7 @@ export default defineComponent({
 							background: slide.data.background,
 							className: slide.data.class,
 							slideNumber: number,
-							totalSlides: deck.slides.length,
+							totalSlides,
 							...(Content ? {} : { html: content.html ?? "" }),
 						},
 						Content ? () => h(Content, { components }) : undefined,

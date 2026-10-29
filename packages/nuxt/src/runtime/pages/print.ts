@@ -1,5 +1,6 @@
 /** The print view: every slide, for PDF export and printing (exporters wait for `data-diagrams-ready`). */
 
+import { printSlides } from "@astlide/core/deck/pages";
 import { applyPageFlags } from "@astlide/core/runtime";
 import { Slide } from "@astlide/vue";
 import { defineComponent, Fragment, h, onMounted } from "vue";
@@ -31,7 +32,7 @@ export default defineComponent({
 			);
 		});
 
-		const slides = deck.slides.filter((s) => !s.data.hidden);
+		const slides = printSlides(deck.slides);
 		const contents = await Promise.all(slides.map((s) => s.load()));
 		return () =>
 			h(
