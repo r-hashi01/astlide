@@ -436,3 +436,18 @@ describe("sanitizeHTML links and ids", () => {
 		expect(sanitizeHTML('<p id="__astlide_embed_host">x</p>')).toBe("<p>x</p>");
 	});
 });
+
+describe("sanitizeBackground on long input", () => {
+	it("checks backgrounds in linear time", () => {
+		const started = performance.now();
+		for (const value of [
+			`url(${" ".repeat(100_000)}`,
+			`url(${" \t".repeat(50_000)}x`,
+			`url(${"'".repeat(100_000)}`,
+		])
+			sanitizeBackground(value);
+		expect(performance.now() - started).toBeLessThan(200);
+		expect(sanitizeBackground("url( ' java script:alert(1)')")).toBe("");
+		expect(sanitizeBackground("url('/bg.png')")).toBe("url('/bg.png')");
+	});
+});

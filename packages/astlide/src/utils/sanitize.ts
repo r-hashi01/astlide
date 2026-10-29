@@ -300,12 +300,15 @@ function removeElement(node: ChildNode): void {
 export function sanitizeBackground(value: string): string {
 	if (!value) return "";
 
-	const lower = value.toLowerCase().replace(/\s+/g, " ").trim();
+	const lower = value.toLowerCase();
 
-	// Block dangerous CSS patterns
+	// Block dangerous CSS patterns. Matched without any whitespace, so the
+	// patterns have no optional-space runs to backtrack over (and spacing like
+	// "java script:" can't slip through either).
+	const compact = lower.replace(/\s+/g, "");
 	const dangerous =
-		/expression\s*\(|url\s*\(\s*["']?\s*javascript:|url\s*\(\s*["']?\s*vbscript:|url\s*\(\s*["']?\s*data:\s*(?:text\/html|image\/svg)|@import|behavior\s*:/i;
-	if (dangerous.test(lower)) return "";
+		/expression\(|url\(["']?javascript:|url\(["']?vbscript:|url\(["']?data:(?:text\/html|image\/svg)|@import|behavior:/;
+	if (dangerous.test(compact)) return "";
 
 	// Block attempts to break out of the style attribute context
 	if (lower.includes("}") || lower.includes("{")) return "";
