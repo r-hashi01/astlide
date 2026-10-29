@@ -48,5 +48,20 @@
 		"formatter": {
 			"enabled": false
 		}
-	}
+	},
+	"overrides": [
+		{
+			"includes": ["packages/astlide/src/styles/deck.css"],
+			"linter": {
+				"rules": {
+					"complexity": {
+						"noImportantStyles": "off"
+					},
+					"style": {
+						"noDescendingSpecificity": "off"
+					}
+				}
+			}
+		}
+	]
 }

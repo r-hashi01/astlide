@@ -1,0 +1,943 @@
+/*
+ * The slide page around a slide: scaling container, presenter panel,
+ * toolbar, overlays, print / share / embed modes. Used with the markup from
+ * @astlide/core/runtime/chrome and driven by @astlide/core/runtime.
+ *
+ * Every selector ends in :not(.slide *), so these rules never reach slide
+ * content, even where a slide uses the same class names (a slide may well
+ * have a .nav-btn of its own). tests/deck-css.test.ts checks it.
+ */
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+	width: 100vw;
+	height: 100vh;
+	background: #000;
+}
+
+/* A-2: in presenter mode, paint <html> the same color as the panel so the
+   view-transition swap can't flash a #000 frame against the dark slate UI. */
+html[data-presenter],
+html[data-presenter] body {
+	background: #0f172a;
+}
+
+/* B-1: ?print mode — hide all chrome and let the deck paint on white. */
+html[data-print],
+html[data-print] body {
+	background: #fff;
+	overflow: auto;
+	height: auto;
+}
+html[data-print] .slide-nav:not(.slide *),
+html[data-print] .progress-bar:not(.slide *),
+html[data-print] .notes-overlay:not(.slide *),
+html[data-print] .overview:not(.slide *),
+html[data-print] .presenter-layout:not(.slide *) {
+	display: none !important;
+}
+html[data-print] .presentation:not(.slide *) {
+	background: transparent;
+}
+
+/* C-4: ?share mode — strip chrome but keep the slide visible, so the
+   audience on a Web-conference screen-share sees a clean canvas. */
+html[data-share] .slide-nav:not(.slide *),
+html[data-share] .progress-bar:not(.slide *),
+html[data-share] .notes-overlay:not(.slide *),
+html[data-share] .overview:not(.slide *),
+html[data-share] .presenter-layout:not(.slide *) {
+	display: none !important;
+}
+
+/* Embedded in an iframe (overview thumbnail / presenter next-slide preview):
+   render the slide only. */
+html[data-embed] .slide-nav:not(.slide *),
+html[data-embed] .progress-bar:not(.slide *),
+html[data-embed] .notes-overlay:not(.slide *),
+html[data-embed] .overview:not(.slide *),
+html[data-embed] .presenter-layout:not(.slide *),
+html[data-embed] .skip-link:not(.slide *),
+html[data-embed] astro-dev-toolbar:not(.slide *) {
+	display: none !important;
+}
+
+/* ── Skip link (visually hidden, visible on focus) ── */
+.skip-link:not(.slide *) {
+	position: fixed;
+	top: -100%;
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 1000;
+	padding: 0.75rem 1.5rem;
+	background: var(--color-primary, #3b82f6);
+	color: white;
+	text-decoration: none;
+	border-radius: 0 0 0.5rem 0.5rem;
+	font-family: system-ui, sans-serif;
+	font-size: 0.875rem;
+	font-weight: 600;
+	transition: top 0.15s ease;
+}
+
+.skip-link:focus:not(.slide *) {
+	top: 0;
+	outline: 2px solid white;
+	outline-offset: 2px;
+}
+
+/* ── Screen reader only ── */
+.sr-only:not(.slide *) {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+/* ── Progress bar ── */
+.progress-bar:not(.slide *) {
+	position: fixed;
+	top: 0;
+	left: 0;
+	height: var(--astlide-progress-height, 3px);
+	background: var(--astlide-progress-color, var(--color-primary, #3b82f6));
+	z-index: 200;
+	transition: width 0.25s ease;
+	pointer-events: none;
+}
+
+/* ── Normal presentation ── */
+.presentation:not(.slide *) {
+	width: 100vw;
+	height: 100vh;
+	box-sizing: border-box;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	background: #000;
+}
+
+/* Dev editor (e) docked on the right: center the slide in what's left. */
+html[data-editor] .presentation:not(.slide *) {
+	padding-right: var(--astlide-reserved-right, 0px);
+}
+
+.slide-scaler:not(.slide *) {
+	position: relative;
+	transform-origin: center center;
+	flex-shrink: 0;
+}
+
+/* ── Camera bubble & recording indicator ── */
+.camera-bubble:not(.slide *) {
+	position: fixed;
+	right: 2rem;
+	bottom: 5rem;
+	width: var(--astlide-camera-size, 220px);
+	height: var(--astlide-camera-size, 220px);
+	border-radius: 50%;
+	overflow: hidden;
+	z-index: 900;
+	cursor: grab;
+	touch-action: none;
+	box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+	border: 3px solid rgba(255, 255, 255, 0.85);
+	background: #000;
+}
+
+.camera-bubble[data-dragging]:not(.slide *) {
+	cursor: grabbing;
+}
+
+.camera-bubble video:not(.slide *) {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	transform: scaleX(-1); /* mirror, like a selfie view */
+}
+
+.recording-indicator:not(.slide *) {
+	display: none;
+	position: fixed;
+	top: 1rem;
+	right: 1rem;
+	z-index: 950;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.35rem 0.75rem;
+	border-radius: 999px;
+	background: rgba(0, 0, 0, 0.6);
+	color: #fff;
+	font:
+		600 0.85rem / 1 system-ui,
+		sans-serif;
+	font-variant-numeric: tabular-nums;
+}
+
+html[data-recording] .recording-indicator:not(.slide *) {
+	display: flex;
+}
+
+.recording-dot:not(.slide *) {
+	width: 0.6rem;
+	height: 0.6rem;
+	border-radius: 50%;
+	background: #ef4444;
+	animation: astlide-rec-blink 1s steps(2, start) infinite;
+}
+
+@keyframes astlide-rec-blink {
+	to {
+		visibility: hidden;
+	}
+}
+
+html[data-print] .camera-bubble:not(.slide *),
+html[data-print] .recording-indicator:not(.slide *),
+html[data-embed] .camera-bubble:not(.slide *),
+html[data-embed] .recording-indicator:not(.slide *) {
+	display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.recording-dot:not(.slide *) {
+		animation: none;
+	}
+}
+
+/* ── Pen & laser overlays (cover the slide, in slide coordinates) ── */
+.draw-layer:not(.slide *) {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+	touch-action: none;
+	z-index: 50;
+}
+
+html[data-tool="draw"] .draw-layer:not(.slide *) {
+	pointer-events: auto;
+	cursor: crosshair;
+}
+
+html[data-tool="laser"] .draw-layer:not(.slide *) {
+	pointer-events: auto;
+	cursor: none;
+}
+
+.laser-dot:not(.slide *) {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 28px;
+	height: 28px;
+	margin: -14px 0 0 -14px;
+	border-radius: 50%;
+	background: var(--astlide-laser-color, #ef4444);
+	box-shadow: 0 0 18px 6px color-mix(in srgb, var(--astlide-laser-color, #ef4444) 60%, transparent);
+	pointer-events: none;
+	z-index: 51;
+}
+
+html[data-print] .draw-layer:not(.slide *),
+html[data-print] .laser-dot:not(.slide *),
+html[data-embed] .draw-layer:not(.slide *),
+html[data-embed] .laser-dot:not(.slide *) {
+	display: none !important;
+}
+
+.nav-btn.nav-action[aria-pressed="true"]:not(.slide *) {
+	background: var(--astlide-nav-btn-active-bg, rgba(255, 255, 255, 0.25));
+}
+
+/* ── Presenter layout ── */
+.presenter-layout:not(.slide *) {
+	display: none;
+	width: 100vw;
+	height: 100vh;
+	background: #111;
+}
+
+html[data-presenter] {
+	overflow: hidden;
+}
+
+html[data-presenter] .presenter-layout:not(.slide *) {
+	display: flex;
+}
+
+html[data-presenter] .presentation:not(.slide *) {
+	display: none;
+}
+
+html[data-presenter] .slide-nav:not(.slide *) {
+	display: none !important;
+}
+
+html[data-presenter] #notes-overlay:not(.slide *) {
+	display: none !important;
+}
+
+.presenter-slide-area:not(.slide *) {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+	background: #000;
+	padding: 1rem;
+}
+
+.presenter-current:not(.slide *) {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.presenter-panel:not(.slide *) {
+	width: var(--astlide-presenter-width, 360px);
+	flex-shrink: 0;
+	background: var(--astlide-presenter-bg, #1a1a2e);
+	border-left: 1px solid rgba(255, 255, 255, 0.08);
+	display: flex;
+	flex-direction: column;
+	color: var(--astlide-presenter-fg, #e0e0e0);
+	font-family: system-ui, sans-serif;
+	overflow: hidden;
+}
+
+.presenter-info:not(.slide *) {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 1rem 1.25rem;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	flex-shrink: 0;
+}
+
+.presenter-counter:not(.slide *) {
+	font-size: 1.5rem;
+	font-variant-numeric: tabular-nums;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.timer-wrapper:not(.slide *) {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+}
+
+.presenter-timer:not(.slide *) {
+	font-size: 1.5rem;
+	font-variant-numeric: tabular-nums;
+	color: var(--astlide-presenter-accent, #60a5fa);
+	font-family: var(--astlide-presenter-timer-font, monospace);
+}
+
+.timer-btn:not(.slide *),
+.timer-reset-btn:not(.slide *) {
+	background: rgba(255, 255, 255, 0.1);
+	border: 1px solid rgba(255, 255, 255, 0.2);
+	border-radius: 4px;
+	padding: 0.15rem 0.45rem;
+	color: rgba(255, 255, 255, 0.7);
+	cursor: pointer;
+	font-size: 0.8rem;
+	line-height: 1.4;
+}
+
+.timer-btn:hover:not(.slide *),
+.timer-reset-btn:hover:not(.slide *) {
+	background: rgba(255, 255, 255, 0.18);
+	color: rgba(255, 255, 255, 0.95);
+}
+
+.presenter-next:not(.slide *) {
+	flex-shrink: 0;
+	padding: 1rem 1.25rem;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.presenter-section-header:not(.slide *) {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 0.6rem;
+}
+
+.presenter-next h3:not(.slide *) {
+	font-size: 0.75rem;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: rgba(255, 255, 255, 0.5);
+	margin: 0;
+}
+
+.presenter-steps-left:not(.slide *) {
+	font-size: 0.75rem;
+	font-variant-numeric: tabular-nums;
+	color: var(--astlide-presenter-accent, #60a5fa);
+}
+
+.presenter-next-frame:not(.slide *) {
+	aspect-ratio: 16 / 9;
+	border-radius: 4px;
+	overflow: hidden;
+	background: #000;
+	outline: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.presenter-next-frame iframe:not(.slide *) {
+	display: block;
+	width: 100%;
+	height: 100%;
+	border: none;
+	pointer-events: none;
+}
+
+.presenter-next-end:not(.slide *) {
+	margin: 0;
+	font-size: 0.85rem;
+	color: rgba(255, 255, 255, 0.4);
+}
+
+.presenter-notes:not(.slide *) {
+	flex: 1;
+	overflow-y: auto;
+	padding: 1.25rem;
+}
+
+.presenter-notes-header:not(.slide *) {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 0.75rem;
+}
+
+.presenter-notes h3:not(.slide *) {
+	font-size: 0.75rem;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: #64748b;
+	margin: 0;
+	font-weight: 600;
+}
+
+.notes-font-controls:not(.slide *) {
+	display: flex;
+	gap: 0.25rem;
+}
+
+.notes-font-btn:not(.slide *) {
+	background: rgba(255, 255, 255, 0.08);
+	border: 1px solid rgba(255, 255, 255, 0.15);
+	color: rgba(255, 255, 255, 0.7);
+	border-radius: 4px;
+	padding: 0.1rem 0.4rem;
+	font-size: 0.7rem;
+	line-height: 1.4;
+	cursor: pointer;
+	font-family: inherit;
+}
+
+.notes-font-btn:hover:not(.slide *) {
+	background: rgba(255, 255, 255, 0.16);
+	color: rgba(255, 255, 255, 0.95);
+}
+
+.notes-content:not(.slide *),
+.presenter-notes .notes-body:not(.slide *) {
+	font-size: var(--astlide-notes-font-size, 1rem);
+	line-height: 1.6;
+	color: #cbd5e1;
+}
+
+/* Notes are rendered HTML (set:html, or <SpeakerNotes> injected client-side),
+   so the theme's light inline-code chip would put light text on light. */
+.notes-content code:not(.slide *),
+.notes-body code:not(.slide *) {
+	background: rgba(255, 255, 255, 0.12);
+	color: #e2e8f0;
+}
+
+.no-notes:not(.slide *) {
+	color: #475569;
+	font-style: italic;
+	font-size: 0.9rem;
+}
+
+.presenter-nav:not(.slide *) {
+	display: flex;
+	gap: 0.75rem;
+	padding: 1rem 1.25rem;
+	border-top: 1px solid rgba(255, 255, 255, 0.08);
+	flex-shrink: 0;
+}
+
+.pnav-btn:not(.slide *) {
+	flex: 1;
+	padding: 0.6rem;
+	text-align: center;
+	background: rgba(255, 255, 255, 0.08);
+	color: #e0e0e0;
+	text-decoration: none;
+	border-radius: 0.5rem;
+	font-size: 0.9rem;
+	transition: background 0.15s;
+}
+
+.pnav-btn:hover:not(.disabled):not(.slide *) {
+	background: rgba(255, 255, 255, 0.16);
+}
+.pnav-btn.disabled:not(.slide *) {
+	opacity: 0.25;
+	pointer-events: none;
+}
+
+/* ── Navigation bar ── */
+.slide-nav:not(.slide *) {
+	position: fixed;
+	bottom: 2rem;
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	padding: 0.5rem 1.25rem;
+	background: var(--astlide-nav-bg, rgba(0, 0, 0, 0.65));
+	backdrop-filter: blur(8px);
+	-webkit-backdrop-filter: blur(8px);
+	border-radius: 2rem;
+	z-index: 100;
+	opacity: 0;
+	transition: opacity 0.25s ease;
+	pointer-events: none;
+}
+
+body:hover .slide-nav:not(.slide *),
+.slide-nav:focus-within:not(.slide *) {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+/* Touch devices have no hover, so the toolbar (and its home/back link) would
+   otherwise be permanently invisible. Keep it visible when a fine pointer
+   (mouse) is unavailable. */
+@media (hover: none) {
+	.slide-nav:not(.slide *) {
+		opacity: 1;
+		pointer-events: auto;
+	}
+}
+
+.nav-btn:not(.slide *) {
+	width: 2.25rem;
+	height: 2.25rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 50%;
+	background: var(--astlide-nav-btn-bg, rgba(255, 255, 255, 0.12));
+	color: var(--astlide-nav-fg, white);
+	text-decoration: none;
+	font-size: 1.1rem;
+	transition: background 0.15s;
+}
+
+.nav-btn:hover:not(.disabled):not(.slide *) {
+	background: rgba(255, 255, 255, 0.25);
+}
+.nav-btn.disabled:not(.slide *) {
+	opacity: 0.25;
+	pointer-events: none;
+}
+
+.nav-indicator:not(.slide *) {
+	color: rgba(255, 255, 255, 0.8);
+	font-size: 0.8rem;
+	font-variant-numeric: tabular-nums;
+	min-width: 3.5rem;
+	text-align: center;
+	font-family: monospace;
+	white-space: nowrap;
+}
+
+/* Plugin-composed toolbar buttons (notes / overview / presenter / fullscreen / print / share). */
+button.nav-btn:not(.slide *) {
+	border: none;
+	cursor: pointer;
+	font-family: inherit;
+	padding: 0;
+}
+
+.nav-spacer:not(.slide *) {
+	width: 0.5rem;
+	height: 1px;
+}
+
+/* ── Notes overlay ── */
+.notes-overlay:not(.slide *) {
+	position: fixed;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	height: var(--astlide-notes-overlay-height, 70vh);
+	background: rgba(15, 23, 42, 0.95);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+	z-index: 300;
+	transform: translateY(100%);
+	transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	border-top: 1px solid rgba(255, 255, 255, 0.1);
+	display: flex;
+	flex-direction: column;
+}
+
+.notes-overlay.open:not(.slide *) {
+	transform: translateY(0);
+}
+
+.notes-overlay-header:not(.slide *) {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 0.75rem 1.5rem;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	color: rgba(255, 255, 255, 0.5);
+	font-size: 0.75rem;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	font-family: system-ui, sans-serif;
+	flex-shrink: 0;
+}
+
+.notes-close:not(.slide *) {
+	background: none;
+	border: none;
+	color: rgba(255, 255, 255, 0.4);
+	cursor: pointer;
+	font-size: 1rem;
+	padding: 0.25rem 0.5rem;
+	border-radius: 0.25rem;
+	transition: color 0.15s;
+}
+.notes-close:hover:not(.slide *) {
+	color: white;
+}
+
+.notes-body:not(.slide *) {
+	padding: 1rem 1.5rem;
+	overflow-y: auto;
+	flex: 1;
+	color: #cbd5e1;
+	font-family: system-ui, sans-serif;
+	font-size: var(--astlide-notes-font-size, 1rem);
+	line-height: 1.6;
+}
+
+/* ── PDF download overlay ── */
+.pdf-overlay:not(.slide *) {
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.55);
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+	display: none;
+	align-items: center;
+	justify-content: center;
+	z-index: 600;
+}
+.pdf-overlay.open:not(.slide *) {
+	display: flex;
+}
+
+.pdf-overlay-card:not(.slide *) {
+	background: #0f172a;
+	color: #e2e8f0;
+	padding: 1.5rem 2rem;
+	border-radius: 0.75rem;
+	width: min(28rem, 90vw);
+	font-family: system-ui, sans-serif;
+	box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
+}
+
+.pdf-overlay-title:not(.slide *) {
+	font-size: 1.05rem;
+	font-weight: 600;
+	margin-bottom: 0.85rem;
+}
+
+.pdf-overlay-progress:not(.slide *) {
+	height: 6px;
+	background: rgba(255, 255, 255, 0.1);
+	border-radius: 999px;
+	overflow: hidden;
+	margin-bottom: 0.6rem;
+}
+
+.pdf-overlay-bar:not(.slide *) {
+	height: 100%;
+	background: var(--color-primary, #3b82f6);
+	transition: width 0.2s ease;
+}
+
+.pdf-overlay-status:not(.slide *) {
+	font-size: 0.85rem;
+	color: rgba(226, 232, 240, 0.75);
+	font-variant-numeric: tabular-nums;
+}
+
+/* Hide the overlay in print/share modes too. */
+html[data-print] .pdf-overlay:not(.slide *),
+html[data-share] .pdf-overlay:not(.slide *) {
+	display: none !important;
+}
+
+/* ── Overview mode ── */
+.overview:not(.slide *) {
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.92);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+	z-index: 500;
+	display: none;
+	flex-direction: column;
+	overflow-y: auto;
+}
+
+.overview.open:not(.slide *) {
+	display: flex;
+}
+
+.overview-header:not(.slide *) {
+	padding: 1.25rem 2rem;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+	color: rgba(255, 255, 255, 0.6);
+	font-size: 0.875rem;
+	font-family: system-ui, sans-serif;
+	flex-shrink: 0;
+}
+
+.overview-header kbd:not(.slide *) {
+	display: inline-block;
+	padding: 0.1em 0.4em;
+	background: rgba(255, 255, 255, 0.15);
+	border-radius: 0.25em;
+	font-family: monospace;
+	font-size: 0.85em;
+}
+
+.overview-grid:not(.slide *) {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+	gap: 1.25rem;
+	padding: 1.5rem 2rem;
+}
+
+/* Overview items are created by the runtime. */
+.overview-grid .overview-item:not(.slide *) {
+	position: relative;
+	aspect-ratio: 16 / 9;
+	border-radius: 0.5rem;
+	overflow: hidden;
+	text-decoration: none;
+	border: 2px solid transparent;
+	transition:
+		border-color 0.15s,
+		transform 0.15s;
+	display: block;
+	background: #111;
+}
+
+.overview-grid .overview-item:hover:not(.slide *) {
+	border-color: rgba(255, 255, 255, 0.4);
+	transform: translateY(-2px);
+}
+.overview-grid .overview-item.current:not(.slide *) {
+	border-color: var(--color-primary, #3b82f6);
+}
+
+/* The embedded page scales its slide to the iframe viewport (data-embed). */
+.overview-grid .overview-item iframe:not(.slide *) {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+	border: none;
+}
+
+.overview-grid .overview-item-label:not(.slide *) {
+	position: absolute;
+	bottom: 0.4rem;
+	right: 0.6rem;
+	font-size: 0.7rem;
+	color: rgba(255, 255, 255, 0.75);
+	background: rgba(0, 0, 0, 0.55);
+	padding: 0.1em 0.45em;
+	border-radius: 1em;
+	font-family: monospace;
+	font-variant-numeric: tabular-nums;
+}
+
+/* ── Go-to-slide dialog (g) ── */
+.goto:not(.slide *) {
+	position: fixed;
+	inset: 0;
+	z-index: 1100;
+	display: none;
+	align-items: flex-start;
+	justify-content: center;
+	padding-top: 15vh;
+	background: rgba(0, 0, 0, 0.55);
+	font-family: system-ui, sans-serif;
+}
+
+.goto.open:not(.slide *) {
+	display: flex;
+}
+
+.goto-card:not(.slide *) {
+	width: min(560px, 90vw);
+	background: var(--astlide-nav-bg, #1a1a2e);
+	color: var(--astlide-nav-fg, #e0e0e0);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 0.75rem;
+	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+	overflow: hidden;
+}
+
+.goto-input:not(.slide *) {
+	width: 100%;
+	box-sizing: border-box;
+	padding: 0.9rem 1.1rem;
+	font: inherit;
+	font-size: 1rem;
+	color: inherit;
+	background: transparent;
+	border: none;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+	outline: none;
+}
+
+.goto-input:not(.slide *)::placeholder {
+	color: rgba(255, 255, 255, 0.4);
+}
+
+.goto-list:not(.slide *) {
+	list-style: none;
+	margin: 0;
+	padding: 0.35rem;
+	max-height: 50vh;
+	overflow-y: auto;
+}
+
+/* Options are created by script — no Astro scope attribute. */
+.goto-list .goto-option:not(.slide *) {
+	display: flex;
+	gap: 0.85rem;
+	align-items: baseline;
+	padding: 0.5rem 0.75rem;
+	border-radius: 0.4rem;
+	cursor: pointer;
+	font-size: 0.9rem;
+}
+
+.goto-list .goto-option[aria-selected="true"]:not(.slide *) {
+	background: rgba(255, 255, 255, 0.1);
+}
+
+.goto-list .goto-num:not(.slide *) {
+	min-width: 2ch;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	color: rgba(255, 255, 255, 0.45);
+}
+
+.goto-list .goto-option.current .goto-num:not(.slide *) {
+	color: var(--astlide-presenter-accent, #60a5fa);
+}
+
+.goto-list .goto-title:not(.slide *) {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+	.progress-bar:not(.slide *) {
+		transition: none;
+	}
+	.slide-nav:not(.slide *) {
+		transition: none;
+	}
+	.notes-overlay:not(.slide *) {
+		transition: none;
+	}
+	.overview-grid .overview-item:not(.slide *) {
+		transition: none;
+	}
+	.pnav-btn:not(.slide *) {
+		transition: none;
+	}
+	.nav-btn:not(.slide *) {
+		transition: none;
+	}
+	.notes-close:not(.slide *) {
+		transition: none;
+	}
+	.deck-card:not(.slide *) {
+		transition: none;
+	}
+}
+
+/* ── Print (D-1: sensible defaults for PDF export) ── */
+@page {
+	size: 1920px 1080px landscape;
+	margin: 0;
+}
+@media print {
+	html,
+	body {
+		background: #fff !important;
+		width: auto;
+		height: auto;
+		overflow: visible;
+	}
+	.slide-nav:not(.slide *),
+	.progress-bar:not(.slide *),
+	.overview:not(.slide *),
+	.notes-overlay:not(.slide *),
+	.presenter-layout:not(.slide *) {
+		display: none !important;
+	}
+	.presentation:not(.slide *) {
+		display: block;
+		width: auto;
+		height: auto;
+		background: transparent;
+	}
+	/* The screen scale (an inline transform from updateScale) gives way to the
+     page's: zoom also shrinks the layout box, so nothing spills onto a second
+     page or past the right edge. */
+	.slide-scaler:not(.slide *) {
+		transform: none !important;
+		width: var(--slide-width, 1920px) !important;
+		height: var(--slide-height, 1080px) !important;
+		zoom: var(--astlide-print-scale, 1);
+	}
+}

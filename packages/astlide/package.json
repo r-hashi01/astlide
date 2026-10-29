@@ -10,6 +10,7 @@
 		"./loader": "./src/loader.ts",
 		"./pptx": "./src/pptx/index.ts",
 		"./runtime": "./src/runtime/index.ts",
+		"./runtime/chrome": "./src/runtime/chrome.ts",
 		"./templates": "./src/templates/index.ts",
 		"./mcp": "./src/mcp/index.ts",
 		"./embed": "./src/embed/index.ts",
