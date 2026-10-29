@@ -179,6 +179,20 @@
         "playwright": "^1.64.1",
       },
     },
+    "packages/vue": {
+      "name": "@astlide/vue",
+      "version": "0.0.0",
+      "dependencies": {
+        "@astlide/core": "workspace:*",
+        "katex": "^0.19.1",
+      },
+      "devDependencies": {
+        "vue": "^3.5.44",
+      },
+      "peerDependencies": {
+        "vue": ">=3.4",
+      },
+    },
     "playground": {
       "name": "astlide-playground",
       "version": "0.0.0",
@@ -230,6 +244,8 @@
     "@astlide/server": ["@astlide/server@workspace:packages/server"],
 
     "@astlide/ts6": ["@astlide/ts6@workspace:tools/ts6"],
+
+    "@astlide/vue": ["@astlide/vue@workspace:packages/vue"],
 
     "@astrojs/astro2tsx": ["@astrojs/astro2tsx@0.1.2", "", { "dependencies": { "@emnapi/core": "1.11.3", "@napi-rs/wasm-runtime": "1.2.4" } }, "sha512-Uj/M9zbrhu5cIZEvWAGTbQJRKSxXWJ/E59BZwt7F+chrKhbfttW+9rkS/l+1QxoJP1KU3UnpM62M7yszfAI0WA=="],
 

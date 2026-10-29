@@ -92,6 +92,19 @@
 					}
 				}
 			}
+		},
+		{
+			"includes": ["packages/vue/src/**"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noShadowRestrictedNames": "off"
+					},
+					"style": {
+						"useVueMultiWordComponentNames": "off"
+					}
+				}
+			}
 		}
 	]
 }
