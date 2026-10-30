@@ -18,7 +18,7 @@ bunx astlide export --all --pdf --pptx      # every deck, both formats
 
 `bun create astlide` で作ったプロジェクトなら、スクリプトとしても実行できます（`bun run export my-talk --pptx`）。
 
-コマンドはプロジェクト内のどのフォルダーで実行してもかまいません。デッキは `src/content/decks/my-talk` や `dist/my-talk` のようにパスでも指定できます。その場合、プロジェクトはパスをたどって見つけます。
+コマンドはプロジェクト内のどのフォルダーからでも実行できます。デッキは `src/content/decks/my-talk` や `dist/my-talk` のようにパスでも指定できます。その場合、プロジェクトはパスをたどって見つけます。
 
 ## PDF と PNG
 

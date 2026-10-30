@@ -40,7 +40,7 @@ bunx astlide import ~/Downloads/kickoff.pptx --deck kickoff
 - `src/content/decks/kickoff/`: 1 ページにつき 1 つの `.html` スライドと `_config.json`。スライドのタイトル、ノート、`hidden` は frontmatter に入り、本文には図形が 1 行に 1 つずつ書かれます。
 - `public/pptx/kickoff/`: 画像
 
-取り込んだあとのスライドは、普通のファイルとして扱えます。中身を編集しても、同じデッキに Markdown のスライドを加えても、テーマを変えてもかまいません。
+取り込んだあとのスライドは、普通のファイルとして扱えます。中身の編集も、同じデッキへの Markdown のスライドの追加も、テーマの変更もできます。
 
 | オプション | |
 |---|---|
