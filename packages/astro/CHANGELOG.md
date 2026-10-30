@@ -1,5 +1,11 @@
 # @astlide/astro
 
+## 3.0.2
+
+### Patch Changes
+
+- [#297](https://github.com/r-hashi01/astlide/pull/297) [`ab9399e`](https://github.com/r-hashi01/astlide/commit/ab9399e9062956cb6987d4e1c0ba7edfd102e777) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Fix `astro build` and `astlide export` with pnpm and other strict installs, which failed to resolve `@astlide/core/styles/themes/default.css`.
+
 ## 3.0.1
 
 ### Patch Changes
