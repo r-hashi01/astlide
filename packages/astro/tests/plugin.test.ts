@@ -229,4 +229,27 @@ describe("astlideVirtualPlugin", () => {
 			(resolveIdFn as (id: string) => string | null).call(null, "./some-local-file"),
 		).toBeNull();
 	});
+
+	it("resolves @astlide/core imports from the virtual modules relative to @astlide/astro", () => {
+		const plugin = astlideVirtualPlugin(resolvePlugins([BUILT_IN_PLUGIN]));
+		const resolveIdFn = (
+			typeof plugin.resolveId === "function" ? plugin.resolveId : plugin.resolveId?.handler
+		) as (this: unknown, id: string, importer?: string) => unknown;
+		const calls: [string, string | undefined][] = [];
+		const ctx = {
+			resolve: (id: string, importer?: string) => {
+				calls.push([id, importer]);
+				return { id: `/resolved/${id}` };
+			},
+		};
+		const css = "@astlide/core/styles/themes/default.css";
+		expect(resolveIdFn.call(ctx, css, "\0virtual:astlide/themes")).toEqual({
+			id: `/resolved/${css}`,
+		});
+		expect(calls[0][1]).toMatch(/packages[\\/]astro[\\/]src[\\/]internal[\\/]virtual-plugins\.ts$/);
+		// Other importers and plugin packages resolve as usual (from the project).
+		expect(resolveIdFn.call(ctx, css, "/project/src/page.astro")).toBeNull();
+		expect(resolveIdFn.call(ctx, "acme/theme.css", "\0virtual:astlide/themes")).toBeNull();
+		expect(calls).toHaveLength(1);
+	});
 });
