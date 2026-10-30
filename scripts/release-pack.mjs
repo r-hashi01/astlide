@@ -79,6 +79,42 @@ function notes(dir, version) {
 		.trim();
 }
 
+/** Every workspace package by name, with its current version. */
+const workspaceVersions = new Map(
+	readdirSync(join(root, "packages")).flatMap((entry) => {
+		const file = join(root, "packages", entry, "package.json");
+		if (!existsSync(file)) return [];
+		const { name, version } = JSON.parse(readFileSync(file, "utf-8"));
+		return [[name, version]];
+	}),
+);
+
+/**
+ * The packed package.json must point its `workspace:` dependencies at the
+ * workspaces' current versions. `bun pm pack` takes them from bun.lock, which
+ * can lag behind (3.0.0 shipped depending on 2.11.0): stop rather than publish.
+ */
+function checkWorkspaceDeps(pkg, tarball) {
+	const packed = JSON.parse(
+		execFileSync("tar", ["-xOzf", tarball, "package/package.json"], { encoding: "utf-8" }),
+	);
+	for (const field of ["dependencies", "peerDependencies", "optionalDependencies"]) {
+		for (const [dep, spec] of Object.entries(pkg[field] ?? {})) {
+			if (typeof spec !== "string" || !spec.startsWith("workspace:")) continue;
+			const version = workspaceVersions.get(dep);
+			const range = spec.slice("workspace:".length);
+			const expected =
+				range === "*" ? version : range === "^" || range === "~" ? `${range}${version}` : range;
+			const actual = packed[field]?.[dep];
+			if (actual !== expected) {
+				throw new Error(
+					`${pkg.name}: packed ${field}.${dep} is "${actual}", expected "${expected}" (${spec}, workspace at ${version}). bun.lock is out of date: run node scripts/sync-lock-versions.mjs`,
+				);
+			}
+		}
+	}
+}
+
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out);
 const anyUnpublished = process.env.RELEASE_ANY_UNPUBLISHED === "1";
@@ -111,6 +147,7 @@ for (const pkg of dependenciesFirst(candidates)) {
 			.split("\n")
 			.pop() ?? "",
 	);
+	checkWorkspaceDeps(pkg, join(out, file));
 	manifest.push({ name: pkg.name, version: pkg.version, file, notes: notes(pkg.dir, pkg.version) });
 	console.log(`packed ${pkg.name}@${pkg.version} → ${file}`);
 }
