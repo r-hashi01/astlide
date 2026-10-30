@@ -1,6 +1,6 @@
 {
 	"name": "@astlide/vue",
-	"version": "3.0.1",
+	"version": "3.0.3",
 	"description": "Astlide for Vue: slides, layouts and components, the deck page with its presenter mode, and MDX decks — the same slides as an Astlide site",
 	"type": "module",
 	"license": "MIT",
