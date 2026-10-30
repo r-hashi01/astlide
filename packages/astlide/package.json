@@ -1,6 +1,6 @@
 {
 	"name": "@astlide/core",
-	"version": "2.11.0",
+	"version": "3.0.0",
 	"description": "Astlide's framework-agnostic core: deck reader, slide rendering and runtime, themes, PowerPoint import / export, PDF, the astlide CLI and MCP server — used by @astlide/astro, @astlide/react, @astlide/next, @astlide/vue and @astlide/nuxt",
 	"type": "module",
 	"types": "./src/index.ts",
