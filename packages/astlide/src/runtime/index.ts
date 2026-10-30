@@ -572,7 +572,6 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 				const item = document.createElement("a");
 				item.href = slideUrl(i);
 				item.className = `overview-item${i === currentSlide ? " current" : ""}`;
-				item.setAttribute("role", "listitem");
 				item.setAttribute(
 					"aria-label",
 					`Slide ${i} of ${totalSlides}${i === currentSlide ? " (current)" : ""}`,
@@ -593,7 +592,9 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 				label.textContent = String(i);
 				item.appendChild(label);
 
-				overviewGrid.appendChild(item);
+				const li = document.createElement("li");
+				li.appendChild(item);
+				overviewGrid.appendChild(li);
 			}
 		}
 	}

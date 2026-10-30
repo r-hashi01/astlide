@@ -82,7 +82,7 @@ describe("Vue <DeckPage>", () => {
 		};
 		const core =
 			deckChromeBefore(chrome) +
-			`<div class="presentation" role="main" aria-label="Slide presentation"><div class="slide-scaler" id="slide-scaler" tabindex="-1">${renderSlideHtml(slide, "<h1>Q3</h1>")}${SLIDE_OVERLAYS}</div></div>` +
+			`<main class="presentation" aria-label="Slide presentation"><div class="slide-scaler" id="slide-scaler" tabindex="-1">${renderSlideHtml(slide, "<h1>Q3</h1>")}${SLIDE_OVERLAYS}</div></main>` +
 			CAMERA_BUBBLE +
 			deckChromeAfter(chrome);
 		expect(canon(await render())).toBe(canon(core));
@@ -91,8 +91,6 @@ describe("Vue <DeckPage>", () => {
 	it("puts the slide in the presenter panel for the presenter window", async () => {
 		const html = canon(await render({ presenter: true }));
 		expect(html).toMatch(/<div class="presenter-current"><div class="slide-scaler"/);
-		expect(html).toMatch(
-			/<div aria-label="Slide presentation" class="presentation" role="main"><\/div>/,
-		);
+		expect(html).toMatch(/<main aria-label="Slide presentation" class="presentation"><\/main>/);
 	});
 });

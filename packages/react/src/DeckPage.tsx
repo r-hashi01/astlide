@@ -255,7 +255,7 @@ export function DeckPage(props: DeckPageProps) {
 					<div className="presenter-notes">
 						<div className="presenter-notes-header">
 							<h3>Notes</h3>
-							<div className="notes-font-controls" role="group" aria-label="Adjust notes font size">
+							<fieldset className="notes-font-controls" aria-label="Adjust notes font size">
 								<button
 									type="button"
 									className="notes-font-btn"
@@ -283,7 +283,7 @@ export function DeckPage(props: DeckPageProps) {
 								>
 									A+
 								</button>
-							</div>
+							</fieldset>
 						</div>
 						{notes("notes-content")}
 					</div>
@@ -303,9 +303,9 @@ export function DeckPage(props: DeckPageProps) {
 					</div>
 				</aside>
 			</div>
-			<div className="presentation" role="main" aria-label="Slide presentation">
+			<main className="presentation" aria-label="Slide presentation">
 				{presenter ? null : scaler}
-			</div>
+			</main>
 			<div id="astlide-camera" className="camera-bubble" hidden>
 				<video aria-label="Camera" autoPlay muted playsInline />
 			</div>
@@ -376,10 +376,9 @@ export function DeckPage(props: DeckPageProps) {
 					);
 				})}
 			</nav>
-			<div
+			<aside
 				className="notes-overlay"
 				id="notes-overlay"
-				role="complementary"
 				aria-label="Speaker notes"
 				aria-hidden="true"
 				inert
@@ -393,7 +392,7 @@ export function DeckPage(props: DeckPageProps) {
 					</div>
 					{notesHtml ? notes("notes-body") : <div className="notes-body">{notes("")}</div>}
 				</div>
-			</div>
+			</aside>
 			<div
 				className="pdf-overlay"
 				id="pdf-overlay"
@@ -421,7 +420,7 @@ export function DeckPage(props: DeckPageProps) {
 				<div className="overview-header">
 					Overview — press <kbd>o</kbd> or <kbd>Esc</kbd> to close
 				</div>
-				<div className="overview-grid" id="overview-grid" role="list" />
+				<ul className="overview-grid" id="overview-grid" />
 			</div>
 			<div
 				className="goto"
@@ -444,6 +443,7 @@ export function DeckPage(props: DeckPageProps) {
 						aria-controls="goto-list"
 						aria-autocomplete="list"
 					/>
+					{/* biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: the APG combobox pattern (a ul listbox of li options, driven by the input) */}
 					<ul className="goto-list" id="goto-list" role="listbox" aria-label="Slides" />
 				</div>
 			</div>

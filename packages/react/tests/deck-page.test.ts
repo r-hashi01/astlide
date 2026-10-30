@@ -75,7 +75,7 @@ describe("<DeckPage>", () => {
 		);
 		const core =
 			deckChromeBefore(chrome) +
-			`<div class="presentation" role="main" aria-label="Slide presentation">${scaler(renderSlideHtml(slide, "<h1>Q3</h1>"))}</div>` +
+			`<main class="presentation" aria-label="Slide presentation">${scaler(renderSlideHtml(slide, "<h1>Q3</h1>"))}</main>` +
 			CAMERA_BUBBLE +
 			deckChromeAfter(chrome);
 		expect(canon(react)).toBe(canon(core));
@@ -88,7 +88,7 @@ describe("<DeckPage>", () => {
 		const doc = parseFragment(`<body>${html}</body>`);
 		const text = serialize(doc);
 		expect(text).toMatch(/<div class="presenter-current"><div class="slide-scaler"/);
-		expect(text).toMatch(/<div class="presentation"[^>]*><\/div>/);
+		expect(text).toMatch(/<main class="presentation"[^>]*><\/main>/);
 	});
 
 	it("says when notes aren't published, and disables links past the ends", () => {

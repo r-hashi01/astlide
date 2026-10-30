@@ -273,12 +273,8 @@ export const DeckPage = defineComponent({
 							h("div", { class: "presenter-notes-header" }, [
 								h("h3", "Notes"),
 								h(
-									"div",
-									{
-										class: "notes-font-controls",
-										role: "group",
-										"aria-label": "Adjust notes font size",
-									},
+									"fieldset",
+									{ class: "notes-font-controls", "aria-label": "Adjust notes font size" },
 									[
 										h(
 											"button",
@@ -335,8 +331,8 @@ export const DeckPage = defineComponent({
 					]),
 				]),
 				h(
-					"div",
-					{ class: "presentation", role: "main", "aria-label": "Slide presentation" },
+					"main",
+					{ class: "presentation", "aria-label": "Slide presentation" },
 					props.presenter ? [] : [scaler],
 				),
 				h("div", { id: "astlide-camera", class: "camera-bubble", hidden: "" }, [
@@ -348,11 +344,10 @@ export const DeckPage = defineComponent({
 				]),
 				h("nav", { class: "slide-nav", "aria-label": "Slide navigation" }, toolbar),
 				h(
-					"div",
+					"aside",
 					{
 						class: "notes-overlay",
 						id: "notes-overlay",
-						role: "complementary",
 						"aria-label": "Speaker notes",
 						"aria-hidden": "true",
 						inert: "",
@@ -409,7 +404,7 @@ export const DeckPage = defineComponent({
 							h("kbd", "Esc"),
 							" to close",
 						]),
-						h("div", { class: "overview-grid", id: "overview-grid", role: "list" }),
+						h("ul", { class: "overview-grid", id: "overview-grid" }),
 					],
 				),
 				h(

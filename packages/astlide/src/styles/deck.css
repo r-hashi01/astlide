@@ -438,6 +438,10 @@ html[data-presenter] #notes-overlay:not(.slide *) {
 .notes-font-controls:not(.slide *) {
 	display: flex;
 	gap: 0.25rem;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	min-inline-size: 0;
 }
 
 .notes-font-btn:not(.slide *) {
@@ -750,7 +754,9 @@ html[data-share] .pdf-overlay:not(.slide *) {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
 	gap: 1.25rem;
+	margin: 0;
 	padding: 1.5rem 2rem;
+	list-style: none;
 }
 
 /* Overview items are created by the runtime. */
