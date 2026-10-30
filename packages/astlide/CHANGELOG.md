@@ -1,5 +1,11 @@
 # @astlide/core
 
+## 3.0.3
+
+### Patch Changes
+
+- [#301](https://github.com/r-hashi01/astlide/pull/301) [`ab6a9cb`](https://github.com/r-hashi01/astlide/commit/ab6a9cbd1773533a42c63b2e3399fea0a8c81565) Thanks [@r-hashi01](https://github.com/r-hashi01)! - PPTX export no longer warns `fonts not found on Google Fonts: inherit`: CSS-wide keywords (`inherit`, `initial`, `unset`, `revert`, `revert-layer`) in `font-family` aren't taken for font names.
+
 ## 3.0.1
 
 ### Patch Changes

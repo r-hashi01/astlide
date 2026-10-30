@@ -1,5 +1,13 @@
 # @astlide/nuxt
 
+## 3.0.3
+
+### Patch Changes
+
+- Updated dependencies [[`ab6a9cb`](https://github.com/r-hashi01/astlide/commit/ab6a9cbd1773533a42c63b2e3399fea0a8c81565)]:
+  - @astlide/core@3.0.3
+  - @astlide/vue@3.0.3
+
 ## 3.0.1
 
 ### Patch Changes
