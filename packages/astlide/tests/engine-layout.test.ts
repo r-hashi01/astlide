@@ -198,6 +198,13 @@ describe("engine layout", () => {
 		familiesIn(`@font-face{src:${"url(".repeat(20000)}`);
 		familiesIn("@font-face{{".repeat(20000));
 		expect(familiesIn("@font-face{font-family:Skip}p{font-family:Keep}")).toEqual(["Keep"]);
+		// CSS-wide keywords are values, not families; a quoted one is a family name.
+		expect(
+			familiesIn(
+				'a{font-family:inherit}b{font-family:INITIAL !important}c{font-family:unset}d{font-family:"inherit"}',
+			),
+		).toEqual(["inherit"]);
+		expect(familiesIn("p{font-family:Inter, ui-rounded, fangsong}")).toEqual(["Inter"]);
 		expect(performance.now() - start).toBeLessThan(500);
 	});
 
