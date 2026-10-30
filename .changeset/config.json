@@ -7,10 +7,22 @@
 		}
 	],
 	"commit": false,
-	"fixed": [],
+	"fixed": [
+		[
+			"@astlide/core",
+			"@astlide/astro",
+			"@astlide/react",
+			"@astlide/next",
+			"@astlide/vue",
+			"@astlide/nuxt"
+		]
+	],
 	"linked": [],
 	"access": "public",
 	"baseBranch": "main",
 	"updateInternalDependencies": "patch",
-	"ignore": ["astlide-playground", "@astlide/server"]
+	"ignore": [
+		"astlide-playground",
+		"@astlide/server"
+	]
 }
