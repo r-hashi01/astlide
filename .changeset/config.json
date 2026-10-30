@@ -21,8 +21,5 @@
 	"access": "public",
 	"baseBranch": "main",
 	"updateInternalDependencies": "patch",
-	"ignore": [
-		"astlide-playground",
-		"@astlide/server"
-	]
+	"ignore": ["astlide-playground", "@astlide/server"]
 }
