@@ -72,4 +72,22 @@ describe("keyboard", () => {
 		await page.keyboard.press("n");
 		await expect.poll(() => notes.evaluate((el) => el.classList.contains("open"))).toBe(false);
 	});
+
+	it("keeps the closed notes out of the Tab order", async () => {
+		const page = await deck(2);
+		const notesClose = page.locator("#notes-close");
+		const tabTo = async () => {
+			for (let i = 0; i < 25; i++) {
+				await page.keyboard.press("Tab");
+				if (await notesClose.evaluate((el) => el === document.activeElement)) return true;
+			}
+			return false;
+		};
+		expect(await tabTo()).toBe(false);
+		await page.keyboard.press("Escape");
+		await page.locator("#slide-scaler").focus();
+		await page.keyboard.press("n");
+		await expect.poll(() => notesClose.isVisible()).toBe(true);
+		expect(await tabTo()).toBe(true);
+	});
 });

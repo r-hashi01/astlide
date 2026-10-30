@@ -151,7 +151,7 @@ export function deckChromeAfter(p: DeckChromeProps): string {
 		: `<div class="notes-body"><p class="no-notes">${escapeText(p.noNotesText)}</p></div>`;
 	return `<div class="recording-indicator" role="status" aria-label="Recording"><span class="recording-dot" aria-hidden="true"></span><span id="astlide-recording-time">0:00</span></div>
 <nav class="slide-nav" aria-label="Slide navigation">${p.toolbar.map((item) => toolbarItem(item, p)).join("")}</nav>
-<div class="notes-overlay" id="notes-overlay" role="complementary" aria-label="Speaker notes" aria-hidden="true">
+<div class="notes-overlay" id="notes-overlay" role="complementary" aria-label="Speaker notes" aria-hidden="true" inert>
 <div class="notes-overlay-content">
 <div class="notes-overlay-header"><span>Speaker Notes</span><button class="notes-close" id="notes-close" aria-label="Close speaker notes">✕</button></div>
 ${notes}

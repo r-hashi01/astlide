@@ -1153,6 +1153,8 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 		if (!notesOverlay) return;
 		notesOpen = !notesOpen;
 		notesOverlay.setAttribute("aria-hidden", String(!notesOpen));
+		// Closed, it only slides off-screen: inert keeps its close button out of the Tab order.
+		notesOverlay.inert = !notesOpen;
 		notesOverlay.classList.toggle("open", notesOpen);
 	}
 

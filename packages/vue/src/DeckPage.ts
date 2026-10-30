@@ -355,6 +355,7 @@ export const DeckPage = defineComponent({
 						role: "complementary",
 						"aria-label": "Speaker notes",
 						"aria-hidden": "true",
+						inert: "",
 					},
 					[
 						h("div", { class: "notes-overlay-content" }, [
