@@ -7,7 +7,7 @@
 		}
 	],
 	"commit": false,
-	"fixed": [
+	"linked": [
 		[
 			"@astlide/core",
 			"@astlide/astro",
@@ -17,7 +17,6 @@
 			"@astlide/nuxt"
 		]
 	],
-	"linked": [],
 	"access": "public",
 	"baseBranch": "main",
 	"updateInternalDependencies": "patch",

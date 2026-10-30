@@ -1,4 +1,5 @@
 ---
+"@astlide/core": patch
 "@astlide/astro": patch
 "@astlide/react": patch
 "@astlide/next": patch
