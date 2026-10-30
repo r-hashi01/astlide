@@ -35,7 +35,12 @@ const GENERIC = new Set([
 	"blinkmacsystemfont",
 	"emoji",
 	"math",
+	"fangsong",
+	"ui-rounded",
 ]);
+
+/** CSS-wide keywords: a value of `font-family`, not a family (unless quoted). */
+const CSS_WIDE = new Set(["inherit", "initial", "unset", "revert", "revert-layer"]);
 
 /** Family names mentioned in CSS text, in order of appearance (generic keywords excluded). */
 export function familiesIn(css: string): string[] {
@@ -54,10 +59,10 @@ export function familiesIn(css: string): string[] {
 		/(?:font-family|--font-(?!size|weight|style)[\w-]+)\s*:([^;}]+)/gi,
 	)) {
 		for (const raw of (m[1] ?? "").split(",")) {
-			const name = raw
-				.trim()
-				.replace(/^["']|["']$/g, "")
-				.replace(/\)+$/, "");
+			let value = raw.trim();
+			if (value.toLowerCase().endsWith("!important")) value = value.slice(0, -10).trimEnd();
+			if (CSS_WIDE.has(value.toLowerCase())) continue;
+			const name = value.replace(/^["']|["']$/g, "").replace(/\)+$/, "");
 			if (!name || name.includes("(") || /^[\d.]/.test(name) || GENERIC.has(name.toLowerCase()))
 				continue;
 			out.add(name);
