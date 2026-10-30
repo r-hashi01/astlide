@@ -3,7 +3,7 @@ title: Next.js
 description: Astlide のデッキのフォルダを Next.js アプリのページとして配信する方法です。プレゼンターウィンドウ、印刷ビュー、PDF・PPTX の書き出しもそのまま使えます。
 ---
 
-`@astlide/next` を入れると、デッキのフォルダが Next.js アプリ（App Router）のページになります。デッキは Astro サイトと同じファイルで、`_config.json` と番号付きの `.mdx`・`.md`・`.html`・`.pptx` を置きます。MDX は Astro と同じ MDX エンジンでコンパイルし、サーバー側で React によって描画するので、同じデッキは Astro でも Next.js でも同じ見た目になります。スライド間の移動には Next.js のルーターを使います。
+`@astlide/next` を入れると、デッキのフォルダが Next.js アプリ（App Router）のページになります。デッキは Astro サイトと同じファイル（`_config.json` と番号付きの `.mdx`・`.md`・`.html`・`.pptx`）をそのまま使えます。
 
 Next.js 15 以降と React 19 が必要です。
 
@@ -24,8 +24,6 @@ import { withAstlide } from "@astlide/next/config";
 
 export default withAstlide({});
 ```
-
-Astlide のパッケージは TypeScript のまま配布しているので、`withAstlide` はそれらを `transpilePackages` に加えます。あわせて、MDX エンジンのネイティブモジュールをサーバー用バンドルから外します（`serverExternalPackages`）。もとの設定はそのまま残ります。
 
 デッキのフォルダからルートを作り、それを使うページを 3 つ置きます。
 
@@ -89,9 +87,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 }
 ```
 
-`@astlide/next/styles` で、デッキ・スライド・コンポーネントのスタイル、組み込みの 7 テーマ、KaTeX のスタイルがまとめて入ります。`<AstlideMermaid />` は Mermaid の図を描くためのものなので、`mermaid` を入れていないなら外してください。その場合、図はソースのまま表示されます。
+`mermaid` を入れていない場合は `<AstlideMermaid />` を外してください。図はソースのまま表示されます。
 
-組み込みテーマは Inter と JetBrains Mono をフォント名で指定しています。上の例のように、フォント名が変わらない Google Fonts の `<link>` で読み込んでください。`next/font` はフォント名を独自のものに書き換えるため、テーマから見つけられません。
+フォントは上の例のように `<link>` で読み込んでください。`next/font` で読み込むと、組み込みテーマにフォントが当たりません。
 
 `decks/my-talk/` にデッキを置き、`/decks/my-talk/1` を開けば表示されます。
 
@@ -108,7 +106,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 | `shikiTheme` | `"github-dark"` | コードブロックの Shiki テーマ。 |
 | `showHidden` | 開発時のみ | `hidden: true` のスライドも表示します。 |
 
-本番ではデッキをサーバーのプロセスごとに一度だけ読みます。開発中はリクエストのたびに読み直すので、編集はリロードで反映されます。
+本番でデッキを編集したときは、サーバーを再起動してください。開発中はリロードで反映されます。
 
 ## スライドの書き方
 
@@ -125,11 +123,10 @@ bun run build && bun run start
 bunx astlide export my-talk --pdf --pptx --png --base-url http://localhost:3000/decks
 ```
 
-Astro プロジェクトの外で実行すると、どの形式も起動中のサイトから作ります。PDF と PNG はページを描画したもので、PPTX は印刷ビューから Astro と同じエンジンで作ります。開発サーバーは JavaScript 経由でスタイルを読み込むため、PPTX は本番サーバー（`next start`）から書き出してください。
+PPTX は開発サーバーからは正しく書き出せません。本番サーバー（`next start`）を使ってください。
 
 ## Astro 版との違い
 
 - テーマは組み込みの 7 つだけです。プラグイン（独自のテーマ・レイアウト・トランジション・デコレーター）と、[PowerPoint テンプレートのテーマ化](/ja/guides/templates/)は、今のところ Astro だけの機能です。
 - Astro 版の `font`・`favicon`・`csp`・`slideScripts` にあたるオプションはありません。Markdown・HTML・PowerPoint のスライドに含まれる `<script>` は取り除かれます。
 - 開発中のスライド編集（`e` キー）は Astro だけです。
-- `<html>` はアプリのルートレイアウトが持つため、デッキのテーマは小さなスクリプトで `<html>` に設定しています。

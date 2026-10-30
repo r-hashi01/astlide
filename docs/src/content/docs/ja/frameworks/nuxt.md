@@ -3,9 +3,9 @@ title: Nuxt
 description: モジュールを 1 つ足すだけで、Astlide のデッキのフォルダを Nuxt アプリのページとして配信できます。プレゼンターウィンドウ、印刷ビュー、PDF・PPTX の書き出しもそのまま使えます。
 ---
 
-`@astlide/nuxt` は Nuxt のモジュールで、デッキのフォルダをアプリのページにします。デッキは Astro サイトと同じファイルで、`_config.json` と番号付きの `.mdx`・`.md`・`.html`・`.pptx` を置きます。
+`@astlide/nuxt` は Nuxt のモジュールで、デッキのフォルダをアプリのページにします。デッキは Astro サイトと同じファイル（`_config.json` と番号付きの `.mdx`・`.md`・`.html`・`.pptx`）をそのまま使えます。
 
-スライドはアプリのビルド時に読み込みます。MDX は Astro と同じ MDX エンジンで Vue のコンポーネントにコンパイルし、中で使う部品は [`@astlide/vue`](/ja/frameworks/vue/) のものです。サーバーでの描画、ハイドレーション、スライド間の移動のどれも同じコンポーネントを使うので、実行時に MDX のコンパイラは要らず、サーバーにネイティブモジュールも要りません。開発中はデッキを編集するとページが再読み込みされます。
+デッキはビルド時に読み込まれます。本番でデッキを変えたときはビルドし直してください。開発中は編集するとページが再読み込みされます。
 
 Nuxt 4 が必要です。
 
@@ -41,7 +41,7 @@ export default defineNuxtConfig({
 });
 ```
 
-モジュールが足すページは 3 つです。デッキの一覧（`/decks/`）、スライド 1 枚ずつ（`/decks/<deck>/<n>`）、印刷ビュー（`/decks/<deck>/all`）で、アプリ側の `<NuxtPage />` で表示されます。アプリに自前の `pages/` フォルダがない場合は、`pages: true` も設定してください。Astlide のスタイル（組み込みの 7 テーマと KaTeX を含む）はモジュールが読み込みます。上の Google Fonts の `<link>` は、組み込みテーマが使う Inter と JetBrains Mono を読み込むためのものです。
+モジュールが足すページは 3 つです。デッキの一覧（`/decks/`）、スライド 1 枚ずつ（`/decks/<deck>/<n>`）、印刷ビュー（`/decks/<deck>/all`）で、アプリ側の `<NuxtPage />` で表示されます。アプリに自前の `pages/` フォルダがない場合は、`pages: true` も設定してください。スタイルはモジュールが読み込みます。フォントは上の例のように `<link>` で読み込んでください。
 
 `decks/my-talk/` にデッキを置き、`/decks/my-talk/1` を開けば表示されます。
 
@@ -73,7 +73,7 @@ bun run build && node .output/server/index.mjs
 bunx astlide export my-talk --pdf --pptx --png --base-url http://localhost:3000/decks
 ```
 
-Astro プロジェクトの外で実行すると、どの形式も起動中のサイトから作ります。PDF と PNG はページを描画したもので、PPTX は印刷ビューから Astro と同じエンジンで作ります。PPTX は `nuxt dev` ではなく、ビルドしたサーバーから書き出してください。
+PPTX は `nuxt dev` からは正しく書き出せません。ビルドしたサーバーを使ってください。
 
 ## Astro 版との違い
 

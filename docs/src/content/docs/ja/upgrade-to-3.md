@@ -3,8 +3,6 @@ title: Astlide 3 への移行
 description: Astlide 3 で Astro プロジェクトについて変わる点と、移行の手順です。デッキ自体は変わりません。
 ---
 
-Astro プロジェクトは、パッケージ名と一部の import を書き換えれば Astlide 3 に移行できます。Astro のインテグレーションが `@astlide/core` から `@astlide/astro` に移ったためです。スライド、frontmatter、`_config.json`、テーマ、レイアウト、コンポーネントはそのまま使えるので、デッキには手を入れなくてかまいません。
-
 ## Astro プロジェクトの移行手順
 
 1. パッケージを入れ替えます。`@astlide/astro` を入れると、`@astlide/core` と `astlide` コマンドも一緒に入ります。
@@ -47,9 +45,3 @@ Astro プロジェクトは、パッケージ名と一部の import を書き換
 ## プラグイン
 
 プラグインは今までどおり `@astlide/core/plugin` から `defineAstlidePlugin` を import します。peer dependency は `@astlide/core` の 3 に上げてください。レイアウトを `.astro` のコンポーネントで提供しているなら、`@astlide/astro` の 3 にします。
-
-## 3 で使えるようになること
-
-- **[Next.js](/ja/frameworks/next/)・[Nuxt](/ja/frameworks/nuxt/)・[React](/ja/frameworks/react/)・[Vue](/ja/frameworks/vue/) でも同じデッキを使えます。** MDX のスライドも、プレゼンターウィンドウや書き出しもそのままです。
-- **Astro プロジェクトの外でも `astlide export --base-url` を使えます。** 起動中の Astlide サイトなら、どのフレームワークで作ったものでも PDF・PNG・PPTX を書き出せます。
-- **まだ専用パッケージのないフレームワークにもデッキを載せられます。** `@astlide/core/deck`・`/deck/pages`・`/deck/print-view`・`/render`・`/runtime` が、各フレームワーク用パッケージの材料です。

@@ -3,8 +3,6 @@ title: Upgrading to Astlide 3
 description: What changes for an Astro project in Astlide 3, and the steps to upgrade. Your decks don't change.
 ---
 
-An Astro project upgrades to Astlide 3 by changing a package name and some imports, because the Astro integration is now `@astlide/astro` instead of `@astlide/core`. Your decks don't change: slides, frontmatter, `_config.json`, themes, layouts and components work as they are.
-
 ## Upgrade an Astro project
 
 1. Swap the package. `@astlide/astro` installs `@astlide/core` and the `astlide` command with it:
@@ -47,9 +45,3 @@ These stay where they were: `@astlide/core/schema`, `/plugin`, `/context`, `/emb
 ## Plugins
 
 Plugins keep importing `defineAstlidePlugin` from `@astlide/core/plugin`. Change a plugin's peer dependency to `@astlide/core` 3, or to `@astlide/astro` 3 if its layouts are `.astro` components.
-
-## What you can do with 3
-
-- **Use the same decks in [Next.js](/frameworks/next/), [Nuxt](/frameworks/nuxt/), [React](/frameworks/react/) and [Vue](/frameworks/vue/),** MDX included, with the presenter window and exports.
-- **Run `astlide export --base-url` outside an Astro project,** to export PDF, PNG and PPTX from any running Astlide site.
-- **Put decks into a framework that has no package yet** with `@astlide/core/deck`, `/deck/pages`, `/deck/print-view`, `/render` and `/runtime`, the parts the framework packages are built from.

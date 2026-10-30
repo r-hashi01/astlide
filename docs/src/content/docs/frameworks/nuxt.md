@@ -5,7 +5,7 @@ description: Serve a folder of Astlide decks as pages of a Nuxt app with one mod
 
 `@astlide/nuxt` is a Nuxt module that turns a folder of decks into pages of your app. The decks are the same files as in an Astro site: `_config.json` and numbered `.mdx`, `.md`, `.html` and `.pptx` slides.
 
-The slides are read when the app is built. MDX slides are compiled into Vue components with the MDX engine Astro uses, and the components come from [`@astlide/vue`](/frameworks/vue/). The same component renders on the server, hydrates, and renders again when you move between slides. At run time there is no MDX compiler, and the server needs no native module. In development, editing a deck reloads the page.
+Decks are read when the app is built, so rebuild after changing one in production. In development, editing a deck reloads the page.
 
 You need Nuxt 4.
 
@@ -41,7 +41,7 @@ export default defineNuxtConfig({
 });
 ```
 
-The module adds three pages: the list of decks at `/decks/`, each slide at `/decks/<deck>/<n>`, and the print view at `/decks/<deck>/all`. Your app renders them with `<NuxtPage />`. If the app has no `pages/` folder of its own, also set `pages: true`. The module also loads Astlide's styles (the seven built-in themes and KaTeX included). The Google Fonts link above loads Inter and JetBrains Mono, the fonts the built-in themes use.
+The module adds three pages: the list of decks at `/decks/`, each slide at `/decks/<deck>/<n>`, and the print view at `/decks/<deck>/all`. Your app renders them with `<NuxtPage />`. If the app has no `pages/` folder of its own, also set `pages: true`. The module loads the styles. Load the fonts with a `<link>`, as above.
 
 Put a deck in `decks/my-talk/` and open `/decks/my-talk/1`.
 
@@ -73,7 +73,7 @@ bun run build && node .output/server/index.mjs
 bunx astlide export my-talk --pdf --pptx --png --base-url http://localhost:3000/decks
 ```
 
-Outside an Astro project, every format comes from the running site. PDF and PNG are rendered from its pages. PPTX is made from the print view, with the same engine as in an Astro site. Use the built server for PPTX, not `nuxt dev`.
+PPTX doesn't come out right from `nuxt dev`. Use the built server.
 
 ## Compared with the Astro integration
 

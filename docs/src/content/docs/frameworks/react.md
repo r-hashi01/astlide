@@ -3,19 +3,19 @@ title: React
 description: Astlide's slides, layouts, components and deck page as React components, to build deck pages into any React app.
 ---
 
-`@astlide/react` gives you Astlide's slides as React components. Use it when you build the deck pages yourself, for example in a Vite app or a React framework other than Next.js. For Next.js, [`@astlide/next`](/frameworks/next/) does all of this for you, and its source is a complete example of the parts below.
+`@astlide/react` gives you Astlide's slides as React components. Use it when you build the deck pages yourself, for example in a Vite app or a React framework other than Next.js. For Next.js, use [`@astlide/next`](/frameworks/next/).
 
 ## What's in it
 
 - **`<Slide>`** is one slide. It takes the same frontmatter fields as an Astro site (`layout`, `transition`, `background`, `className`) and the slide's content, as children or as `html`.
 - **Slide components** come with the same names and markup as the Astro ones: `Columns`, `Left`, `Right`, `ImageSide`, `TextPanel`, `Fragment`, `Fragments`, `SpeakerNotes` (or `Notes`), `CodeBlock`, `Math`, `YouTube` and `Tweet`.
 - **`createMdxComponents(settings)`** returns those components by the names MDX slides use. `mdxComponents` is the same with the default settings. The settings are `resolveUrl`, for root-relative URLs under a base path, and `notes`, to leave speaker notes out.
-- **`<DeckPage>`** is a slide page with the toolbar, presenter window, overview, go-to dialog, pen, laser pointer and notes. It runs on Astlide's deck runtime (`@astlide/core/runtime`). Pass your router's navigation as `navigate`, or leave it out for full page loads.
+- **`<DeckPage>`** is a slide page with the toolbar, presenter window, overview, go-to dialog, pen, laser pointer and notes. Pass your router's navigation as `navigate`, or leave it out for full page loads.
 - **`@astlide/react/server`** has `renderMdxToHtml(source)`, which renders an MDX slide to HTML on the server. One use is `renderDeck` from `@astlide/core/render`, for PDF and PPTX without a site.
 
 ## A slide page
 
-The deck is read on the server or at build time with `@astlide/core`. `slidePage()` decides what page `n` shows, the same way as in every Astlide site:
+The deck is read on the server or at build time with `@astlide/core`. `slidePage()` gives what page `n` shows:
 
 ```tsx
 import { readDeck, renderNotesHtml } from "@astlide/core/deck";
@@ -60,7 +60,7 @@ export function SlidePage({ navigate }: { navigate: (url: string, o: { replace: 
 }
 ```
 
-Markdown, HTML and PowerPoint slides arrive as sanitized HTML in `slide.html`. MDX slides arrive as source in `slide.body`. Compile them with `@astlide/core/deck`, which uses the MDX engine Astro uses, Astlide's code highlighting and React as the JSX runtime:
+Markdown, HTML and PowerPoint slides arrive as sanitized HTML in `slide.html`. MDX slides arrive as source in `slide.body`. Compile them with `@astlide/core/deck`:
 
 - **On the server:** `evaluateSlideMdx(slide.body, runtime)`, with `import * as runtime from "react/jsx-runtime"`, returns the slide's component.
 - **At build time:** `compileSlideMdx(slide.body)` returns an ES module (`export default MDXContent`) for your bundler.
