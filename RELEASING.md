@@ -10,9 +10,10 @@ bun run lint
 bun run test
 bun run build
 node scripts/test-template.mjs   # template smoke
+node scripts/test-strict-install.mjs   # Astro, Next.js and Nuxt with a strict install
 ```
 
-All five must pass cleanly. CI runs the same plus the astro-compat matrix and the browser tests (`bun run test:e2e`).
+All six must pass cleanly. CI runs the same plus the astro-compat matrix and the browser tests (`bun run test:e2e`).
 
 ## Publishing is CI-only
 
