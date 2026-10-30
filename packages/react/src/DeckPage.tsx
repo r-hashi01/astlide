@@ -185,6 +185,7 @@ export function DeckPage(props: DeckPageProps) {
 	const scaler = (
 		<div className="slide-scaler" id="slide-scaler" tabIndex={-1}>
 			{props.children}
+			{/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: a canvas isn't focusable; the drawing layer is decorative */}
 			<canvas className="draw-layer" id="draw-layer" aria-hidden="true" />
 			<div className="laser-dot" id="laser-dot" aria-hidden="true" hidden />
 		</div>
@@ -381,6 +382,7 @@ export function DeckPage(props: DeckPageProps) {
 				role="complementary"
 				aria-label="Speaker notes"
 				aria-hidden="true"
+				inert
 			>
 				<div className="notes-overlay-content">
 					<div className="notes-overlay-header">
