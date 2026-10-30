@@ -8,4 +8,3 @@ Astlide for React: the slides of an [Astlide](https://astlide.dev) site as React
 
 Load `@astlide/core/styles/base.css`, `deck.css`, `slide.css`, `components.css` and a theme (`@astlide/core/styles/themes/<name>.css`); for `<Math>`, `katex/dist/katex.min.css`.
 
-Not published yet: part of the work towards Astlide 3 (React, Next.js and Vue). The Next.js package builds on it.

@@ -1,10 +1,24 @@
 {
 	"name": "@astlide/react",
-	"version": "0.0.0",
-	"private": true,
-	"description": "Astlide for React: slides, layouts and components, the deck page with its presenter mode, and MDX decks \u2014 the same slides as an Astlide site",
+	"version": "2.11.0",
+	"description": "Astlide for React: slides, layouts and components, the deck page with its presenter mode, and MDX decks — the same slides as an Astlide site",
 	"type": "module",
 	"license": "MIT",
+	"homepage": "https://astlide.dev/",
+	"bugs": "https://github.com/r-hashi01/astlide/issues",
+	"engines": {
+		"node": ">=22.12.0"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"keywords": [
+		"react",
+		"slides",
+		"presentation",
+		"mdx",
+		"astlide"
+	],
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/r-hashi01/astlide.git",
@@ -15,7 +29,8 @@
 		"./server": "./src/server.tsx"
 	},
 	"files": [
-		"src"
+		"src",
+		"CHANGELOG.md"
 	],
 	"peerDependencies": {
 		"react": ">=18",

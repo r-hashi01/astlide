@@ -14,4 +14,3 @@ export default defineNuxtConfig({
 - **MDX** slides are compiled when the app is built (and on changes in development) into Vue components using `@astlide/vue`: rendered on the server, hydrated, with no MDX compiler at run time.
 - Options: `dir`, `basePath`, `toolbar`, `shikiTheme`, `showHidden`, `mermaid` (default: when `mermaid` is installed).
 
-Not published yet: part of the work towards Astlide 3.

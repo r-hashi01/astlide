@@ -133,10 +133,11 @@
     },
     "packages/next": {
       "name": "@astlide/next",
-      "version": "0.0.0",
+      "version": "2.11.0",
       "dependencies": {
         "@astlide/core": "workspace:*",
         "@astlide/react": "workspace:*",
+        "katex": "^0.19.1",
       },
       "devDependencies": {
         "@types/react": "^19.3.0",
@@ -157,11 +158,12 @@
     },
     "packages/nuxt": {
       "name": "@astlide/nuxt",
-      "version": "0.0.0",
+      "version": "2.11.0",
       "dependencies": {
         "@astlide/core": "workspace:*",
         "@astlide/vue": "workspace:*",
         "@nuxt/kit": "^4.6.3",
+        "katex": "^0.19.1",
       },
       "devDependencies": {
         "nuxt": "^4.6.3",
@@ -178,7 +180,7 @@
     },
     "packages/react": {
       "name": "@astlide/react",
-      "version": "0.0.0",
+      "version": "2.11.0",
       "dependencies": {
         "@astlide/core": "workspace:*",
         "katex": "^0.19.1",
@@ -216,7 +218,7 @@
     },
     "packages/vue": {
       "name": "@astlide/vue",
-      "version": "0.0.0",
+      "version": "2.11.0",
       "dependencies": {
         "@astlide/core": "workspace:*",
         "katex": "^0.19.1",

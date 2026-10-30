@@ -27,7 +27,6 @@
  */
 
 import { type DefaultTreeAdapterMap, parseFragment } from "parse5";
-import type { Plugin } from "vite";
 
 /** The last `<!-- … -->` in the text, followed only by whitespace. */
 const TRAILING_COMMENT = /<!--((?:(?!<!--)[\s\S])*?)-->\s*$/;
@@ -100,21 +99,4 @@ export function withoutNotesComment(html: string, notes: string): string | null 
 		at = end;
 	}
 	return out + html.slice(at);
-}
-
-/**
- * Vite plugin: drop the trailing HTML comment (speaker notes) from `.mdx`
- * sources before `@astrojs/mdx` compiles them — MDX would reject it. The notes
- * themselves are read from the entry's raw body by the slide page.
- */
-export function astlideCommentNotesPlugin(): Plugin {
-	return {
-		name: "astlide:comment-notes",
-		enforce: "pre",
-		transform(code, id) {
-			if (!/\.mdx(?:$|\?)/.test(id)) return null;
-			const stripped = stripTrailingComment(code);
-			return stripped === null ? null : { code: stripped, map: null };
-		},
-	};
 }

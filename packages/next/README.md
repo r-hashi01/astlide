@@ -32,4 +32,3 @@ import { AstlideMermaid } from "@astlide/next/mermaid"; // with `mermaid` instal
 
 MDX slides are compiled with Astro's MDX engine and rendered on the server with `@astlide/react`; moving between slides uses Next's router. `astlide export <deck> --pdf --png --base-url <your Next site>` exports from a running site.
 
-Not published yet: part of the work towards Astlide 3. See `playground-next/` for a working app.

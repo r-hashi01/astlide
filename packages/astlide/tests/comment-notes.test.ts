@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-	astlideCommentNotesPlugin,
-	extractCommentNotes,
-	stripTrailingComment,
-} from "../src/utils/comment-notes";
+import { astlideCommentNotesPlugin } from "../../astro/src/internal/vite-plugins";
+import { extractCommentNotes, stripTrailingComment } from "../src/utils/comment-notes";
 
 describe("extractCommentNotes", () => {
 	it("reads a comment that ends the slide", () => {

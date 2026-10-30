@@ -8,4 +8,3 @@ Astlide for Vue: the slides of an [Astlide](https://astlide.dev) site as Vue com
 
 Load `@astlide/core/styles/base.css`, `deck.css`, `slide.css`, `components.css`, a theme, and `katex/dist/katex.min.css` for `Math`.
 
-Not published yet: part of the work towards Astlide 3. The Nuxt module builds on it.
