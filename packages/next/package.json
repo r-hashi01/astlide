@@ -1,6 +1,6 @@
 {
 	"name": "@astlide/next",
-	"version": "3.0.3",
+	"version": "3.0.4",
 	"description": "Astlide for Next.js (App Router): decks from a folder as pages, presenter mode, print view and exports — the same Markdown, HTML and MDX decks as an Astlide site",
 	"type": "module",
 	"license": "MIT",
