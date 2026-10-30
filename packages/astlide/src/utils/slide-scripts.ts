@@ -21,10 +21,8 @@
  */
 
 import { readdir, readFile, writeFile } from "node:fs/promises";
-import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { type DefaultTreeAdapterMap, parseFragment, serialize } from "parse5";
-import type { Plugin } from "vite";
 
 type Node = DefaultTreeAdapterMap["childNode"];
 type Element = DefaultTreeAdapterMap["element"];
@@ -267,67 +265,4 @@ export async function stripBuiltPages(dir: string, mark: string): Promise<number
 		}
 	}
 	return changed;
-}
-
-/**
- * Dev only (`apply: "serve"`): HTML responses go through
- * {@link stripSlideContent} before they reach the browser — the same pass
- * built pages get.
- */
-export function astlideSlideScriptsPlugin(mark: string): Plugin {
-	return {
-		name: "astlide:slide-scripts",
-		apply: "serve",
-		configureServer(server) {
-			server.middlewares.use((_req: IncomingMessage, res: ServerResponse, next: () => void) => {
-				const chunks: Buffer[] = [];
-				let html: boolean | undefined;
-				const isHtml = () => {
-					html ??= /text\/html/i.test(String(res.getHeader("content-type") ?? ""));
-					return html;
-				};
-				const writeHead = res.writeHead.bind(res) as (...args: unknown[]) => ServerResponse;
-				const write = res.write.bind(res) as (...args: unknown[]) => boolean;
-				const end = res.end.bind(res) as (...args: unknown[]) => ServerResponse;
-				const toBuffer = (chunk: unknown, encoding: unknown) =>
-					typeof chunk === "string"
-						? Buffer.from(
-								chunk,
-								typeof encoding === "string" ? (encoding as BufferEncoding) : "utf8",
-							)
-						: Buffer.from(chunk as Uint8Array);
-				res.writeHead = ((status: number, ...args: unknown[]) => {
-					const headers = args.find((a) => a && typeof a === "object" && !Array.isArray(a)) as
-						| Record<string, unknown>
-						| undefined;
-					for (const [name, value] of Object.entries(headers ?? {})) {
-						if (name.toLowerCase() === "content-type") html = /text\/html/i.test(String(value));
-					}
-					// The body may change length.
-					if (isHtml() && headers)
-						for (const name of Object.keys(headers))
-							if (name.toLowerCase() === "content-length") delete headers[name];
-					if (isHtml()) res.removeHeader("content-length");
-					return writeHead(status, ...args);
-				}) as typeof res.writeHead;
-				res.write = ((chunk: unknown, encoding?: unknown, callback?: unknown) => {
-					if (!isHtml()) return write(chunk, encoding, callback);
-					chunks.push(toBuffer(chunk, encoding));
-					const done = typeof encoding === "function" ? encoding : callback;
-					if (typeof done === "function") done();
-					return true;
-				}) as typeof res.write;
-				res.end = ((chunk?: unknown, encoding?: unknown, callback?: unknown) => {
-					if (!isHtml()) return end(chunk, encoding, callback);
-					if (chunk !== undefined && chunk !== null && typeof chunk !== "function")
-						chunks.push(toBuffer(chunk, encoding));
-					const done = [chunk, encoding, callback].find((a) => typeof a === "function");
-					const body = stripSlideContent(Buffer.concat(chunks).toString("utf8"), mark);
-					if (!res.headersSent) res.removeHeader("content-length");
-					return end(body, "utf8", done);
-				}) as typeof res.end;
-				next();
-			});
-		},
-	};
 }

@@ -18,19 +18,18 @@ import {
 	loadTemplate,
 	storedTemplateFiles,
 } from "@astlide/astro/internal/pptx-templates";
+import {
+	astlideCommentNotesPlugin,
+	astlideSlideScriptsPlugin,
+} from "@astlide/astro/internal/vite-plugins";
 import { type AstlidePlugin, BUILT_IN_PLUGIN, resolvePlugins } from "@astlide/core/plugin";
 import type { TemplateStore } from "@astlide/core/templates";
 import { openTemplateStore } from "@astlide/core/templates";
 import { astlideCodeHighlight } from "@astlide/core/utils/code-highlight";
-import { astlideCommentNotesPlugin } from "@astlide/core/utils/comment-notes";
 import { EXPORT_BUILD_ENV, requestedExportBuild } from "@astlide/core/utils/export-build";
 import { astlideMermaid } from "@astlide/core/utils/mermaid";
 import { PPTX_ASSET_ROUTE, pptxAssetDir } from "@astlide/core/utils/pptx-assets";
-import {
-	astlideSlideScriptsPlugin,
-	setSlideScripts,
-	stripBuiltPages,
-} from "@astlide/core/utils/slide-scripts";
+import { setSlideScripts, stripBuiltPages } from "@astlide/core/utils/slide-scripts";
 import mdx from "@astrojs/mdx";
 import type { AstroIntegration } from "astro";
 import { hashBuiltPages } from "./csp-hashes";

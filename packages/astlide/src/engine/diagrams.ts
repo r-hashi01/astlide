@@ -8,7 +8,7 @@
  * so diagrams match the version the slides use in the browser.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { Resvg } from "@resvg/resvg-js";
 import { JSDOM } from "jsdom";
@@ -151,7 +151,9 @@ export function resolveEsm(name: string, fromDir: string): string | null {
 						? pick((v as Record<string, unknown>).import ?? (v as Record<string, unknown>).default)
 						: undefined;
 			const entry = pick(root) ?? pkg.module ?? pkg.main ?? "index.js";
-			return join(pkgDir, entry);
+			// The real directory: with pnpm / isolated installs, node_modules/<name> is a
+			// link, and the package's own dependencies sit next to its target.
+			return join(realpathSync(pkgDir), entry);
 		}
 		if (dirname(dir) === dir) return null;
 	}

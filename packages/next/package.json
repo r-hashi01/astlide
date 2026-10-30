@@ -1,10 +1,26 @@
 {
 	"name": "@astlide/next",
-	"version": "0.0.0",
-	"private": true,
-	"description": "Astlide for Next.js (App Router): decks from a folder as pages, presenter mode, print view and exports \u2014 the same Markdown, HTML and MDX decks as an Astlide site",
+	"version": "2.11.0",
+	"description": "Astlide for Next.js (App Router): decks from a folder as pages, presenter mode, print view and exports — the same Markdown, HTML and MDX decks as an Astlide site",
 	"type": "module",
 	"license": "MIT",
+	"homepage": "https://astlide.dev/",
+	"bugs": "https://github.com/r-hashi01/astlide/issues",
+	"engines": {
+		"node": ">=22.12.0"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"keywords": [
+		"nextjs",
+		"next",
+		"react",
+		"slides",
+		"presentation",
+		"mdx",
+		"astlide"
+	],
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/r-hashi01/astlide.git",
@@ -12,13 +28,14 @@
 	},
 	"exports": {
 		".": "./src/index.tsx",
-		"./config": "./src/config.ts",
+		"./config": "./src/config.js",
 		"./client": "./src/client.tsx",
 		"./styles": "./src/styles.ts",
 		"./mermaid": "./src/mermaid.tsx"
 	},
 	"files": [
-		"src"
+		"src",
+		"CHANGELOG.md"
 	],
 	"peerDependencies": {
 		"next": ">=15",
@@ -28,7 +45,8 @@
 	},
 	"dependencies": {
 		"@astlide/core": "workspace:*",
-		"@astlide/react": "workspace:*"
+		"@astlide/react": "workspace:*",
+		"katex": "^0.19.1"
 	},
 	"devDependencies": {
 		"@types/react": "^19.3.0",

@@ -9,23 +9,30 @@
  * export default withAstlide({});
  * ```
  *
+ * JavaScript, not TypeScript: Node loads `next.config` itself, and it won't
+ * strip types from files in node_modules.
+ *
  * @module
  */
 
-/** The parts of Next's config this touches (Next's own type, without importing it). */
-interface NextConfigLike {
-	transpilePackages?: string[];
-	serverExternalPackages?: string[];
-	[key: string]: unknown;
-}
+/**
+ * The parts of Next's config this touches (Next's own type, without importing it).
+ * @typedef {{ transpilePackages?: string[]; serverExternalPackages?: string[]; [key: string]: unknown }} NextConfigLike
+ */
 
 const TRANSPILE = ["@astlide/core", "@astlide/react", "@astlide/next"];
 /** Native or Node-only packages the server should load as they are. */
 const EXTERNAL = ["satteri", "@astrojs/markdown-satteri", "shiki", "jsdom", "playwright"];
 
-const merge = (a: string[] | undefined, b: string[]) => [...new Set([...(a ?? []), ...b])];
+/** @param {string[] | undefined} a @param {string[]} b */
+const merge = (a, b) => [...new Set([...(a ?? []), ...b])];
 
-export function withAstlide<T extends NextConfigLike>(config: T = {} as T): T {
+/**
+ * @template {NextConfigLike} T
+ * @param {T} [config]
+ * @returns {T}
+ */
+export function withAstlide(config = /** @type {T} */ ({})) {
 	return {
 		...config,
 		transpilePackages: merge(config.transpilePackages, TRANSPILE),
