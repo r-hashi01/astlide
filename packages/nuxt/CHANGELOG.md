@@ -1,5 +1,13 @@
 # @astlide/nuxt
 
+## 3.0.4
+
+### Patch Changes
+
+- Updated dependencies [[`1bf7b93`](https://github.com/r-hashi01/astlide/commit/1bf7b93086dd31a717c234348fb422f496e1f380), [`abf5c40`](https://github.com/r-hashi01/astlide/commit/abf5c40073192cf379ff40546dc3f1c2ad0a2054), [`0325605`](https://github.com/r-hashi01/astlide/commit/03256053aae2e65eeef9d58c57e3a2ca7e5462a2), [`a4200aa`](https://github.com/r-hashi01/astlide/commit/a4200aad83322d29c644e53301ed3954775f64a2)]:
+  - @astlide/core@3.0.4
+  - @astlide/vue@3.0.4
+
 ## 3.0.3
 
 ### Patch Changes

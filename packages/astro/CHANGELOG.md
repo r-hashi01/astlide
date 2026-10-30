@@ -1,5 +1,15 @@
 # @astlide/astro
 
+## 3.0.4
+
+### Patch Changes
+
+- [#303](https://github.com/r-hashi01/astlide/pull/303) [`abf5c40`](https://github.com/r-hashi01/astlide/commit/abf5c40073192cf379ff40546dc3f1c2ad0a2054) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Accessibility: on the first and last slide, the unavailable Previous / Next control in the toolbar and the presenter window is now a disabled button (screen readers announce it as disabled) instead of a link with no destination. The camera bubble's "Camera" label is on its video, where screen readers read it.
+
+- [#306](https://github.com/r-hashi01/astlide/pull/306) [`a4200aa`](https://github.com/r-hashi01/astlide/commit/a4200aad83322d29c644e53301ed3954775f64a2) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Accessibility: the slide overview is a list of links (screen readers announced each thumbnail as a list item, not a link). The slide area is a `<main>`, the speaker notes an `<aside>` and the presenter's notes font controls a `<fieldset>`, instead of `<div>`s with those roles. Pages look the same.
+- Updated dependencies [[`1bf7b93`](https://github.com/r-hashi01/astlide/commit/1bf7b93086dd31a717c234348fb422f496e1f380), [`abf5c40`](https://github.com/r-hashi01/astlide/commit/abf5c40073192cf379ff40546dc3f1c2ad0a2054), [`0325605`](https://github.com/r-hashi01/astlide/commit/03256053aae2e65eeef9d58c57e3a2ca7e5462a2), [`a4200aa`](https://github.com/r-hashi01/astlide/commit/a4200aad83322d29c644e53301ed3954775f64a2)]:
+  - @astlide/core@3.0.4
+
 ## 3.0.3
 
 ### Patch Changes
