@@ -135,6 +135,9 @@ function checkExport(label, outDir) {
 	console.log(`\n✓ ${label}: PDF, ${pngs.length} PNGs, ${slides.length} PPTX slides`);
 }
 
+// The decks are this repository's own: CI's Ubuntu runners can't start Chromium's
+// sandbox (user namespaces), which the exporter otherwise insists on (as in e2e/).
+const EXPORT_ENV = { ASTLIDE_CHROMIUM_SANDBOX: "0" };
 const exportArgs = (outDir) => ["export", DECK, "--pdf", "--pptx", "--png", "--out-dir", outDir];
 
 try {
@@ -148,7 +151,7 @@ try {
 		tarballs,
 	);
 	run("bun", ["run", "build"], astro);
-	run("bun", ["run", ...exportArgs(join(work, "astro-export"))], astro);
+	run("bun", ["run", ...exportArgs(join(work, "astro-export"))], astro, EXPORT_ENV);
 	checkExport("Astro", join(work, "astro-export"));
 
 	// Next.js and Nuxt: build, serve, export from the site with the `astlide` command.
@@ -166,6 +169,7 @@ try {
 			join(next, "node_modules/.bin/astlide"),
 			[...exportArgs(join(work, "next-export")), "--base-url", nextServer.url],
 			next,
+			EXPORT_ENV,
 		);
 	} finally {
 		nextServer.stop();
@@ -184,6 +188,7 @@ try {
 			join(nuxt, "node_modules/.bin/astlide"),
 			[...exportArgs(join(work, "nuxt-export")), "--base-url", nuxtServer.url],
 			nuxt,
+			EXPORT_ENV,
 		);
 	} finally {
 		nuxtServer.stop();
