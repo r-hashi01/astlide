@@ -553,6 +553,35 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 	}
 
 	// ── 6. Overview mode ───────────────────────────────────────
+	/**
+	 * While a dialog is open, the page behind it is inert (no focus, hidden from
+	 * screen readers): its siblings, except those inert already. Closing restores
+	 * them and returns focus to where it was.
+	 */
+	const modalState = new Map<
+		HTMLElement,
+		{ madeInert: HTMLElement[]; returnFocus: Element | null }
+	>();
+	function setModal(dialog: HTMLElement, open: boolean): void {
+		if (open) {
+			if (modalState.has(dialog)) return;
+			const madeInert: HTMLElement[] = [];
+			for (const el of dialog.parentElement?.children ?? []) {
+				if (el === dialog || !(el instanceof HTMLElement) || el.inert) continue;
+				el.inert = true;
+				madeInert.push(el);
+			}
+			modalState.set(dialog, { madeInert, returnFocus: document.activeElement });
+			return;
+		}
+		const state = modalState.get(dialog);
+		if (!state) return;
+		modalState.delete(dialog);
+		for (const el of state.madeInert) el.inert = false;
+		if (state.returnFocus instanceof HTMLElement && state.returnFocus.isConnected)
+			state.returnFocus.focus({ preventScroll: true });
+	}
+
 	const overview = document.getElementById("overview");
 	const overviewGrid = document.getElementById("overview-grid");
 	let overviewOpen = false;
@@ -560,6 +589,7 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 	function openOverview() {
 		if (!overview) return;
 		overviewOpen = true;
+		setModal(overview, true);
 		overview.setAttribute("aria-hidden", "false");
 		overview.classList.add("open");
 		if (overviewGrid && overviewGrid.children.length === 0) {
@@ -597,6 +627,10 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 				overviewGrid.appendChild(li);
 			}
 		}
+		(
+			overviewGrid?.querySelector<HTMLElement>(".overview-item.current") ??
+			overviewGrid?.querySelector<HTMLElement>(".overview-item")
+		)?.focus();
 	}
 
 	function closeOverview() {
@@ -604,6 +638,7 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 		overviewOpen = false;
 		overview.setAttribute("aria-hidden", "true");
 		overview.classList.remove("open");
+		setModal(overview, false);
 	}
 
 	if (overview)
@@ -668,6 +703,7 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 			outline.findIndex((s) => s.n === currentSlide),
 			0,
 		);
+		setModal(gotoEl, true);
 		gotoEl.setAttribute("aria-hidden", "false");
 		gotoEl.classList.add("open");
 		renderGoto();
@@ -679,6 +715,7 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 		_gotoOpen = false;
 		gotoEl.setAttribute("aria-hidden", "true");
 		gotoEl.classList.remove("open");
+		setModal(gotoEl, false);
 		if (scaler && !isPresenter) scaler.focus({ preventScroll: true });
 	}
 

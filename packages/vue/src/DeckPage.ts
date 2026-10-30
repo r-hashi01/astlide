@@ -358,7 +358,12 @@ export const DeckPage = defineComponent({
 								h("span", "Speaker Notes"),
 								h(
 									"button",
-									{ class: "notes-close", id: "notes-close", "aria-label": "Close speaker notes" },
+									{
+										type: "button",
+										class: "notes-close",
+										id: "notes-close",
+										"aria-label": "Close speaker notes",
+									},
 									"✕",
 								),
 							]),
@@ -393,6 +398,7 @@ export const DeckPage = defineComponent({
 						class: "overview",
 						id: "overview",
 						role: "dialog",
+						"aria-modal": "true",
 						"aria-label": "Slide overview",
 						"aria-hidden": "true",
 					},

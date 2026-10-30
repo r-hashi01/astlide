@@ -77,10 +77,6 @@
 			],
 			"linter": {
 				"rules": {
-					"a11y": {
-						"useButtonType": "off",
-						"useAnchorContent": "off"
-					},
 					"suspicious": {
 						"noShadowRestrictedNames": "off"
 					}

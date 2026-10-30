@@ -386,7 +386,12 @@ export function DeckPage(props: DeckPageProps) {
 				<div className="notes-overlay-content">
 					<div className="notes-overlay-header">
 						<span>Speaker Notes</span>
-						<button className="notes-close" id="notes-close" aria-label="Close speaker notes">
+						<button
+							type="button"
+							className="notes-close"
+							id="notes-close"
+							aria-label="Close speaker notes"
+						>
 							✕
 						</button>
 					</div>
@@ -414,6 +419,7 @@ export function DeckPage(props: DeckPageProps) {
 				className="overview"
 				id="overview"
 				role="dialog"
+				aria-modal="true"
 				aria-label="Slide overview"
 				aria-hidden="true"
 			>
