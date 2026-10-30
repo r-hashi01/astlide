@@ -1,5 +1,11 @@
 # create-astlide
 
+## 0.3.0
+
+### Minor Changes
+
+- [#292](https://github.com/r-hashi01/astlide/pull/292) [`9e4b6cd`](https://github.com/r-hashi01/astlide/commit/9e4b6cd7af15131614c516be3b35377328d0aaf3) Thanks [@r-hashi01](https://github.com/r-hashi01)! - New projects use Astlide 3: they depend on `@astlide/astro` and import the integration, `astlideDeckLoader` and `slideSchema` from it.
+
 ## 0.2.7
 
 ### Patch Changes

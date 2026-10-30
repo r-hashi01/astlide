@@ -1,5 +1,73 @@
 # @astlide/core
 
+## 3.0.0
+
+### Major Changes
+
+- [#275](https://github.com/r-hashi01/astlide/pull/275) [`3b73a63`](https://github.com/r-hashi01/astlide/commit/3b73a63d1ce05a8452136c0dc570151dfb3b1e59) Thanks [@r-hashi01](https://github.com/r-hashi01)! - **Breaking:** the Astro integration moves out of `@astlide/core` into the new `@astlide/astro`. `@astlide/core` is now the framework-agnostic core: deck reader, rendering and exports, deck runtime, styles, PowerPoint, template stores, the `astlide` CLI and the MCP server. The React, Next.js, Vue and Nuxt packages build on it too.
+
+  To migrate an Astro project:
+
+  1. Install `@astlide/astro` in place of `@astlide/core`. It installs the core and the `astlide` command.
+  2. In `astro.config.mjs`, change `import astlide from "@astlide/core"` to `import astlide from "@astlide/astro"`.
+  3. In `src/content.config.ts`, import `astlideDeckLoader` and `slideSchema` from `@astlide/astro`, and `@astlide/core/loader` becomes `@astlide/astro/loader`.
+  4. Component imports change from `@astlide/core/components/*.astro` to `@astlide/astro/components/*.astro`.
+
+  These stay in `@astlide/core`: `@astlide/core/schema`, `/plugin`, `/context`, `/styles/*`, `/deck`, `/render`, `/runtime`, `/pptx`, `/templates`, `/embed` and `/mcp`. Plugins keep importing `defineAstlidePlugin` from `@astlide/core/plugin`. The `@astlide/core` entry point no longer has the integration or `astlideDeckLoader`. It keeps the schemas, the plugin API and the deck metadata functions.
+
+- [#284](https://github.com/r-hashi01/astlide/pull/284) [`6dd1add`](https://github.com/r-hashi01/astlide/commit/6dd1adda4bc3d5aba7e2710ece77c72c510e216c) Thanks [@r-hashi01](https://github.com/r-hashi01)! - **Breaking:** `@astlide/core` no longer exports `./internal/*` and `./utils/*` as wildcards. Every entry point is now listed in its `exports`.
+  - `@astlide/core/internal/diagrams`, `internal/recording` and `internal/pdf-export` become `@astlide/core/runtime/diagrams`, `runtime/media` and `runtime/pdf-export`.
+  - `utils/csp`, `utils/favicon`, `utils/pptx-templates` and `utils/slide-mark` move into `@astlide/astro`, the only package that uses them. Its internals are not public API.
+  - Still available: `utils/base-path`, `code-highlight`, `mermaid`, `sanitize`, `safe-url` and `slide-title`, plus the helpers the framework packages share (`comment-notes`, `markdown`, `notes`, `export-build`, `pptx-assets`, `slide-scripts`, `network`).
+  - Imports with a `.ts` extension (`@astlide/core/utils/network.ts`) no longer resolve. Drop the extension.
+
+- [#291](https://github.com/r-hashi01/astlide/pull/291) [`934761a`](https://github.com/r-hashi01/astlide/commit/934761af53671800510c22a62bfff7bf38c7e506) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `@astlide/core` no longer references Vite. Its two Vite plugins, `astlideCommentNotesPlugin` (from `utils/comment-notes`) and `astlideSlideScriptsPlugin` (from `utils/slide-scripts`), move into `@astlide/astro`, the only package that uses them.
+
+### Minor Changes
+
+- [#269](https://github.com/r-hashi01/astlide/pull/269) [`9360c4a`](https://github.com/r-hashi01/astlide/commit/9360c4a7a0fb686bc0570c6ea84f62ad303ba2af) Thanks [@r-hashi01](https://github.com/r-hashi01)! - The slide components' styles (Columns, Left / Right, ImageSide, TextPanel, Fragment, SpeakerNotes, CodeBlock, Math, YouTube, Tweet) are now one stylesheet, `@astlide/core/styles/components.css`, for every framework. Each component's root element carries `data-astlide-c` and every rule goes through it, so — as with Astro's scoped styles before — they never reach an element of yours that uses the same class name. Slides look the same.
+
+- [#264](https://github.com/r-hashi01/astlide/pull/264) [`98cf488`](https://github.com/r-hashi01/astlide/commit/98cf4884d30042a04f14bf5eba91f5ebd3f3d9ba) Thanks [@r-hashi01](https://github.com/r-hashi01)! - The markup and styles around a slide (toolbar, presenter panel, notes, overview, go-to and PDF overlays) are now framework-agnostic too: `@astlide/core/runtime/chrome` renders them as HTML strings and `@astlide/core/styles/deck.css` styles them (experimental, for the upcoming React / Next / Vue packages). Slide pages look and behave the same; the styles still never reach slide content.
+
+- [#279](https://github.com/r-hashi01/astlide/pull/279) [`dcf7d27`](https://github.com/r-hashi01/astlide/commit/dcf7d2735570147aa26182e6d4c1a8bb68309d5d) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `@astlide/core/deck/pages` adds `slidePage(deck, n)` and `printSlides(slides)`. They decide, the same way for every framework, which slide is page `n`, where navigation goes, the go-to outline, the deck context and the slides of the print view. Hidden slides keep their number and redirect onward in production. The Astro, Next.js and Nuxt pages all use them, so Next.js and Nuxt now number hidden slides as Astro does. Before, they renumbered the rest.
+
+- [#265](https://github.com/r-hashi01/astlide/pull/265) [`88146fa`](https://github.com/r-hashi01/astlide/commit/88146fa594347d93dd987b0527b18af56da05763) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Read decks without Astro: `readDeck(dir)` / `readDecks(base)` from `@astlide/core/deck` (experimental) return a deck's config and its slides in order, with validated frontmatter, title, speaker notes and, for `.md` / `.html` / `.pptx` slides, the HTML an Astlide site renders (Astro's Markdown processor with Astlide's code steps and Mermaid fences). `.mdx` slides come back as source for the host's MDX setup.
+
+- [#262](https://github.com/r-hashi01/astlide/pull/262) [`c1fb41f`](https://github.com/r-hashi01/astlide/commit/c1fb41f7b97b77af936295b70ad69a3b0a7f5102) Thanks [@r-hashi01](https://github.com/r-hashi01)! - The slide page's browser code (scaling, navigation, fragments and code steps, presenter sync, pen and laser, overview, go-to, notes, timer, PDF download, embedding) is now a module, `@astlide/core/runtime` (`mountDeck(config, { navigate })`, experimental), instead of an inline script on every slide page. Slide pages load it as one cached script and pass their settings as JSON. No change in behavior.
+
+- [#277](https://github.com/r-hashi01/astlide/pull/277) [`10167df`](https://github.com/r-hashi01/astlide/commit/10167df9b3adc6b569c3c4aabd282d7cd4b4cb12) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `astlide export --base-url` works for sites built without Astro (Next.js, Nuxt, React, Vue). Outside an Astro project, every format comes from the running site. PDF and PNG are rendered from its pages. PPTX is made from its print view (`/<deck>/all`), with the same engine and output as an Astro build. A deck is checked against the site instead of `src/content/decks`. Use the site's production server for PPTX.
+
+- [#272](https://github.com/r-hashi01/astlide/pull/272) [`20c416d`](https://github.com/r-hashi01/astlide/commit/20c416d9cd0266cb0384aa0d30e4021fe1cfcd34) Thanks [@r-hashi01](https://github.com/r-hashi01)! - More groundwork for React / Next.js (experimental):
+
+  - `renderDeck` renders MDX slides with a `renderMdx` (`renderMdxToHtml` from `@astlide/react`) and takes the site's `publicDir` for root-relative pictures; the print view gets the components' and KaTeX's styles.
+  - The print view's styles are `@astlide/core/styles/print.css`, written so slides may sit in a framework's wrappers (`/<deck>/all` looks the same).
+  - `mountDeck(config, { placeSlide: false })` leaves the presenter window's slide where the host rendered it.
+
+- [#282](https://github.com/r-hashi01/astlide/pull/282) [`8f12d72`](https://github.com/r-hashi01/astlide/commit/8f12d72c0476b9a2e7b286a2eff84b7915a7931f) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `@astlide/core/deck/print-view` defines what a deck's print view (`/<deck>/all`) states about itself, the same way in every framework:
+  - `printViewAttributes(config)` gives the `<html>` attributes.
+  - `printViewMeta(deck)` gives the `astlide:title`, `astlide:author` and `astlide:theme` meta tags.
+  - `readPrintViewMeta()` reads those tags back.
+
+  The Astro, Next.js and Nuxt print views and `renderDeck` all write them, and `astlide export --pptx --base-url` reads them. Before, each framework had its own way (`<title>`, `<meta name="author">`, a Next.js-only `astlide:theme`). The CLI's export is split into one path for an Astro project and one for a running site.
+
+- [#270](https://github.com/r-hashi01/astlide/pull/270) [`43f1d72`](https://github.com/r-hashi01/astlide/commit/43f1d7229a7cf87ad1391d64669d6747fcaf165e) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Groundwork for React, Next.js and Vue (experimental):
+
+  - `compileSlideMdx` / `evaluateSlideMdx` (`@astlide/core/deck`): MDX slides compiled with Astro's own MDX engine and Astlide's Shiki transformers for any JSX runtime (`react`, `vue` …), so the same `.mdx` slides render the same outside Astro. `readDeck` now reads an MDX slide's trailing comment as its notes, and `renderNotesHtml` renders notes for the presenter.
+  - The deck runtime exports `applyPageFlags`, and keeps a slide the host already placed in the presenter panel; `backgroundDeclarations` gives a slide's background as declarations.
+  - Diagrams render through `renderDiagramsWith(loadMermaid)` outside Astro; `base-path` works where `import.meta.env` doesn't exist.
+
+- [#267](https://github.com/r-hashi01/astlide/pull/267) [`6f0433f`](https://github.com/r-hashi01/astlide/commit/6f0433fbd76b7f8a571305425dbab5601e2fad26) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Export a deck folder without Astro: `renderDeck({ dir, format: "pptx" | "pdf" | "png", output, template? })` from `@astlide/core/render` (experimental) reads the deck, writes its print view with the same markup and styles as an Astlide site, and runs the same exporters as `astlide export` (the layout engine for PPTX, Chromium for PDF / PNG). Markdown, HTML and PowerPoint slides; MDX and slide decorators still need a build.
+
+- [#266](https://github.com/r-hashi01/astlide/pull/266) [`d041996`](https://github.com/r-hashi01/astlide/commit/d0419962f4af0bb6fc003e07131bce671b77ddc4) Thanks [@r-hashi01](https://github.com/r-hashi01)! - A slide's own markup and styles are framework-agnostic too: `@astlide/core/runtime/slide` renders the `<section class="slide …">` around a slide's content (layout classes, background, PowerPoint template artwork and number) and `@astlide/core/styles/slide.css` styles it (experimental). `Slide.astro` uses both; slides look the same.
+
+### Patch Changes
+
+- [#285](https://github.com/r-hashi01/astlide/pull/285) [`310ace6`](https://github.com/r-hashi01/astlide/commit/310ace6e12b9520b812bdf3847137ddc680bfdc4) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `astlideMermaid()` now type-checks as a Shiki transformer (`ShikiTransformer`) in your own Shiki setup. Its return type was too loose for hast's types. The code is unchanged.
+
+- [#291](https://github.com/r-hashi01/astlide/pull/291) [`934761a`](https://github.com/r-hashi01/astlide/commit/934761af53671800510c22a62bfff7bf38c7e506) Thanks [@r-hashi01](https://github.com/r-hashi01)! - PPTX export of Mermaid diagrams works with pnpm and other isolated installs. Before, it failed with "dompurify (a dependency of mermaid) not found".
+
+- [#268](https://github.com/r-hashi01/astlide/pull/268) [`732b7ab`](https://github.com/r-hashi01/astlide/commit/732b7ab4807c117d50e62d03fa4a8b951c9d442b) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `renderDeck` takes a `tempDir` for its print view while it renders (default: the OS's temp folder).
+
 ## 2.11.0
 
 ### Minor Changes
