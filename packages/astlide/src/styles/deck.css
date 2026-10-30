@@ -582,6 +582,12 @@ button.nav-btn:not(.slide *) {
 	padding: 0;
 }
 
+/* The presenter's Prev / Next when there is no such slide (a disabled button). */
+button.pnav-btn:not(.slide *) {
+	border: none;
+	font-family: inherit;
+}
+
 .nav-spacer:not(.slide *) {
 	width: 0.5rem;
 	height: 1px;

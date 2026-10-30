@@ -101,7 +101,7 @@ describe("<DeckPage>", () => {
 		);
 		expect(html).toContain("Speaker notes are not published with this deck.");
 		expect(html).toContain(
-			'<a class="nav-btn disabled" aria-label="Previous slide" aria-disabled="true" tabindex="-1">←</a>',
+			'<button type="button" class="nav-btn disabled" aria-label="Previous slide" disabled="">←</button>',
 		);
 	});
 });

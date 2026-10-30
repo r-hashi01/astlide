@@ -33,12 +33,12 @@ describe("deck chrome", () => {
 	it("disables links past the ends and marks the end of the deck", () => {
 		const before = deckChromeBefore(props({ prevSlide: null, nextSlide: null, currentSlide: 4 }));
 		expect(before).toContain(
-			'<a class="pnav-btn disabled" aria-disabled="true" tabindex="-1">← Prev</a>',
+			'<button type="button" class="pnav-btn disabled" disabled>← Prev</button>',
 		);
 		expect(before).toContain('<p class="presenter-next-end">End of deck</p>');
 		const after = deckChromeAfter(props({ prevSlide: null }));
 		expect(after).toContain(
-			'<a class="nav-btn disabled" aria-label="Previous slide" aria-disabled="true" tabindex="-1">←</a>',
+			'<button type="button" class="nav-btn disabled" aria-label="Previous slide" disabled>←</button>',
 		);
 	});
 
