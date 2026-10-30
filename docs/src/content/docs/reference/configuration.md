@@ -107,19 +107,28 @@ If `_config.json` isn't valid JSON, or a field has the wrong type, the deck uses
 
 | Import | What it provides |
 |---|---|
-| `@astlide/core` | The integration (default export), `astlideDeckLoader`, `slideSchema`, `deckConfigSchema`, `THEMES`, `defineAstlidePlugin`, `getDeckContext`, `getClientDeckContext` |
+| `@astlide/astro` | The Astro integration (default export), `astlideDeckLoader`, and re-exports of `slideSchema`, `deckConfigSchema`, `THEMES`, `defineAstlidePlugin`, `getDeckContext`, `getClientDeckContext` |
 | `@astlide/astro/loader` | `astlideDeckLoader` |
+| `@astlide/astro/components/*.astro` | Astlide's components, for `.astro` files |
+| `@astlide/core` | `slideSchema`, `deckConfigSchema`, `THEMES`, `defineAstlidePlugin`, `getDeckContext`, `getClientDeckContext` |
 | `@astlide/core/schema` | `slideSchema`, `deckConfigSchema`, `THEMES` |
 | `@astlide/core/plugin` | `defineAstlidePlugin` and the plugin types |
 | `@astlide/core/context` | `getDeckContext`, `getClientDeckContext` |
+| `@astlide/core/deck` | `readDeck`, `readDecks` and MDX compilation for any JSX runtime (`compileSlideMdx`, `evaluateSlideMdx`) |
+| `@astlide/core/deck/pages` | `slidePage`, `printSlides`: what each page of a deck shows |
+| `@astlide/core/deck/print-view` | What a print view states for exporters (`printViewAttributes`, `printViewMeta`) |
+| `@astlide/core/render` | `renderDeck`: PDF, PNG or PPTX of a deck folder, without a site |
+| `@astlide/core/runtime` | The deck runtime the framework packages drive (`mountDeck`), with `runtime/chrome`, `runtime/slide`, `runtime/diagrams`, `runtime/media` and `runtime/pdf-export` |
 | `@astlide/core/embed` | The `<astlide-deck>` custom element (`defineAstlideDeck`, `AstlideDeckElement`) |
 | `@astlide/core/embed/react` | The `AstlideDeck` React component |
 | `@astlide/core/embed/vue` | The `AstlideDeck` Vue component |
 | `@astlide/core/pptx` | `pptxToSlides` (PowerPoint to slides) and `pptxToTemplate` |
+| `@astlide/core/templates` | Template stores (folder, S3, GCS, Azure) |
 | `@astlide/core/mcp` | The MCP server behind `astlide mcp` (`createServer`) and its tool functions, such as `checkDeck`, `importPptx` and `renderDeck` |
 | `@astlide/core/engine` | The layout engine behind PPTX export and `check_deck` |
 | `@astlide/core/utils/base-path` | `withBase` and other helpers for links under Astro's `base` |
 | `@astlide/core/utils/code-highlight` | The `astlideCodeHighlight` Shiki transformer |
 | `@astlide/core/utils/mermaid` | The `astlideMermaid` Shiki transformer |
+| `@astlide/react`, `@astlide/next`, `@astlide/vue`, `@astlide/nuxt` | See [Next.js](/frameworks/next/), [Nuxt](/frameworks/nuxt/), [React](/frameworks/react/) and [Vue](/frameworks/vue/) |
 
 For every export and its types, see the [API reference](https://astlide.dev/api/).

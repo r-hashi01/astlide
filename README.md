@@ -24,6 +24,7 @@ Astlide is an [Astro](https://astro.build) integration for presentations. Write 
 - **Add it to the site you already have.** `astlide()` is an Astro integration, so it works in a blog, a Starlight docs site or any other Astro project. Some parts also work on their own: the deck loader, PowerPoint import and templates (`@astlide/core/pptx`), and the layout engine (`@astlide/core/engine`).
 - **Use your company's PowerPoint template.** Register a `.pptx` or `.potx` as a theme and your Markdown slides take on its layouts, fonts and colors. `astlide export --pptx` writes real text boxes, tables and shapes, with your speaker notes, that anyone can edit in PowerPoint. Astlide lays the slides out itself, so the export needs no browser and no LibreOffice.
 - **Bring in the slides you already have.** Put a `.pptx` from PowerPoint or Google Slides in a deck folder and its pages show up as slides. Or run `astlide import` to turn it into HTML slides you can edit.
+- **Run the same decks in Next.js, Nuxt, React or Vue.** `@astlide/next`, `@astlide/nuxt`, `@astlide/react` and `@astlide/vue` serve the same deck folders, MDX included, with the presenter window and PDF / PPTX export. See [the docs](https://astlide.dev/frameworks/next/).
 - **Use React, Vue or Svelte components.** Slides are Astro pages, so components from any of these work on a slide and stay interactive while you present.
 - **Link to any slide.** Each slide is a static page: `/my-talk/7` loads on its own and can be hosted anywhere, including under a sub-path such as a GitHub Pages project site.
 - **Pick the format slide by slide.** One deck can mix `.mdx`, `.md` and `.html` files. HTML is rendered as written, so you can paste in markup you wrote by hand or got from an AI tool. Frontmatter is checked with Zod.
@@ -580,22 +581,24 @@ It keeps 16:9 at its container's width and has `next()`, `prev()`, `goTo(n)`, `r
 
 ```
 packages/
-├── astlide/              # @astlide/core — Astro Integration
-│   ├── src/
-│   │   ├── index.ts      # Integration entry (injectRoute, options)
-│   │   ├── schema.ts     # Zod schema (slideSchema)
-│   │   ├── loader.ts     # astlideDeckLoader() — .mdx / .md / .html
-│   │   ├── context.ts    # getDeckContext / getClientDeckContext
-│   │   ├── plugin.ts     # Plugin API (themes / layouts / transitions / decorators)
-│   │   ├── components/   # Slide, Fragment, Notes, Columns, Left, Right, ImageSide, TextPanel
-│   │   ├── internal/     # DeckLayout, virtual modules, injected pages (incl. /[deck]/all)
-│   │   ├── styles/       # base.css + themes/
-│   │   ├── engine/       # HTML + CSS layout without a browser (PPTX export, check_deck)
-│   │   └── cli/          # astlide export
-│   └── package.json
+├── astlide/              # @astlide/core: what every framework shares
+│   └── src/
+│       ├── deck/         # read decks, MDX for any JSX runtime, page model, print view contract
+│       ├── render/       # PDF / PNG / PPTX of a deck folder, without a site
+│       ├── runtime/      # the deck runtime (navigation, presenter, overview …) and its markup
+│       ├── styles/       # base, deck, slide and component styles + themes/
+│       ├── schema.ts     # Zod schemas (slideSchema, deckConfigSchema)
+│       ├── plugin.ts     # Plugin API (themes / layouts / transitions / decorators)
+│       ├── pptx/         # PowerPoint import and templates
+│       ├── engine/       # HTML + CSS layout without a browser (PPTX export, check_deck)
+│       ├── mcp/          # astlide mcp
+│       └── cli/          # astlide export / import / template
+├── astro/                # @astlide/astro: the Astro integration, loader, components, pages
+├── react/                # @astlide/react
+├── next/                 # @astlide/next
+├── vue/                  # @astlide/vue
+├── nuxt/                 # @astlide/nuxt
 ├── create-astlide/       # CLI scaffolder (bun create astlide)
-│   ├── src/index.ts
-│   └── template/
 └── server/               # HTTP render service (OpenAPI, Dockerfile)
 ```
 

@@ -3,7 +3,7 @@ title: Getting Started
 description: Create a new Astlide project or add Astlide to an existing Astro site.
 ---
 
-Astlide is an [Astro](https://astro.build) integration. You need **Astro 7.2.10 or later** and Node.js 22.12 or later. The commands on this page use [Bun](https://bun.sh); npm, pnpm and Yarn work as well.
+To use Astlide in an [Astro](https://astro.build) site, you need **Astro 7.2.10 or later** and Node.js 22.12 or later. For Next.js, Nuxt, React or Vue, follow [Next.js](/frameworks/next/), [Nuxt](/frameworks/nuxt/), [React](/frameworks/react/) or [Vue](/frameworks/vue/) instead. The commands on this page use [Bun](https://bun.sh); npm, pnpm and Yarn work as well.
 
 ## Create a new project
 

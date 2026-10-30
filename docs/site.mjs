@@ -10,6 +10,17 @@ export const base = "";
 export const sidebar = [
 	{ label: "Why Astlide?", translations: { ja: "Astlide を選ぶ理由" }, slug: "why" },
 	{ label: "Getting Started", translations: { ja: "はじめに" }, slug: "getting-started" },
+	{
+		label: "Next.js, Nuxt, React, Vue",
+		translations: { ja: "Next.js・Nuxt・React・Vue" },
+		items: [
+			{ slug: "frameworks/next" },
+			{ slug: "frameworks/nuxt" },
+			{ slug: "frameworks/react" },
+			{ slug: "frameworks/vue" },
+		],
+	},
+	{ slug: "upgrade-to-3" },
 	{ slug: "tutorial/first-deck" },
 	{ slug: "gallery" },
 	{

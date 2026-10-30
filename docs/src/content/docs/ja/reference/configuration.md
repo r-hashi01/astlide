@@ -107,19 +107,28 @@ GitHub Pages では、レスポンスヘッダーを設定できません。
 
 | import 先 | 含まれるもの |
 |---|---|
-| `@astlide/core` | インテグレーション本体（デフォルトエクスポート）、`astlideDeckLoader`、`slideSchema`、`deckConfigSchema`、`THEMES`、`defineAstlidePlugin`、`getDeckContext`、`getClientDeckContext` |
+| `@astlide/astro` | Astro のインテグレーション（デフォルトエクスポート）と `astlideDeckLoader`。`slideSchema`・`deckConfigSchema`・`THEMES`・`defineAstlidePlugin`・`getDeckContext`・`getClientDeckContext` も再エクスポート |
 | `@astlide/astro/loader` | `astlideDeckLoader` |
+| `@astlide/astro/components/*.astro` | `.astro` ファイルで使う Astlide のコンポーネント |
+| `@astlide/core` | `slideSchema`・`deckConfigSchema`・`THEMES`・`defineAstlidePlugin`・`getDeckContext`・`getClientDeckContext` |
 | `@astlide/core/schema` | `slideSchema`、`deckConfigSchema`、`THEMES` |
 | `@astlide/core/plugin` | `defineAstlidePlugin` とプラグインの型 |
 | `@astlide/core/context` | `getDeckContext`、`getClientDeckContext` |
+| `@astlide/core/deck` | デッキを読む `readDeck`・`readDecks` と、どの JSX ランタイムにも使える MDX のコンパイル（`compileSlideMdx`・`evaluateSlideMdx`） |
+| `@astlide/core/deck/pages` | 各ページに何を出すかを決める `slidePage`・`printSlides` |
+| `@astlide/core/deck/print-view` | 書き出しツールに向けて印刷ビューが示す情報（`printViewAttributes`・`printViewMeta`） |
+| `@astlide/core/render` | サイトなしでデッキのフォルダから PDF・PNG・PPTX を作る `renderDeck` |
+| `@astlide/core/runtime` | フレームワーク用パッケージが動かすデッキランタイム（`mountDeck`）。`runtime/chrome`・`runtime/slide`・`runtime/diagrams`・`runtime/media`・`runtime/pdf-export` もあります |
 | `@astlide/core/embed` | カスタム要素 `<astlide-deck>`（`defineAstlideDeck`、`AstlideDeckElement`） |
 | `@astlide/core/embed/react` | React コンポーネント `AstlideDeck` |
 | `@astlide/core/embed/vue` | Vue コンポーネント `AstlideDeck` |
 | `@astlide/core/pptx` | PowerPoint をスライドに変換する `pptxToSlides` と、`pptxToTemplate` |
+| `@astlide/core/templates` | テンプレートの保存先（フォルダ・S3・GCS・Azure） |
 | `@astlide/core/mcp` | `astlide mcp` の MCP サーバー（`createServer`）と、`checkDeck`・`importPptx`・`renderDeck` などのツール関数 |
 | `@astlide/core/engine` | PPTX の書き出しと `check_deck` が使うレイアウトエンジン |
 | `@astlide/core/utils/base-path` | `withBase` など、Astro の `base` を考慮してリンクを組み立てるヘルパー |
 | `@astlide/core/utils/code-highlight` | Shiki のトランスフォーマー `astlideCodeHighlight` |
 | `@astlide/core/utils/mermaid` | Shiki のトランスフォーマー `astlideMermaid` |
+| `@astlide/react`・`@astlide/next`・`@astlide/vue`・`@astlide/nuxt` | [Next.js](/ja/frameworks/next/)・[Nuxt](/ja/frameworks/nuxt/)・[React](/ja/frameworks/react/)・[Vue](/ja/frameworks/vue/) を見てください |
 
 エクスポートと型の一覧は [API リファレンス](https://astlide.dev/api/)にあります。

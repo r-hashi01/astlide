@@ -15,7 +15,7 @@ description: Astlide が向いている人、Slidev・Marp・reveal.js・Quarto 
 
 ### Astro のサイトに組み込んで使う
 
-Astlide は `astro.config.mjs` に `astlide()` を追加して使います。ブログでも、Starlight のドキュメントでも、独自のナビゲーションを持つポータルでもかまいません。デッキはサイトのほかのページと並んで公開されます。
+Astlide は `astro.config.mjs` に `astlide()` を追加して使います。ブログ、Starlight のドキュメント、独自のナビゲーションを持つポータルのどれにも追加できます。デッキはサイトのほかのページと並んで公開されます。
 
 一部の機能はインテグレーションを使わずに単体でも使えます。デッキローダー（`astlideDeckLoader`）、PowerPoint の取り込みとテンプレート（`@astlide/core/pptx`）、PPTX エクスポートで使っているレイアウトエンジン（`@astlide/core/engine`）です。
 
