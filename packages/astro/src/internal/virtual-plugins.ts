@@ -1,5 +1,9 @@
+import { fileURLToPath } from "node:url";
 import type { ResolvedPlugins } from "@astlide/core/plugin";
 import type { Plugin } from "vite";
+
+/** A file inside `@astlide/astro`, which depends on `@astlide/core`. */
+const ASTRO_PACKAGE_FILE = fileURLToPath(import.meta.url);
 
 /**
  * Vite plugin that exposes Astlide plugin contributions as virtual modules.
@@ -18,6 +22,11 @@ import type { Plugin } from "vite";
  * dynamically (`<LayoutComponent />`) when they are already in the module graph,
  * so we resolve every `componentEntrypoint` at build time rather than via
  * runtime `import()`.
+ *
+ * A virtual module has no file location, so Vite resolves its imports from the
+ * project root. Built-in themes import `@astlide/core/...`, which a strict
+ * install (pnpm) doesn't expose to a project that depends only on
+ * `@astlide/astro`; those imports are resolved from this package instead.
  */
 export function astlideVirtualPlugin(
 	resolved: ResolvedPlugins,
@@ -34,11 +43,14 @@ export function astlideVirtualPlugin(
 
 	return {
 		name: "astlide:virtual",
-		resolveId(id) {
+		resolveId(id, importer) {
 			if (id === VIRTUAL_THEMES_ID) return RESOLVED_THEMES_ID;
 			if (id === VIRTUAL_LAYOUTS_ID) return RESOLVED_LAYOUTS_ID;
 			if (id === VIRTUAL_DECORATORS_ID) return RESOLVED_DECORATORS_ID;
 			if (id === VIRTUAL_MERMAID_ID) return RESOLVED_MERMAID_ID;
+			if (id.startsWith("@astlide/core/") && importer?.startsWith("\0virtual:astlide/")) {
+				return this.resolve(id, ASTRO_PACKAGE_FILE, { skipSelf: true });
+			}
 			return null;
 		},
 		load(id) {
