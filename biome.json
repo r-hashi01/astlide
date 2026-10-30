@@ -78,10 +78,7 @@
 			"linter": {
 				"rules": {
 					"a11y": {
-						"useSemanticElements": "off",
 						"useButtonType": "off",
-						"noNoninteractiveElementToInteractiveRole": "off",
-						"noRedundantRoles": "off",
 						"useAnchorContent": "off"
 					},
 					"suspicious": {

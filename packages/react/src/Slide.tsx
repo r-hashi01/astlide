@@ -38,6 +38,7 @@ export function Slide({ children, html, decorations, ...props }: SlideProps) {
 			className={shell.classes.join(" ")}
 			data-transition={shell.transition}
 			style={shell.style ? style : undefined}
+			// biome-ignore lint/a11y/noRedundantRoles: a slide without a label is still a region, so aria-roledescription applies
 			role="region"
 			aria-roledescription="slide"
 			aria-label={shell.ariaLabel}

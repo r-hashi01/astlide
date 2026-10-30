@@ -10,7 +10,7 @@
  * ```html
  * <body>
  *   {deckChromeBefore(props)}
- *   <div class="presentation" role="main" aria-label="Slide presentation">
+ *   <main class="presentation" aria-label="Slide presentation">
  *     <div class="slide-scaler" id="slide-scaler" tabindex="-1">
  *       …the slide…
  *       {SLIDE_OVERLAYS}
@@ -120,11 +120,11 @@ ${p.nextSlide !== null ? '<div class="presenter-next-frame"></div>' : '<p class=
 <div class="presenter-notes">
 <div class="presenter-notes-header">
 <h3>Notes</h3>
-<div class="notes-font-controls" role="group" aria-label="Adjust notes font size">
+<fieldset class="notes-font-controls" aria-label="Adjust notes font size">
 <button type="button" class="notes-font-btn" data-notes-font="dec" aria-label="Decrease notes font size" title="Smaller (Shift+,)">A−</button>
 <button type="button" class="notes-font-btn" data-notes-font="reset" aria-label="Reset notes font size" title="Reset">A</button>
 <button type="button" class="notes-font-btn" data-notes-font="inc" aria-label="Increase notes font size" title="Larger (Shift+.)">A+</button>
-</div>
+</fieldset>
 </div>
 ${notesBlock(p, "notes-content")}
 </div>
@@ -151,12 +151,12 @@ export function deckChromeAfter(p: DeckChromeProps): string {
 		: `<div class="notes-body"><p class="no-notes">${escapeText(p.noNotesText)}</p></div>`;
 	return `<div class="recording-indicator" role="status" aria-label="Recording"><span class="recording-dot" aria-hidden="true"></span><span id="astlide-recording-time">0:00</span></div>
 <nav class="slide-nav" aria-label="Slide navigation">${p.toolbar.map((item) => toolbarItem(item, p)).join("")}</nav>
-<div class="notes-overlay" id="notes-overlay" role="complementary" aria-label="Speaker notes" aria-hidden="true" inert>
+<aside class="notes-overlay" id="notes-overlay" aria-label="Speaker notes" aria-hidden="true" inert>
 <div class="notes-overlay-content">
 <div class="notes-overlay-header"><span>Speaker Notes</span><button class="notes-close" id="notes-close" aria-label="Close speaker notes">✕</button></div>
 ${notes}
 </div>
-</div>
+</aside>
 <div class="pdf-overlay" id="pdf-overlay" role="dialog" aria-label="Generating PDF" aria-hidden="true">
 <div class="pdf-overlay-card">
 <div class="pdf-overlay-title">Generating PDF</div>
@@ -166,7 +166,7 @@ ${notes}
 </div>
 <div class="overview" id="overview" role="dialog" aria-label="Slide overview" aria-hidden="true">
 <div class="overview-header">Overview — press <kbd>o</kbd> or <kbd>Esc</kbd> to close</div>
-<div class="overview-grid" id="overview-grid" role="list"></div>
+<ul class="overview-grid" id="overview-grid"></ul>
 </div>
 <div class="goto" id="goto" role="dialog" aria-modal="true" aria-label="Go to slide" aria-hidden="true">
 <div class="goto-card">

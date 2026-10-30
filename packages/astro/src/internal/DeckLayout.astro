@@ -150,13 +150,13 @@ const runtimeConfig = JSON.stringify({
     <Fragment set:html={deckChromeBefore(chrome)} />
 
     <!-- Normal presentation layout (always rendered with slot) -->
-    <div class="presentation" role="main" aria-label="Slide presentation">
+    <main class="presentation" aria-label="Slide presentation">
       <div class="slide-scaler" id="slide-scaler" tabindex="-1" transition:name="slide-content" transition:animate="none">
         <slot />
         <!-- Pen / laser overlays, in slide coordinates (scale with the slide) -->
         <Fragment set:html={SLIDE_OVERLAYS} />
       </div>
-    </div>
+    </main>
 
     <!-- Dev editor (e) host: persisted so live refreshes don't interrupt typing. -->
     {import.meta.env.DEV && <div id="astlide-editor-host" transition:persist="astlide-editor-host"></div>}
