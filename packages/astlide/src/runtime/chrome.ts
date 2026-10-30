@@ -153,7 +153,7 @@ export function deckChromeAfter(p: DeckChromeProps): string {
 <nav class="slide-nav" aria-label="Slide navigation">${p.toolbar.map((item) => toolbarItem(item, p)).join("")}</nav>
 <aside class="notes-overlay" id="notes-overlay" aria-label="Speaker notes" aria-hidden="true" inert>
 <div class="notes-overlay-content">
-<div class="notes-overlay-header"><span>Speaker Notes</span><button class="notes-close" id="notes-close" aria-label="Close speaker notes">✕</button></div>
+<div class="notes-overlay-header"><span>Speaker Notes</span><button type="button" class="notes-close" id="notes-close" aria-label="Close speaker notes">✕</button></div>
 ${notes}
 </div>
 </aside>
@@ -164,7 +164,7 @@ ${notes}
 <div class="pdf-overlay-status" id="pdf-overlay-status">Preparing…</div>
 </div>
 </div>
-<div class="overview" id="overview" role="dialog" aria-label="Slide overview" aria-hidden="true">
+<div class="overview" id="overview" role="dialog" aria-modal="true" aria-label="Slide overview" aria-hidden="true">
 <div class="overview-header">Overview — press <kbd>o</kbd> or <kbd>Esc</kbd> to close</div>
 <ul class="overview-grid" id="overview-grid"></ul>
 </div>

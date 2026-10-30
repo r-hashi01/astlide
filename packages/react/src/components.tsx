@@ -220,6 +220,7 @@ export function YouTube({ id, title = "YouTube video", start, ...props }: YouTub
 				allowFullScreen
 				loading="lazy"
 			/>
+			{/* biome-ignore lint/a11y/useAnchorContent: a print-only stand-in for the iframe, which screen readers get instead */}
 			<a
 				className="youtube-static"
 				href={`https://www.youtube.com/watch?v=${candidate}${start !== undefined ? `&t=${start}s` : ""}`}

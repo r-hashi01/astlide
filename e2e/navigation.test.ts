@@ -90,4 +90,49 @@ describe("keyboard", () => {
 		await expect.poll(() => notesClose.isVisible()).toBe(true);
 		expect(await tabTo()).toBe(true);
 	});
+
+	// Whether focus is on the page behind an open dialog (body means the browser's own UI).
+	const focusBehind = (page: Page, dialog: string) =>
+		page.evaluate((dialog) => {
+			const el = document.activeElement;
+			return !!el && el !== document.body && !el.closest(dialog);
+		}, dialog);
+
+	it("keeps focus in the overview while it's open, and gives it back", async () => {
+		const page = await deck(2);
+		const toolbarButton = page.locator('.slide-nav [data-action="overview"]');
+		await toolbarButton.focus();
+		await page.keyboard.press("Enter");
+		await expect.poll(() => page.locator("#overview").getAttribute("aria-hidden")).toBe("false");
+		const focusedLabel = () =>
+			page.evaluate(() => document.activeElement?.getAttribute("aria-label"));
+		await expect.poll(focusedLabel).toBe("Slide 2 of 11 (current)");
+		for (let i = 0; i < 30; i++) {
+			await page.keyboard.press("Tab");
+			expect(await focusBehind(page, "#overview")).toBe(false);
+		}
+		await page.keyboard.press("Escape");
+		await expect.poll(() => page.locator("#overview").getAttribute("aria-hidden")).toBe("true");
+		await expect
+			.poll(() => toolbarButton.evaluate((el) => el === document.activeElement))
+			.toBe(true);
+		expect(await page.locator(".slide-nav").evaluate((el) => (el as HTMLElement).inert)).toBe(
+			false,
+		);
+	});
+
+	it("keeps focus in the go-to dialog while it's open", async () => {
+		const page = await deck(2);
+		await page.keyboard.press("g");
+		await expect.poll(() => page.locator("#goto").getAttribute("aria-hidden")).toBe("false");
+		for (let i = 0; i < 10; i++) {
+			await page.keyboard.press("Tab");
+			expect(await focusBehind(page, "#goto")).toBe(false);
+		}
+		await page.keyboard.press("Escape");
+		await expect.poll(() => page.locator("#goto").getAttribute("aria-hidden")).toBe("true");
+		expect(await page.locator(".slide-nav").evaluate((el) => (el as HTMLElement).inert)).toBe(
+			false,
+		);
+	});
 });
