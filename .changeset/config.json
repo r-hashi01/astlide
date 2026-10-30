@@ -7,8 +7,16 @@
 		}
 	],
 	"commit": false,
-	"fixed": [],
-	"linked": [],
+	"linked": [
+		[
+			"@astlide/core",
+			"@astlide/astro",
+			"@astlide/react",
+			"@astlide/next",
+			"@astlide/vue",
+			"@astlide/nuxt"
+		]
+	],
 	"access": "public",
 	"baseBranch": "main",
 	"updateInternalDependencies": "patch",
