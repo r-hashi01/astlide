@@ -1,5 +1,13 @@
 # astlide
 
+## 0.2.1
+
+### Patch Changes
+
+- [#294](https://github.com/r-hashi01/astlide/pull/294) [`efd2c93`](https://github.com/r-hashi01/astlide/commit/efd2c93d74e1dde22d21efbbaed2d324eda64e59) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Depend on `@astlide/core` 3 (and on `@astlide/react` / `@astlide/vue` 3). The 3.0.0 releases of these packages, and `astlide` 0.2.0, were published depending on the previous versions.
+- Updated dependencies [[`efd2c93`](https://github.com/r-hashi01/astlide/commit/efd2c93d74e1dde22d21efbbaed2d324eda64e59)]:
+  - @astlide/core@3.0.1
+
 ## 0.2.0
 
 ### Minor Changes
