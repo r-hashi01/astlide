@@ -3,9 +3,7 @@ title: はじめに
 description: Astlide のプロジェクトを新しく作る手順と、既存の Astro サイトに Astlide を追加する手順です。
 ---
 
-このページでは、Astlide を [Astro](https://astro.build) サイトで使う手順を説明します。Astro は Astlide の本拠地です。Next.js・Nuxt・React・Vue で使う場合は[それぞれのページ](/ja/frameworks/next/)を見てください。どれを選んでも、デッキは同じファイルのまま使えます。
-
-Astro で動かすには **Astro 7.2.10 以降**と Node.js 22.12 以降が必要です。このページのコマンドは [Bun](https://bun.sh) で書いていますが、npm、pnpm、Yarn でもかまいません。
+[Astro](https://astro.build) サイトで使うには、**Astro 7.2.10 以降**と Node.js 22.12 以降が必要です。Next.js・Nuxt・React・Vue で使う場合は、[Next.js](/ja/frameworks/next/)・[Nuxt](/ja/frameworks/nuxt/)・[React](/ja/frameworks/react/)・[Vue](/ja/frameworks/vue/) の手順に従ってください。このページのコマンドは [Bun](https://bun.sh) で書いていますが、npm、pnpm、Yarn でもかまいません。
 
 ## 新しいプロジェクトを作る
 

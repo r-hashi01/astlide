@@ -3,9 +3,7 @@ title: React・Vue・Svelte のコンポーネント
 description: React、Vue、Svelte、Solid、Preact のコンポーネントをスライドで使う方法です。ブラウザでは操作でき、PDF と PPTX には最初に描画された状態で出力されます。
 ---
 
-このページは、Astro サイトのスライドの中でコンポーネントを使う話です。デッキそのものを Next.js・Nuxt・React・Vue のアプリで動かしたい場合は、[Next.js](/ja/frameworks/next/)・[Nuxt](/ja/frameworks/nuxt/)・[React](/ja/frameworks/react/)・[Vue](/ja/frameworks/vue/) のページを見てください。
-
-Astro サイトでは、Astro が対応しているフレームワークのコンポーネントをスライドで使えます。対象は React、Vue、Svelte、Solid、Preact です。手元にあるグラフやデモ用のウィジェット、デザインシステムのコンポーネントを、書き直さずにそのままスライドに載せられます。
+Astlide は Astro の上で動くので、Astro が対応しているフレームワークのコンポーネントをスライドで使えます。対象は React、Vue、Svelte、Solid、Preact です。手元にあるグラフやデモ用のウィジェット、デザインシステムのコンポーネントを、書き直さずにそのままスライドに載せられます。
 
 ## セットアップ
 

@@ -3,9 +3,7 @@ title: React, Vue & Svelte components
 description: Use components from React, Vue, Svelte, Solid or Preact in your slides. They are interactive in the browser and appear in their first rendered state in PDF and PPTX.
 ---
 
-This page is about components on the slides of an Astro site. To run your decks in a Next.js, Nuxt, React or Vue app instead, see [Next.js](/frameworks/next/), [Nuxt](/frameworks/nuxt/), [React](/frameworks/react/) or [Vue](/frameworks/vue/).
-
-In an Astro site, your slides can use components from any framework Astro supports: React, Vue, Svelte, Solid and Preact. If you already have a chart, a demo widget or a design-system component, you can put it on a slide as it is.
+Astlide runs inside Astro, so your slides can use components from any framework Astro supports: React, Vue, Svelte, Solid and Preact. If you already have a chart, a demo widget or a design-system component, you can put it on a slide as it is.
 
 ## Set up
 
