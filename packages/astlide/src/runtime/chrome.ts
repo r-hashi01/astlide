@@ -48,11 +48,11 @@ const escapeText = (s: string) =>
 	s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const escapeAttr = (s: string) => escapeText(s).replace(/"/g, "&quot;");
 
-/** A link to a neighbouring slide, disabled when there is none. */
+/** A link to a neighbouring slide, or a disabled button when there is none. */
 function navLink(href: string | null, className: string, label: string, text: string): string {
 	const aria = label ? ` aria-label="${escapeAttr(label)}"` : "";
 	if (href === null)
-		return `<a class="${className} disabled"${aria} aria-disabled="true" tabindex="-1">${text}</a>`;
+		return `<button type="button" class="${className} disabled"${aria} disabled>${text}</button>`;
 	return `<a href="${escapeAttr(href)}" class="${className}"${aria}>${text}</a>`;
 }
 
@@ -142,7 +142,7 @@ export const SLIDE_OVERLAYS =
 
 /** The camera bubble (`v`). Hosts with client-side navigation should keep it across slides. */
 export const CAMERA_BUBBLE =
-	'<div id="astlide-camera" class="camera-bubble" aria-label="Camera" hidden><video autoplay muted playsinline></video></div>';
+	'<div id="astlide-camera" class="camera-bubble" hidden><video aria-label="Camera" autoplay muted playsinline></video></div>';
 
 /** After the slide: recording indicator, toolbar, and the notes / PDF / overview / go-to overlays. */
 export function deckChromeAfter(p: DeckChromeProps): string {

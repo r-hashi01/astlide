@@ -174,9 +174,9 @@ export function DeckPage(props: DeckPageProps) {
 		text: string,
 	) =>
 		href === null ? (
-			<a className={`${className} disabled`} aria-label={label} aria-disabled="true" tabIndex={-1}>
+			<button type="button" className={`${className} disabled`} aria-label={label} disabled>
 				{text}
-			</a>
+			</button>
 		) : (
 			<a href={href} className={className} aria-label={label}>
 				{text}
@@ -305,8 +305,8 @@ export function DeckPage(props: DeckPageProps) {
 			<div className="presentation" role="main" aria-label="Slide presentation">
 				{presenter ? null : scaler}
 			</div>
-			<div id="astlide-camera" className="camera-bubble" aria-label="Camera" hidden>
-				<video autoPlay muted playsInline />
+			<div id="astlide-camera" className="camera-bubble" hidden>
+				<video aria-label="Camera" autoPlay muted playsInline />
 			</div>
 			<div className="recording-indicator" role="status" aria-label="Recording">
 				<span className="recording-dot" aria-hidden="true" />

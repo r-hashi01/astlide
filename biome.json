@@ -78,8 +78,6 @@
 			"linter": {
 				"rules": {
 					"a11y": {
-						"useAriaPropsSupportedByRole": "off",
-						"useValidAnchor": "off",
 						"noAriaHiddenOnFocusable": "off",
 						"useSemanticElements": "off",
 						"useButtonType": "off",

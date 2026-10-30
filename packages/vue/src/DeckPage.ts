@@ -158,13 +158,8 @@ export const DeckPage = defineComponent({
 		) =>
 			href === null
 				? h(
-						"a",
-						{
-							class: `${className} disabled`,
-							"aria-label": label,
-							"aria-disabled": "true",
-							tabindex: "-1",
-						},
+						"button",
+						{ type: "button", class: `${className} disabled`, "aria-label": label, disabled: true },
 						text,
 					)
 				: h("a", { href, class: className, "aria-label": label }, text);
@@ -344,11 +339,9 @@ export const DeckPage = defineComponent({
 					{ class: "presentation", role: "main", "aria-label": "Slide presentation" },
 					props.presenter ? [] : [scaler],
 				),
-				h(
-					"div",
-					{ id: "astlide-camera", class: "camera-bubble", "aria-label": "Camera", hidden: "" },
-					[h("video", { autoplay: "", muted: "", playsinline: "" })],
-				),
+				h("div", { id: "astlide-camera", class: "camera-bubble", hidden: "" }, [
+					h("video", { "aria-label": "Camera", autoplay: "", muted: "", playsinline: "" }),
+				]),
 				h("div", { class: "recording-indicator", role: "status", "aria-label": "Recording" }, [
 					h("span", { class: "recording-dot", "aria-hidden": "true" }),
 					h("span", { id: "astlide-recording-time" }, "0:00"),
