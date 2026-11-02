@@ -127,6 +127,15 @@ describe("@astlide/next", () => {
 		await page.close();
 	});
 
+	it("keeps speaker notes out of production pages", async () => {
+		// Frontmatter notes (example-deck 4) and <SpeakerNotes> (example-deck 2).
+		const notes = ["adds a filename header and a copy button", "Key points to mention"];
+		for (const path of ["/example-deck/2/", "/example-deck/4/", "/example-deck/all/"]) {
+			const html = await (await fetch(`${base}${path}`)).text();
+			for (const text of notes) expect(html, path).not.toContain(text);
+		}
+	});
+
 	it("exports PNG, PDF and PPTX from the Next site with astlide export, from the app's folder", () => {
 		const out = mkdtempSync(join(tmpdir(), "astlide-next-export-"));
 		try {

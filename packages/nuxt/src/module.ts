@@ -40,6 +40,12 @@ export interface ModuleOptions {
 	/** Show slides marked `hidden` (default: only in development). */
 	showHidden?: boolean;
 	/**
+	 * Speaker notes in the pages: `"dev"` (default) only in development, so
+	 * they don't ship with your site; `"public"` always, e.g. to export a PPTX
+	 * with notes from a production server.
+	 */
+	notes?: "public" | "dev";
+	/**
 	 * Render ```mermaid diagrams (needs the `mermaid` package). Default: when
 	 * `mermaid` is installed. Without it, diagrams show as their source.
 	 */
@@ -90,6 +96,7 @@ export default defineNuxtModule<ModuleOptions>({
 					basePath,
 					toolbar: options.toolbar,
 					showHidden: options.showHidden ?? nuxt.options.dev,
+					notes: options.notes === "public" || nuxt.options.dev,
 				},
 			}),
 		);

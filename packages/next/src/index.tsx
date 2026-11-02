@@ -38,7 +38,7 @@ import { type Deck, evaluateSlideMdx, readDecks, renderNotesHtml } from "@astlid
 import { printSlides, slidePage } from "@astlide/core/deck/pages";
 import { printViewAttributes, printViewMeta, themeName } from "@astlide/core/deck/print-view";
 import { slideTitle } from "@astlide/core/utils/slide-title";
-import { mdxComponents, Slide } from "@astlide/react";
+import { createMdxComponents, mdxComponents, Slide } from "@astlide/react";
 import type { ComponentType, ReactNode } from "react";
 import * as runtime from "react/jsx-runtime";
 import { NextDeckPage, PrintViewSetup } from "./client";
@@ -56,6 +56,12 @@ export interface DeckRoutesOptions {
 	shikiTheme?: string;
 	/** Show slides marked `hidden` (default: only in development). */
 	showHidden?: boolean;
+	/**
+	 * Speaker notes in the pages: `"dev"` (default) only in development, so
+	 * they don't ship with your site; `"public"` always, e.g. to export a PPTX
+	 * with notes from a production server.
+	 */
+	notes?: "public" | "dev";
 }
 
 type SlideParams = { deck: string; slide: string };
@@ -68,6 +74,8 @@ export function createDeckRoutes(options: DeckRoutesOptions = {}) {
 	let basePath = options.basePath ?? "";
 	while (basePath.endsWith("/")) basePath = basePath.slice(0, -1);
 	const showHidden = options.showHidden ?? process.env.NODE_ENV === "development";
+	const withNotes = options.notes === "public" || process.env.NODE_ENV === "development";
+	const components = withNotes ? mdxComponents : createMdxComponents({ notes: false });
 	const markdown = { shikiTheme: options.shikiTheme };
 
 	// Read once per server process in production; again on every request in development.
@@ -92,14 +100,13 @@ export function createDeckRoutes(options: DeckRoutesOptions = {}) {
 		slide: Deck["slides"][number],
 	): Promise<{ html?: string; node?: ReactNode }> {
 		if (slide.format !== "mdx") return { html: slide.html ?? "" };
-		const { default: Content } = (await evaluateSlideMdx(
-			slide.body,
-			runtime as never,
-			markdown,
-		)) as {
+		const { default: Content } = (await evaluateSlideMdx(slide.body, runtime as never, {
+			...markdown,
+			notes: withNotes,
+		})) as {
 			default: ComponentType<{ components: typeof mdxComponents }>;
 		};
-		return { node: <Content components={mdxComponents} /> };
+		return { node: <Content components={components} /> };
 	}
 
 	/** Attributes on <html> before the first paint (the root layout owns <html>). */
@@ -144,7 +151,7 @@ export function createDeckRoutes(options: DeckRoutesOptions = {}) {
 					trailingSlash={options.trailingSlash}
 					toolbar={options.toolbar}
 					outline={page.outline}
-					notesHtml={slide.notes ? await renderNotesHtml(slide.notes) : undefined}
+					notesHtml={withNotes && slide.notes ? await renderNotesHtml(slide.notes) : undefined}
 					deckContext={page.deckContext}
 				>
 					<Slide
@@ -185,7 +192,7 @@ export function createDeckRoutes(options: DeckRoutesOptions = {}) {
 							totalSlides={slides.length}
 							{...(html === undefined ? {} : { html })}
 							decorations={
-								slide.notes ? (
+								withNotes && slide.notes ? (
 									<div data-slide-notes="meta" hidden>
 										{slide.notes}
 									</div>

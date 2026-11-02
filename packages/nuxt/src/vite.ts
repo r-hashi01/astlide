@@ -19,7 +19,7 @@ export interface DecksPluginOptions {
 	dir: string;
 	shikiTheme?: string;
 	/** Settings the pages read (`options` of the decks module). */
-	runtime: { basePath: string; toolbar?: string[]; showHidden: boolean };
+	runtime: { basePath: string; toolbar?: string[]; showHidden: boolean; notes: boolean };
 }
 
 const DECKS = "virtual:astlide-nuxt/decks";
@@ -56,6 +56,8 @@ export function astlideDecksPlugin(options: DecksPluginOptions): Plugin {
 			server.ws.send({ type: "full-reload" });
 		}
 	};
+	// Frontmatter goes to every page: without `notes` when pages carry none.
+	const dataOf = (data: object) => (options.runtime.notes ? data : { ...data, notes: undefined });
 
 	return {
 		name: "astlide:nuxt-decks",
@@ -73,7 +75,7 @@ export function astlideDecksPlugin(options: DecksPluginOptions): Plugin {
 						`{name:${json(d.name)},config:${json(d.config)},slides:[${d.slides
 							.map(
 								(s) =>
-									`{id:${json(s.id)},format:${json(s.format)},data:${json(s.data)},title:${json(
+									`{id:${json(s.id)},format:${json(s.format)},data:${json(dataOf(s.data))},title:${json(
 										s.title,
 									)},description:${json(slideTitle({ data: s.data, body: s.body }))},load:()=>import(${json(
 										slideId(d.name, s.id),
@@ -92,13 +94,15 @@ export function astlideDecksPlugin(options: DecksPluginOptions): Plugin {
 				.find((d) => d.name === deckName)
 				?.slides.find((s) => s.id === slideName);
 			if (!slide) return "export const html = '';";
-			const notes = slide.notes
-				? `export const notes=${json(slide.notes)};\nexport const notesHtml=${json(await renderNotesHtml(slide.notes))};\n`
-				: "";
+			const notes =
+				options.runtime.notes && slide.notes
+					? `export const notes=${json(slide.notes)};\nexport const notesHtml=${json(await renderNotesHtml(slide.notes))};\n`
+					: "";
 			if (slide.format !== "mdx") return `export const html=${json(slide.html ?? "")};\n${notes}`;
 			const code = await compileSlideMdx(slide.body, {
 				...markdown,
 				jsxImportSource: "@astlide/vue",
+				notes: options.runtime.notes,
 			});
 			return `${code}\n${notes}`;
 		},

@@ -54,6 +54,7 @@ export default defineNuxtConfig({
 | `toolbar` | 前へ・番号・次へ | ツールバーのボタン。Astro の [`toolbar`](/ja/reference/configuration/) オプションと同じ書き方です。 |
 | `shikiTheme` | `"github-dark"` | コードブロックの Shiki テーマ。 |
 | `showHidden` | 開発時のみ | `hidden: true` のスライドも表示します。 |
+| `notes` | `"dev"` | ページにスピーカーノートを入れるかどうかです。`"dev"` では開発時だけ、`"public"` では本番でも入れます。 |
 | `mermaid` | `mermaid` が入っていれば有効 | Mermaid の図を描きます。無効にすると図はソースのまま表示され、`mermaid` はバンドルに入りません。 |
 
 `<ImageSide src="/photo.jpg">` のようにスライドで `/` から始まる URL を書くと、アプリの `app.baseURL` が前に付きます。
@@ -73,7 +74,7 @@ bun run build && node .output/server/index.mjs
 bunx astlide export my-talk --pdf --pptx --png --base-url http://localhost:3000/decks
 ```
 
-PPTX は `nuxt dev` からは正しく書き出せません。ビルドしたサーバーを使ってください。
+PPTX は `nuxt dev` からは正しく書き出せません。ビルドしたサーバーを使ってください。PPTX にスピーカーノートが入るのは、`notes: "public"` のときだけです。
 
 ## Astro 版との違い
 

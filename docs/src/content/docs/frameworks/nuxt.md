@@ -54,6 +54,7 @@ Put a deck in `decks/my-talk/` and open `/decks/my-talk/1`.
 | `toolbar` | prev, counter, next | The toolbar buttons, as in the Astro integration's [`toolbar`](/reference/configuration/) option. |
 | `shikiTheme` | `"github-dark"` | The Shiki theme for code blocks. |
 | `showHidden` | in development | Show slides marked `hidden: true`. |
+| `notes` | `"dev"` | Speaker notes in the pages: `"dev"` only in development, `"public"` also in production. |
 | `mermaid` | when `mermaid` is installed | Draw Mermaid diagrams. Without it, diagrams show their source, and `mermaid` isn't bundled. |
 
 Root-relative URLs in slides, such as `<ImageSide src="/photo.jpg">`, follow your app's `app.baseURL`.
@@ -73,7 +74,7 @@ bun run build && node .output/server/index.mjs
 bunx astlide export my-talk --pdf --pptx --png --base-url http://localhost:3000/decks
 ```
 
-PPTX doesn't come out right from `nuxt dev`. Use the built server.
+PPTX doesn't come out right from `nuxt dev`. Use the built server. The PPTX gets speaker notes only with `notes: "public"`.
 
 ## Compared with the Astro integration
 
