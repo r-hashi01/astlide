@@ -14,13 +14,9 @@
  */
 
 import type { DeckContext } from "@astlide/core/context";
-import {
-	applyPageFlags,
-	type DeckRuntimeConfig,
-	mountDeck,
-	type OutlineEntry,
-} from "@astlide/core/runtime";
+import type { DeckRuntimeConfig, OutlineEntry } from "@astlide/core/runtime";
 import { TOOLBAR_ACTIONS } from "@astlide/core/runtime/chrome";
+import { mountDeckPage, setUpDeckPageTools } from "@astlide/core/runtime/deck-page";
 import type { MermaidLoader } from "@astlide/core/runtime/diagrams";
 import { noNotesText, slideNeighbours, slideUrl } from "@astlide/core/runtime/page";
 import { Fragment, type ReactNode, useEffect, useMemo } from "react";
@@ -124,38 +120,13 @@ export function DeckPage(props: DeckPageProps) {
 	);
 	const { navigate, loadMermaid, loadPdfExport } = props;
 	// biome-ignore lint/correctness/useExhaustiveDependencies: `presenter` re-mounts the runtime on the slide's new element
-	useEffect(() => {
-		applyPageFlags();
-		// What an Astro slide page has on <body> (exporters read the slide count there).
-		const body = document.body.dataset;
-		body.totalSlides = String(config.totalSlides);
-		body.currentSlide = String(config.currentSlide);
-		body.deck = config.deck;
-		// React places the slide (presenter panel or not); the runtime mustn't move it.
-		const unmount = mountDeck(config, { placeSlide: false, ...(navigate ? { navigate } : {}) });
-		// What an Astro slide page's other scripts do on each slide.
-		void import("@astlide/core/runtime/diagrams").then((m) => m.renderDiagramsWith(loadMermaid));
-		void import("@astlide/core/runtime/media").then((m) => m.syncMediaUi());
-		return unmount;
+	useEffect(
+		() => mountDeckPage(config, { navigate, loadMermaid }),
 		// Again when the slide moves between the presenter panel and the page: a new element.
-	}, [config, navigate, loadMermaid, presenter]);
+		[config, navigate, loadMermaid, presenter],
+	);
 	// Camera, recording and the toolbar's PDF download, set up once per page.
-	useEffect(() => {
-		void import("@astlide/core/runtime/media").then(({ toggleCamera, toggleRecording }) => {
-			window.__astlide_media = {
-				toggleCamera,
-				toggleRecording: () => toggleRecording(window.__astlide?.deck ?? deck),
-			};
-		});
-		window.__astlide_download_pdf = loadPdfExport
-			? async (options) => {
-					const mod = await loadPdfExport();
-					const result = await mod.exportDeckToPdf(options);
-					mod.downloadBlob(result.blob, `${options.deck}.pdf`);
-					return result;
-				}
-			: undefined;
-	}, [deck, loadPdfExport]);
+	useEffect(() => setUpDeckPageTools({ deck, loadPdfExport }), [deck, loadPdfExport]);
 
 	const notes = (className: string) =>
 		notesHtml ? (
