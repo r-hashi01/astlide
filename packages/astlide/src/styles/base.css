@@ -1,20 +1,26 @@
+/*
+ * Element styles apply on Astlide's own pages only (a deck, the print view,
+ * the deck index), not on the other pages of the app. :where() keeps their
+ * specificity what it was.
+ */
+
 /* Reset */
-*,
-*::before,
-*::after {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) *,
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) *::before,
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) *::after {
 	box-sizing: border-box;
 	margin: 0;
 	padding: 0;
 }
 
 /* Base */
-html {
+html:where([data-astlide-all], :has(.presentation, .astlide-deck-index)) {
 	font-size: 16px;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 }
 
-body {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) body {
 	font-family: var(--font-body);
 	font-size: var(--font-size-base);
 	line-height: var(--line-height);
@@ -23,63 +29,63 @@ body {
 }
 
 /* Typography */
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) h1,
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) h2,
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) h3,
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) h4,
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) h5,
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) h6 {
 	font-family: var(--font-heading);
 	font-weight: 600;
 	line-height: var(--heading-line-height);
 	color: var(--color-foreground);
 }
 
-h1 {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) h1 {
 	font-size: var(--font-size-h1);
 	margin-bottom: 1em;
 }
 
-h2 {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) h2 {
 	font-size: var(--font-size-h2);
 	margin-bottom: 0.75em;
 }
 
-h3 {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) h3 {
 	font-size: var(--font-size-h3);
 	margin-bottom: 0.5em;
 }
 
-p {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) p {
 	margin-bottom: 1em;
 }
 
-a {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) a {
 	color: var(--color-primary);
 	text-decoration: none;
 }
 
-a:hover {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) a:hover {
 	text-decoration: underline;
 }
 
 /* Lists */
-ul,
-ol {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) ul,
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) ol {
 	padding-left: 1.5em;
 	margin-bottom: 1em;
 }
 
-li {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) li {
 	margin-bottom: 0.5em;
 }
 
-li::marker {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) li::marker {
 	color: var(--color-primary);
 }
 
 /* Code */
-code {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) code {
 	font-family: var(--font-mono);
 	font-size: 0.9em;
 	background-color: var(--color-muted);
@@ -87,7 +93,7 @@ code {
 	border-radius: 0.25rem;
 }
 
-pre {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) pre {
 	font-family: var(--font-mono);
 	font-size: var(--font-size-code);
 	background-color: var(--code-background);
@@ -98,14 +104,14 @@ pre {
 	margin-bottom: 1em;
 }
 
-pre code {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) pre code {
 	background: none;
 	padding: 0;
 	font-size: inherit;
 }
 
 /* Blockquote */
-blockquote {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) blockquote {
 	font-size: 1.5em;
 	font-style: italic;
 	border-left: 4px solid var(--color-primary);
@@ -115,7 +121,7 @@ blockquote {
 }
 
 /* Images */
-img {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) img {
 	max-width: 100%;
 	height: auto;
 	border-radius: 0.5rem;
@@ -132,25 +138,26 @@ html:not([data-print]) [data-astlide-static] {
 }
 
 /* Tables */
-table {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) table {
 	width: 100%;
 	border-collapse: collapse;
 	margin-bottom: 1em;
 }
 
-th,
-td {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) th,
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) td {
 	padding: 0.75rem 1rem;
 	text-align: left;
 	border-bottom: 1px solid var(--color-muted);
 }
 
-th {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) th {
 	font-weight: 600;
 	background-color: var(--color-muted);
 }
 
-/* Utility classes */
+/* Utility classes. Deprecated, removed in the next major version (except
+   text-light / text-dark): DEPRECATED_SLIDE_CLASSES in schema.ts. */
 .text-primary {
 	color: var(--color-primary);
 }
@@ -214,7 +221,7 @@ th {
 }
 
 /* Citation */
-cite {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) cite {
 	display: block;
 	font-style: normal;
 	font-size: 1rem;
@@ -222,7 +229,7 @@ cite {
 	margin-top: 1rem;
 }
 
-cite::before {
+:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) cite::before {
 	content: "— ";
 }
 
@@ -237,51 +244,51 @@ cite::before {
 
 	/* fade */
 	html[data-slide-transition="fade"] ::view-transition-old(slide-content) {
-		animation: fadeOut var(--transition-duration, 300ms)
+		animation: astlide-fade-out var(--transition-duration, 300ms)
 			var(--transition-easing, cubic-bezier(0.4, 0, 0.2, 1));
 	}
 	html[data-slide-transition="fade"] ::view-transition-new(slide-content) {
-		animation: fadeIn var(--transition-duration, 300ms)
+		animation: astlide-fade-in var(--transition-duration, 300ms)
 			var(--transition-easing, cubic-bezier(0.4, 0, 0.2, 1));
 	}
 
 	/* slide-left: new slide enters from right, old exits to left */
 	html[data-slide-transition="slide-left"] ::view-transition-old(slide-content) {
-		animation: slideToLeft var(--transition-duration, 300ms)
+		animation: astlide-slide-to-left var(--transition-duration, 300ms)
 			var(--transition-easing, cubic-bezier(0.4, 0, 0.2, 1));
 	}
 	html[data-slide-transition="slide-left"] ::view-transition-new(slide-content) {
-		animation: slideFromRight var(--transition-duration, 300ms)
+		animation: astlide-slide-from-right var(--transition-duration, 300ms)
 			var(--transition-easing, cubic-bezier(0.4, 0, 0.2, 1));
 	}
 
 	/* slide-right: new slide enters from left, old exits to right */
 	html[data-slide-transition="slide-right"] ::view-transition-old(slide-content) {
-		animation: slideToRight var(--transition-duration, 300ms)
+		animation: astlide-slide-to-right var(--transition-duration, 300ms)
 			var(--transition-easing, cubic-bezier(0.4, 0, 0.2, 1));
 	}
 	html[data-slide-transition="slide-right"] ::view-transition-new(slide-content) {
-		animation: slideFromLeft var(--transition-duration, 300ms)
+		animation: astlide-slide-from-left var(--transition-duration, 300ms)
 			var(--transition-easing, cubic-bezier(0.4, 0, 0.2, 1));
 	}
 
 	/* slide-up: new slide enters from bottom, old exits to top */
 	html[data-slide-transition="slide-up"] ::view-transition-old(slide-content) {
-		animation: slideToTop var(--transition-duration, 300ms)
+		animation: astlide-slide-to-top var(--transition-duration, 300ms)
 			var(--transition-easing, cubic-bezier(0.4, 0, 0.2, 1));
 	}
 	html[data-slide-transition="slide-up"] ::view-transition-new(slide-content) {
-		animation: slideFromBottom var(--transition-duration, 300ms)
+		animation: astlide-slide-from-bottom var(--transition-duration, 300ms)
 			var(--transition-easing, cubic-bezier(0.4, 0, 0.2, 1));
 	}
 
 	/* zoom */
 	html[data-slide-transition="zoom"] ::view-transition-old(slide-content) {
-		animation: zoomOut var(--transition-duration, 300ms)
+		animation: astlide-zoom-out var(--transition-duration, 300ms)
 			var(--transition-easing, cubic-bezier(0.4, 0, 0.2, 1));
 	}
 	html[data-slide-transition="zoom"] ::view-transition-new(slide-content) {
-		animation: zoomIn var(--transition-duration, 300ms)
+		animation: astlide-zoom-in var(--transition-duration, 300ms)
 			var(--transition-easing, cubic-bezier(0.4, 0, 0.2, 1));
 	}
 }
@@ -289,28 +296,28 @@ cite::before {
 /* ── Slide-level CSS animations (initial render / fallback) ── */
 @media (prefers-reduced-motion: no-preference) {
 	.slide[data-transition="fade"] {
-		animation: fadeIn var(--transition-duration) var(--transition-easing);
+		animation: astlide-fade-in var(--transition-duration) var(--transition-easing);
 	}
 
 	.slide[data-transition="slide-left"] {
-		animation: slideFromRight var(--transition-duration) var(--transition-easing);
+		animation: astlide-slide-from-right var(--transition-duration) var(--transition-easing);
 	}
 
 	.slide[data-transition="slide-right"] {
-		animation: slideFromLeft var(--transition-duration) var(--transition-easing);
+		animation: astlide-slide-from-left var(--transition-duration) var(--transition-easing);
 	}
 
 	.slide[data-transition="slide-up"] {
-		animation: slideFromBottom var(--transition-duration) var(--transition-easing);
+		animation: astlide-slide-from-bottom var(--transition-duration) var(--transition-easing);
 	}
 
 	.slide[data-transition="zoom"] {
-		animation: zoomIn var(--transition-duration) var(--transition-easing);
+		animation: astlide-zoom-in var(--transition-duration) var(--transition-easing);
 	}
 }
 
 /* ── Entrance keyframes ── */
-@keyframes fadeIn {
+@keyframes astlide-fade-in {
 	from {
 		opacity: 0;
 	}
@@ -319,7 +326,7 @@ cite::before {
 	}
 }
 
-@keyframes slideFromRight {
+@keyframes astlide-slide-from-right {
 	from {
 		transform: translateX(100px);
 		opacity: 0;
@@ -330,7 +337,7 @@ cite::before {
 	}
 }
 
-@keyframes slideFromLeft {
+@keyframes astlide-slide-from-left {
 	from {
 		transform: translateX(-100px);
 		opacity: 0;
@@ -341,7 +348,7 @@ cite::before {
 	}
 }
 
-@keyframes slideFromBottom {
+@keyframes astlide-slide-from-bottom {
 	from {
 		transform: translateY(100px);
 		opacity: 0;
@@ -352,7 +359,7 @@ cite::before {
 	}
 }
 
-@keyframes zoomIn {
+@keyframes astlide-zoom-in {
 	from {
 		transform: scale(0.9);
 		opacity: 0;
@@ -364,7 +371,7 @@ cite::before {
 }
 
 /* ── Exit keyframes ── */
-@keyframes fadeOut {
+@keyframes astlide-fade-out {
 	from {
 		opacity: 1;
 	}
@@ -373,7 +380,7 @@ cite::before {
 	}
 }
 
-@keyframes slideToLeft {
+@keyframes astlide-slide-to-left {
 	from {
 		transform: translateX(0);
 		opacity: 1;
@@ -384,7 +391,7 @@ cite::before {
 	}
 }
 
-@keyframes slideToRight {
+@keyframes astlide-slide-to-right {
 	from {
 		transform: translateX(0);
 		opacity: 1;
@@ -395,7 +402,7 @@ cite::before {
 	}
 }
 
-@keyframes slideToTop {
+@keyframes astlide-slide-to-top {
 	from {
 		transform: translateY(0);
 		opacity: 1;
@@ -406,7 +413,7 @@ cite::before {
 	}
 }
 
-@keyframes zoomOut {
+@keyframes astlide-zoom-out {
 	from {
 		transform: scale(1);
 		opacity: 1;
@@ -432,9 +439,9 @@ cite::before {
 	}
 
 	/* !important: slide-level rules (`.slide[data-transition]`) outrank `*`. */
-	*,
-	*::before,
-	*::after {
+	:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) *,
+	:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) *::before,
+	:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) *::after {
 		/* biome-ignore lint/complexity/noImportantStyles: must beat the slide-level animation rules */
 		animation: none !important;
 		/* biome-ignore lint/complexity/noImportantStyles: must beat the slide-level animation rules */
@@ -456,8 +463,8 @@ cite::before {
 
 	/* The slide container takes focus on load (keyboard navigation): its focus
 	   ring would print as a line around the slide. */
-	:focus,
-	:focus-visible {
+	:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) :focus,
+	:where(html[data-astlide-all], html:has(.presentation, .astlide-deck-index)) :focus-visible {
 		outline: none;
 		box-shadow: none;
 	}

@@ -8,8 +8,8 @@
  * have a .nav-btn of its own). tests/deck-css.test.ts checks it.
  */
 
-html,
-body {
+html:where(:has(.presentation)),
+:where(html:has(.presentation)) body {
 	margin: 0;
 	padding: 0;
 	overflow: hidden;

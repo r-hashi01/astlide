@@ -50,7 +50,7 @@ describe("deck.css", () => {
 		const all = selectors(css);
 		expect(all.length).toBeGreaterThan(100);
 		// html / body themselves can't be inside a slide.
-		const rootSubject = /(^|\s)(html|body)(\[[^\]]*\]|:[\w-]+)*$/;
+		const rootSubject = /(^|\s)(html|body)(\[[^\]]*\]|:[\w-]+(\((?:[^()]|\([^()]*\))*\))?)*$/;
 		const unscoped = all.filter((s) => !s.includes(":not(.slide *)") && !rootSubject.test(s));
 		expect(unscoped).toEqual([]);
 	});

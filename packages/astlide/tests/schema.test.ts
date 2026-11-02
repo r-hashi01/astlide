@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DeckConfig, SlideData } from "../src/schema";
-import { deckConfigSchema, slideSchema, THEMES } from "../src/schema";
+import { deckConfigSchema, deprecatedClassWarning, slideSchema, THEMES } from "../src/schema";
 
 describe("slideSchema", () => {
 	// ── Defaults ──
@@ -294,5 +294,18 @@ describe("deckConfigSchema", () => {
 		expect(THEMES).toContain("default");
 		expect(THEMES).toContain("dark");
 		expect(THEMES).toContain("forest");
+	});
+});
+
+describe("deprecatedClassWarning", () => {
+	it("names the deprecated classes a slide uses", () => {
+		expect(deprecatedClassWarning("demo/01.mdx", "text-light mt-2  text-center")).toBe(
+			'demo/01.mdx: the class "mt-2", "text-center" is deprecated and will be removed in the next major version. Style the slide with your own CSS instead.',
+		);
+	});
+
+	it("says nothing for the classes that stay", () => {
+		expect(deprecatedClassWarning("demo/01.mdx", "text-light text-dark my-own")).toBeNull();
+		expect(deprecatedClassWarning("demo/01.mdx", undefined)).toBeNull();
 	});
 });

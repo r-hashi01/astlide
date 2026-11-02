@@ -23,7 +23,7 @@ hidden: false
 | `transition` | `string` | `"fade"` | このスライドに切り替わるときのトランジションです。`none`、`fade`、`slide-left`、`slide-right`、`slide-up`、`zoom` か、プラグインのトランジションを指定します。 |
 | `title` | `string` | 最初の見出し | スライド移動のダイアログ（`g`）に出る名前です。省略すると、スライド内で最初の Markdown か HTML の見出しを使います。見出しもなければ `Slide N` になります。 |
 | `background` | `string` | なし | スライドの背景です。色、`linear-gradient()`・`radial-gradient()`、`url(…)`、`/images/photo.jpg` のような画像のパスを指定できます。画像はスライド全体を覆うように表示します。`/` で始まるパスには Astro の `base` を付けます。 |
-| `class` | `string` | なし | スライドに追加するクラスです。`text-light` や `text-dark` などを指定します。 |
+| `class` | `string` | なし | スライドに追加するクラスです。`text-light` や `text-dark` などを指定します。ほかの組み込みユーティリティクラス（`text-center`、`mt-2`、`bg-muted` など）は非推奨で、次のメジャーバージョンで削除します。使うとビルド時に警告が出ます。 |
 | `notes` | `string` | なし | 発表者ノートです。Markdown で書けます。[発表者ノート](#発表者ノート)を参照してください。 |
 | `hidden` | `boolean` | `false` | ビルドしたデッキでスライドを隠します。[スライドを隠す](#スライドを隠す)を参照してください。 |
 
