@@ -568,6 +568,108 @@ body:hover .slide-nav:not(.slide *),
 	pointer-events: none;
 }
 
+/* Toolbar icons: an SVG drawn in the button's color (a mask over currentColor).
+   A theme replaces one with --astlide-icon-<name>: url(...), where <name> is
+   the toolbar item (home, prev, next, notes, …); the image's shape is used. */
+.nav-btn[data-icon]:not(.slide *)::before {
+	content: "";
+	width: 1.15rem;
+	height: 1.15rem;
+	background: currentColor;
+	-webkit-mask: var(--astlide-icon) center / contain no-repeat;
+	mask: var(--astlide-icon) center / contain no-repeat;
+}
+.nav-btn[data-icon="home"]:not(.slide *) {
+	--astlide-icon: var(
+		--astlide-icon-home,
+		url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 11l9-8 9 8'/%3E%3Cpath d='M5 10v10h5v-6h4v6h5V10'/%3E%3C/svg%3E")
+	);
+}
+.nav-btn[data-icon="prev"]:not(.slide *) {
+	--astlide-icon: var(
+		--astlide-icon-prev,
+		url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5'/%3E%3Cpath d='M11 6l-6 6 6 6'/%3E%3C/svg%3E")
+	);
+}
+.nav-btn[data-icon="next"]:not(.slide *) {
+	--astlide-icon: var(
+		--astlide-icon-next,
+		url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14'/%3E%3Cpath d='M13 6l6 6-6 6'/%3E%3C/svg%3E")
+	);
+}
+.nav-btn[data-icon="notes"]:not(.slide *) {
+	--astlide-icon: var(
+		--astlide-icon-notes,
+		url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='3' width='14' height='18' rx='2'/%3E%3Cpath d='M9 8h6M9 12h6M9 16h3'/%3E%3C/svg%3E")
+	);
+}
+.nav-btn[data-icon="goto"]:not(.slide *) {
+	--astlide-icon: var(
+		--astlide-icon-goto,
+		url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='6'/%3E%3Cpath d='M20 20l-4.5-4.5'/%3E%3C/svg%3E")
+	);
+}
+.nav-btn[data-icon="draw"]:not(.slide *) {
+	--astlide-icon: var(
+		--astlide-icon-draw,
+		url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 20l1-5L16 4l4 4L9 19z'/%3E%3Cpath d='M14 6l4 4'/%3E%3C/svg%3E")
+	);
+}
+.nav-btn[data-icon="laser"]:not(.slide *) {
+	--astlide-icon: var(
+		--astlide-icon-laser,
+		url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='2.5' fill='black'/%3E%3Cpath d='M12 3v4M12 17v4M3 12h4M17 12h4'/%3E%3C/svg%3E")
+	);
+}
+.nav-btn[data-icon="camera"]:not(.slide *) {
+	--astlide-icon: var(
+		--astlide-icon-camera,
+		url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='6' width='13' height='12' rx='2'/%3E%3Cpath d='M16 10.5l5-3v9l-5-3z'/%3E%3C/svg%3E")
+	);
+}
+.nav-btn[data-icon="record"]:not(.slide *) {
+	--astlide-icon: var(
+		--astlide-icon-record,
+		url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Ccircle cx='12' cy='12' r='5' fill='black' stroke='none'/%3E%3C/svg%3E")
+	);
+}
+.nav-btn[data-icon="overview"]:not(.slide *) {
+	--astlide-icon: var(
+		--astlide-icon-overview,
+		url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='4' width='7' height='7' rx='1'/%3E%3Crect x='13' y='4' width='7' height='7' rx='1'/%3E%3Crect x='4' y='13' width='7' height='7' rx='1'/%3E%3Crect x='13' y='13' width='7' height='7' rx='1'/%3E%3C/svg%3E")
+	);
+}
+.nav-btn[data-icon="presenter"]:not(.slide *) {
+	--astlide-icon: var(
+		--astlide-icon-presenter,
+		url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='13' rx='2'/%3E%3Cpath d='M7 9h6M7 12h4M12 17v4M8 21h8'/%3E%3C/svg%3E")
+	);
+}
+.nav-btn[data-icon="fullscreen"]:not(.slide *) {
+	--astlide-icon: var(
+		--astlide-icon-fullscreen,
+		url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5'/%3E%3C/svg%3E")
+	);
+}
+.nav-btn[data-icon="print"]:not(.slide *) {
+	--astlide-icon: var(
+		--astlide-icon-print,
+		url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 9V3h10v6'/%3E%3Crect x='3' y='9' width='18' height='8' rx='2'/%3E%3Cpath d='M7 14h10v7H7z'/%3E%3C/svg%3E")
+	);
+}
+.nav-btn[data-icon="share"]:not(.slide *) {
+	--astlide-icon: var(
+		--astlide-icon-share,
+		url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 8V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6'/%3E%3Cpath d='M3 12a8 8 0 0 1 8 8M3 16a4 4 0 0 1 4 4'/%3E%3Cpath d='M3 20h.01'/%3E%3C/svg%3E")
+	);
+}
+.nav-btn[data-icon="download"]:not(.slide *) {
+	--astlide-icon: var(
+		--astlide-icon-download,
+		url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 4v11'/%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3Cpath d='M5 20h14'/%3E%3C/svg%3E")
+	);
+}
+
 .nav-indicator:not(.slide *) {
 	color: rgba(255, 255, 255, 0.8);
 	font-size: 0.8rem;

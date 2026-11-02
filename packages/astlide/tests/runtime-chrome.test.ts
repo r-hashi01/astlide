@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
 	CAMERA_BUBBLE,
@@ -5,6 +6,7 @@ import {
 	deckChromeAfter,
 	deckChromeBefore,
 	SLIDE_OVERLAYS,
+	TOOLBAR_ACTIONS,
 } from "../src/runtime/chrome";
 
 const props = (over: Partial<DeckChromeProps> = {}): DeckChromeProps => ({
@@ -38,7 +40,7 @@ describe("deck chrome", () => {
 		expect(before).toContain('<p class="presenter-next-end">End of deck</p>');
 		const after = deckChromeAfter(props({ prevSlide: null }));
 		expect(after).toContain(
-			'<button type="button" class="nav-btn disabled" aria-label="Previous slide" disabled>←</button>',
+			'<button type="button" class="nav-btn disabled" data-icon="prev" aria-label="Previous slide" disabled></button>',
 		);
 	});
 
@@ -57,6 +59,20 @@ describe("deck chrome", () => {
 			"Toggle drawing",
 		]);
 		expect(nav).toContain('data-action="draw" aria-label="Toggle drawing" aria-pressed="false"');
+	});
+
+	it("gives every toolbar item but the counter and spacer an icon drawn by deck.css", () => {
+		const toolbar = ["home", "prev", "next", ...Object.keys(TOOLBAR_ACTIONS)];
+		const nav = deckChromeAfter(props({ toolbar }));
+		const icons = [...nav.matchAll(/data-icon="([^"]+)"/g)].map((m) => m[1]);
+		expect(icons).toEqual(toolbar);
+		const css = readFileSync(new URL("../src/styles/deck.css", import.meta.url), "utf-8");
+		const drawn = [
+			...css.matchAll(
+				/\.nav-btn\[data-icon="([\w-]+)"\]:not\(\.slide \*\) \{\s*--astlide-icon: var\(\s*--astlide-icon-([\w-]+),\s*url\("data:image\/svg\+xml,/g,
+			),
+		].map((m) => (m[1] === m[2] ? m[1] : `${m[1]} uses --astlide-icon-${m[2]}`));
+		expect(drawn.sort()).toEqual([...toolbar].sort());
 	});
 
 	it("puts sanitized notes in both places, and escapes the text it writes itself", () => {

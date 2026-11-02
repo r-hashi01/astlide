@@ -99,3 +99,11 @@ astlide({
 The default is `["prev", "counter", "next"]`. The toolbar appears when you hover over it or move keyboard focus to it. On touch devices it's always visible.
 
 The toolbar, progress bar and presenter window take their colors from CSS custom properties such as `--astlide-nav-bg`, `--astlide-nav-fg`, `--astlide-nav-btn-bg`, `--astlide-progress-color`, `--astlide-presenter-bg`, `--astlide-presenter-fg` and `--astlide-presenter-accent`. A theme can set these without `!important`.
+
+A toolbar icon is drawn in the button's color from the image in `--astlide-icon-<name>`, where `<name>` is the item's name in the table above (`home`, `prev`, `next`, `notes` …). A theme replaces an icon by setting it; only the image's shape is used:
+
+```css
+[data-theme="my-theme"] {
+  --astlide-icon-notes: url("/icons/notes.svg");
+}
+```
