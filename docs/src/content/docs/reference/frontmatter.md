@@ -23,7 +23,7 @@ hidden: false
 | `transition` | `string` | `"fade"` | The transition into this slide: `none`, `fade`, `slide-left`, `slide-right`, `slide-up`, `zoom`, or a transition from a plugin. |
 | `title` | `string` | the first heading | The slide's name in the go-to-slide dialog (`g`). Without it, Astlide uses the slide's first Markdown or HTML heading, and then `Slide N`. |
 | `background` | `string` | none | The slide background: a color, a `linear-gradient()` or `radial-gradient()`, `url(…)`, or an image path such as `/images/photo.jpg`. Images cover the whole slide. A path starting with `/` gets Astro's `base` added. |
-| `class` | `string` | none | Extra classes on the slide, such as `text-light` or `text-dark`. |
+| `class` | `string` | none | Extra classes on the slide, such as `text-light` or `text-dark`. The other built-in utility classes (`text-center`, `mt-2`, `bg-muted` …) are deprecated and will be removed in the next major version: the build warns about them. |
 | `notes` | `string` | none | Speaker notes, in Markdown. See [Speaker notes](#speaker-notes). |
 | `hidden` | `boolean` | `false` | Hides the slide in builds. See [Hidden slides](#hidden-slides). |
 

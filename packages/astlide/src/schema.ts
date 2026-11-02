@@ -108,3 +108,35 @@ export const slideSchema = z.object({
 });
 
 export type SlideData = z.infer<typeof slideSchema>;
+
+/**
+ * Utility classes from `styles/base.css` that are deprecated and go away in
+ * the next major version. `text-light` and `text-dark` stay.
+ */
+export const DEPRECATED_SLIDE_CLASSES: readonly string[] = [
+	"text-primary",
+	"text-secondary",
+	"text-accent",
+	"text-muted",
+	"bg-primary",
+	"bg-muted",
+	"text-center",
+	"text-left",
+	"text-right",
+	"mt-1",
+	"mt-2",
+	"mt-4",
+	"mb-1",
+	"mb-2",
+	"mb-4",
+];
+
+/** The warning for deprecated utility classes in a slide's `class`, or `null` if it uses none. */
+export function deprecatedClassWarning(
+	file: string,
+	slideClass: string | undefined,
+): string | null {
+	const used = (slideClass ?? "").split(/\s+/).filter((c) => DEPRECATED_SLIDE_CLASSES.includes(c));
+	if (used.length === 0) return null;
+	return `${file}: the class ${used.map((c) => `"${c}"`).join(", ")} is deprecated and will be removed in the next major version. Style the slide with your own CSS instead.`;
+}

@@ -24,8 +24,15 @@
 
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join, relative } from "node:path";
-import { type DeckConfig, deckConfigSchema, type SlideData, slideSchema } from "../schema";
+import {
+	type DeckConfig,
+	deckConfigSchema,
+	deprecatedClassWarning,
+	type SlideData,
+	slideSchema,
+} from "../schema";
 import { extractCommentNotes, withoutNotesComment } from "../utils/comment-notes";
+import { consoleReporter, type Reporter } from "../utils/reporter";
 import { slideScriptsKept, stripSlideScripts } from "../utils/slide-scripts";
 import { slideTitle } from "../utils/slide-title";
 import {
@@ -94,7 +101,12 @@ export interface ReadDeckOptions {
 	pptxMedia?: (file: { name: string; data: Buffer; type: string }) => string | null;
 	/** Keep `<script>` in Markdown, HTML and PowerPoint slides (the `slideScripts` option). Default: removed. */
 	slideScripts?: boolean;
+	/** Where warnings go (deprecated slide classes). Default: the console. */
+	reporter?: Reporter;
 }
+
+/** Warnings already given, so a dev server that reads decks again says each once. */
+const warned = new Set<string>();
 
 const missing = (e: unknown) => (e as NodeJS.ErrnoException).code === "ENOENT";
 
@@ -185,6 +197,11 @@ export async function readDeck(dir: string, options: ReadDeckOptions = {}): Prom
 		const raw = await readFile(join(dir, file), "utf-8");
 		const { data: frontmatter, body } = splitFrontmatter(raw);
 		const data = parseSlideData(frontmatter, file);
+		const warning = deprecatedClassWarning(`${basename(dir)}/${file}`, data.class);
+		if (warning && !warned.has(warning)) {
+			warned.add(warning);
+			(options.reporter ?? consoleReporter).warn(warning);
+		}
 		const format: SlideFormat = HTML_EXTENSION.test(file)
 			? "html"
 			: /\.mdx$/i.test(file)

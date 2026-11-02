@@ -44,6 +44,7 @@ import {
 	splitFrontmatter,
 	toEntryId,
 } from "@astlide/core/deck/files";
+import { deprecatedClassWarning } from "@astlide/core/schema";
 import {
 	extractCommentNotes,
 	stripTrailingComment,
@@ -298,7 +299,7 @@ async function syncPptxSlides(context: LoaderContext, baseUrl: URL): Promise<voi
  * {@link withoutSlideScripts}).
  */
 async function syncHtmlSlides(context: LoaderContext, baseUrl: URL): Promise<void> {
-	const { store, parseData, generateDigest, config } = context;
+	const { store, parseData, generateDigest, config, logger } = context;
 	const baseDir = fileURLToPath(baseUrl);
 
 	let files: string[];
@@ -324,6 +325,8 @@ async function syncHtmlSlides(context: LoaderContext, baseUrl: URL): Promise<voi
 			"/",
 		);
 		const parsed = await parseData({ id, data, filePath });
+		const warning = deprecatedClassWarning(filePath, parsed.class as string | undefined);
+		if (warning) logger.warn(warning);
 		store.set({
 			id,
 			data: parsed,

@@ -247,6 +247,7 @@ pre.astlide-mermaid svg {
 	--color-foreground: #1a1a1a;
 	color: #1a1a1a !important;
 }
+/* text-center / text-left / text-right: deprecated (DEPRECATED_SLIDE_CLASSES). */
 .text-center {
 	text-align: center;
 }

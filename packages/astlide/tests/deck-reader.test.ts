@@ -4,6 +4,7 @@ import { join } from "node:path";
 import PptxGenJS from "pptxgenjs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createSlideMarkdownRenderer, type Deck, readDeck, readDecks } from "../src/deck";
+import { silentReporter } from "../src/utils/reporter";
 
 let base: string;
 let deck: Deck;
@@ -107,6 +108,17 @@ describe("readDeck", () => {
 		expect(slide?.notes).toBe("MDX notes");
 		const { compileSlideMdx } = await import("../src/deck");
 		expect(await compileSlideMdx(slide?.body ?? "")).not.toContain("MDX notes");
+	});
+
+	it("warns once about a deprecated class in a slide's class", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "astlide-classes-"));
+		writeFileSync(join(dir, "01.md"), "---\nclass: text-light mt-2\n---\n# Hi\n");
+		const warnings: string[] = [];
+		const reporter = { ...silentReporter, warn: (m: string) => warnings.push(m) };
+		await readDeck(dir, { reporter });
+		await readDeck(dir, { reporter });
+		expect(warnings).toHaveLength(1);
+		expect(warnings[0]).toMatch(/01\.md: the class "mt-2" is deprecated/);
 	});
 
 	it("keeps scripts when asked", async () => {
