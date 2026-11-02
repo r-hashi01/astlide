@@ -40,8 +40,9 @@ beforeAll(async () => {
 			const file = normalize(join(root, path.endsWith("/") ? `${path}index.html` : path));
 			if (!file.startsWith(root)) continue;
 			try {
+				const body = readFileSync(file);
 				res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" });
-				res.end(readFileSync(file));
+				res.end(body);
 				return;
 			} catch {
 				// next root
@@ -121,5 +122,74 @@ describe("@astlide/vue deck page", () => {
 		await page.keyboard.press("o");
 		await expect.poll(() => page.locator("#overview-grid .overview-item").count()).toBe(29);
 		await page.close();
+	});
+
+	/** Press → until the page shows slide `n` (past any steps). */
+	async function goTo(page: Page, n: number) {
+		for (let i = 0; i < 20 && slideOf(page) !== n; i++) {
+			await page.keyboard.press("ArrowRight");
+			await page.waitForTimeout(150);
+		}
+		await expect.poll(() => slideOf(page)).toBe(n);
+		await page.waitForSelector(".slide");
+	}
+
+	// The harness renders the same <DeckPage> for each slide, as an app's router
+	// does, so the runtime mounts again on the same elements (#309).
+	it("adds no listeners when moving between slides", async () => {
+		const page = await open("/tour/2/?presenter");
+		const cdp = await page.context().newCDPSession(page);
+		const listeners = async () => {
+			const counts: number[] = [];
+			for (const id of [
+				"draw-layer",
+				"overview",
+				"goto",
+				"goto-input",
+				"notes-close",
+				"timer-btn",
+			]) {
+				const { result } = await cdp.send("Runtime.evaluate", {
+					expression: `document.getElementById(${JSON.stringify(id)})`,
+				});
+				if (!result.objectId) throw new Error(`no #${id}`);
+				const { listeners } = await cdp.send("DOMDebugger.getEventListeners", {
+					objectId: result.objectId,
+				});
+				counts.push(listeners.length);
+			}
+			return counts;
+		};
+		const before = await listeners();
+		await goTo(page, 3);
+		await goTo(page, 4);
+		expect(await listeners()).toEqual(before);
+		await page.close();
+	});
+
+	it("shows this slide in the overview and the next-slide preview after moving", async () => {
+		const page = await open("/tour/2/");
+		await page.keyboard.press("o");
+		await expect.poll(() => page.locator("#overview-grid .overview-item").count()).toBe(29);
+		await page.keyboard.press("Escape");
+		await goTo(page, 3);
+		await goTo(page, 4);
+		await page.keyboard.press("o");
+		await expect
+			.poll(() => page.locator("#overview-grid .overview-item.current").getAttribute("aria-label"))
+			.toBe("Slide 4 of 29 (current)");
+		await page.close();
+
+		const presenter = await open("/tour/2/?presenter");
+		await goTo(presenter, 3);
+		await expect
+			.poll(() =>
+				presenter.evaluate(() => {
+					const frame = document.querySelector<HTMLIFrameElement>(".presenter-next-frame iframe");
+					return frame ? new URL(frame.src).pathname : null;
+				}),
+			)
+			.toBe("/tour/4/");
+		await presenter.close();
 	});
 });

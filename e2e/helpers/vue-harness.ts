@@ -89,18 +89,29 @@ ${sheets.map((x) => `<link rel="stylesheet" href="/_css/${x.replace("themes/", "
 	}
 	writeFileSync(
 		join(src, "entry.js"),
-		`import { createApp, h } from "vue";
+		`import { createApp, h, shallowRef } from "vue";
 import { DeckPage, Slide, mdxComponents } from "${join(repo, "packages/vue/src/index.ts")}";
 ${imports.join("\n")}
 const decks = { ${table.join(",\n")} };
-const [, deckName, n] = location.pathname.match(/^\\/([^/]+)\\/(\\d+)/) ?? [];
-const deck = decks[deckName];
-const number = Number(n);
-const slide = deck.slides[number - 1];
-document.title = \`\${deck.config.title ?? deckName} - Slide \${number}\`;
+// Like an app with a router: moving to another slide renders the same
+// <DeckPage> again with new props, without reloading the page.
+const route = shallowRef(location.href);
+const navigate = (url, { replace }) => {
+	history[replace ? "replaceState" : "pushState"](null, "", url);
+	route.value = location.href;
+};
+addEventListener("popstate", () => {
+	route.value = location.href;
+});
 createApp({
-	render: () =>
-		h(
+	render: () => {
+		void route.value;
+		const [, deckName, n] = location.pathname.match(/^\\/([^/]+)\\/(\\d+)/) ?? [];
+		const deck = decks[deckName];
+		const number = Number(n);
+		const slide = deck.slides[number - 1];
+		document.title = \`\${deck.config.title ?? deckName} - Slide \${number}\`;
+		return h(
 			DeckPage,
 			{
 				deck: deckName,
@@ -112,6 +123,7 @@ createApp({
 				outline: deck.slides.map((s, i) => ({ n: i + 1, title: s.title ?? \`Slide \${i + 1}\` })),
 				presenter: new URLSearchParams(location.search).has("presenter") || window.name === "astlide-presenter",
 				loadMermaid: () => import("mermaid"),
+				navigate,
 			},
 			{
 				default: () =>
@@ -129,7 +141,8 @@ createApp({
 						slide.Content ? { default: () => h(slide.Content, { components: mdxComponents }) } : undefined,
 					),
 			},
-		),
+		);
+	},
 }).mount("#root");
 `,
 	);
