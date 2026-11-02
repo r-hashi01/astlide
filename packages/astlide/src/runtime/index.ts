@@ -103,6 +103,20 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 	} = config;
 	const { navigate, placeSlide = true } = options;
 
+	// Every listener this mount adds, removed by its cleanup. React and Vue mount
+	// again on the same elements for each slide, so none may outlive the mount.
+	const unlisten: (() => void)[] = [];
+	function listen<E extends Event>(
+		target: EventTarget,
+		type: string,
+		handler: (e: E) => void,
+		opts?: boolean | AddEventListenerOptions,
+	): void {
+		const fn = handler as EventListener;
+		target.addEventListener(type, fn, opts);
+		unlisten.push(() => target.removeEventListener(type, fn, opts));
+	}
+
 	// ── 0. Publish typed deck/slide metadata for client scripts ──
 	// Replaces parsing document.title / body.dataset. See @astlide/core/context.
 	if (deckContext) window.__astlide = deckContext;
@@ -194,7 +208,7 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 	}
 
 	updateScale();
-	window.addEventListener("resize", updateScale);
+	listen(window, "resize", updateScale);
 
 	// Focus management: move focus to slide content on page load
 	// Not while the dev editor is open: a live refresh must leave focus (and the
@@ -369,13 +383,14 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 
 	// Dev editor: after slide content is patched in place, rebuild the steps
 	// from the new DOM and return to the same step.
-	window.__astlide_resync_steps = () => {
+	const resyncSteps = () => {
 		const target = currentStep;
 		buildSteps();
 		currentStep = -1;
 		goToStep(target);
 		updateStepsLeft();
 	};
+	window.__astlide_resync_steps = resyncSteps;
 
 	// Next-slide preview: only the presenter window loads the iframe, so the
 	// audience view never fetches an extra page. The embedded page scales itself
@@ -383,7 +398,11 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 	if (isPresenter && !isEmbedded) {
 		const nextFrame = document.querySelector(".presenter-next-frame");
 		// The URL comes from the config, not from the page's markup.
-		if (nextFrame && nextSlide !== null && !nextFrame.querySelector("iframe")) {
+		// React and Vue keep the frame across slides: point it at the new next slide.
+		const shown = nextFrame?.querySelector("iframe");
+		if (shown && nextSlide !== null && shown.getAttribute("src") !== slideUrl(nextSlide))
+			shown.src = slideUrl(nextSlide);
+		if (nextFrame && nextSlide !== null && !shown) {
 			const iframe = document.createElement("iframe");
 			iframe.src = slideUrl(nextSlide);
 			iframe.title = "Next slide preview";
@@ -526,7 +545,7 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 		if (targetDeck !== deck || Number.isNaN(targetSlide)) return;
 		broadcastSlide(targetSlide);
 	}
-	document.addEventListener("click", handleNavClick, true);
+	listen(document, "click", handleNavClick, true);
 
 	// ── 5. Navigation ──────────────────────────────────────────
 	function goNext() {
@@ -584,6 +603,8 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 
 	const overview = document.getElementById("overview");
 	const overviewGrid = document.getElementById("overview-grid");
+	// Built on first open, for this slide (React and Vue keep the grid across slides).
+	overviewGrid?.replaceChildren();
 	let overviewOpen = false;
 
 	function openOverview() {
@@ -642,7 +663,7 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 	}
 
 	if (overview)
-		overview.addEventListener("click", (e) => {
+		listen(overview, "click", (e) => {
 			if (e.target === overview) closeOverview();
 		});
 
@@ -764,9 +785,9 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 	}
 
 	if (gotoEl && gotoInput && !isEmbedded) {
-		gotoInput.addEventListener("keydown", handleGotoKeydown);
-		gotoInput.addEventListener("input", handleGotoInput);
-		gotoEl.addEventListener("click", handleGotoClick);
+		listen(gotoInput, "keydown", handleGotoKeydown);
+		listen(gotoInput, "input", handleGotoInput);
+		listen(gotoEl, "click", handleGotoClick);
 	}
 
 	// ── 6c. Pen & laser pointer (d / l) ─────────────────────────
@@ -804,24 +825,25 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 		}
 	}
 	let saveTimer: ReturnType<typeof setTimeout> | undefined;
+	function writeDrawings() {
+		saveTimer = undefined;
+		const deckDrawings: Record<string, Stroke[]> = {};
+		for (const key of Object.keys(drawings)) {
+			const strokes = drawings[key];
+			if (key.startsWith(`${deck}/`) && strokes && strokes.length > 0) deckDrawings[key] = strokes;
+		}
+		try {
+			if (Object.keys(deckDrawings).length > 0)
+				localStorage.setItem(drawingsStorageKey, JSON.stringify(deckDrawings));
+			else localStorage.removeItem(drawingsStorageKey);
+		} catch (error) {
+			console.warn("[astlide] Could not save drawings", error);
+		}
+	}
 	function saveDrawings() {
 		if (!persistDrawings) return;
 		clearTimeout(saveTimer);
-		saveTimer = setTimeout(() => {
-			const deckDrawings: Record<string, Stroke[]> = {};
-			for (const key of Object.keys(drawings)) {
-				const strokes = drawings[key];
-				if (key.startsWith(`${deck}/`) && strokes && strokes.length > 0)
-					deckDrawings[key] = strokes;
-			}
-			try {
-				if (Object.keys(deckDrawings).length > 0)
-					localStorage.setItem(drawingsStorageKey, JSON.stringify(deckDrawings));
-				else localStorage.removeItem(drawingsStorageKey);
-			} catch (error) {
-				console.warn("[astlide] Could not save drawings", error);
-			}
-		}, 300);
+		saveTimer = setTimeout(writeDrawings, 300);
 	}
 	let tool: "draw" | "laser" | null = null;
 	let activeStroke: Stroke | null = null;
@@ -1013,11 +1035,11 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 
 	if (drawLayer && !isEmbedded) {
 		sizeDrawLayer();
-		drawLayer.addEventListener("pointerdown", handleDrawPointerDown);
-		drawLayer.addEventListener("pointermove", handleDrawPointerMove);
-		drawLayer.addEventListener("pointerup", handleDrawPointerUp);
-		drawLayer.addEventListener("pointercancel", handleDrawPointerUp);
-		drawLayer.addEventListener("pointerleave", handleDrawPointerLeave);
+		listen(drawLayer, "pointerdown", handleDrawPointerDown);
+		listen(drawLayer, "pointermove", handleDrawPointerMove);
+		listen(drawLayer, "pointerup", handleDrawPointerUp);
+		listen(drawLayer, "pointercancel", handleDrawPointerUp);
+		listen(drawLayer, "pointerleave", handleDrawPointerLeave);
 		// Keep the tool active across slide changes.
 		if (window.__astlide_tool) setTool(window.__astlide_tool);
 	}
@@ -1196,7 +1218,7 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 		notesOverlay.classList.toggle("open", notesOpen);
 	}
 
-	if (notesClose) notesClose.addEventListener("click", toggleNotes);
+	if (notesClose) listen(notesClose, "click", toggleNotes);
 
 	// ── 8b. URL flag toggles (share / print) ───────────────────
 	function toggleUrlFlag(flag: string): void {
@@ -1236,7 +1258,7 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 		else if (op === "dec") adjustNotesFontSize(-0.1);
 		else if (op === "reset") applyNotesFontSize(1);
 	}
-	document.addEventListener("click", handleNotesFontClick);
+	listen(document, "click", handleNotesFontClick);
 
 	// ── 8d. Toolbar button actions (C-3) ────────────────────────
 	function handleToolbarClick(e: MouseEvent): void {
@@ -1292,7 +1314,7 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 				break;
 		}
 	}
-	document.addEventListener("click", handleToolbarClick);
+	listen(document, "click", handleToolbarClick);
 
 	// ── 8e. PDF download via @astlide/crispdf (lazy-loaded) ─────
 	const pdfOverlay = document.getElementById("pdf-overlay");
@@ -1369,7 +1391,7 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 	}
 
 	if (timerBtn) {
-		timerBtn.addEventListener("click", () => {
+		listen(timerBtn, "click", () => {
 			if (timerRunning) {
 				timerElapsed += Math.floor((Date.now() - timerStartTime) / 1000);
 				if (timerInterval) clearInterval(timerInterval);
@@ -1393,7 +1415,7 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 	}
 
 	if (timerResetBtn) {
-		timerResetBtn.addEventListener("click", () => {
+		listen(timerResetBtn, "click", () => {
 			if (timerInterval) clearInterval(timerInterval);
 			timerInterval = null;
 			timerRunning = false;
@@ -1510,7 +1532,7 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 		}
 	}
 
-	if (!isEmbedded) document.addEventListener("keydown", handleKeydown);
+	if (!isEmbedded) listen(document, "keydown", handleKeydown);
 
 	// ── 11. Touch / swipe support ──────────────────────────────
 	let touchStartX = 0;
@@ -1533,8 +1555,8 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 	}
 
 	if (!isEmbedded) {
-		document.addEventListener("touchstart", handleTouchstart, { passive: true });
-		document.addEventListener("touchend", handleTouchend, { passive: true });
+		listen(document, "touchstart", handleTouchstart, { passive: true });
+		listen(document, "touchend", handleTouchend, { passive: true });
 	}
 
 	// ── 11b. Embedding API (<astlide-deck>, @astlide/core/embed) ──
@@ -1621,24 +1643,28 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 	}
 
 	if (isEmbedded) {
-		window.addEventListener("message", handleEmbedMessage);
-		document.addEventListener("keydown", handleEmbedKeydown);
+		listen(window, "message", handleEmbedMessage);
+		listen(document, "keydown", handleEmbedKeydown);
 		// After a navigation inside the frame, tell the host where we are.
 		postToHost();
 	}
 
 	// ── 12. Cleanup (called by the next mount, e.g. after a client-side navigation) ───
 	window.__astlide_cleanup = () => {
-		document.removeEventListener("keydown", handleKeydown);
-		document.removeEventListener("keydown", handleEmbedKeydown);
-		window.removeEventListener("message", handleEmbedMessage);
-		document.removeEventListener("touchstart", handleTouchstart);
-		document.removeEventListener("touchend", handleTouchend);
-		document.removeEventListener("click", handleNavClick, true);
-		document.removeEventListener("click", handleNotesFontClick);
-		document.removeEventListener("click", handleToolbarClick);
-		window.removeEventListener("resize", updateScale);
+		for (const off of unlisten) off();
 		if (timerInterval) clearInterval(timerInterval);
+		clearTimeout(laserTimer);
+		if (saveTimer !== undefined) {
+			clearTimeout(saveTimer);
+			writeDrawings();
+		}
+		// An open dialog would otherwise stay open, with the page behind it inert.
+		if (overviewOpen) closeOverview();
+		if (_gotoOpen) closeGoto();
+		for (const dialog of [...modalState.keys()]) setModal(dialog, false);
+		if (window.__astlide_resync_steps === resyncSteps) window.__astlide_resync_steps = undefined;
+		if (window.__astlide_resync_notes === applyNotesComponent)
+			window.__astlide_resync_notes = undefined;
 		if (syncChannel) {
 			syncChannel.onmessage = null; // Remove listener to prevent memory leaks
 			try {

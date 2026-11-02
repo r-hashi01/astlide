@@ -90,14 +90,23 @@ import { jsx } from "react/jsx-runtime";
 import { DeckPage, Slide, mdxComponents } from "${join(repo, "packages/react/src/index.tsx")}";
 ${imports.join("\n")}
 const decks = { ${table.join(",\n")} };
-const [, deckName, n] = location.pathname.match(/^\\/([^/]+)\\/(\\d+)/) ?? [];
-const deck = decks[deckName];
-const number = Number(n);
-const slide = deck.slides[number - 1];
-const content = slide.Content ? jsx(slide.Content, { components: mdxComponents }) : undefined;
-document.title = \`\${deck.config.title ?? deckName} - Slide \${number}\`;
-createRoot(document.getElementById("root")).render(
-	jsx(DeckPage, {
+const root = createRoot(document.getElementById("root"));
+// Like an app with a router: moving to another slide renders the same
+// <DeckPage> again with new props, without reloading the page.
+const navigate = (url, { replace }) => {
+	history[replace ? "replaceState" : "pushState"](null, "", url);
+	render();
+};
+addEventListener("popstate", () => render());
+function render() {
+	const [, deckName, n] = location.pathname.match(/^\\/([^/]+)\\/(\\d+)/) ?? [];
+	const deck = decks[deckName];
+	const number = Number(n);
+	const slide = deck.slides[number - 1];
+	const content = slide.Content ? jsx(slide.Content, { components: mdxComponents }) : undefined;
+	document.title = \`\${deck.config.title ?? deckName} - Slide \${number}\`;
+	root.render(
+		jsx(DeckPage, {
 			deck: deckName,
 			slideNumber: number,
 			totalSlides: deck.slides.length,
@@ -107,6 +116,7 @@ createRoot(document.getElementById("root")).render(
 			outline: deck.slides.map((s, i) => ({ n: i + 1, title: s.title ?? \`Slide \${i + 1}\` })),
 			presenter: new URLSearchParams(location.search).has("presenter") || window.name === "astlide-presenter",
 			loadMermaid: () => import("mermaid"),
+			navigate,
 			children: jsx(Slide, {
 				layout: slide.data.slideLayout,
 				transition: slide.data.transition,
@@ -116,8 +126,10 @@ createRoot(document.getElementById("root")).render(
 				totalSlides: deck.slides.length,
 				...(content ? { children: content } : { html: slide.html ?? "" }),
 			}),
-	}),
-);
+		}),
+	);
+}
+render();
 `,
 	);
 	// Bundled with the bun CLI (the tests run under Node).
