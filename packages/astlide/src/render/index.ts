@@ -294,7 +294,7 @@ async function serveFolder(dir: string): Promise<{ url: string; server: Server }
 async function drawDiagrams(view: PrintView, root: string): Promise<void> {
 	const source = await readFile(view.html, "utf-8");
 	if (!source.includes('class="astlide-mermaid"')) return;
-	const { diagramsInPrintView } = await import("../cli/pptx/export");
+	const { diagramsInPrintView } = await import("../pptx/export/export");
 	await writeFile(view.html, await diagramsInPrintView(view.html, view.site, root));
 }
 
@@ -306,7 +306,7 @@ export async function renderDeck(options: RenderDeckOptions): Promise<Deck> {
 		const view = await writePrintView({ ...options, site });
 		const config = { ...view.deck.config, theme: view.theme };
 		if (options.format === "pptx") {
-			const { pptxFromPrintView } = await import("../cli/pptx/export");
+			const { pptxFromPrintView } = await import("../pptx/export/export");
 			await pptxFromPrintView({
 				html: view.html,
 				site,

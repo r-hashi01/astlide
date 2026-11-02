@@ -12,12 +12,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { Box, Scene, SceneItem, TableBox } from "@astlide/core/engine";
-import { exportSiteDir } from "@astlide/core/utils/export-build";
 import { mermaidThemeFor } from "@astlide/core/utils/mermaid";
 import { FetchBudget } from "@astlide/core/utils/network";
 import type { ChildNode, Element } from "domhandler";
 import { parseDocument } from "htmlparser2";
-import { readDeckConfigFile } from "../../deck/project";
 import { type EmbedInfo, resolveEmbeds } from "./embeds";
 import { embeddingPermissions, withLegacyFamilyOnly } from "./eot";
 import {
@@ -34,14 +32,6 @@ import {
 } from "./ooxml-writer";
 import { type SvgNode, svgToShapes } from "./svg-shapes";
 import { getTheme } from "./theme-map";
-
-export interface PptxOptions {
-	/** Project root (built into the export's own folder, see utils/export-build). */
-	root: string;
-	output: string;
-	/** Skip the build: use the export's last build, else the existing dist/. */
-	build?: boolean;
-}
 
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 
@@ -857,27 +847,6 @@ function plainText(el: Element): string {
 		.map((l) => l.trim())
 		.filter(Boolean)
 		.join("\n");
-}
-
-export async function exportPptx(deck: string, options: PptxOptions): Promise<void> {
-	if (options.build !== false) {
-		const { buildSite } = await import("../site-server");
-		await buildSite(options.root);
-	}
-	const site = exportSiteDir(options.root);
-	if (!site.own)
-		console.log('  (using dist/: speaker notes only if it was built with notes: "public")');
-	const dist = site.dir;
-	const html = join(dist, deck, "all", "index.html");
-	if (!existsSync(html)) throw new Error(`no print view at ${html}`);
-	await pptxFromPrintView({
-		html,
-		site: dist,
-		root: options.root,
-		deck,
-		config: await readDeckConfigFile(options.root, deck),
-		output: options.output,
-	});
 }
 
 /** The page's fonts loaded, and its ```mermaid diagrams drawn as pictures. */

@@ -1,9 +1,9 @@
 import { deflateRawSync } from "node:zlib";
 import PptxGenJS from "pptxgenjs";
 import { beforeAll, describe, expect, it } from "vitest";
-import { toEot } from "../src/cli/pptx/eot";
-import { ZipWriter } from "../src/cli/pptx/ooxml-writer";
 import { colorOf } from "../src/pptx/color";
+import { toEot } from "../src/pptx/export/eot";
+import { ZipWriter } from "../src/pptx/export/ooxml-writer";
 import { fontFromEot, type ImportedDeck, pptxToSlides, safeFontName } from "../src/pptx/import";
 import { pptxToTemplate, templateCss } from "../src/pptx/template";
 import { parseXml } from "../src/pptx/xml";

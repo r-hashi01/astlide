@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getTheme, hexColor, parseSolidColor, THEMES } from "../src/cli/pptx/theme-map";
+import { getTheme, hexColor, parseSolidColor, THEMES } from "../src/pptx/export/theme-map";
 
 // ── THEMES constant ──
 

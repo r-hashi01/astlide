@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cssUrls } from "../src/cli/pptx/site-print-view";
+import { cssUrls } from "../src/cli/site-print-view";
 
 describe("cssUrls", () => {
 	it("finds url() values, quoted or not, with their positions", () => {
