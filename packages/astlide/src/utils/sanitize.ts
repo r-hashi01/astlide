@@ -8,112 +8,13 @@ import render from "dom-serializer";
 import { type ChildNode, isTag } from "domhandler";
 import { decodeHTML } from "entities";
 import { parseDocument } from "htmlparser2";
-
-/**
- * Lightweight HTML sanitizer for build-time use.
- *
- * Strips dangerous tags (script, iframe, etc.), event-handler attributes,
- * and dangerous URL protocols while preserving safe formatting tags.
- */
-
-/** Tags whose opening and closing (plus inner content) are removed entirely. */
-const STRIP_WITH_CONTENT = new Set([
-	"script",
-	"style",
-	"iframe",
-	"object",
-	"embed",
-	"form",
-	"input",
-	"textarea",
-	"select",
-	"button",
-	"link",
-	"meta",
-	"base",
-	"applet",
-	"frame",
-	"frameset",
-	"layer",
-	"ilayer",
-	"bgsound",
-]);
-
-/** Tags allowed to remain in sanitized output. */
-const ALLOWED_TAGS = new Set([
-	"b",
-	"i",
-	"em",
-	"strong",
-	"code",
-	"pre",
-	"a",
-	"ul",
-	"ol",
-	"li",
-	"p",
-	"br",
-	"h1",
-	"h2",
-	"h3",
-	"h4",
-	"h5",
-	"h6",
-	"blockquote",
-	"span",
-	"div",
-	"hr",
-	"table",
-	"thead",
-	"tbody",
-	"tr",
-	"th",
-	"td",
-	"dl",
-	"dt",
-	"dd",
-	"sup",
-	"sub",
-	"mark",
-	"del",
-	"ins",
-	"kbd",
-	"abbr",
-	"small",
-	"details",
-	"summary",
-]);
-
-/** Attributes allowed on any element. */
-const ALLOWED_ATTRS = new Set([
-	"class",
-	"title",
-	"lang",
-	"dir",
-	"role",
-	"aria-label",
-	"aria-hidden",
-	"aria-describedby",
-	"data-fragment",
-	"data-fragment-index",
-	"data-fragment-effect",
-]);
-
-/** Per-tag attribute allowlists (in addition to global ALLOWED_ATTRS). */
-const TAG_ATTRS: Record<string, Set<string>> = {
-	a: new Set(["href", "target", "rel"]),
-	img: new Set(["src", "alt", "width", "height"]),
-	td: new Set(["colspan", "rowspan"]),
-	th: new Set(["colspan", "rowspan", "scope"]),
-	ol: new Set(["start", "type"]),
-	abbr: new Set(["title"]),
-};
-
-/** URL protocols considered safe for href/src (a `/` path, but not protocol-relative `//` or `/\`). */
-const SAFE_PROTOCOLS = /^(?:https?:|mailto:|#|\/(?![/\\]))/i;
-
-/** Matches on* event-handler attributes like onclick, onerror. */
-const EVENT_HANDLER_RE = /^on\w+$/i;
+import {
+	ALLOWED_TAGS,
+	attributeAllowed,
+	STRIP_WITH_CONTENT,
+	safeUrl,
+	TARGET_REL,
+} from "./sanitize-policy";
 
 /**
  * Sanitize an HTML string by removing dangerous elements and attributes.
@@ -125,7 +26,8 @@ const EVENT_HANDLER_RE = /^on\w+$/i;
  * `href` / `src` must be `http(s):`, `mailto:`, `#…` or a `/…` path (not
  * `//…`); a kept `target` gets `rel="noopener noreferrer"`. `id` is dropped,
  * so content can't shadow page globals (DOM clobbering). Text is written back
- * escaped, so the output is always well-formed.
+ * escaped, so the output is always well-formed. The rules are in
+ * `./sanitize-policy`, shared with the runtime's notes sanitizer.
  *
  * Designed for build-time use (Node.js). Does NOT rely on DOM APIs.
  */
@@ -158,21 +60,14 @@ export function sanitizeHTML(html: string): string {
 
 /** The attributes of a `tag` that may stay: allowlisted, no event handlers, safe URLs. */
 function sanitizeAttributes(tag: string, attribs: Record<string, string>): Record<string, string> {
-	const tagAllowed = TAG_ATTRS[tag];
 	const out: Record<string, string> = {};
 	for (const [rawName, value] of Object.entries(attribs)) {
 		const name = rawName.toLowerCase();
-		if (EVENT_HANDLER_RE.test(name)) continue;
-		if (!ALLOWED_ATTRS.has(name) && !tagAllowed?.has(name)) continue;
-		if (
-			(name === "href" || name === "src") &&
-			// biome-ignore lint/suspicious/noControlCharactersInRegex: browsers ignore these in a URL scheme, so must we
-			!SAFE_PROTOCOLS.test(value.replace(/[\u0000-\u0020]+/g, ""))
-		)
-			continue;
+		if (!attributeAllowed(tag, name)) continue;
+		if ((name === "href" || name === "src") && !safeUrl(value)) continue;
 		out[name] = value;
 	}
-	if (out.target !== undefined) out.rel = "noopener noreferrer";
+	if (out.target !== undefined) out.rel = TARGET_REL;
 	return out;
 }
 

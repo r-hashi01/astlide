@@ -16,6 +16,7 @@
 
 import type { DeckContext } from "../context";
 import type { Stroke } from "./globals";
+import { sanitizeNotesHtml } from "./notes-sanitize";
 
 type Point = [number, number];
 
@@ -1048,141 +1049,12 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 	// If <SpeakerNotes> (alias <Notes>) is used in MDX, its HTML content takes priority
 	// over frontmatter `notes`. We inject it into presenter notes & notes overlay.
 
-	/**
-	 * Client-side HTML sanitizer for Notes content.
-	 * Uses DOMParser so scripts never execute during parsing.
-	 *
-	 * Strategy mirrors the server-side sanitizeHTML() in utils/sanitize.ts:
-	 *   1. Remove known-dangerous tags (with content) entirely.
-	 *   2. Allowlist safe tags — strip any tag not in the list (promote children).
-	 *   3. Keep only allowlisted attributes, and safe URLs in href.
-	 */
-	function sanitizeNotesHTML(html: string): string {
-		const doc = new DOMParser().parseFromString(html, "text/html");
-
-		// 1. Remove dangerous tags entirely (mirrors server-side STRIP_WITH_CONTENT)
-		const STRIP_TAGS = [
-			"script",
-			"style",
-			"iframe",
-			"object",
-			"embed",
-			"form",
-			"input",
-			"textarea",
-			"select",
-			"button",
-			"link",
-			"meta",
-			"base",
-			"applet",
-			"frame",
-			"frameset",
-			"layer",
-			"ilayer",
-			"bgsound",
-		];
-		for (const tag of STRIP_TAGS) {
-			for (const el of doc.body.querySelectorAll(tag)) el.remove();
-		}
-
-		// 2. Allowlist safe tags (mirrors server-side ALLOWED_TAGS set).
-		//    Process deepest elements first so nested unknown tags are safely unwrapped.
-		const ALLOWED_TAGS = new Set([
-			"b",
-			"i",
-			"em",
-			"strong",
-			"code",
-			"pre",
-			"a",
-			"ul",
-			"ol",
-			"li",
-			"p",
-			"br",
-			"h1",
-			"h2",
-			"h3",
-			"h4",
-			"h5",
-			"h6",
-			"blockquote",
-			"span",
-			"div",
-			"hr",
-			"table",
-			"thead",
-			"tbody",
-			"tr",
-			"th",
-			"td",
-			"dl",
-			"dt",
-			"dd",
-			"sup",
-			"sub",
-			"mark",
-			"del",
-			"ins",
-			"kbd",
-			"abbr",
-			"small",
-			"details",
-			"summary",
-		]);
-		Array.from(doc.body.querySelectorAll("*"))
-			.reverse()
-			.forEach((el) => {
-				if (!ALLOWED_TAGS.has(el.tagName.toLowerCase())) {
-					el.replaceWith(...Array.from(el.childNodes));
-				}
-			});
-
-		// 3. Keep only allowlisted attributes (mirrors server-side ALLOWED_ATTRS /
-		//    TAG_ATTRS), and only safe URLs in href.
-		const ALLOWED_ATTRS = new Set([
-			"class",
-			"id",
-			"title",
-			"lang",
-			"dir",
-			"role",
-			"aria-label",
-			"aria-hidden",
-			"aria-describedby",
-			"data-fragment",
-			"data-fragment-index",
-			"data-fragment-effect",
-		]);
-		const TAG_ATTRS: Record<string, string[]> = {
-			a: ["href", "target", "rel"],
-			td: ["colspan", "rowspan"],
-			th: ["colspan", "rowspan", "scope"],
-			ol: ["start", "type"],
-		};
-		doc.body.querySelectorAll("*").forEach((el) => {
-			const tagAttrs = TAG_ATTRS[el.tagName.toLowerCase()] || [];
-			Array.from(el.attributes).forEach((attr) => {
-				const name = attr.name.toLowerCase();
-				const allowed = ALLOWED_ATTRS.has(name) || tagAttrs.includes(name);
-				const safeUrl =
-					name !== "href" ||
-					// biome-ignore lint/suspicious/noControlCharactersInRegex: strips control characters browsers ignore in a URL scheme
-					/^(?:https?:|mailto:|#|\/)/i.test(attr.value.replace(/[\u0000-\u0020]+/g, ""));
-				if (!allowed || !safeUrl) el.removeAttribute(attr.name);
-			});
-		});
-
-		return doc.body.innerHTML;
-	}
-
 	// Also re-run by the dev editor after it patches the slide (and the
 	// server-rendered notes) in place.
 	function applyNotesComponent() {
 		const slideNotesEl = document.querySelector("[data-slide-notes]");
 		if (slideNotesEl?.innerHTML.trim()) {
-			const notesHTML = sanitizeNotesHTML(slideNotesEl.innerHTML);
+			const notesHTML = sanitizeNotesHtml(slideNotesEl.innerHTML);
 			// Update presenter notes panel
 			const presenterNotesContent = document.querySelector(".presenter-notes .notes-content");
 			const presenterNoNotes = document.querySelector(".presenter-notes .no-notes");
