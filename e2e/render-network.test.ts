@@ -8,7 +8,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { chromium } from "playwright";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { guardedChromiumArgs, guardNetwork } from "../packages/astlide/src/cli/render";
+import { guardedChromiumArgs, guardNetwork } from "../packages/astlide/src/render/browser";
 
 // "https://public.test/…" stands in for a public host: /ok answers, /to-internal
 // redirects to the internal service. Everything else goes to the real check.

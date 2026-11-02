@@ -23,6 +23,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { Reporter } from "@astlide/core/utils/reporter";
 import { type Deck, readDeck } from "../deck/index";
 import { printViewAttributes, printViewMeta } from "../deck/print-view";
 import { renderSlideHtml, type SlideTemplate } from "../runtime/slide";
@@ -68,6 +69,12 @@ export interface RenderDeckOptions {
 	publicDir?: string;
 	/** Where the print view is written while it renders (removed after). Default: the OS's temp folder. */
 	tempDir?: string;
+	/**
+	 * Where progress, results and warnings go. Default: the console, as the
+	 * `astlide` command prints them; `silentReporter` from
+	 * `@astlide/core/utils/reporter` says nothing.
+	 */
+	reporter?: Reporter;
 	/** PDF / PNG size in px. Default 1920 × 1080. */
 	width?: number;
 	height?: number;
@@ -291,11 +298,11 @@ async function serveFolder(dir: string): Promise<{ url: string; server: Server }
 }
 
 /** Draw ```mermaid diagrams into the page (as the PPTX export does), for the browser exports. */
-async function drawDiagrams(view: PrintView, root: string): Promise<void> {
+async function drawDiagrams(view: PrintView, root: string, reporter?: Reporter): Promise<void> {
 	const source = await readFile(view.html, "utf-8");
 	if (!source.includes('class="astlide-mermaid"')) return;
 	const { diagramsInPrintView } = await import("../pptx/export/export");
-	await writeFile(view.html, await diagramsInPrintView(view.html, view.site, root));
+	await writeFile(view.html, await diagramsInPrintView(view.html, view.site, root, reporter));
 }
 
 /** Export a deck folder; see the module notes. Returns the print view's deck. */
@@ -314,11 +321,12 @@ export async function renderDeck(options: RenderDeckOptions): Promise<Deck> {
 				deck: view.deck.name,
 				config,
 				output: options.output,
+				reporter: options.reporter,
 			});
 			return view.deck;
 		}
-		await drawDiagrams(view, root);
-		const { exportDeck } = await import("../cli/render");
+		await drawDiagrams(view, root, options.reporter);
+		const { exportDeck } = await import("./browser");
 		const { url, server } = await serveFolder(site);
 		try {
 			await exportDeck(view.deck.name, {
@@ -328,6 +336,7 @@ export async function renderDeck(options: RenderDeckOptions): Promise<Deck> {
 				width: options.width ?? 1920,
 				height: options.height ?? 1080,
 				printViewOnly: true,
+				reporter: options.reporter,
 			});
 		} finally {
 			server.close();

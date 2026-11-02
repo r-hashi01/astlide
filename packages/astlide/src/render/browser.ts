@@ -12,6 +12,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { publicNetworkOnly, publicRequest, readBody } from "@astlide/core/utils/network";
+import { consoleReporter, type Reporter } from "@astlide/core/utils/reporter";
 import { type BrowserContext, chromium, type Page } from "playwright";
 
 export interface RenderOptions {
@@ -28,6 +29,8 @@ export interface RenderOptions {
 	 * there, and PNGs are its slides one by one.
 	 */
 	printViewOnly?: boolean;
+	/** Where progress and results go (default: the console). */
+	reporter?: Reporter;
 }
 
 /** The slides in the print view (a deck's own script can't raise it past ASTLIDE_MAX_SLIDES). */
@@ -69,16 +72,15 @@ async function exportToPDF(
 	baseUrl: string,
 	width: number,
 	height: number,
+	reporter: Reporter,
 ): Promise<void> {
 	const page = await context.newPage();
 	await page.setViewportSize({ width, height });
 
 	// Navigate to the /[deck]/all route which stacks every slide with page-break-after,
 	// then let Chromium emit a multi-page PDF in one call. Removes the need for pdf-lib.
-	process.stdout.write(
-		slideCount
-			? `  Rendering ${slideCount} slide${slideCount === 1 ? "" : "s"}…\r`
-			: "  Rendering…\r",
+	reporter.progress(
+		slideCount ? `  Rendering ${slideCount} slide${slideCount === 1 ? "" : "s"}…` : "  Rendering…",
 	);
 	await page.goto(`${baseUrl}/${deck}/all`);
 	await page.waitForLoadState("networkidle");
@@ -93,7 +95,7 @@ async function exportToPDF(
 		preferCSSPageSize: false,
 	});
 
-	console.log("");
+	reporter.progressEnd();
 	await page.close();
 
 	await mkdir(dirname(outputPath), { recursive: true });
@@ -108,6 +110,7 @@ async function exportPrintViewToPNG(
 	baseUrl: string,
 	width: number,
 	height: number,
+	reporter: Reporter,
 ): Promise<number> {
 	const page = await context.newPage();
 	await page.setViewportSize({ width, height });
@@ -119,13 +122,13 @@ async function exportPrintViewToPNG(
 	const count = await printViewSlideCount(page);
 	const slides = await page.$$("section.slide");
 	for (let i = 0; i < count; i++) {
-		process.stdout.write(`  Slide ${i + 1}/${count}\r`);
+		reporter.progress(`  Slide ${i + 1}/${count}`);
 		await slides[i]?.screenshot({
 			path: join(outputDir, `slide-${String(i + 1).padStart(3, "0")}.png`),
 			type: "png",
 		});
 	}
-	console.log("");
+	reporter.progressEnd();
 	await page.close();
 	return count;
 }
@@ -138,6 +141,7 @@ async function exportToPNG(
 	baseUrl: string,
 	width: number,
 	height: number,
+	reporter: Reporter,
 ): Promise<void> {
 	const page = await context.newPage();
 	await page.setViewportSize({ width, height });
@@ -145,7 +149,7 @@ async function exportToPNG(
 	await mkdir(outputDir, { recursive: true });
 
 	for (let i = 1; i <= slideCount; i++) {
-		process.stdout.write(`  Slide ${i}/${slideCount}\r`);
+		reporter.progress(`  Slide ${i}/${slideCount}`);
 
 		await page.goto(`${baseUrl}/${deck}/${i}`);
 		await page.waitForLoadState("networkidle");
@@ -163,12 +167,13 @@ async function exportToPNG(
 		}
 	}
 
-	console.log("");
+	reporter.progressEnd();
 	await page.close();
 }
 
 export async function exportDeck(deck: string, options: RenderOptions): Promise<void> {
-	console.log(`\nExporting: ${deck}`);
+	const reporter = options.reporter ?? consoleReporter;
+	reporter.info(`\nExporting: ${deck}`);
 
 	// Launch a single browser instance shared across slide-count detection and export
 	const guarded = publicNetworkOnly();
@@ -185,14 +190,15 @@ export async function exportDeck(deck: string, options: RenderOptions): Promise<
 				options.baseUrl,
 				options.width,
 				options.height,
+				reporter,
 			);
-			console.log(`  ✓ ${n} slides saved to ${outputDir}/`);
+			reporter.info(`  ✓ ${n} slides saved to ${outputDir}/`);
 			return;
 		}
 		const slideCount = options.printViewOnly
 			? 0
 			: await getSlideCount(context, options.baseUrl, deck);
-		if (!options.printViewOnly) console.log(`  ${slideCount} slides found`);
+		if (!options.printViewOnly) reporter.info(`  ${slideCount} slides found`);
 
 		if (options.format === "png") {
 			const outputDir = options.output || `./dist/${deck}-slides`;
@@ -204,8 +210,9 @@ export async function exportDeck(deck: string, options: RenderOptions): Promise<
 				options.baseUrl,
 				options.width,
 				options.height,
+				reporter,
 			);
-			console.log(`  ✓ Saved to ${outputDir}/`);
+			reporter.info(`  ✓ Saved to ${outputDir}/`);
 		} else {
 			const outputPath = options.output || `./dist/${deck}.pdf`;
 			await exportToPDF(
@@ -216,8 +223,9 @@ export async function exportDeck(deck: string, options: RenderOptions): Promise<
 				options.baseUrl,
 				options.width,
 				options.height,
+				reporter,
 			);
-			console.log(`  ✓ Saved to ${outputPath}`);
+			reporter.info(`  ✓ Saved to ${outputPath}`);
 		}
 	} finally {
 		await browser.close();

@@ -340,7 +340,7 @@ async function renderFromSite(options: Options, decks: string[], baseUrl: string
 	const formats = (["pdf", "png"] as const).filter((f) => options.formats.has(f));
 	if (formats.length === 0) return;
 	// Imported only now so PPTX-only exports work without Playwright installed.
-	const { exportDeck } = await import("./render");
+	const { exportDeck } = await import("../render/browser");
 	for (const deck of decks) {
 		for (const format of formats) {
 			await exportDeck(deck, {

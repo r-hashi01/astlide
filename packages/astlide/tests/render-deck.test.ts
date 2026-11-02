@@ -2,8 +2,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import JSZip from "jszip";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { renderDeck, writePrintView } from "../src/render";
+import type { Reporter } from "../src/utils/reporter";
 import { templateFixture } from "./fixtures/pptx-template";
 
 let base: string;
@@ -99,5 +100,28 @@ describe("renderDeck", () => {
 		expect(slides).toHaveLength(2);
 		expect(await zip.file("ppt/slides/slide1.xml")?.async("string")).toContain("Q3 review");
 		expect(await zip.file("docProps/core.xml")?.async("string")).toContain("Q3 &lt;review&gt;");
+	}, 120_000);
+
+	it("sends what it reports to the reporter, not the console", async () => {
+		const output = join(base, "out", "q3-quiet.pptx");
+		const said: string[] = [];
+		const reporter: Reporter = {
+			info: (m) => said.push(m),
+			warn: (m) => said.push(m),
+			progress: () => {},
+			progressEnd: () => {},
+		};
+		const spies = [
+			vi.spyOn(console, "log"),
+			vi.spyOn(console, "warn"),
+			vi.spyOn(process.stdout, "write"),
+		];
+		try {
+			await renderDeck({ dir: deckDir, format: "pptx", output, root: base, reporter });
+			for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+		} finally {
+			for (const spy of spies) spy.mockRestore();
+		}
+		expect(said).toContain(`  ✓ Saved to ${output}`);
 	}, 120_000);
 });
