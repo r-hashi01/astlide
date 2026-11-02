@@ -16,6 +16,7 @@ import {
 } from "@astlide/core/runtime";
 import { TOOLBAR_ACTIONS } from "@astlide/core/runtime/chrome";
 import type { MermaidLoader } from "@astlide/core/runtime/diagrams";
+import { noNotesText, slideNeighbours, slideUrl } from "@astlide/core/runtime/page";
 import {
 	computed,
 	defineComponent,
@@ -60,26 +61,24 @@ export const DeckPage = defineComponent({
 	setup(props, { slots }) {
 		const n = computed(() => props.slideNumber);
 		const total = computed(() => props.totalSlides);
-		const prevSlide = computed(() =>
-			props.prevSlide === undefined ? (n.value > 1 ? n.value - 1 : null) : props.prevSlide,
-		);
-		const nextSlide = computed(() =>
-			props.nextSlide === undefined
-				? n.value < total.value
-					? n.value + 1
-					: null
-				: props.nextSlide,
-		);
+		const neighbours = computed(() => slideNeighbours(n.value, total.value, props));
+		const prevSlide = computed(() => neighbours.value.prevSlide);
+		const nextSlide = computed(() => neighbours.value.nextSlide);
 		const slideHref = (s: number, query = "") =>
-			`${props.basePath}/${encodeURIComponent(props.deck)}/${s}${props.trailingSlash ? "/" : ""}${query}`;
+			slideUrl(
+				props.deck,
+				s,
+				{ basePath: props.basePath, trailingSlash: props.trailingSlash },
+				query,
+			);
 		const config = computed<DeckRuntimeConfig>(() => ({
 			deck: props.deck,
 			currentSlide: n.value,
 			totalSlides: total.value,
 			prevSlide: prevSlide.value,
 			nextSlide: nextSlide.value,
-			firstSlide: props.firstSlide ?? 1,
-			lastSlide: props.lastSlide ?? total.value,
+			firstSlide: neighbours.value.firstSlide,
+			lastSlide: neighbours.value.lastSlide,
 			trailingSlash: props.trailingSlash,
 			basePath: props.basePath,
 			outline: props.outline ?? [],
@@ -128,10 +127,7 @@ export const DeckPage = defineComponent({
 		watch([config, () => props.presenter], () => mount(), { flush: "post" });
 		onBeforeUnmount(() => unmount?.());
 
-		const noNotes = () =>
-			props.notesPublished
-				? "No notes for this slide."
-				: "Speaker notes are not published with this deck.";
+		const noNotes = () => noNotesText(props.notesPublished);
 		const notes = (className: string) =>
 			props.notesHtml
 				? h("div", { class: className, innerHTML: props.notesHtml })

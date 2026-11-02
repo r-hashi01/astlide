@@ -37,6 +37,7 @@ import { join } from "node:path";
 import { type Deck, evaluateSlideMdx, readDecks, renderNotesHtml } from "@astlide/core/deck";
 import { printSlides, slidePage } from "@astlide/core/deck/pages";
 import { printViewAttributes, printViewMeta, themeName } from "@astlide/core/deck/print-view";
+import { slideUrl } from "@astlide/core/runtime/page";
 import { slideTitle } from "@astlide/core/utils/slide-title";
 import { createMdxComponents, mdxComponents, Slide } from "@astlide/react";
 import type { ComponentType, ReactNode } from "react";
@@ -85,7 +86,7 @@ export function createDeckRoutes(options: DeckRoutesOptions = {}) {
 		return cached;
 	};
 	const slideHref = (deck: string, n: number) =>
-		`${basePath}/${encodeURIComponent(deck)}/${n}${options.trailingSlash ? "/" : ""}`;
+		slideUrl(deck, n, { basePath, trailingSlash: options.trailingSlash });
 	const findDeck = async (name: string) => {
 		const deck = (await decks()).find((d) => d.name === decodeURIComponent(name));
 		if (!deck) {

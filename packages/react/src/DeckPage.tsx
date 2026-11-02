@@ -22,6 +22,7 @@ import {
 } from "@astlide/core/runtime";
 import { TOOLBAR_ACTIONS } from "@astlide/core/runtime/chrome";
 import type { MermaidLoader } from "@astlide/core/runtime/diagrams";
+import { noNotesText, slideNeighbours, slideUrl } from "@astlide/core/runtime/page";
 import { Fragment, type ReactNode, useEffect, useMemo } from "react";
 
 export interface DeckPageProps {
@@ -86,15 +87,10 @@ export function DeckPage(props: DeckPageProps) {
 		notesPublished = true,
 		presenter = false,
 	} = props;
-	const prevSlide = props.prevSlide === undefined ? (n > 1 ? n - 1 : null) : props.prevSlide;
-	const nextSlide = props.nextSlide === undefined ? (n < total ? n + 1 : null) : props.nextSlide;
-	const firstSlide = props.firstSlide ?? 1;
-	const lastSlide = props.lastSlide ?? total;
+	const { prevSlide, nextSlide, firstSlide, lastSlide } = slideNeighbours(n, total, props);
 	const slideHref = (s: number, query = "") =>
-		`${basePath}/${encodeURIComponent(deck)}/${s}${trailingSlash ? "/" : ""}${query}`;
-	const noNotes = notesPublished
-		? "No notes for this slide."
-		: "Speaker notes are not published with this deck.";
+		slideUrl(deck, s, { basePath, trailingSlash }, query);
+	const noNotes = noNotesText(notesPublished);
 
 	const config = useMemo<DeckRuntimeConfig>(
 		() => ({
