@@ -56,7 +56,7 @@ function navLink(
 	text: string,
 	icon?: string,
 ): string {
-	const attrs = `${icon ? ` data-icon="${icon}"` : ""}${label ? ` aria-label="${escapeAttr(label)}"` : ""}`;
+	const attrs = `${icon ? ` data-icon="${escapeAttr(icon)}"` : ""}${label ? ` aria-label="${escapeAttr(label)}"` : ""}`;
 	if (href === null)
 		return `<button type="button" class="${className} disabled"${attrs} disabled>${text}</button>`;
 	return `<a href="${escapeAttr(href)}" class="${className}"${attrs}>${text}</a>`;
@@ -64,7 +64,7 @@ function navLink(
 
 /** A toolbar button running a runtime action (`data-action`). */
 function actionButton(action: string, ...[label, title, pressed]: ToolbarAction) {
-	return `<button type="button" class="nav-btn nav-action" data-icon="${action}" data-action="${action}" aria-label="${label}"${pressed ? ' aria-pressed="false"' : ""} title="${title}"></button>`;
+	return `<button type="button" class="nav-btn nav-action" data-icon="${escapeAttr(action)}" data-action="${escapeAttr(action)}" aria-label="${escapeAttr(label)}"${pressed ? ' aria-pressed="false"' : ""} title="${escapeAttr(title)}"></button>`;
 }
 
 /**

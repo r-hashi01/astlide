@@ -67,13 +67,12 @@ describe("deck chrome", () => {
 		const icons = [...nav.matchAll(/data-icon="([^"]+)"/g)].map((m) => m[1]);
 		expect(icons).toEqual(toolbar);
 		const css = readFileSync(new URL("../src/styles/deck.css", import.meta.url), "utf-8");
-		for (const icon of icons) {
-			expect(css).toMatch(
-				new RegExp(
-					`\\.nav-btn\\[data-icon="${icon}"\\]:not\\(\\.slide \\*\\) \\{\\s*--astlide-icon: var\\(\\s*--astlide-icon-${icon},\\s*url\\("data:image/svg\\+xml,`,
-				),
-			);
-		}
+		const drawn = [
+			...css.matchAll(
+				/\.nav-btn\[data-icon="([\w-]+)"\]:not\(\.slide \*\) \{\s*--astlide-icon: var\(\s*--astlide-icon-([\w-]+),\s*url\("data:image\/svg\+xml,/g,
+			),
+		].map((m) => (m[1] === m[2] ? m[1] : `${m[1]} uses --astlide-icon-${m[2]}`));
+		expect(drawn.sort()).toEqual([...toolbar].sort());
 	});
 
 	it("puts sanitized notes in both places, and escapes the text it writes itself", () => {
