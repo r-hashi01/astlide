@@ -9,7 +9,7 @@
 
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { Box, Scene, SceneItem, TableBox } from "@astlide/core/engine";
 import { exportSiteDir } from "@astlide/core/utils/export-build";
@@ -17,6 +17,7 @@ import { mermaidThemeFor } from "@astlide/core/utils/mermaid";
 import { FetchBudget } from "@astlide/core/utils/network";
 import type { ChildNode, Element } from "domhandler";
 import { parseDocument } from "htmlparser2";
+import { readDeckConfigFile } from "../../deck/project";
 import { type EmbedInfo, resolveEmbeds } from "./embeds";
 import { embeddingPermissions, withLegacyFamilyOnly } from "./eot";
 import {
@@ -40,22 +41,6 @@ export interface PptxOptions {
 	output: string;
 	/** Skip the build: use the export's last build, else the existing dist/. */
 	build?: boolean;
-}
-
-/** Deck names: the directories in src/content/decks. */
-export async function getDecks(root: string): Promise<string[]> {
-	const entries = await readdir(join(root, "src", "content", "decks"), { withFileTypes: true });
-	return entries.filter((e) => e.isDirectory()).map((e) => e.name);
-}
-
-/** The deck's `_config.json` (title, author, theme), or `{}`. */
-async function readDeckConfig(root: string, deck: string): Promise<Record<string, unknown>> {
-	try {
-		const path = join(root, "src", "content", "decks", deck, "_config.json");
-		return JSON.parse(await readFile(path, "utf-8")) as Record<string, unknown>;
-	} catch {
-		return {};
-	}
 }
 
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
@@ -890,7 +875,7 @@ export async function exportPptx(deck: string, options: PptxOptions): Promise<vo
 		site: dist,
 		root: options.root,
 		deck,
-		config: await readDeckConfig(options.root, deck),
+		config: await readDeckConfigFile(options.root, deck),
 		output: options.output,
 	});
 }
