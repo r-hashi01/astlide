@@ -65,6 +65,26 @@ Astro サイトと同じです。レイアウト、frontmatter、フラグメン
 
 プレゼンターウィンドウ、一覧表示、スライド番号へのジャンプ、ペン、レーザーポインター、ノート表示も、同じキーで使えます。
 
+## 組み込みテーマの変更
+
+テーマのカスタムプロパティを CSS ファイルに書き、`nuxt.config.ts` の `css` に追加します。
+
+```css
+/* assets/theme.css */
+[data-theme="default"] {
+  --color-primary: #7c3aed;
+}
+```
+
+```ts
+export default defineNuxtConfig({
+  modules: ["@astlide/nuxt"],
+  css: ["~/assets/theme.css"],
+});
+```
+
+使えるプロパティは[カスタムテーマ](/ja/guides/themes-and-plugins/#カスタムテーマ)にあります。
+
 ## 書き出し
 
 アプリをビルドしてサーバーを起動し、`astlide export` でそのサイトを指定します。URL には `basePath` まで含めてください。

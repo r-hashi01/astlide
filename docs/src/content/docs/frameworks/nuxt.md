@@ -65,6 +65,26 @@ Slides work as in an Astro site. The layouts, frontmatter, fragments, code highl
 
 The presenter window, overview, go-to dialog, pen, laser pointer and notes overlay work as well, with the same keys.
 
+## Changing a built-in theme
+
+Set the theme's custom properties in a CSS file and add it to `css` in `nuxt.config.ts`:
+
+```css
+/* assets/theme.css */
+[data-theme="default"] {
+  --color-primary: #7c3aed;
+}
+```
+
+```ts
+export default defineNuxtConfig({
+  modules: ["@astlide/nuxt"],
+  css: ["~/assets/theme.css"],
+});
+```
+
+The [custom theme](/guides/themes-and-plugins/#custom-theme) section lists the properties.
+
 ## Export
 
 Build the app and run its server, then point `astlide export` at it. Include `basePath` in the URL:

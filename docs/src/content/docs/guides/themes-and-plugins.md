@@ -75,7 +75,7 @@ layouts: [
 ],
 ```
 
-If two plugins register the same theme, layout or transition name, the first one wins. Built-in names are registered before any plugin, so a plugin can't replace a built-in theme.
+If two plugins register the same theme, layout or transition name, the first one wins, and the build warns about the other. Built-in names are registered before any plugin, so a plugin can't replace a built-in theme. To change a built-in theme, set its properties under its selector (such as `[data-theme="default"]`) in a plugin theme's CSS file: plugin themes load after the built-in ones.
 
 ### Publishing a plugin
 

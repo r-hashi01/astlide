@@ -85,8 +85,9 @@ export default defineNuxtModule<ModuleOptions>({
 		// Astlide's packages ship TypeScript.
 		nuxt.options.build.transpile.push("@astlide/core", "@astlide/vue", "@astlide/nuxt");
 		// Resolved from here: the app depends on @astlide/nuxt, not on what it uses.
+		// Before the app's own `css`, so the app can override the built-in themes.
 		const require = createRequire(import.meta.url);
-		nuxt.options.css.push(...STYLES.map((style) => require.resolve(style)));
+		nuxt.options.css.unshift(...STYLES.map((style) => require.resolve(style)));
 
 		addVitePlugin(
 			astlideDecksPlugin({

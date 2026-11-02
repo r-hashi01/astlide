@@ -418,6 +418,12 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 				updateConfig,
 				logger,
 			}) => {
+				for (const { kind, name, plugin } of resolved.dropped) {
+					logger.warn(
+						`Plugin "${plugin}" registers the ${kind} "${name}", which is already registered; it is ignored.`,
+					);
+				}
+
 				// Auto-add MDX support if not already present
 				const hasMdx = config.integrations.some((i) => i.name === "@astrojs/mdx");
 
