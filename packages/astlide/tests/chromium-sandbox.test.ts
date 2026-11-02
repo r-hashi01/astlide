@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { chromium } from "playwright";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { chromiumSandbox, launchChromium } from "../src/cli/render";
+import { chromiumSandbox, launchChromium } from "../src/render/browser";
 
 afterEach(() => vi.unstubAllEnvs());
 

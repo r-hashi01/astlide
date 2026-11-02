@@ -14,6 +14,11 @@ import { dirname, join } from "node:path";
 import type { Box, Scene, SceneItem, TableBox } from "@astlide/core/engine";
 import { mermaidThemeFor } from "@astlide/core/utils/mermaid";
 import { FetchBudget } from "@astlide/core/utils/network";
+import { consoleReporter, type Reporter } from "@astlide/core/utils/reporter";
+
+/** Where a helper reports what it left out. */
+type Warn = (message: string) => void;
+
 import type { ChildNode, Element } from "domhandler";
 import { parseDocument } from "htmlparser2";
 import { type EmbedInfo, resolveEmbeds } from "./embeds";
@@ -131,11 +136,12 @@ function svgPicture(
 	svg: string,
 	width: number,
 	fontFiles: string[],
+	warn: Warn,
 ): Buffer | null {
 	try {
 		return engine.svgToPng(svg, width, fontFiles);
 	} catch (error) {
-		console.warn(`  ⚠ SVG image left out: ${(error as Error).message.split("\n")[0]}`);
+		warn(`  ⚠ SVG image left out: ${(error as Error).message.split("\n")[0]}`);
 		return null;
 	}
 }
@@ -145,10 +151,11 @@ function rasterize(
 	source: ImageSource,
 	width: number,
 	fontFiles: string[],
+	warn: Warn,
 ): Buffer | null {
 	return "bitmap" in source
 		? source.bitmap
-		: svgPicture(engine, source.svg, width * RASTER_SCALE, fontFiles);
+		: svgPicture(engine, source.svg, width * RASTER_SCALE, fontFiles, warn);
 }
 
 /** Largest remote image an export downloads, in bytes. */
@@ -165,6 +172,7 @@ async function fetchImages(
 	urls: Map<string, "deck" | "remote">,
 	cacheDir: string,
 	budget: FetchBudget,
+	warn: Warn,
 ): Promise<void> {
 	await mkdir(cacheDir, { recursive: true });
 	const failed: string[] = [];
@@ -187,7 +195,7 @@ async function fetchImages(
 			}
 		}),
 	);
-	if (failed.length) console.warn(`  ⚠ images not downloaded (offline?): ${failed.join(", ")}`);
+	if (failed.length) warn(`  ⚠ images not downloaded (offline?): ${failed.join(", ")}`);
 }
 
 /**
@@ -433,18 +441,19 @@ async function withDiagrams(
 	options: {
 		root: string;
 		font: () => { family: string; font: { familyName: string }; file?: string };
+		warn: Warn;
 	},
 ): Promise<string> {
 	const blocks = [...html.matchAll(/<pre class="astlide-mermaid"[^>]*>([\s\S]*?)<\/pre>/g)];
 	if (blocks.length === 0) return html;
 	const mermaidPath = engine.resolveEsm("mermaid", options.root);
 	if (!mermaidPath) {
-		console.warn("  ⚠ diagrams skipped: install `mermaid` in the project to export them");
+		options.warn("  ⚠ diagrams skipped: install `mermaid` in the project to export them");
 		return html;
 	}
 	const face = options.font();
 	if (!face.file) {
-		console.warn("  ⚠ diagrams skipped: no font file for their labels");
+		options.warn("  ⚠ diagrams skipped: no font file for their labels");
 		return html;
 	}
 	const theme = mermaidThemeFor(html.match(/<html[^>]*\sdata-theme="([^"]*)"/)?.[1]);
@@ -478,7 +487,7 @@ async function withDiagrams(
  * installed. Fonts whose license forbids embedding (`fsType` restricted)
  * are left out.
  */
-function embeddedFonts(items: TextItem[]): EmbeddedFont[] {
+function embeddedFonts(items: TextItem[], warn: Warn): EmbeddedFont[] {
 	const byFace = new Map<string, EmbeddedFont>();
 	const skipped = new Set<string>();
 	for (const item of items) {
@@ -499,7 +508,7 @@ function embeddedFonts(items: TextItem[]): EmbeddedFont[] {
 		byFace.set(f.face, font);
 	}
 	if (skipped.size)
-		console.warn(`  ⚠ not embedded (license restricts embedding): ${[...skipped].join(", ")}`);
+		warn(`  ⚠ not embedded (license restricts embedding): ${[...skipped].join(", ")}`);
 	return [...byFace.values()];
 }
 
@@ -850,7 +859,13 @@ function plainText(el: Element): string {
 }
 
 /** The page's fonts loaded, and its ```mermaid diagrams drawn as pictures. */
-async function pageWithDiagrams(engine: Engine, html: string, dist: string, root: string) {
+async function pageWithDiagrams(
+	engine: Engine,
+	html: string,
+	dist: string,
+	root: string,
+	warn: Warn,
+) {
 	const options = { root };
 	const fonts = new engine.FontRegistry();
 	const css = engine.pageCss(html, dist);
@@ -862,7 +877,7 @@ async function pageWithDiagrams(engine: Engine, html: string, dist: string, root
 		engine.familiesIn(css).filter((f) => !local.has(f)),
 		join(options.root, "node_modules", ".cache", "astlide-fonts"),
 	);
-	if (missing.length) console.warn(`  ⚠ fonts not found on Google Fonts: ${missing.join(", ")}`);
+	if (missing.length) warn(`  ⚠ fonts not found on Google Fonts: ${missing.join(", ")}`);
 	const emoji = "/System/Library/Fonts/Apple Color Emoji.ttc";
 	if (existsSync(emoji)) fonts.addFallback(emoji);
 	// East Asian text: named with the CSS's CJK font (else Yu Gothic, which Office has),
@@ -875,7 +890,7 @@ async function pageWithDiagrams(engine: Engine, html: string, dist: string, root
 				? loaded.file
 				: await googleFontFile(engine, "Noto Sans JP", options.root);
 		if (measure) fonts.addFallback(measure);
-		else console.warn("  ⚠ no Japanese font to measure text with (Noto Sans JP unavailable)");
+		else warn("  ⚠ no Japanese font to measure text with (Noto Sans JP unavailable)");
 	}
 
 	const vp = { width: 1920, height: 1080, media: "screen" as const };
@@ -886,6 +901,7 @@ async function pageWithDiagrams(engine: Engine, html: string, dist: string, root
 			const [first] = engine.layoutPage(html, dist, fonts, vp);
 			return fonts.pick(first?.style.get("font-family") ?? "sans-serif", 400, false);
 		},
+		warn,
 	});
 	return { fonts, eaFont, source, vp };
 }
@@ -898,9 +914,10 @@ export async function diagramsInPrintView(
 	html: string,
 	site: string,
 	root: string,
+	reporter: Reporter = consoleReporter,
 ): Promise<string> {
 	const engine = await import("@astlide/core/engine");
-	return (await pageWithDiagrams(engine, html, site, root)).source;
+	return (await pageWithDiagrams(engine, html, site, root, reporter.warn)).source;
 }
 
 export interface PrintViewPptxOptions {
@@ -914,6 +931,8 @@ export interface PrintViewPptxOptions {
 	/** The deck's `_config.json` (title, author, theme). */
 	config: Record<string, unknown>;
 	output: string;
+	/** Where progress, results and warnings go (default: the console). */
+	reporter?: Reporter;
 }
 
 /**
@@ -924,7 +943,15 @@ export async function pptxFromPrintView(o: PrintViewPptxOptions): Promise<void> 
 	const engine = await import("@astlide/core/engine");
 	const { html, site: dist, deck, config } = o;
 	const options = { root: o.root, output: o.output };
-	const { fonts, eaFont, source, vp } = await pageWithDiagrams(engine, html, dist, options.root);
+	const reporter = o.reporter ?? consoleReporter;
+	const warn = reporter.warn;
+	const { fonts, eaFont, source, vp } = await pageWithDiagrams(
+		engine,
+		html,
+		dist,
+		options.root,
+		warn,
+	);
 	const layouts = engine.layoutPage(html, dist, fonts, vp, source);
 	const notes = speakerNotes(source);
 
@@ -957,15 +984,15 @@ export async function pptxFromPrintView(o: PrintViewPptxOptions): Promise<void> 
 			remote,
 			join(options.root, "node_modules", ".cache", "astlide-images"),
 			budget,
+			warn,
 		);
 	if (budget.refused.length)
-		console.warn(
+		warn(
 			`  ⚠ ${budget.refused.length} remote file(s) skipped (download limits reached): ${budget.refused.slice(0, 3).join(", ")}${budget.refused.length > 3 ? " …" : ""}`,
 		);
 	const bodyFace = fonts.pick(layouts[0]?.style.get("font-family") ?? "sans-serif", 400, false);
 	layouts.forEach((layout, i) => {
-		// Progress on one line: only where \r rewrites it (a terminal, not a log).
-		if (process.stdout.isTTY) process.stdout.write(`  Slide ${i + 1}/${layouts.length}\r`);
+		reporter.progress(`  Slide ${i + 1}/${layouts.length}`);
 		const scene = engine.toScene(layout, (eid) => layout.elements[eid]);
 		const k = SLIDE_W_IN / scene.width;
 		const elements: SlideElement[] = [];
@@ -1092,7 +1119,7 @@ export async function pptxFromPrintView(o: PrintViewPptxOptions): Promise<void> 
 				else {
 					// Not expressible as shapes: a picture of it.
 					const svg = rasterReady(item.markup, hex(item.color));
-					const data = svgPicture(engine, svg, item.w * RASTER_SCALE, fonts.files());
+					const data = svgPicture(engine, svg, item.w * RASTER_SCALE, fonts.files(), warn);
 					if (data)
 						elements.push({
 							type: "image",
@@ -1117,7 +1144,7 @@ export async function pptxFromPrintView(o: PrintViewPptxOptions): Promise<void> 
 				if (clip) visible = engine.intersect(visible, clip);
 				const bytes =
 					source && (!item.fit || place) && visible.w > 0 && visible.h > 0
-						? rasterize(engine, source, drawn.w, fonts.files())
+						? rasterize(engine, source, drawn.w, fonts.files(), warn)
 						: null;
 				const format = source && "bitmap" in source ? source.format : "png";
 				const link = item.href && /^https?:/.test(item.href) ? item.href : undefined;
@@ -1147,7 +1174,7 @@ export async function pptxFromPrintView(o: PrintViewPptxOptions): Promise<void> 
 					});
 				} else if (!source && !/^https?:/.test(item.src)) {
 					const name = item.src.startsWith("data:") ? item.src.slice(0, 30) : item.src;
-					console.warn(`\n  ⚠ slide ${i + 1}: image ${name} skipped (PNG / SVG only for now)`);
+					warn(`\n  ⚠ slide ${i + 1}: image ${name} skipped (PNG / SVG only for now)`);
 				}
 			}
 		}
@@ -1164,17 +1191,17 @@ export async function pptxFromPrintView(o: PrintViewPptxOptions): Promise<void> 
 		const background = scene.background.alpha > 0 ? hex(scene.background) : "FFFFFF";
 		slides.push({ background, elements, notes: notes[i] });
 	});
-	if (process.stdout.isTTY) console.log("");
-	console.log(`  ${layouts.length} slides`);
+	reporter.progressEnd();
+	reporter.info(`  ${layouts.length} slides`);
 	const pptx = new PptxFile({
 		title: str(config.title) ?? deck,
 		author: str(config.author) ?? "",
 		theme: getTheme(str(config.theme)),
-		fonts: embeddedFonts(used),
+		fonts: embeddedFonts(used, warn),
 		eaFont,
 	});
 	for (const slide of slides) pptx.addSlide(slide);
 	await mkdir(dirname(options.output), { recursive: true });
 	await pptx.save(options.output);
-	console.log(`  ✓ Saved to ${options.output}`);
+	reporter.info(`  ✓ Saved to ${options.output}`);
 }

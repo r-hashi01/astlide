@@ -39,6 +39,7 @@
 		"./utils/network": "./src/utils/network.ts",
 		"./utils/notes": "./src/utils/notes.ts",
 		"./utils/pptx-assets": "./src/utils/pptx-assets.ts",
+		"./utils/reporter": "./src/utils/reporter.ts",
 		"./utils/safe-url": "./src/utils/safe-url.ts",
 		"./utils/sanitize": "./src/utils/sanitize.ts",
 		"./utils/slide-scripts": "./src/utils/slide-scripts.ts",
