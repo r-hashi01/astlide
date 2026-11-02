@@ -140,13 +140,20 @@ export function DeckPage(props: DeckPageProps) {
 		className: string,
 		label: string | undefined,
 		text: string,
+		icon?: string,
 	) =>
 		href === null ? (
-			<button type="button" className={`${className} disabled`} aria-label={label} disabled>
+			<button
+				type="button"
+				className={`${className} disabled`}
+				data-icon={icon}
+				aria-label={label}
+				disabled
+			>
 				{text}
 			</button>
 		) : (
-			<a href={href} className={className} aria-label={label}>
+			<a href={href} className={className} data-icon={icon} aria-label={label}>
 				{text}
 			</a>
 		);
@@ -286,15 +293,15 @@ export function DeckPage(props: DeckPageProps) {
 					const key = `${item}-${i}`;
 					if (item === "home")
 						return (
+							// biome-ignore lint/a11y/useAnchorContent: named by aria-label; the icon is drawn by CSS
 							<a
 								key={key}
 								href={`${basePath}/`}
 								className="nav-btn nav-action"
+								data-icon="home"
 								aria-label="Back to deck index"
 								title="Back to deck index"
-							>
-								⌂
-							</a>
+							/>
 						);
 					if (item === "prev")
 						return (
@@ -303,7 +310,8 @@ export function DeckPage(props: DeckPageProps) {
 									prevSlide === null ? null : slideHref(prevSlide),
 									"nav-btn",
 									"Previous slide",
-									"←",
+									"",
+									"prev",
 								)}
 							</Fragment>
 						);
@@ -314,7 +322,8 @@ export function DeckPage(props: DeckPageProps) {
 									nextSlide === null ? null : slideHref(nextSlide),
 									"nav-btn",
 									"Next slide",
-									"→",
+									"",
+									"next",
 								)}
 							</Fragment>
 						);
@@ -328,19 +337,18 @@ export function DeckPage(props: DeckPageProps) {
 						return <span key={key} className="nav-spacer" aria-hidden="true" />;
 					const action = TOOLBAR_ACTIONS[item];
 					if (!action) return null;
-					const [label, title, text, pressed] = action;
+					const [label, title, pressed] = action;
 					return (
 						<button
 							key={key}
 							type="button"
 							className="nav-btn nav-action"
+							data-icon={item}
 							data-action={item}
 							aria-label={label}
 							aria-pressed={pressed ? "false" : undefined}
 							title={title}
-						>
-							{text}
-						</button>
+						/>
 					);
 				})}
 			</nav>

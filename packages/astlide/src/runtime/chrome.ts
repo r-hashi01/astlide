@@ -48,26 +48,31 @@ const escapeText = (s: string) =>
 	s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const escapeAttr = (s: string) => escapeText(s).replace(/"/g, "&quot;");
 
-/** A link to a neighbouring slide, or a disabled button when there is none. */
-function navLink(href: string | null, className: string, label: string, text: string): string {
-	const aria = label ? ` aria-label="${escapeAttr(label)}"` : "";
+/** A link to a neighbouring slide, or a disabled button when there is none. A toolbar link shows `icon` instead of text. */
+function navLink(
+	href: string | null,
+	className: string,
+	label: string,
+	text: string,
+	icon?: string,
+): string {
+	const attrs = `${icon ? ` data-icon="${icon}"` : ""}${label ? ` aria-label="${escapeAttr(label)}"` : ""}`;
 	if (href === null)
-		return `<button type="button" class="${className} disabled"${aria} disabled>${text}</button>`;
-	return `<a href="${escapeAttr(href)}" class="${className}"${aria}>${text}</a>`;
+		return `<button type="button" class="${className} disabled"${attrs} disabled>${text}</button>`;
+	return `<a href="${escapeAttr(href)}" class="${className}"${attrs}>${text}</a>`;
 }
 
 /** A toolbar button running a runtime action (`data-action`). */
-function actionButton(action: string, ...[label, title, text, pressed]: ToolbarAction) {
-	return `<button type="button" class="nav-btn nav-action" data-action="${action}" aria-label="${label}"${pressed ? ' aria-pressed="false"' : ""} title="${title}">${text}</button>`;
+function actionButton(action: string, ...[label, title, pressed]: ToolbarAction) {
+	return `<button type="button" class="nav-btn nav-action" data-icon="${action}" data-action="${action}" aria-label="${label}"${pressed ? ' aria-pressed="false"' : ""} title="${title}"></button>`;
 }
 
-/** A toolbar button that runs a runtime action: its label, tooltip, glyph, and whether it toggles (`aria-pressed`). */
-export type ToolbarAction = readonly [
-	label: string,
-	title: string,
-	text: string,
-	pressed?: boolean,
-];
+/**
+ * A toolbar button that runs a runtime action: its label, tooltip, and whether
+ * it toggles (`aria-pressed`). Its icon is `data-icon` (the action's name),
+ * drawn by styles/deck.css.
+ */
+export type ToolbarAction = readonly [label: string, title: string, pressed?: boolean];
 
 /**
  * The toolbar's action buttons, by the name used in the `toolbar` option
@@ -75,26 +80,26 @@ export type ToolbarAction = readonly [
  * render the same buttons from this table.
  */
 export const TOOLBAR_ACTIONS: Readonly<Record<string, ToolbarAction>> = {
-	notes: ["Toggle speaker notes", "Toggle speaker notes (n)", "📝"],
-	goto: ["Go to slide", "Go to slide (g)", "⌕"],
-	draw: ["Toggle drawing", "Draw on the slide (d) — c clears", "✎", true],
-	laser: ["Toggle laser pointer", "Laser pointer (l)", "◉", true],
-	camera: ["Toggle camera", "Camera (v)", "◎", true],
-	record: ["Record the talk", "Record (r)", "⏺", true],
-	overview: ["Open slide overview", "Slide overview (o)", "▦"],
-	presenter: ["Open presenter window", "Open presenter window (p)", "🎤"],
-	fullscreen: ["Toggle fullscreen", "Toggle fullscreen (f)", "⛶"],
-	print: ["Toggle print mode", "Toggle print mode", "🖨"],
-	share: ["Toggle share mode", "Toggle share mode (clean canvas)", "📺"],
-	download: ["Download deck as PDF", "Download deck as PDF", "⬇"],
+	notes: ["Toggle speaker notes", "Toggle speaker notes (n)"],
+	goto: ["Go to slide", "Go to slide (g)"],
+	draw: ["Toggle drawing", "Draw on the slide (d) — c clears", true],
+	laser: ["Toggle laser pointer", "Laser pointer (l)", true],
+	camera: ["Toggle camera", "Camera (v)", true],
+	record: ["Record the talk", "Record (r)", true],
+	overview: ["Open slide overview", "Slide overview (o)"],
+	presenter: ["Open presenter window", "Open presenter window (p)"],
+	fullscreen: ["Toggle fullscreen", "Toggle fullscreen (f)"],
+	print: ["Toggle print mode", "Toggle print mode"],
+	share: ["Toggle share mode", "Toggle share mode (clean canvas)"],
+	download: ["Download deck as PDF", "Download deck as PDF"],
 };
 
 function toolbarItem(item: string, p: DeckChromeProps): string {
 	const href = (n: number | null) => (n === null ? null : p.slideHref(n));
 	if (item === "home")
-		return `<a href="${escapeAttr(p.homeHref)}" class="nav-btn nav-action" aria-label="Back to deck index" title="Back to deck index">⌂</a>`;
-	if (item === "prev") return navLink(href(p.prevSlide), "nav-btn", "Previous slide", "←");
-	if (item === "next") return navLink(href(p.nextSlide), "nav-btn", "Next slide", "→");
+		return `<a href="${escapeAttr(p.homeHref)}" class="nav-btn nav-action" data-icon="home" aria-label="Back to deck index" title="Back to deck index"></a>`;
+	if (item === "prev") return navLink(href(p.prevSlide), "nav-btn", "Previous slide", "", "prev");
+	if (item === "next") return navLink(href(p.nextSlide), "nav-btn", "Next slide", "", "next");
 	if (item === "counter")
 		return `<span class="nav-indicator">${p.currentSlide} / ${p.totalSlides}</span>`;
 	if (item === "spacer") return '<span class="nav-spacer" aria-hidden="true"></span>';

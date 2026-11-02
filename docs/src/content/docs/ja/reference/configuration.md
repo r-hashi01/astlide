@@ -66,7 +66,7 @@ Markdown・HTML・PowerPoint のスライドにあるインラインスクリプ
 
 開発サーバーでは、`script-src` は `'unsafe-inline'` のままです。Vite のクライアント用に `worker-src 'self' blob:` も追加します。ただし、ポリシーに `worker-src` がすでにあれば追加しません。
 
-自分で書いたポリシー文字列は、Astlide が手を加えずにそのまま使います。
+自分で書いたポリシー文字列は、Astlide が手を加えずにそのまま使います。ツールバーのアイコンは `data:` の画像なので、`img-src` で `data:` を許可してください。
 
 ### スライド内のスクリプト
 

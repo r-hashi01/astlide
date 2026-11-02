@@ -66,7 +66,7 @@ Inline scripts in Markdown, HTML and PowerPoint slides get no hash, so they only
 
 On the dev server, `script-src` uses `'unsafe-inline'`. Astlide also adds `worker-src 'self' blob:` for Vite's client, unless your policy already sets `worker-src`.
 
-If you pass your own policy string, Astlide uses it exactly as written.
+If you pass your own policy string, Astlide uses it exactly as written. Allow `data:` in `img-src`: the toolbar icons are `data:` images.
 
 ### Scripts in slides
 

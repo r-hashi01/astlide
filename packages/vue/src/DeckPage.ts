@@ -112,14 +112,21 @@ export const DeckPage = defineComponent({
 			className: string,
 			label: string | undefined,
 			text: string,
+			icon?: string,
 		) =>
 			href === null
 				? h(
 						"button",
-						{ type: "button", class: `${className} disabled`, "aria-label": label, disabled: true },
+						{
+							type: "button",
+							class: `${className} disabled`,
+							"data-icon": icon,
+							"aria-label": label,
+							disabled: true,
+						},
 						text,
 					)
-				: h("a", { href, class: className, "aria-label": label }, text);
+				: h("a", { href, class: className, "data-icon": icon, "aria-label": label }, text);
 
 		return () => {
 			const scaler = h("div", { class: "slide-scaler", id: "slide-scaler", tabindex: "-1" }, [
@@ -131,38 +138,44 @@ export const DeckPage = defineComponent({
 			const next = nextSlide.value;
 			const toolbar: (VNode | null)[] = props.toolbar.map((item) => {
 				if (item === "home")
-					return h(
-						"a",
-						{
-							href: `${props.basePath}/`,
-							class: "nav-btn nav-action",
-							"aria-label": "Back to deck index",
-							title: "Back to deck index",
-						},
-						"⌂",
-					);
+					return h("a", {
+						href: `${props.basePath}/`,
+						class: "nav-btn nav-action",
+						"data-icon": "home",
+						"aria-label": "Back to deck index",
+						title: "Back to deck index",
+					});
 				if (item === "prev")
-					return navLink(prev === null ? null : slideHref(prev), "nav-btn", "Previous slide", "←");
+					return navLink(
+						prev === null ? null : slideHref(prev),
+						"nav-btn",
+						"Previous slide",
+						"",
+						"prev",
+					);
 				if (item === "next")
-					return navLink(next === null ? null : slideHref(next), "nav-btn", "Next slide", "→");
+					return navLink(
+						next === null ? null : slideHref(next),
+						"nav-btn",
+						"Next slide",
+						"",
+						"next",
+					);
 				if (item === "counter")
 					return h("span", { class: "nav-indicator" }, `${n.value} / ${total.value}`);
 				if (item === "spacer") return h("span", { class: "nav-spacer", "aria-hidden": "true" });
 				const action = TOOLBAR_ACTIONS[item];
 				if (!action) return null;
-				const [label, title, text, pressed] = action;
-				return h(
-					"button",
-					{
-						type: "button",
-						class: "nav-btn nav-action",
-						"data-action": item,
-						"aria-label": label,
-						"aria-pressed": pressed ? "false" : undefined,
-						title,
-					},
-					text,
-				);
+				const [label, title, pressed] = action;
+				return h("button", {
+					type: "button",
+					class: "nav-btn nav-action",
+					"data-icon": item,
+					"data-action": item,
+					"aria-label": label,
+					"aria-pressed": pressed ? "false" : undefined,
+					title,
+				});
 			});
 			return [
 				h("a", { href: "#slide-scaler", class: "skip-link" }, "Skip to slide content"),

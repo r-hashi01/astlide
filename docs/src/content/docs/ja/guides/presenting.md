@@ -99,3 +99,11 @@ astlide({
 初期値は `["prev", "counter", "next"]` です。ツールバーは、マウスを乗せたときやキーボードでフォーカスを移したときに現れます。タッチデバイスでは常に表示されます。
 
 ツールバー、進捗バー、発表者ウィンドウの色は、`--astlide-nav-bg`、`--astlide-nav-fg`、`--astlide-nav-btn-bg`、`--astlide-progress-color`、`--astlide-presenter-bg`、`--astlide-presenter-fg`、`--astlide-presenter-accent` などの CSS カスタムプロパティで決まります。テーマからこれらを設定すれば、`!important` を使わずに見た目を変えられます。
+
+ツールバーのアイコンは、`--astlide-icon-<name>` の画像の形を、ボタンの色で塗って表示します。`<name>` は上の表の項目名（`home`、`prev`、`next`、`notes` など）です。テーマでこのプロパティを設定すると、アイコンを差し替えられます。使われるのは画像の形だけで、色は無視されます。
+
+```css
+[data-theme="my-theme"] {
+  --astlide-icon-notes: url("/icons/notes.svg");
+}
+```

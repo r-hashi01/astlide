@@ -136,3 +136,26 @@ describe("keyboard", () => {
 		);
 	});
 });
+
+describe("toolbar icons", () => {
+	const maskOf = (page: Page, icon: string) =>
+		page.evaluate(
+			(icon) =>
+				getComputedStyle(
+					document.querySelector(`.slide-nav [data-icon="${icon}"]`) as Element,
+					"::before",
+				).maskImage,
+			icon,
+		);
+
+	it("are SVGs a theme can replace with --astlide-icon-<name>", async () => {
+		const page = await open(browser(), "/example-deck/1/");
+		expect(await maskOf(page, "notes")).toContain("data:image/svg+xml");
+		await page.addStyleTag({
+			content: ':root { --astlide-icon-notes: url("data:image/svg+xml,%3Csvg%3E%3C/svg%3E"); }',
+		});
+		expect(await maskOf(page, "notes")).toBe('url("data:image/svg+xml,%3Csvg%3E%3C/svg%3E")');
+		expect(await maskOf(page, "next")).toContain("stroke-width");
+		await page.close();
+	});
+});
