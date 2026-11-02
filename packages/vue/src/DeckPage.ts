@@ -8,13 +8,9 @@
  */
 
 import type { DeckContext } from "@astlide/core/context";
-import {
-	applyPageFlags,
-	type DeckRuntimeConfig,
-	mountDeck,
-	type OutlineEntry,
-} from "@astlide/core/runtime";
+import type { DeckRuntimeConfig, OutlineEntry } from "@astlide/core/runtime";
 import { TOOLBAR_ACTIONS } from "@astlide/core/runtime/chrome";
+import { mountDeckPage, setUpDeckPageTools } from "@astlide/core/runtime/deck-page";
 import type { MermaidLoader } from "@astlide/core/runtime/diagrams";
 import { noNotesText, slideNeighbours, slideUrl } from "@astlide/core/runtime/page";
 import {
@@ -89,42 +85,21 @@ export const DeckPage = defineComponent({
 		let unmount: (() => void) | undefined;
 		const mount = () => {
 			unmount?.();
-			applyPageFlags();
-			// What an Astro slide page has on <body> (exporters read the slide count there).
-			const body = document.body.dataset;
-			body.totalSlides = String(config.value.totalSlides);
-			body.currentSlide = String(config.value.currentSlide);
-			body.deck = config.value.deck;
-			// Vue places the slide (presenter panel or not); the runtime mustn't move it.
-			unmount = mountDeck(config.value, {
-				placeSlide: false,
-				...(props.navigate ? { navigate: props.navigate } : {}),
+			unmount = mountDeckPage(config.value, {
+				navigate: props.navigate,
+				loadMermaid: props.loadMermaid,
 			});
-			void import("@astlide/core/runtime/diagrams").then((m) =>
-				m.renderDiagramsWith(props.loadMermaid),
-			);
-			void import("@astlide/core/runtime/media").then((m) => m.syncMediaUi());
 		};
 		onMounted(() => {
-			void import("@astlide/core/runtime/media").then(({ toggleCamera, toggleRecording }) => {
-				window.__astlide_media = {
-					toggleCamera,
-					toggleRecording: () => toggleRecording(window.__astlide?.deck ?? props.deck),
-				};
-			});
-			const load = props.loadPdfExport;
-			window.__astlide_download_pdf = load
-				? async (options) => {
-						const mod = await load();
-						const result = await mod.exportDeckToPdf(options);
-						mod.downloadBlob(result.blob, `${options.deck}.pdf`);
-						return result;
-					}
-				: undefined;
+			// Camera, recording and the toolbar's PDF download, set up once per page.
+			setUpDeckPageTools({ deck: props.deck, loadPdfExport: props.loadPdfExport });
 			mount();
 		});
-		// Again for each slide, and when the slide moves to / from the presenter panel (a new element).
-		watch([config, () => props.presenter], () => mount(), { flush: "post" });
+		// Again for each slide, when the slide moves to / from the presenter panel (a new
+		// element), and when the Mermaid loader arrives (Nuxt sets it once mounted), as in React.
+		watch([config, () => props.presenter, () => props.loadMermaid], () => mount(), {
+			flush: "post",
+		});
 		onBeforeUnmount(() => unmount?.());
 
 		const noNotes = () => noNotesText(props.notesPublished);
