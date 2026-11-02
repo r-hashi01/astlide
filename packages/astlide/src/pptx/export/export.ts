@@ -778,30 +778,6 @@ function blockText(group: TextItem[], k: number) {
 	return { block, runs, align: align as "left" | "center" | "right", top, bottom, right };
 }
 
-/** Japanese / Chinese / Korean text. */
-const CJK_TEXT = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\uac00-\ud7af]/;
-/** Font families for East Asian text, by name. */
-const CJK_FAMILY =
-	/\b(JP|KR|SC|TC|HK|CJK)\b|Gothic|Mincho|Hiragino|Meiryo|Yu ?(Gothic|Mincho)|BIZ UD|M PLUS|Kosugi|Sawarabi|Zen (Kaku|Maru|Old)|Source Han|Pretendard|游|ゴシック|明朝|源ノ/i;
-/** The East Asian font PPTX files name when the CSS doesn't: installed with Office on Windows and macOS. */
-const DEFAULT_EA_FONT = "Yu Gothic";
-
-/** A Google Fonts family's regular face (downloaded into the project's font cache), or null. */
-async function googleFontFile(
-	engine: typeof import("@astlide/core/engine"),
-	family: string,
-	root: string,
-): Promise<string | null> {
-	const registry = new engine.FontRegistry();
-	const missing = await engine.loadGoogleFonts(
-		registry,
-		[family],
-		join(root, "node_modules", ".cache", "astlide-fonts"),
-		[400],
-	);
-	return missing.length ? null : (registry.files()[0] ?? null);
-}
-
 /**
  * Speaker notes of each slide in the print view (`body > .slide`, as laid
  * out): `<SpeakerNotes>` content, else the frontmatter / comment notes the
@@ -867,31 +843,15 @@ async function pageWithDiagrams(
 	warn: Warn,
 ) {
 	const options = { root };
-	const fonts = new engine.FontRegistry();
 	const css = engine.pageCss(html, dist);
-	const { familiesIn } = engine;
-	// The site's own fonts (KaTeX …) first; the rest from Google Fonts.
-	const local = engine.loadFontFaces(fonts, css, dist);
-	const missing = await engine.loadGoogleFonts(
-		fonts,
-		engine.familiesIn(css).filter((f) => !local.has(f)),
+	const { fonts, eaFont, missing, noCjkFont } = await engine.loadPageFonts(
+		html,
+		css,
+		dist,
 		join(options.root, "node_modules", ".cache", "astlide-fonts"),
 	);
 	if (missing.length) warn(`  ⚠ fonts not found on Google Fonts: ${missing.join(", ")}`);
-	const emoji = "/System/Library/Fonts/Apple Color Emoji.ttc";
-	if (existsSync(emoji)) fonts.addFallback(emoji);
-	// East Asian text: named with the CSS's CJK font (else Yu Gothic, which Office has),
-	// measured with that font when it was loaded, else Noto Sans JP.
-	const eaFont = familiesIn(css).find((f) => CJK_FAMILY.test(f)) ?? DEFAULT_EA_FONT;
-	if (CJK_TEXT.test(readFileSync(html, "utf-8"))) {
-		const loaded = fonts.pick(`"${eaFont}"`, 400, false);
-		const measure =
-			loaded.family === eaFont.toLowerCase() && loaded.file
-				? loaded.file
-				: await googleFontFile(engine, "Noto Sans JP", options.root);
-		if (measure) fonts.addFallback(measure);
-		else warn("  ⚠ no Japanese font to measure text with (Noto Sans JP unavailable)");
-	}
+	if (noCjkFont) warn("  ⚠ no Japanese font to measure text with (Noto Sans JP unavailable)");
 
 	const vp = { width: 1920, height: 1080, media: "screen" as const };
 	const source = await withDiagrams(engine, readFileSync(html, "utf-8"), {
