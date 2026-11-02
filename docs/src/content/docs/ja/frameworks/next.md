@@ -115,6 +115,25 @@ Astro サイトと同じです。レイアウト、frontmatter、フラグメン
 
 プレゼンターウィンドウ、一覧表示、スライド番号へのジャンプ、ペン、レーザーポインター、ノート表示も、同じキーで使えます。
 
+## 組み込みテーマの変更
+
+テーマのカスタムプロパティを自分の CSS に書き、`@astlide/next/styles` より後に import します。
+
+```css
+/* app/theme.css */
+[data-theme="default"] {
+  --color-primary: #7c3aed;
+}
+```
+
+```ts
+// app/layout.tsx
+import "@astlide/next/styles";
+import "./theme.css";
+```
+
+使えるプロパティは[カスタムテーマ](/ja/guides/themes-and-plugins/#カスタムテーマ)にあります。
+
 ## 書き出し
 
 アプリを起動してから、`astlide export` でそのサイトを指定します。URL には `basePath` まで含めてください。

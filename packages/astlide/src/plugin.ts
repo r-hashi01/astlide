@@ -194,13 +194,24 @@ export interface ResolvedPlugins {
 	layoutNames: Set<string>;
 	/** Set of all transition names. */
 	transitionNames: Set<string>;
+	/** Contributions dropped because an earlier plugin registered the same name. */
+	dropped: DroppedContribution[];
+}
+
+/** A theme, layout or transition that lost to an earlier one with the same name. */
+export interface DroppedContribution {
+	kind: "theme" | "layout" | "transition";
+	name: string;
+	/** The plugin whose contribution was dropped. */
+	plugin: string;
 }
 
 /**
  * Walk plugins, dedupe contributions by name, return aggregated state.
  *
- * Duplicates: first wins. Subsequent plugins re-using a name are silently dropped
- * to keep ordering predictable (built-in plugins are typically registered first).
+ * Duplicates: first wins. Later plugins re-using a name are dropped and listed
+ * in `dropped`, to keep ordering predictable (built-in plugins are typically
+ * registered first).
  */
 export function resolvePlugins(plugins: AstlidePlugin[]): ResolvedPlugins {
 	const themes: ThemeContribution[] = [];
@@ -213,20 +224,31 @@ export function resolvePlugins(plugins: AstlidePlugin[]): ResolvedPlugins {
 	const themeNames = new Set<string>();
 	const layoutNames = new Set<string>();
 	const transitionNames = new Set<string>();
+	const dropped: DroppedContribution[] = [];
+	const taken = (
+		names: Set<string>,
+		kind: DroppedContribution["kind"],
+		name: string,
+		plugin: string,
+	) => {
+		if (!names.has(name)) return false;
+		dropped.push({ kind, name, plugin });
+		return true;
+	};
 
 	for (const plugin of plugins) {
 		for (const theme of plugin.themes ?? []) {
-			if (themeNames.has(theme.name)) continue;
+			if (taken(themeNames, "theme", theme.name, plugin.name)) continue;
 			themeNames.add(theme.name);
 			themes.push(theme);
 		}
 		for (const layout of plugin.layouts ?? []) {
-			if (layoutNames.has(layout.name)) continue;
+			if (taken(layoutNames, "layout", layout.name, plugin.name)) continue;
 			layoutNames.add(layout.name);
 			layouts.push(layout);
 		}
 		for (const transition of plugin.transitions ?? []) {
-			if (transitionNames.has(transition.name)) continue;
+			if (taken(transitionNames, "transition", transition.name, plugin.name)) continue;
 			transitionNames.add(transition.name);
 			transitions.push(transition);
 		}
@@ -248,6 +270,7 @@ export function resolvePlugins(plugins: AstlidePlugin[]): ResolvedPlugins {
 		themeNames,
 		layoutNames,
 		transitionNames,
+		dropped,
 	};
 }
 

@@ -94,6 +94,24 @@ describe("resolvePlugins", () => {
 		expect(resolved.themes.filter((t) => t.name === "default").length).toBe(1);
 	});
 
+	it("lists what it drops", () => {
+		const resolved = resolvePlugins([
+			BUILT_IN_PLUGIN,
+			defineAstlidePlugin({
+				name: "astlide-plugin-override",
+				themes: [{ name: "default", cssEntrypoint: "x/default.css" }],
+				layouts: [{ name: "cover" }, { name: "new-layout" }],
+				transitions: [{ name: "fade" }],
+			}),
+		]);
+		expect(resolved.dropped).toEqual([
+			{ kind: "theme", name: "default", plugin: "astlide-plugin-override" },
+			{ kind: "layout", name: "cover", plugin: "astlide-plugin-override" },
+			{ kind: "transition", name: "fade", plugin: "astlide-plugin-override" },
+		]);
+		expect(resolvePlugins([BUILT_IN_PLUGIN]).dropped).toEqual([]);
+	});
+
 	it("aggregates Shiki langs and themes", () => {
 		const resolved = resolvePlugins([
 			defineAstlidePlugin({

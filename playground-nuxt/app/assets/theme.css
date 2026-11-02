@@ -1,0 +1,4 @@
+/* Overrides a built-in theme from the app's own CSS. */
+[data-theme="default"] {
+	--color-primary: #7c3aed;
+}

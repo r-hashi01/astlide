@@ -90,6 +90,15 @@ describe("@astlide/nuxt", () => {
 		await page.close();
 	});
 
+	it("lets the app's own CSS override a built-in theme", async () => {
+		const page = await open("/tour/1");
+		const primary = await page.evaluate(() =>
+			getComputedStyle(document.documentElement).getPropertyValue("--color-primary").trim(),
+		);
+		expect(primary).toBe("#7c3aed");
+		await page.close();
+	});
+
 	it("renders MDX slides on the server, components included", async () => {
 		const html = await (await fetch(`${base}/tour/7`)).text();
 		expect(html).toContain('class="column column-left"');
