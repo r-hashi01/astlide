@@ -20,6 +20,7 @@ import {
 	mountDeck,
 	type OutlineEntry,
 } from "@astlide/core/runtime";
+import { TOOLBAR_ACTIONS } from "@astlide/core/runtime/chrome";
 import type { MermaidLoader } from "@astlide/core/runtime/diagrams";
 import { Fragment, type ReactNode, useEffect, useMemo } from "react";
 
@@ -358,7 +359,7 @@ export function DeckPage(props: DeckPageProps) {
 						);
 					if (item === "spacer")
 						return <span key={key} className="nav-spacer" aria-hidden="true" />;
-					const action = ACTIONS[item];
+					const action = TOOLBAR_ACTIONS[item];
 					if (!action) return null;
 					const [label, title, text, pressed] = action;
 					return (
@@ -456,18 +457,3 @@ export function DeckPage(props: DeckPageProps) {
 		</>
 	);
 }
-
-const ACTIONS: Record<string, [label: string, title: string, text: string, pressed?: boolean]> = {
-	notes: ["Toggle speaker notes", "Toggle speaker notes (n)", "📝"],
-	goto: ["Go to slide", "Go to slide (g)", "⌕"],
-	draw: ["Toggle drawing", "Draw on the slide (d) — c clears", "✎", true],
-	laser: ["Toggle laser pointer", "Laser pointer (l)", "◉", true],
-	camera: ["Toggle camera", "Camera (v)", "◎", true],
-	record: ["Record the talk", "Record (r)", "⏺", true],
-	overview: ["Open slide overview", "Slide overview (o)", "▦"],
-	presenter: ["Open presenter window", "Open presenter window (p)", "🎤"],
-	fullscreen: ["Toggle fullscreen", "Toggle fullscreen (f)", "⛶"],
-	print: ["Toggle print mode", "Toggle print mode", "🖨"],
-	share: ["Toggle share mode", "Toggle share mode (clean canvas)", "📺"],
-	download: ["Download deck as PDF", "Download deck as PDF", "⬇"],
-};

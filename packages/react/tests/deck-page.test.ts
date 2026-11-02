@@ -39,6 +39,7 @@ const props = {
 	deck: "q3",
 	slideNumber: 2,
 	totalSlides: 4,
+	// Every toolbar item, so each one is compared with the core markup.
 	toolbar: [
 		"home",
 		"prev",
@@ -46,9 +47,16 @@ const props = {
 		"next",
 		"spacer",
 		"notes",
+		"goto",
 		"draw",
+		"laser",
+		"camera",
+		"record",
 		"overview",
 		"presenter",
+		"fullscreen",
+		"print",
+		"share",
 		"download",
 	],
 	notesHtml: "<p>Say <strong>hi</strong></p>",
@@ -78,6 +86,24 @@ describe("<DeckPage>", () => {
 			`<main class="presentation" aria-label="Slide presentation">${scaler(renderSlideHtml(slide, "<h1>Q3</h1>"))}</main>` +
 			CAMERA_BUBBLE +
 			deckChromeAfter(chrome);
+		expect(canon(react)).toBe(canon(core));
+	});
+
+	it("matches the core markup on the last slide (no next slide)", () => {
+		const last = { ...slide, slideNumber: 4 };
+		const react = renderToStaticMarkup(
+			createElement(
+				DeckPage,
+				{ ...props, slideNumber: 4 },
+				createElement(Slide, last, createElement("h1", null, "End")),
+			),
+		);
+		const end = { ...chrome, currentSlide: 4, prevSlide: 3, nextSlide: null };
+		const core =
+			deckChromeBefore(end) +
+			`<main class="presentation" aria-label="Slide presentation">${scaler(renderSlideHtml(last, "<h1>End</h1>"))}</main>` +
+			CAMERA_BUBBLE +
+			deckChromeAfter(end);
 		expect(canon(react)).toBe(canon(core));
 	});
 

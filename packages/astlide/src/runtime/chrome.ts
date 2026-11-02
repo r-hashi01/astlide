@@ -57,11 +57,24 @@ function navLink(href: string | null, className: string, label: string, text: st
 }
 
 /** A toolbar button running a runtime action (`data-action`). */
-function actionButton(action: string, label: string, title: string, text: string, pressed = false) {
+function actionButton(action: string, ...[label, title, text, pressed]: ToolbarAction) {
 	return `<button type="button" class="nav-btn nav-action" data-action="${action}" aria-label="${label}"${pressed ? ' aria-pressed="false"' : ""} title="${title}">${text}</button>`;
 }
 
-const ACTIONS: Record<string, [label: string, title: string, text: string, pressed?: boolean]> = {
+/** A toolbar button that runs a runtime action: its label, tooltip, glyph, and whether it toggles (`aria-pressed`). */
+export type ToolbarAction = readonly [
+	label: string,
+	title: string,
+	text: string,
+	pressed?: boolean,
+];
+
+/**
+ * The toolbar's action buttons, by the name used in the `toolbar` option
+ * (besides `home`, `prev`, `counter`, `next` and `spacer`). React and Vue
+ * render the same buttons from this table.
+ */
+export const TOOLBAR_ACTIONS: Readonly<Record<string, ToolbarAction>> = {
 	notes: ["Toggle speaker notes", "Toggle speaker notes (n)", "📝"],
 	goto: ["Go to slide", "Go to slide (g)", "⌕"],
 	draw: ["Toggle drawing", "Draw on the slide (d) — c clears", "✎", true],
@@ -85,7 +98,7 @@ function toolbarItem(item: string, p: DeckChromeProps): string {
 	if (item === "counter")
 		return `<span class="nav-indicator">${p.currentSlide} / ${p.totalSlides}</span>`;
 	if (item === "spacer") return '<span class="nav-spacer" aria-hidden="true"></span>';
-	const action = ACTIONS[item];
+	const action = TOOLBAR_ACTIONS[item];
 	return action ? actionButton(item, ...action) : "";
 }
 
