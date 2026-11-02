@@ -35,6 +35,7 @@ function canon(html: string): string {
 	return serialize(root as never).replace(/=""/g, "");
 }
 
+// Every toolbar item, so each one is compared with the core markup.
 const toolbar = [
 	"home",
 	"prev",
@@ -42,9 +43,16 @@ const toolbar = [
 	"next",
 	"spacer",
 	"notes",
+	"goto",
 	"draw",
+	"laser",
+	"camera",
+	"record",
 	"overview",
 	"presenter",
+	"fullscreen",
+	"print",
+	"share",
 	"download",
 ];
 const props = {
@@ -86,6 +94,37 @@ describe("Vue <DeckPage>", () => {
 			CAMERA_BUBBLE +
 			deckChromeAfter(chrome);
 		expect(canon(await render())).toBe(canon(core));
+	});
+
+	it("matches the core markup on the last slide (no next slide)", async () => {
+		const last = { ...slide, slideNumber: 4 };
+		const html = await renderToString(
+			createSSRApp({
+				render: () =>
+					h(
+						DeckPage,
+						{ ...props, slideNumber: 4 },
+						{ default: () => h(Slide, last, { default: () => h("h1", "End") }) },
+					),
+			}),
+		);
+		const chrome = {
+			currentSlide: 4,
+			totalSlides: 4,
+			prevSlide: 3,
+			nextSlide: null,
+			toolbar,
+			slideHref: (n: number, q = "") => `/q3/${n}${q}`,
+			homeHref: "/",
+			notesHtml: props.notesHtml,
+			noNotesText: "No notes for this slide.",
+		};
+		const core =
+			deckChromeBefore(chrome) +
+			`<main class="presentation" aria-label="Slide presentation"><div class="slide-scaler" id="slide-scaler" tabindex="-1">${renderSlideHtml(last, "<h1>End</h1>")}${SLIDE_OVERLAYS}</div></main>` +
+			CAMERA_BUBBLE +
+			deckChromeAfter(chrome);
+		expect(canon(html)).toBe(canon(core));
 	});
 
 	it("puts the slide in the presenter panel for the presenter window", async () => {
