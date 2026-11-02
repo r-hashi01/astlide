@@ -105,6 +105,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 | `toolbar` | 前へ・番号・次へ | ツールバーのボタン。Astro の [`toolbar`](/ja/reference/configuration/) オプションと同じ書き方です。 |
 | `shikiTheme` | `"github-dark"` | コードブロックの Shiki テーマ。 |
 | `showHidden` | 開発時のみ | `hidden: true` のスライドも表示します。 |
+| `notes` | `"dev"` | ページにスピーカーノートを入れるかどうかです。`"dev"` では開発時だけ、`"public"` では本番でも入れます。 |
 
 本番でデッキを編集したときは、サーバーを再起動してください。開発中はリロードで反映されます。
 
@@ -123,7 +124,7 @@ bun run build && bun run start
 bunx astlide export my-talk --pdf --pptx --png --base-url http://localhost:3000/decks
 ```
 
-PPTX は開発サーバーからは正しく書き出せません。本番サーバー（`next start`）を使ってください。
+PPTX は開発サーバーからは正しく書き出せません。本番サーバー（`next start`）を使ってください。PPTX にスピーカーノートが入るのは、`notes: "public"` のときだけです。
 
 ## Astro 版との違い
 

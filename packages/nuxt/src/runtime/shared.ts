@@ -1,6 +1,6 @@
 /** What the deck pages share. */
 
-import { decks } from "virtual:astlide-nuxt/decks";
+import { decks, options } from "virtual:astlide-nuxt/decks";
 import { createMdxComponents } from "@astlide/vue";
 import { createError, useRuntimeConfig } from "#app";
 
@@ -17,7 +17,7 @@ export function findDeck(name: unknown) {
 export function useMdxComponents() {
 	let base = useRuntimeConfig().app.baseURL;
 	while (base.endsWith("/")) base = base.slice(0, -1);
-	return createMdxComponents({ resolveUrl: (path) => `${base}${path}` });
+	return createMdxComponents({ resolveUrl: (path) => `${base}${path}`, notes: options.notes });
 }
 
 /** `mermaid`, when the app has it (the module's `mermaid` plugin). */

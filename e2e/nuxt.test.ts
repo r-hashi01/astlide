@@ -5,7 +5,7 @@
  * against the Nuxt site.
  */
 
-import { type ChildProcess, execFileSync, spawn } from "node:child_process";
+import { type ChildProcess, execFileSync, spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -126,6 +126,24 @@ describe("@astlide/nuxt", () => {
 		).toBe(true);
 		expect(await page.locator("section.slide").count()).toBe(29);
 		await page.close();
+	});
+
+	it("keeps speaker notes out of production pages and bundles", async () => {
+		// Frontmatter notes (example-deck 4) and <SpeakerNotes> (example-deck 2).
+		const notes = ["adds a filename header and a copy button", "Key points to mention"];
+		for (const path of ["/example-deck/2", "/example-deck/4", "/example-deck/all"]) {
+			const html = await (await fetch(`${base}${path}`)).text();
+			for (const text of notes) expect(html, path).not.toContain(text);
+		}
+		// Nuxt ships each slide as a JavaScript module too.
+		const found = spawnSync(
+			"grep",
+			["-rlF", "-e", notes[0], "-e", notes[1], join(app, ".output")],
+			{
+				encoding: "utf-8",
+			},
+		);
+		expect(found.status, found.stdout).toBe(1); // grep: 1 = no match
 	});
 
 	it("exports PNG, PDF and PPTX from the Nuxt site with astlide export, from the app's folder", () => {

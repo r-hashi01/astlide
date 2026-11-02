@@ -143,3 +143,40 @@ describe("deck problems", () => {
 		await expect(readDeck(dir)).rejects.toThrow(/01-x\.md: invalid frontmatter: hidden/);
 	});
 });
+
+describe("MDX without speaker notes", () => {
+	it("leaves <SpeakerNotes> and <Notes> blocks out, but not code showing them", async () => {
+		const { withoutSpeakerNotes } = await import("../src/deck/mdx");
+		const source = [
+			"# Title",
+			"",
+			"<SpeakerNotes>",
+			"Secret **one**",
+			"</SpeakerNotes>",
+			"",
+			"<Notes>Secret two</Notes>",
+			"<Notes />",
+			"",
+			"```mdx",
+			"<SpeakerNotes>",
+			"Shown as code",
+			"</SpeakerNotes>",
+			"```",
+			"",
+			"Text with <Notes> inline stays.",
+		].join("\n");
+		const out = withoutSpeakerNotes(source);
+		expect(out).not.toContain("Secret");
+		expect(out).not.toMatch(/^<Notes \/>$/m);
+		expect(out).toContain("Shown as code");
+		expect(out).toContain("Text with <Notes> inline stays.");
+		expect(out).toContain("# Title");
+	});
+
+	it("compiles a slide without its notes when notes is false", async () => {
+		const { compileSlideMdx } = await import("../src/deck");
+		const source = "# Hi\n\n<SpeakerNotes>\nSecret notes\n</SpeakerNotes>\n";
+		expect(await compileSlideMdx(source)).toContain("Secret notes");
+		expect(await compileSlideMdx(source, { notes: false })).not.toContain("Secret notes");
+	});
+});

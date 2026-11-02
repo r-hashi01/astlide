@@ -110,6 +110,7 @@ Put a deck in `decks/my-talk/` and open `/decks/my-talk/1`.
 | `toolbar` | prev, counter, next | The toolbar buttons, as in the Astro integration's [`toolbar`](/reference/configuration/) option. |
 | `shikiTheme` | `"github-dark"` | The Shiki theme for code blocks. |
 | `showHidden` | in development | Show slides marked `hidden: true`. |
+| `notes` | `"dev"` | Speaker notes in the pages: `"dev"` only in development, `"public"` also in production. |
 
 After editing a deck in production, restart the server. In development, edits show up on reload.
 
@@ -128,7 +129,7 @@ bun run build && bun run start
 bunx astlide export my-talk --pdf --pptx --png --base-url http://localhost:3000/decks
 ```
 
-PPTX doesn't come out right from the development server. Use the production server (`next start`).
+PPTX doesn't come out right from the development server. Use the production server (`next start`). The PPTX gets speaker notes only with `notes: "public"`.
 
 ## Compared with the Astro integration
 
