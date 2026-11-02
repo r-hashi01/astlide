@@ -35,6 +35,7 @@ export { distFile, isInside } from "./dist";
 export { familiesIn, GOOGLE_FONT_LIMITS, loadFontFaces, loadGoogleFonts } from "./fonts";
 export type { Box, Rect, SlideLayout, TableBox, TableCellBox, TextLine } from "./layout";
 export { intersect, transformText } from "./layout";
+export { CJK_FAMILY, CJK_TEXT, DEFAULT_EA_FONT, loadPageFonts, type PageFonts } from "./page-fonts";
 export {
 	type Color,
 	type Gradient,

@@ -29,7 +29,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import type { Box, FontRegistry, Rect, SlideLayout, TextLine } from "@astlide/core/engine";
+import type { Box, Rect, SlideLayout, TextLine } from "@astlide/core/engine";
 import type { Element } from "domhandler";
 import { buildSite, deckDir, printView, projectRoot } from "./project";
 
@@ -411,24 +411,24 @@ export function checkLayouts(layouts: SlideLayout[], options: CheckOptions = {})
 	return layouts.flatMap((layout, i) => checkSlide(layout, i + 1, options));
 }
 
-/** Lay out a built page's slides with the fonts it uses (as the PPTX export does). */
+/** Lay out a built page's slides with the fonts it uses, set up as for the PPTX export. */
 export async function layoutBuiltPage(
 	html: string,
 	dist: string,
 	cacheDir: string,
 ): Promise<{ layouts: SlideLayout[]; warnings: string[] }> {
 	const engine = await import("@astlide/core/engine");
-	const fonts: FontRegistry = new engine.FontRegistry();
-	const css = engine.pageCss(html, dist);
-	const local = engine.loadFontFaces(fonts, css, dist);
-	const warnings: string[] = [];
-	const missing = await engine.loadGoogleFonts(
-		fonts,
-		engine.familiesIn(css).filter((f) => !local.has(f)),
+	// The same fonts as the PPTX export, so text measures the same in both.
+	const { fonts, missing, noCjkFont } = await engine.loadPageFonts(
+		html,
+		engine.pageCss(html, dist),
+		dist,
 		cacheDir,
 	);
+	const warnings: string[] = [];
 	if (missing.length)
 		warnings.push(`fonts not found (text measured with a fallback): ${missing.join(", ")}`);
+	if (noCjkFont) warnings.push("no Japanese font to measure text with (Noto Sans JP unavailable)");
 	const vp = { width: 1920, height: 1080, media: "screen" as const };
 	return { layouts: engine.layoutPage(html, dist, fonts, vp), warnings };
 }
