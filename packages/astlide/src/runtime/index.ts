@@ -17,6 +17,7 @@
 import type { DeckContext } from "../context";
 import type { Stroke } from "./globals";
 import { sanitizeNotesHtml } from "./notes-sanitize";
+import { slideUrl as pageSlideUrl } from "./page";
 
 type Point = [number, number];
 
@@ -129,16 +130,10 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 	// otherwise a thumbnail would follow the presenter's navigation broadcasts.
 	const isEmbedded = document.documentElement.hasAttribute("data-embed");
 
-	// Encode deck name for safe URL construction (SSG value, but encode defensively
-	// to prevent open-redirect if the deck directory name contains special characters).
-	const deckPath = encodeURIComponent(deck);
-	// URL prefix for this deck's slides, including Astro's `base` (sub-path deploys).
-	const deckUrl = `${basePath}/${deckPath}`;
-	// A slide's URL, following the site's trailing-slash convention (static
-	// hosts redirect /deck/3 to /deck/3/ for directory-format builds).
-	function slideUrl(n: number, query?: string): string {
-		return `${deckUrl}/${n}${trailingSlash ? "/" : ""}${query || ""}`;
-	}
+	// A slide's URL, with the site's base path and trailing-slash convention
+	// (static hosts redirect /deck/3 to /deck/3/ for directory-format builds).
+	const slideUrl = (n: number, query?: string): string =>
+		pageSlideUrl(deck, n, { basePath, trailingSlash }, query);
 
 	// ── 1. Cleanup from previous page (ClientRouter) ─────────
 	if (window.__astlide_cleanup) {

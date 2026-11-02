@@ -1,5 +1,6 @@
 /** The list of decks. */
 
+import { slideUrl } from "@astlide/core/runtime/page";
 import { defineComponent, h } from "vue";
 import { useHead } from "#app";
 import { decks, options } from "../shared";
@@ -17,7 +18,7 @@ export default defineComponent({
 						h("li", { key: d.name }, [
 							h(
 								"a",
-								{ href: `${options.basePath}/${encodeURIComponent(d.name)}/1` },
+								{ href: slideUrl(d.name, 1, { basePath: options.basePath }) },
 								d.config.title ?? d.name,
 							),
 							d.config.author ? ` — ${d.config.author}` : "",

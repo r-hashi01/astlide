@@ -2,6 +2,7 @@
 
 import { slidePage } from "@astlide/core/deck/pages";
 import { themeName } from "@astlide/core/deck/print-view";
+import { slideUrl } from "@astlide/core/runtime/page";
 import { DeckPage, Slide } from "@astlide/vue";
 import { defineComponent, h, onMounted, ref } from "vue";
 import { createError, navigateTo, useHead, useRoute } from "#app";
@@ -17,7 +18,7 @@ export default defineComponent({
 		if (!page)
 			throw createError({ statusCode: 404, statusMessage: "Slide not found", fatal: true });
 		if (page.redirectTo !== undefined) {
-			await navigateTo(`${options.basePath}/${encodeURIComponent(deck.name)}/${page.redirectTo}`, {
+			await navigateTo(slideUrl(deck.name, page.redirectTo, { basePath: options.basePath }), {
 				redirectCode: 302,
 				replace: true,
 			});

@@ -9,7 +9,8 @@ import Favicon from '@astlide/astro/internal/Favicon.astro';
 import FontLinks from '@astlide/astro/internal/FontLinks.astro';
 import { sanitizeHTML } from '@astlide/core/utils/sanitize';
 import { renderMarkdown } from '@astlide/core/utils/markdown';
-import { basePath, pageUrl, trailingSlash, withBase } from '@astlide/core/utils/base-path';
+import { noNotesText, slideNeighbours, slideUrl } from '@astlide/core/runtime/page';
+import { basePath, trailingSlash, withBase } from '@astlide/core/utils/base-path';
 
 // Vite defines injected by the astlide() integration
 declare const __ASTLIDE_CSP__: boolean | string;
@@ -62,18 +63,13 @@ interface Props {
 }
 
 const { title, theme = 'default', currentSlide, totalSlides, deck, notes, transition = 'fade', context, outline = [], sourcePath, deckSources } = Astro.props;
-const {
-  prevSlide = currentSlide > 1 ? currentSlide - 1 : null,
-  nextSlide = currentSlide < totalSlides ? currentSlide + 1 : null,
-  firstSlide = 1,
-  lastSlide = totalSlides,
-} = Astro.props;
+const { prevSlide, nextSlide, firstSlide, lastSlide } = slideNeighbours(currentSlide, totalSlides, Astro.props);
 // `notes: "dev"`: built pages carry no notes (see utils/notes).
 const sanitizedNotes =
   notesIncluded && notes ? sanitizeHTML(await renderMarkdown(notes)) : undefined;
-const noNotes = notesIncluded ? 'No notes for this slide.' : 'Speaker notes are not published with this deck.';
+const noNotes = noNotesText(notesIncluded);
 // Internal links honour Astro's `base` (sub-path deployments).
-const slideHref = (n: number, query = '') => pageUrl(`/${deck}/${n}${query}`);
+const slideHref = (n: number, query = '') => slideUrl(deck, n, { basePath, trailingSlash }, query);
 const chrome: DeckChromeProps = {
   currentSlide, totalSlides, prevSlide, nextSlide,
   toolbar: toolbarItems,
