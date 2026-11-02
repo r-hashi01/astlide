@@ -260,7 +260,7 @@ async function exportFromProject(options: Options): Promise<void> {
 
 	// PPTX first: it needs the build but no browser or server.
 	if (options.formats.has("pptx")) {
-		const { exportPptx } = await import("./pptx/export");
+		const { exportPptx } = await import("./export-pptx");
 		for (const [n, deck] of decks.entries()) {
 			console.log(`\nPPTX: ${deck}`);
 			await exportPptx(deck, {
@@ -308,8 +308,8 @@ async function exportFromSite(options: Options, baseUrl: string): Promise<void> 
 
 	// PPTX from the site's print view, saved as the exporter reads a build.
 	if (options.formats.has("pptx")) {
-		const { pptxFromPrintView } = await import("./pptx/export");
-		const { savePrintView } = await import("./pptx/site-print-view");
+		const { pptxFromPrintView } = await import("../pptx/export/export");
+		const { savePrintView } = await import("./site-print-view");
 		for (const deck of decks) {
 			console.log(`\nPPTX: ${deck} (from ${baseUrl})`);
 			const dir = await mkdtemp(join(tmpdir(), "astlide-site-"));

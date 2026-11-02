@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { pageTags, resolveEmbeds } from "../src/cli/pptx/embeds";
+import { pageTags, resolveEmbeds } from "../src/pptx/export/embeds";
 
 const cache = () => mkdtempSync(join(tmpdir(), "astlide-embeds-"));
 

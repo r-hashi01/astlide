@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { inflateRawSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { speakerNotes } from "../src/cli/pptx/export";
+import { speakerNotes } from "../src/pptx/export/export";
 import {
 	crc32,
 	dosDateTime,
@@ -14,7 +14,7 @@ import {
 	PptxFile,
 	type SlideSpec,
 	ZipWriter,
-} from "../src/cli/pptx/ooxml-writer";
+} from "../src/pptx/export/ooxml-writer";
 
 /**
  * Extract a file from a ZIP buffer by path name.
