@@ -19,7 +19,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { exportBuildDir } from "@astlide/core/utils/export-build";
-import { getDecks } from "./pptx/export";
+import { listDecks } from "../deck/project";
 
 type Format = "pdf" | "png" | "pptx";
 
@@ -248,7 +248,7 @@ async function runExport(options: Options): Promise<void> {
 async function exportFromProject(options: Options): Promise<void> {
 	if (options.cwd !== process.cwd())
 		console.log(`Project: ${relative(process.cwd(), options.cwd) || "."}`);
-	const known = await getDecks(options.cwd).catch(() => [] as string[]);
+	const known = await listDecks(options.cwd).catch(() => [] as string[]);
 	const decks = options.all ? known : options.decks;
 	if (decks.length === 0) {
 		fail(options.all ? "no decks found in src/content/decks" : "name a deck, or pass --all");
