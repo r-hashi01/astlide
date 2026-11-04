@@ -15,10 +15,10 @@
  * largest differences.
  */
 
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { extname, join, normalize, resolve, sep } from "node:path";
+import { extname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { type Browser, chromium } from "playwright";
 import { checkLayouts, layoutBuiltPage } from "../packages/astlide/src/mcp/check";
@@ -68,20 +68,26 @@ const TYPES: Record<string, string> = {
 	".ttf": "font/ttf",
 };
 
-/** Serve `dist` on a free local port. */
-export async function serve(dist: string): Promise<{ url: string; server: Server }> {
-	const root = resolve(dist);
-	const server = createServer((req, res) => {
-		const path = normalize(join(root, decodeURIComponent((req.url ?? "/").split("?")[0] ?? "/")));
-		// Nothing outside dist.
-		if (path !== root && !path.startsWith(`${root}${sep}`)) {
-			res.writeHead(404);
-			res.end();
-			return;
+/** Every file in `dir`, by its URL path (`/a/b.css`; folders also by `/a/` for their index.html). */
+function filesIn(dir: string, prefix = ""): Map<string, string> {
+	const out = new Map<string, string>();
+	for (const entry of readdirSync(dir, { withFileTypes: true })) {
+		const file = join(dir, entry.name);
+		const url = `${prefix}/${entry.name}`;
+		if (entry.isDirectory()) for (const [k, v] of filesIn(file, url)) out.set(k, v);
+		else if (entry.isFile()) {
+			out.set(url, file);
+			if (entry.name === "index.html") out.set(`${prefix}/`, file);
 		}
-		const file = [path, join(path, "index.html")].find(
-			(f) => existsSync(f) && statSync(f).isFile(),
-		);
+	}
+	return out;
+}
+
+/** Serve `dist` on a free local port (only the files it has: the request picks one from the list). */
+export async function serve(dist: string): Promise<{ url: string; server: Server }> {
+	const files = filesIn(resolve(dist));
+	const server = createServer((req, res) => {
+		const file = files.get(decodeURIComponent((req.url ?? "/").split("?")[0] ?? "/"));
 		if (!file) {
 			res.writeHead(404);
 			res.end();
