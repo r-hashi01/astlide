@@ -258,6 +258,22 @@ describe("engine layout", () => {
 			),
 		).toEqual(["inherit"]);
 		expect(familiesIn("p{font-family:Inter, ui-rounded, fangsong}")).toEqual(["Inter"]);
+		// First choices come before fallbacks named earlier in the CSS.
+		expect(
+			familiesIn(
+				':root{--font-mono:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas}body{font-family:system-ui, "Segoe UI", Roboto, Arial}.deck{font-family:"Geist", "Noto Sans JP", sans-serif}',
+			),
+		).toEqual([
+			"Geist",
+			"SFMono-Regular",
+			"Segoe UI",
+			"Noto Sans JP",
+			"Menlo",
+			"Roboto",
+			"Monaco",
+			"Arial",
+			"Consolas",
+		]);
 		expect(performance.now() - start).toBeLessThan(500);
 	});
 
