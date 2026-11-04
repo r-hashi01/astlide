@@ -10,7 +10,7 @@ import { createServer, type Server } from "node:http";
 import { createRequire } from "node:module";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { FontRegistry, layoutPage, loadFontFaces, pageCss } from "@astlide/core/engine";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { useBrowser } from "./helpers/browser";
@@ -40,7 +40,8 @@ let server: Server;
 let base: string;
 beforeAll(async () => {
 	server = createServer((req, res) => {
-		const file = join(dir, (req.url ?? "/").split("?")[0] ?? "/");
+		// The fixtures and the font, by file name: nothing outside the folder.
+		const file = join(dir, basename((req.url ?? "/").split("?")[0] ?? "/"));
 		try {
 			const body = readFileSync(file);
 			res.writeHead(200, { "content-type": file.endsWith(".ttf") ? "font/ttf" : "text/html" });
