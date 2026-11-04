@@ -1,0 +1,1265 @@
+/**
+ * Layout as a function of constraints (#357): `layout(box, space)` lays out a
+ * box of the box tree (box-tree.ts) in a constraint space and returns a
+ * fragment — its size and its children's positions — without carrying state
+ * from one call to the next. Intrinsic sizes (min-content / max-content
+ * contributions, css-sizing-3 §5) are computed from the content, without
+ * regard to the context; heights come from laying content out at a width.
+ *
+ * - block flow: CSS 2 §10.3.3 / §10.6.3, margin collapsing §8.3.1
+ * - flex: css-flexbox-1 §9 (flexible lengths §9.7, automatic minimum size
+ *   §4.5), items measured and laid out by `layout()`
+ * - grid: css-grid-1 §11 (columns from contributions, then rows from items
+ *   laid out in their columns; rows grow and may overflow the container)
+ * - tables: automatic table layout from cells' min / max-content widths
+ * - absolutely positioned boxes: against the nearest positioned ancestor
+ */
+
+import type { ElementBox, StyleContext, TextRun } from "./box-tree";
+import { type Computed, toPx } from "./cascade";
+import { columnSpan, parseTracks, placeItems, sizeTracks } from "./grid";
+import { type LineBreakResult, layoutLines } from "./text";
+
+/** The constraints a box is laid out in. */
+export interface Space {
+	/** Inline space available for the margin box (the containing block's content width), px. */
+	available: number;
+	/** Border-box width set by the parent (stretched, flexed, a grid area, a table column). */
+	width?: number;
+	/** Border-box height set by the parent. */
+	height?: number;
+	/** What percentage widths / heights resolve against (absent: indefinite). */
+	pctW?: number;
+	pctH?: number;
+	/** An auto width shrinks to fit (fit-content) instead of filling the available space. */
+	shrink?: boolean;
+}
+
+/** A laid-out box: its border-box size and its children, positioned in it. */
+export interface Fragment {
+	box: ElementBox | TextRun;
+	w: number;
+	h: number;
+	kids: Placed[];
+	/** A text run's lines, laid out at `w`. */
+	lines?: LineBreakResult;
+	/** Effective block margins after collapsing through this box (for its parent). */
+	mt: number;
+	mb: number;
+	/** Absolutely positioned descendants waiting for their containing block (offsets in this box). */
+	pending: Placed[];
+	/** A table: its column widths. */
+	columns?: number[];
+}
+
+export interface Placed {
+	f: Fragment;
+	x: number;
+	y: number;
+}
+
+interface Sides {
+	top: number;
+	right: number;
+	bottom: number;
+	left: number;
+}
+
+const SIDES = ["top", "right", "bottom", "left"] as const;
+const KEYWORD = /^(auto|none|normal|)$|^(fit|min|max)-content$|^fit-content\(/;
+/** Margins collapse: the largest positive plus the most negative (CSS 2 §8.3.1). */
+const join = (a: number, b: number) => Math.max(a, b, 0) + Math.min(a, b, 0);
+const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
+
+export class Flow {
+	private readonly cache = new Map<ElementBox | TextRun, Map<string, Fragment>>();
+	private readonly contributions = new Map<ElementBox | TextRun, { min: number; max: number }>();
+
+	constructor(readonly ctx: StyleContext) {}
+
+	// ── Values ───────────────────────────────────────────────────────────
+
+	/** A length in px; percentages against `basis` (absent: indefinite → undefined); keywords → undefined. */
+	length(style: Computed, prop: string, basis?: number): number | undefined {
+		const raw = (style.get(prop) ?? "auto").trim();
+		if (KEYWORD.test(raw)) return undefined;
+		const pct = raw.match(/^(-?[\d.]+)%$/);
+		if (pct) return basis === undefined ? undefined : (Number(pct[1]) / 100) * basis;
+		const v = this.ctx.px(style, prop, basis ?? Number.NaN);
+		return Number.isNaN(v) ? undefined : v;
+	}
+
+	/** A track size or other bare length in `style`'s context (percentages against `basis`). */
+	private lengthIn(style: Computed, basis: number | undefined): (v: string) => number {
+		const fs = Number.parseFloat(style.get("font-size") ?? "16");
+		return (v) => toPx(v, fs, this.ctx.rootFontSize, this.ctx.vp, basis ?? Number.NaN);
+	}
+
+	/** Padding and border widths (percentage padding against the containing block's width; 0 when indefinite). */
+	edges(style: Computed, pctW?: number): { padding: Sides; border: Sides } {
+		const padding = { top: 0, right: 0, bottom: 0, left: 0 };
+		const border = { top: 0, right: 0, bottom: 0, left: 0 };
+		for (const s of SIDES) {
+			padding[s] = Math.max(0, this.length(style, `padding-${s}`, pctW ?? 0) ?? 0);
+			const bw = this.ctx.px(style, `border-${s}-width`);
+			border[s] = bw > 0 ? bw : 0;
+		}
+		return { padding, border };
+	}
+
+	/** Margins in px (auto as 0; see `autoMargin`); percentages against the containing block's width. */
+	margins(style: Computed, pctW?: number): Sides {
+		const out = { top: 0, right: 0, bottom: 0, left: 0 };
+		for (const s of SIDES) out[s] = this.length(style, `margin-${s}`, pctW ?? 0) ?? 0;
+		return out;
+	}
+
+	private autoMargin(style: Computed, side: (typeof SIDES)[number]): boolean {
+		return (style.get(`margin-${side}`) ?? "0").trim() === "auto";
+	}
+
+	private borderBox(style: Computed): boolean {
+		return style.get("box-sizing") === "border-box";
+	}
+
+	/** A specified size (`width` / `height` …) as a border-box size, or undefined. */
+	private specified(
+		style: Computed,
+		prop: string,
+		basis: number | undefined,
+		extra: number,
+	): number | undefined {
+		const v = this.length(style, prop, basis);
+		if (v === undefined) return undefined;
+		return this.borderBox(style) ? v : v + extra;
+	}
+
+	private ratio(style: Computed): number {
+		const ar = (style.get("aspect-ratio") ?? "auto").match(/([\d.]+)\s*(?:\/\s*([\d.]+))?/);
+		return ar && Number(ar[1]) > 0 ? Number(ar[1]) / Number(ar[2] ?? 1) : 0;
+	}
+
+	private positioned(style: Computed): boolean {
+		return /^(relative|absolute|fixed|sticky)$/.test(style.get("position") ?? "static");
+	}
+
+	private absolute(box: ElementBox | TextRun): boolean {
+		return box.type === "element" && /^(absolute|fixed)$/.test(box.style.get("position") ?? "");
+	}
+
+	/**
+	 * A picture's own size: its width / height attributes, else (an image)
+	 * the file's natural size; its ratio from those, or an SVG's viewBox.
+	 */
+	private natural(box: ElementBox): { w?: number; h?: number; ratio?: number } {
+		const px = (v: string | undefined) =>
+			v && /^[\d.]+(px)?$/.test(v.trim()) ? Number.parseFloat(v) : undefined;
+		let w = px(box.el.attribs.width);
+		let h = px(box.el.attribs.height);
+		let fileRatio: number | undefined;
+		if (box.el.name === "img" && box.el.attribs.src && (w === undefined || h === undefined)) {
+			const file = this.ctx.images?.(box.el.attribs.src);
+			if (file && file.w > 0 && file.h > 0) {
+				fileRatio = file.w / file.h;
+				if (w === undefined && h === undefined) {
+					w = file.w;
+					h = file.h;
+				} else if (w === undefined && h !== undefined) w = h * fileRatio;
+				else if (h === undefined && w !== undefined) h = w / fileRatio;
+			}
+		}
+		const view = (box.el.attribs.viewBox ?? box.el.attribs.viewbox ?? "")
+			.trim()
+			.split(/[\s,]+/)
+			.map(Number);
+		const ratio =
+			w && h
+				? w / h
+				: (fileRatio ??
+					((view[2] ?? 0) > 0 && (view[3] ?? 0) > 0 ? (view[2] ?? 1) / (view[3] ?? 1) : undefined));
+		return { w, h, ratio };
+	}
+
+	// ── Intrinsic sizes ──────────────────────────────────────────────────
+
+	/**
+	 * A box's min-content and max-content contributions: its outer (margin
+	 * box) width when its containing block is zero / infinitely wide
+	 * (css-sizing-3 §5.2). Percentage sizes count as auto (§5.2.1).
+	 */
+	contribution(box: ElementBox | TextRun): { min: number; max: number } {
+		const hit = this.contributions.get(box);
+		if (hit) return hit;
+		let out: { min: number; max: number };
+		if (box.type === "text") {
+			out = {
+				min: layoutLines(box.items, 0, box.strut, "left", this.ctx.fonts).width,
+				max: layoutLines(box.items, Number.POSITIVE_INFINITY, box.strut, "left", this.ctx.fonts)
+					.width,
+			};
+		} else {
+			const { style } = box;
+			const { padding, border } = this.edges(style);
+			const extraX = padding.left + padding.right + border.left + border.right;
+			const m = this.margins(style);
+			const spec = this.specified(style, "width", undefined, extraX);
+			let inner: { min: number; max: number };
+			if (spec !== undefined) inner = { min: spec, max: spec };
+			else if (box.kind === "replaced") {
+				const nat = this.natural(box);
+				const h = this.specified(
+					style,
+					"height",
+					undefined,
+					padding.top + padding.bottom + border.top + border.bottom,
+				);
+				const w =
+					nat.w ?? (h !== undefined && nat.ratio ? h * nat.ratio : box.el.name === "img" ? 0 : 300);
+				// A percentage width makes a picture compressible: no min-content (§5.2.1).
+				const pct = /%$/.test((style.get("width") ?? "").trim());
+				inner = { min: pct ? 0 : w + extraX, max: w + extraX };
+			} else {
+				const c = this.contentContribution(box);
+				inner = { min: c.min + extraX, max: c.max + extraX };
+			}
+			const minW = this.specified(style, "min-width", undefined, extraX) ?? 0;
+			const maxW =
+				this.specified(style, "max-width", undefined, extraX) ?? Number.POSITIVE_INFINITY;
+			const clamp = (v: number) => Math.max(minW, Math.min(maxW, v));
+			out = { min: clamp(inner.min) + m.left + m.right, max: clamp(inner.max) + m.left + m.right };
+		}
+		this.contributions.set(box, out);
+		return out;
+	}
+
+	/** The content's contributions by how the box lays out its children. */
+	private contentContribution(box: ElementBox): { min: number; max: number } {
+		const kids = box.children.filter((c) => !this.absolute(c));
+		const each = kids.map((k) => this.contribution(k));
+		const largest = (key: "min" | "max") => Math.max(0, ...each.map((c) => c[key]));
+		if (box.kind === "flex") {
+			const row = !/column/.test(box.style.get("flex-direction") ?? "row");
+			if (!row) return { min: largest("min"), max: largest("max") };
+			const gap = (this.length(box.style, "column-gap") ?? 0) * Math.max(0, kids.length - 1);
+			const wrap = /wrap/.test(box.style.get("flex-wrap") ?? "");
+			return {
+				min: wrap ? largest("min") : sum(each.map((c) => c.min)) + gap,
+				max: sum(each.map((c) => c.max)) + gap,
+			};
+		}
+		if (box.kind === "grid") {
+			const gap = this.length(box.style, "column-gap") ?? 0;
+			const tracks = parseTracks(
+				box.style.get("grid-template-columns") ?? "none",
+				this.lengthIn(box.style, undefined),
+				0,
+				gap,
+				kids.length,
+			);
+			const n = Math.max(1, tracks.length);
+			const placed = placeItems(
+				kids.map((k) =>
+					k.type === "element" ? columnSpan(k.style.get("grid-column") ?? "", n) : 1,
+				),
+				n,
+			);
+			const per = (key: "min" | "max") => {
+				const cols = Array<number>(n).fill(0);
+				for (const [i, p] of placed.entries()) {
+					const c = each[i];
+					if (c && p.span === 1) cols[p.col] = Math.max(cols[p.col] ?? 0, c[key]);
+				}
+				return sum(cols) + gap * (n - 1);
+			};
+			return { min: per("min"), max: per("max") };
+		}
+		if (box.kind === "table") {
+			const { min, max } = this.tableColumns(box);
+			return { min: sum(min), max: sum(max) };
+		}
+		return { min: largest("min"), max: largest("max") };
+	}
+
+	// ── Layout ───────────────────────────────────────────────────────────
+
+	layout(box: ElementBox | TextRun, space: Space): Fragment {
+		const key = JSON.stringify(space);
+		let byKey = this.cache.get(box);
+		const hit = byKey?.get(key);
+		if (hit) return hit;
+		const f = box.type === "text" ? this.text(box, space) : this.element(box, space);
+		if (!byKey) {
+			byKey = new Map();
+			this.cache.set(box, byKey);
+		}
+		byKey.set(key, f);
+		return f;
+	}
+
+	private text(run: TextRun, space: Space): Fragment {
+		const c = this.contribution(run);
+		const w =
+			space.width ??
+			(space.shrink ? Math.min(c.max, Math.max(c.min, space.available)) : space.available);
+		const lines = layoutLines(run.items, w, run.strut, run.align, this.ctx.fonts);
+		return { box: run, w, h: lines.height, kids: [], lines, mt: 0, mb: 0, pending: [] };
+	}
+
+	/** The border-box width a box gets in `space`. */
+	private usedWidth(box: ElementBox, space: Space, extraX: number, extraY: number): number {
+		const { style } = box;
+		if (space.width !== undefined) return space.width;
+		const m = this.margins(style, space.pctW);
+		let w = this.specified(style, "width", space.pctW, extraX);
+		const keyword = (style.get("width") ?? "").trim();
+		const fitContent = /^(fit-content|max-content|min-content)$/.test(keyword);
+		if (w === undefined && box.kind === "replaced") {
+			// CSS 2 §10.3.2: a set height and a ratio give the width; else the natural width.
+			const nat = this.natural(box);
+			const h = this.specified(style, "height", space.pctH, extraY);
+			const ratio = this.ratio(style) || nat.ratio;
+			if (h !== undefined && ratio) w = (h - extraY) * ratio + extraX;
+			else if (nat.w !== undefined) w = nat.w + extraX;
+			else if (box.el.name !== "img") w = 300 + extraX;
+		}
+		if (w === undefined) {
+			const ratio = this.ratio(style);
+			const h = this.specified(style, "height", space.pctH, extraY);
+			if (ratio && h !== undefined) w = (h - extraY) * ratio + extraX;
+		}
+		if (w === undefined) {
+			const avail = Math.max(0, space.available - m.left - m.right);
+			if (space.shrink || fitContent) {
+				const c = this.contribution(box);
+				const mx = m.left + m.right;
+				w =
+					keyword === "max-content"
+						? c.max - mx
+						: keyword === "min-content"
+							? c.min - mx
+							: Math.min(c.max - mx, Math.max(c.min - mx, avail));
+			} else w = avail;
+		}
+		const minW = this.specified(style, "min-width", space.pctW, extraX) ?? 0;
+		const maxW = this.specified(style, "max-width", space.pctW, extraX) ?? Number.POSITIVE_INFINITY;
+		return Math.max(minW, Math.min(maxW, w));
+	}
+
+	/** The border-box height: set by the parent, specified, from the aspect ratio, or from the content. */
+	private usedHeight(
+		box: ElementBox,
+		space: Space,
+		w: number,
+		extraX: number,
+		extraY: number,
+		content: number,
+	): number {
+		const { style } = box;
+		let h = space.height ?? this.specified(style, "height", space.pctH, extraY);
+		if (h === undefined) {
+			const ratio =
+				this.ratio(style) || (box.kind === "replaced" ? this.natural(box).ratio : undefined);
+			if (ratio) h = (w - extraX) / ratio + extraY;
+			else if (box.kind === "replaced") h = (this.natural(box).h ?? 150) + extraY;
+		}
+		h ??= content + extraY;
+		if (space.height !== undefined) return h;
+		const minH = this.specified(style, "min-height", space.pctH, extraY) ?? 0;
+		const maxH =
+			this.specified(style, "max-height", space.pctH, extraY) ?? Number.POSITIVE_INFINITY;
+		return Math.max(minH, Math.min(maxH, h));
+	}
+
+	private element(box: ElementBox, space: Space): Fragment {
+		const { style } = box;
+		const { padding, border } = this.edges(style, space.pctW);
+		const extraX = padding.left + padding.right + border.left + border.right;
+		const extraY = padding.top + padding.bottom + border.top + border.bottom;
+		const w = this.usedWidth(box, space, extraX, extraY);
+		const cw = Math.max(0, w - extraX);
+		// The content height when it's known before laying out the content.
+		const definiteH =
+			space.height ??
+			this.specified(style, "height", space.pctH, extraY) ??
+			(this.ratio(style) ? (w - extraX) / this.ratio(style) + extraY : undefined);
+		const ch = definiteH === undefined ? undefined : Math.max(0, definiteH - extraY);
+		const origin = { x: border.left + padding.left, y: border.top + padding.top };
+		const m = this.margins(style, space.pctW);
+
+		let content: {
+			kids: Placed[];
+			height: number;
+			mt: number;
+			mb: number;
+			pending: Placed[];
+			columns?: number[];
+		};
+		switch (box.kind) {
+			case "replaced":
+				content = { kids: [], height: 0, mt: m.top, mb: m.bottom, pending: [] };
+				break;
+			case "flex":
+				content = { ...this.flex(box, cw, ch), mt: m.top, mb: m.bottom };
+				break;
+			case "grid":
+				content = { ...this.grid(box, cw, ch), mt: m.top, mb: m.bottom };
+				break;
+			case "table":
+				content = { ...this.table(box, cw), mt: m.top, mb: m.bottom };
+				break;
+			default:
+				content = this.block(
+					box,
+					cw,
+					ch,
+					m,
+					padding,
+					border,
+					space.height !== undefined || definiteH !== undefined,
+				);
+		}
+		const h = this.usedHeight(box, space, w, extraX, extraY, content.height);
+		for (const k of content.kids) {
+			k.x += origin.x;
+			k.y += origin.y;
+		}
+		// Table cells (and anything given a height taller than its content) align their content.
+		const va = style.get("vertical-align") ?? "";
+		if ((style.get("display") ?? "") === "table-cell" && content.height + extraY < h) {
+			const free = h - extraY - content.height;
+			const shift = va === "top" ? 0 : va === "bottom" ? free : free / 2;
+			for (const k of content.kids) k.y += shift;
+		}
+		let pending = content.pending.map((p) => ({ ...p, x: p.x + origin.x, y: p.y + origin.y }));
+		const f: Fragment = {
+			box,
+			w,
+			h,
+			kids: content.kids,
+			mt: content.mt,
+			mb: content.mb,
+			pending: [],
+			...(content.columns ? { columns: content.columns } : {}),
+		};
+		// A positioned box is the containing block of the absolutely positioned boxes inside it.
+		if (this.positioned(style)) {
+			for (const p of pending) f.kids.push(this.placeAbsolute(p, f, border));
+			pending = [];
+		}
+		f.pending = pending;
+		return f;
+	}
+
+	/** Place an absolutely positioned box against `cb`'s padding box (its static position where insets are auto). */
+	placeAbsolute(p: Placed, cb: Fragment, border: Sides): Placed {
+		const box = p.f.box as ElementBox;
+		const { style } = box;
+		const pw = cb.w - border.left - border.right;
+		const ph = cb.h - border.top - border.bottom;
+		const inset = (s: (typeof SIDES)[number], basis: number) => this.length(style, s, basis);
+		const left = inset("left", pw);
+		const right = inset("right", pw);
+		const top = inset("top", ph);
+		const bottom = inset("bottom", ph);
+		const m = this.margins(style, pw);
+		const stretchW =
+			left !== undefined && right !== undefined && (style.get("width") ?? "auto") === "auto";
+		const stretchH =
+			top !== undefined && bottom !== undefined && (style.get("height") ?? "auto") === "auto";
+		const f = this.layout(box, {
+			available: pw,
+			pctW: pw,
+			pctH: ph,
+			shrink: true,
+			...(stretchW
+				? { width: Math.max(0, pw - (left ?? 0) - (right ?? 0) - m.left - m.right) }
+				: {}),
+			...(stretchH
+				? { height: Math.max(0, ph - (top ?? 0) - (bottom ?? 0) - m.top - m.bottom) }
+				: {}),
+		});
+		const x =
+			left !== undefined
+				? border.left + left + m.left
+				: right !== undefined
+					? border.left + pw - right - m.right - f.w
+					: p.x;
+		const y =
+			top !== undefined
+				? border.top + top + m.top
+				: bottom !== undefined
+					? border.top + ph - bottom - m.bottom - f.h
+					: p.y;
+		return { f, x, y };
+	}
+
+	/** `position: relative` offsets (they move the box, not its neighbours). */
+	private relative(
+		style: Computed,
+		pctW: number,
+		pctH: number | undefined,
+	): { dx: number; dy: number } {
+		if ((style.get("position") ?? "") !== "relative" && (style.get("position") ?? "") !== "sticky")
+			return { dx: 0, dy: 0 };
+		const left = this.length(style, "left", pctW);
+		const right = this.length(style, "right", pctW);
+		const top = this.length(style, "top", pctH);
+		const bottom = this.length(style, "bottom", pctH);
+		return {
+			dx: left ?? (right !== undefined ? -right : 0),
+			dy: top ?? (bottom !== undefined ? -bottom : 0),
+		};
+	}
+
+	// ── Block flow ───────────────────────────────────────────────────────
+
+	private block(
+		box: ElementBox,
+		cw: number,
+		ch: number | undefined,
+		m: Sides,
+		padding: Sides,
+		border: Sides,
+		fixedHeight: boolean,
+	): { kids: Placed[]; height: number; mt: number; mb: number; pending: Placed[] } {
+		const kids: Placed[] = [];
+		const pending: Placed[] = [];
+		let y = 0;
+		/** The bottom margin of the last block, not yet added (it may collapse with the next). */
+		let carried: number | null = null;
+		let mt = m.top;
+		let mb = m.bottom;
+		const throughTop = !box.bfcRoot && padding.top + border.top === 0;
+		const throughBottom = !box.bfcRoot && padding.bottom + border.bottom === 0 && !fixedHeight;
+		let first = true;
+		for (const child of box.children) {
+			if (this.absolute(child)) {
+				// Its static position: where it would start in flow.
+				pending.push({
+					f: this.layout(child, { available: cw, pctW: cw, pctH: ch, shrink: true }),
+					x: 0,
+					y: y + (carried ?? 0),
+				});
+				continue;
+			}
+			if (child.type === "text") {
+				y += carried ?? 0;
+				carried = null;
+				const f = this.layout(child, { available: cw, width: cw, pctW: cw, pctH: ch });
+				kids.push({ f, x: 0, y });
+				y += f.h;
+				first = false;
+				continue;
+			}
+			const cs = child.style;
+			const shrink = /^(left|right)$/.test(cs.get("float") ?? "");
+			const f = this.layout(child, { available: cw, pctW: cw, pctH: ch, shrink });
+			const cm = this.margins(cs, cw);
+			let x = cm.left;
+			const free = cw - f.w - cm.left - cm.right;
+			if (this.autoMargin(cs, "left") && this.autoMargin(cs, "right")) x = Math.max(0, free) / 2;
+			else if (this.autoMargin(cs, "left")) x = Math.max(0, free) + cm.left;
+			if (first && throughTop) {
+				// The first child's top margin collapses with this box's.
+				mt = join(mt, f.mt);
+			} else y += join(carried ?? 0, f.mt);
+			carried = null;
+			const { dx, dy } = this.relative(cs, cw, ch);
+			kids.push({ f, x: x + dx, y: y + dy });
+			for (const p of f.pending) pending.push({ ...p, x: p.x + x + dx, y: p.y + y + dy });
+			y += f.h;
+			carried = f.mb;
+			first = false;
+		}
+		if (carried !== null) {
+			if (throughBottom && !first) mb = join(mb, carried);
+			else y += carried;
+		}
+		return { kids, height: y, mt, mb, pending };
+	}
+
+	// ── Flex ─────────────────────────────────────────────────────────────
+
+	/**
+	 * A flex container's content, by css-flexbox-1 §9: flex base sizes and
+	 * hypothetical main sizes (§9.2), lines (§9.3), flexible lengths (§9.7),
+	 * cross sizes and stretching (§9.4), main- and cross-axis alignment
+	 * (§9.5, §9.6). Items are measured and laid out with `layout()`; a
+	 * flexed or stretched size is definite for the item's children (§9.8).
+	 */
+	private flex(
+		box: ElementBox,
+		cw: number,
+		ch: number | undefined,
+	): { kids: Placed[]; height: number; pending: Placed[] } {
+		const { style } = box;
+		const dir = (style.get("flex-direction") ?? "row").trim();
+		const column = dir.startsWith("column");
+		const reverse = dir.endsWith("-reverse");
+		const wrapValue = (style.get("flex-wrap") ?? "nowrap").trim();
+		const wrap = wrapValue !== "nowrap";
+		const mainGap =
+			(column ? this.length(style, "row-gap", ch) : this.length(style, "column-gap", cw)) ?? 0;
+		const crossGap =
+			(column ? this.length(style, "column-gap", cw) : this.length(style, "row-gap", ch)) ?? 0;
+		const mainSize = column ? ch : cw;
+		const crossSize = column ? cw : ch;
+		const alignItems = (style.get("align-items") ?? "normal").trim();
+
+		const pending: Placed[] = [];
+		const items: FlexItem[] = [];
+		for (const child of box.children) {
+			if (this.absolute(child)) {
+				pending.push({
+					f: this.layout(child, { available: cw, pctW: cw, pctH: ch, shrink: true }),
+					x: 0,
+					y: 0,
+				});
+				continue;
+			}
+			items.push(this.flexItem(child, column, cw, ch, alignItems));
+		}
+
+		// Lines (§9.3): a single line unless wrapping into a definite main size.
+		const lines: FlexItem[][] = [];
+		if (!wrap || mainSize === undefined) lines.push(items);
+		else {
+			let line: FlexItem[] = [];
+			let used = 0;
+			for (const it of items) {
+				const outer = it.hypo + it.mainMargins;
+				if (line.length > 0 && used + mainGap + outer > mainSize + 0.01) {
+					lines.push(line);
+					line = [];
+					used = 0;
+				}
+				used += (line.length > 0 ? mainGap : 0) + outer;
+				line.push(it);
+			}
+			if (line.length > 0) lines.push(line);
+		}
+
+		// Flexible lengths (§9.7), then each item's cross size at its main size (§9.4).
+		let contentMain = 0;
+		for (const line of lines) {
+			const gaps = mainGap * Math.max(0, line.length - 1);
+			const avail = mainSize ?? sum(line.map((it) => it.hypo + it.mainMargins)) + gaps;
+			resolveFlexibleLengths(line, avail, gaps);
+			contentMain = Math.max(contentMain, sum(line.map((it) => it.target + it.mainMargins)) + gaps);
+			for (const it of line) it.cross = this.flexCross(it, column, cw, ch, crossSize);
+		}
+		const lineCross = lines.map((line) =>
+			Math.max(0, ...line.map((it) => (it.cross ?? 0) + it.crossMargins)),
+		);
+		// A single line in a definite cross size takes all of it.
+		if (lines.length === 1 && crossSize !== undefined) lineCross[0] = crossSize;
+		else if (crossSize !== undefined && lines.length > 1) {
+			const ac = (style.get("align-content") ?? "normal").trim();
+			const free = crossSize - sum(lineCross) - crossGap * (lines.length - 1);
+			if (free > 0 && /^(normal|stretch)$/.test(ac))
+				for (let i = 0; i < lineCross.length; i++)
+					lineCross[i] = (lineCross[i] ?? 0) + free / lines.length;
+		}
+
+		const kids: Placed[] = [];
+		const lineOrder =
+			wrapValue === "wrap-reverse" ? [...lines.keys()].reverse() : [...lines.keys()];
+		let crossAt = 0;
+		const justify = (style.get("justify-content") ?? "normal").trim();
+		for (const li of lineOrder) {
+			const line = lines[li] ?? [];
+			const lc = lineCross[li] ?? 0;
+			const avail = mainSize ?? contentMain;
+			// Stretched items (§9.4 step 11) and the final layout of every item.
+			for (const it of line) {
+				if (it.stretch)
+					it.cross = Math.max(it.crossMin, Math.min(it.crossMax, lc - it.crossMargins));
+				const w = column ? (it.cross ?? 0) : it.target;
+				const h = column ? it.target : (it.cross ?? 0);
+				it.f = this.layout(it.box, {
+					available: w,
+					width: w,
+					...(column || it.stretch || it.definiteCross ? { height: h } : {}),
+					pctW: cw,
+					...(ch !== undefined ? { pctH: ch } : {}),
+				});
+				if (!column && !it.stretch && !it.definiteCross) it.cross = it.f.h;
+			}
+			// Main axis (§9.5): auto margins take free space first, then justify-content.
+			const gaps = mainGap * Math.max(0, line.length - 1);
+			let free = avail - sum(line.map((it) => it.target + it.mainMargins)) - gaps;
+			const autos = sum(line.map((it) => (it.autoMainStart ? 1 : 0) + (it.autoMainEnd ? 1 : 0)));
+			let start = 0;
+			let between = mainGap;
+			if (autos > 0 && free > 0) {
+				const each = free / autos;
+				for (const it of line) {
+					if (it.autoMainStart) it.mainStart += each;
+					if (it.autoMainEnd) it.mainEnd += each;
+				}
+				free = 0;
+			} else if (/^(center)$/.test(justify)) start = free / 2;
+			else if (/^(flex-end|end|right)$/.test(justify) !== reverse) start = free;
+			else if (justify === "space-between" && line.length > 1 && free > 0)
+				between += free / (line.length - 1);
+			else if (justify === "space-around" && free > 0) {
+				start = free / line.length / 2;
+				between += free / line.length;
+			} else if (justify === "space-evenly" && free > 0) {
+				start = free / (line.length + 1);
+				between += free / (line.length + 1);
+			} else if (/^(space-around|space-evenly)$/.test(justify) && free < 0) start = free / 2;
+			const ordered = reverse ? [...line].reverse() : line;
+			let mainAt =
+				reverse &&
+				!/^(center|space-between|space-around|space-evenly)$/.test(justify) &&
+				!/^(flex-end|end|right)$/.test(justify)
+					? free
+					: start;
+			if (reverse && /^(flex-end|end|right)$/.test(justify)) mainAt = 0;
+			for (const it of ordered) {
+				const main = mainAt + it.mainStart;
+				// Cross axis (§9.6): auto margins, then align-self.
+				const outerCross = (it.cross ?? 0) + it.crossMargins;
+				let cross = it.crossStart;
+				const freeCross = lc - outerCross;
+				if (it.autoCrossStart && it.autoCrossEnd) cross += Math.max(0, freeCross) / 2;
+				else if (it.autoCrossStart) cross += Math.max(0, freeCross);
+				else if (!it.autoCrossEnd) {
+					if (it.align === "center") cross += freeCross / 2;
+					else if (/^(flex-end|end|self-end)$/.test(it.align) !== (wrapValue === "wrap-reverse"))
+						cross += freeCross;
+				}
+				const f = it.f as Fragment;
+				let x = column ? crossAt + cross : main;
+				let y = column ? main : crossAt + cross;
+				if (it.box.type === "element") {
+					const { dx, dy } = this.relative(it.box.style, cw, ch);
+					x += dx;
+					y += dy;
+				}
+				kids.push({ f, x, y });
+				for (const p of f.pending) pending.push({ ...p, x: p.x + x, y: p.y + y });
+				mainAt = main + it.target + it.mainEnd + between;
+			}
+			crossAt += lc + crossGap;
+		}
+		const crossTotal = sum(lineCross) + crossGap * Math.max(0, lines.length - 1);
+		return { kids, height: column ? (ch ?? contentMain) : (ch ?? crossTotal), pending };
+	}
+
+	/** A flex item's flex base size, hypothetical main size and limits (§9.2, §4.5). */
+	private flexItem(
+		item: ElementBox | TextRun,
+		column: boolean,
+		cw: number,
+		ch: number | undefined,
+		alignItems: string,
+	): FlexItem {
+		const base: FlexItem = {
+			box: item,
+			grow: 0,
+			shrink: 1,
+			base: 0,
+			hypo: 0,
+			min: 0,
+			max: Number.POSITIVE_INFINITY,
+			target: 0,
+			frozen: false,
+			mainStart: 0,
+			mainEnd: 0,
+			mainMargins: 0,
+			crossStart: 0,
+			crossMargins: 0,
+			crossMin: 0,
+			crossMax: Number.POSITIVE_INFINITY,
+			autoMainStart: false,
+			autoMainEnd: false,
+			autoCrossStart: false,
+			autoCrossEnd: false,
+			align: "stretch",
+			stretch: true,
+			definiteCross: false,
+		};
+		if (item.type === "text") {
+			const c = this.contribution(item);
+			base.shrink = 1;
+			base.base = column ? this.layout(item, { available: cw, width: cw }).h : c.max;
+			base.min = column ? base.base : c.min;
+			base.hypo = Math.max(base.min, base.base);
+			base.align = alignItems === "normal" ? "stretch" : alignItems;
+			base.stretch = /^(normal|stretch)$/.test(alignItems);
+			return base;
+		}
+		const { style } = item;
+		const { padding, border } = this.edges(style, cw);
+		const extraX = padding.left + padding.right + border.left + border.right;
+		const extraY = padding.top + padding.bottom + border.top + border.bottom;
+		const [extraMain, extraCross] = column ? [extraY, extraX] : [extraX, extraY];
+		const m = this.margins(style, cw);
+		const [ms, me, cs, ce] = column
+			? (["top", "bottom", "left", "right"] as const)
+			: (["left", "right", "top", "bottom"] as const);
+		const it: FlexItem = {
+			...base,
+			mainStart: m[ms],
+			mainEnd: m[me],
+			mainMargins: m[ms] + m[me],
+			crossStart: m[cs],
+			crossMargins: m[cs] + m[ce],
+			autoMainStart: this.autoMargin(style, ms),
+			autoMainEnd: this.autoMargin(style, me),
+			autoCrossStart: this.autoMargin(style, cs),
+			autoCrossEnd: this.autoMargin(style, ce),
+		};
+		const grow = Number(style.get("flex-grow") ?? 0);
+		const shrink = Number(style.get("flex-shrink") ?? 1);
+		it.grow = Number.isNaN(grow) ? 0 : grow;
+		it.shrink = Number.isNaN(shrink) ? 1 : shrink;
+		const self = (style.get("align-self") ?? "auto").trim();
+		it.align = self === "auto" ? (alignItems === "normal" ? "stretch" : alignItems) : self;
+		const crossProp = column ? "width" : "height";
+		const mainProp = column ? "height" : "width";
+		const crossBasis = column ? cw : ch;
+		const mainBasis = column ? ch : cw;
+		const definiteCross = this.specified(style, crossProp, crossBasis, extraCross);
+		it.definiteCross = definiteCross !== undefined;
+		const crossKeyword = (style.get(crossProp) ?? "auto").trim();
+		it.stretch =
+			/^(normal|stretch)$/.test(it.align) &&
+			crossKeyword === "auto" &&
+			definiteCross === undefined &&
+			!it.autoCrossStart &&
+			!it.autoCrossEnd;
+		it.crossMin = this.specified(style, `min-${crossProp}`, crossBasis, extraCross) ?? 0;
+		it.crossMax =
+			this.specified(style, `max-${crossProp}`, crossBasis, extraCross) ?? Number.POSITIVE_INFINITY;
+		const mainSpec = this.specified(style, mainProp, mainBasis, extraMain);
+		/** The item's size in the main axis from its content. */
+		const contentMain = (): number => {
+			if (!column) return this.contribution(item).max - it.mainMargins;
+			// Column: the height at the width the item will have.
+			const w =
+				definiteCross ??
+				(it.stretch
+					? Math.max(0, cw - it.crossMargins)
+					: this.fitWidth(item, cw - it.crossMargins));
+			return this.layout(item, { available: w, width: w, pctW: cw }).h;
+		};
+		const basis = (style.get("flex-basis") ?? "auto").trim();
+		const basisLength =
+			basis === "auto" || basis === "content"
+				? undefined
+				: this.specified(style, "flex-basis", mainBasis, extraMain);
+		it.base = basisLength ?? (basis === "content" ? undefined : mainSpec) ?? contentMain();
+		const ratio = this.ratio(style);
+		if (it.base === undefined || Number.isNaN(it.base)) it.base = contentMain();
+		const minSpec = this.specified(style, `min-${mainProp}`, mainBasis, extraMain);
+		const scroll = /hidden|clip|auto|scroll/.test(
+			`${style.get("overflow") ?? ""} ${style.get(`overflow-${column ? "y" : "x"}`) ?? ""}`,
+		);
+		if (minSpec !== undefined) it.min = minSpec;
+		else if ((style.get(`min-${mainProp}`) ?? "auto").trim() === "auto" && !scroll) {
+			// The content-based minimum size (§4.5): min-content, no more than a specified size.
+			let content = column ? contentMain() : this.contribution(item).min - it.mainMargins;
+			if (ratio && definiteCross !== undefined)
+				content = Math.max(
+					content,
+					column
+						? (definiteCross - extraCross) / ratio + extraMain
+						: (definiteCross - extraCross) * ratio + extraMain,
+				);
+			it.min = mainSpec !== undefined ? Math.min(mainSpec, content) : content;
+		}
+		it.max =
+			this.specified(style, `max-${mainProp}`, mainBasis, extraMain) ?? Number.POSITIVE_INFINITY;
+		it.hypo = Math.max(it.min, Math.min(it.max, it.base));
+		return it;
+	}
+
+	/** An item's hypothetical cross size at its main size (§9.4). */
+	private flexCross(
+		it: FlexItem,
+		column: boolean,
+		cw: number,
+		ch: number | undefined,
+		crossSize: number | undefined,
+	): number {
+		if (it.box.type === "text")
+			return column
+				? this.fitWidth(it.box, cw)
+				: this.layout(it.box, { available: it.target, width: it.target }).h;
+		const { style } = it.box;
+		const { padding, border } = this.edges(style, cw);
+		const extraCross = column
+			? padding.left + padding.right + border.left + border.right
+			: padding.top + padding.bottom + border.top + border.bottom;
+		const definite = this.specified(
+			style,
+			column ? "width" : "height",
+			column ? cw : ch,
+			extraCross,
+		);
+		if (definite !== undefined) return definite;
+		if (column) {
+			if (it.stretch && crossSize !== undefined) return Math.max(0, crossSize - it.crossMargins);
+			// fit-content (also for auto when not stretched), max-content, min-content.
+			return this.layout(it.box, { available: cw - it.crossMargins, shrink: true, pctW: cw }).w;
+		}
+		const ratio =
+			this.ratio(style) || (it.box.kind === "replaced" ? (this.natural(it.box).ratio ?? 0) : 0);
+		if (ratio) {
+			const extraMain = padding.left + padding.right + border.left + border.right;
+			return (it.target - extraMain) / ratio + extraCross;
+		}
+		return this.layout(it.box, { available: it.target, width: it.target, pctW: cw }).h;
+	}
+
+	/** A shrink-to-fit border-box width in `avail` (fit-content). */
+	private fitWidth(item: ElementBox | TextRun, avail: number): number {
+		return this.layout(item, { available: avail, shrink: true }).w;
+	}
+
+	// ── Grid ─────────────────────────────────────────────────────────────
+
+	/**
+	 * A grid container's content (css-grid-1 §11): columns from the items'
+	 * contributions, rows from the items laid out in their columns. Rows
+	 * grow to their content (and may overflow the container); with a
+	 * definite height, auto rows stretch to fill it.
+	 */
+	private grid(
+		box: ElementBox,
+		cw: number,
+		ch: number | undefined,
+	): { kids: Placed[]; height: number; pending: Placed[] } {
+		const { style } = box;
+		const pending: Placed[] = [];
+		const items: (ElementBox | TextRun)[] = [];
+		for (const child of box.children) {
+			if (this.absolute(child))
+				pending.push({
+					f: this.layout(child, { available: cw, pctW: cw, pctH: ch, shrink: true }),
+					x: 0,
+					y: 0,
+				});
+			else items.push(child);
+		}
+		const colGap = this.length(style, "column-gap", cw) ?? 0;
+		const rowGap = this.length(style, "row-gap", ch) ?? 0;
+		const tracks = parseTracks(
+			style.get("grid-template-columns") ?? "none",
+			this.lengthIn(style, cw),
+			cw,
+			colGap,
+			items.length,
+		);
+		const placed = placeItems(
+			items.map((k) =>
+				k.type === "element" ? columnSpan(k.style.get("grid-column") ?? "", tracks.length) : 1,
+			),
+			tracks.length,
+		);
+		const content = tracks.map(() => 0);
+		for (const [i, p] of placed.entries()) {
+			const item = items[i];
+			if (item && p.span === 1)
+				content[p.col] = Math.max(content[p.col] ?? 0, this.contribution(item).max);
+		}
+		const widths = sizeTracks(tracks, cw, colGap, content);
+		// Rows: items in order, a new row after each row end.
+		const rows: number[] = [];
+		let row = 0;
+		for (const p of placed) {
+			rows.push(row);
+			if (p.rowEnd) row++;
+		}
+		const nRows = row;
+		const colX = widths.map((_, i) => sum(widths.slice(0, i)) + colGap * i);
+		const areaW = (p: { col: number; span: number }) =>
+			sum(widths.slice(p.col, p.col + p.span)) + colGap * (p.span - 1);
+		const rowH = Array<number>(nRows).fill(0);
+		for (const [i, p] of placed.entries()) {
+			const item = items[i];
+			if (!item) continue;
+			const aw = areaW(p);
+			const m =
+				item.type === "element"
+					? this.margins(item.style, cw)
+					: { top: 0, right: 0, bottom: 0, left: 0 };
+			const f = this.layout(item, {
+				available: aw,
+				pctW: aw,
+				...(this.stretches(item, "justify", style)
+					? { width: Math.max(0, aw - m.left - m.right) }
+					: { shrink: true }),
+			});
+			const r = rows[i] ?? 0;
+			rowH[r] = Math.max(rowH[r] ?? 0, f.h + m.top + m.bottom);
+		}
+		// Explicit row sizes (lengths only; others size to content).
+		const template = (style.get("grid-template-rows") ?? "none").trim();
+		if (template !== "none") {
+			const rowTracks = parseTracks(template, this.lengthIn(style, ch), ch ?? 0, rowGap);
+			for (const [i, t] of rowTracks.entries()) if (t.kind === "fixed" && i < nRows) rowH[i] = t.px;
+		}
+		// A definite height: auto rows stretch to fill it (§11.8).
+		const total = sum(rowH) + rowGap * Math.max(0, nRows - 1);
+		if (
+			ch !== undefined &&
+			total < ch &&
+			nRows > 0 &&
+			/^(normal|stretch)$/.test(style.get("align-content") ?? "normal")
+		)
+			for (let r = 0; r < nRows; r++) rowH[r] = (rowH[r] ?? 0) + (ch - total) / nRows;
+		const rowY = rowH.map((_, i) => sum(rowH.slice(0, i)) + rowGap * i);
+		const kids: Placed[] = [];
+		for (const [i, p] of placed.entries()) {
+			const item = items[i];
+			if (!item) continue;
+			const r = rows[i] ?? 0;
+			const aw = areaW(p);
+			const ah = rowH[r] ?? 0;
+			const m =
+				item.type === "element"
+					? this.margins(item.style, aw)
+					: { top: 0, right: 0, bottom: 0, left: 0 };
+			const stretchW = this.stretches(item, "justify", style);
+			const stretchH = this.stretches(item, "align", style);
+			const f = this.layout(item, {
+				available: aw,
+				pctW: aw,
+				pctH: ah,
+				...(stretchW ? { width: Math.max(0, aw - m.left - m.right) } : { shrink: true }),
+				...(stretchH ? { height: Math.max(0, ah - m.top - m.bottom) } : {}),
+			});
+			let x = (colX[p.col] ?? 0) + m.left;
+			let y = (rowY[r] ?? 0) + m.top;
+			if (!stretchH && item.type === "element") {
+				const a = this.selfAlign(item, "align", style);
+				const free = ah - m.top - m.bottom - f.h;
+				if (a === "center") y += free / 2;
+				else if (a === "end" || a === "flex-end") y += free;
+			}
+			if (!stretchW && item.type === "element") {
+				const a = this.selfAlign(item, "justify", style);
+				const free = aw - m.left - m.right - f.w;
+				if (a === "center") x += free / 2;
+				else if (a === "end" || a === "flex-end") x += free;
+			}
+			kids.push({ f, x, y });
+			for (const pp of f.pending) pending.push({ ...pp, x: pp.x + x, y: pp.y + y });
+		}
+		return { kids, height: sum(rowH) + rowGap * Math.max(0, nRows - 1), pending };
+	}
+
+	/** An item's `align-self` / `justify-self`, `auto` taken from the container's `*-items`. */
+	private selfAlign(item: ElementBox, axis: "align" | "justify", container: Computed): string {
+		const self = (item.style.get(`${axis}-self`) ?? "auto").trim();
+		return self !== "auto" ? self : (container.get(`${axis}-items`) ?? "normal").trim();
+	}
+
+	/** Whether an item stretches to its area in an axis (normal / stretch, auto size, no auto margins). */
+	private stretches(
+		item: ElementBox | TextRun,
+		axis: "align" | "justify",
+		container: Computed,
+	): boolean {
+		if (item.type === "text") return true;
+		const a = this.selfAlign(item, axis, container);
+		if (!/^(normal|stretch)$/.test(a)) return false;
+		const size = axis === "justify" ? "width" : "height";
+		if ((item.style.get(size) ?? "auto").trim() !== "auto") return false;
+		const [s1, s2] =
+			axis === "justify" ? (["left", "right"] as const) : (["top", "bottom"] as const);
+		if (this.autoMargin(item.style, s1) || this.autoMargin(item.style, s2)) return false;
+		// normal: items with an aspect ratio or a natural size don't stretch.
+		if (a === "normal" && (item.kind === "replaced" || this.ratio(item.style))) return false;
+		return true;
+	}
+
+	// ── Tables ───────────────────────────────────────────────────────────
+
+	/** Column min / max widths from the cells (span-1 cells first, then spanning cells spread). */
+	tableColumns(box: ElementBox): { min: number[]; max: number[] } {
+		const rows = box.rows ?? [];
+		const placed = rows.map((r) => {
+			let col = 0;
+			return r.cells.map((c) => {
+				const at = col;
+				col += c.span;
+				return { ...c, col: at };
+			});
+		});
+		const n = Math.max(0, ...placed.map((r) => r.reduce((a, c) => Math.max(a, c.col + c.span), 0)));
+		const min = Array<number>(n).fill(0);
+		const max = Array<number>(n).fill(0);
+		const cells = placed.flat();
+		const widths = (c: (typeof cells)[number]) => {
+			const k = this.contribution(c.box);
+			return { min: k.min, max: k.max };
+		};
+		for (const c of cells.filter((c) => c.span === 1)) {
+			const k = widths(c);
+			min[c.col] = Math.max(min[c.col] ?? 0, k.min);
+			max[c.col] = Math.max(max[c.col] ?? 0, k.max);
+		}
+		for (const c of cells.filter((c) => c.span > 1)) {
+			const k = widths(c);
+			const cols = [...Array(c.span).keys()].map((i) => c.col + i).filter((i) => i < n);
+			for (const [arr, need] of [
+				[min, k.min],
+				[max, k.max],
+			] as const) {
+				const have = cols.reduce((a, i) => a + (arr[i] ?? 0), 0);
+				if (need > have) for (const i of cols) arr[i] = (arr[i] ?? 0) + (need - have) / cols.length;
+			}
+		}
+		return { min, max };
+	}
+
+	/** A table's rows: columns between their min and max widths, each row as tall as its tallest cell. */
+	private table(
+		box: ElementBox,
+		cw: number,
+	): { kids: Placed[]; height: number; pending: Placed[]; columns: number[] } {
+		const { min, max } = this.tableColumns(box);
+		const n = min.length;
+		const sumMin = sum(min);
+		const sumMax = sum(max);
+		const auto = (box.style.get("width") ?? "auto").trim() === "auto";
+		let widths: number[];
+		if (sumMax <= cw)
+			widths = auto
+				? max
+				: max.map((m) => m + (cw - sumMax) * (sumMax ? m / sumMax : 1 / Math.max(1, n)));
+		else if (sumMin < cw)
+			widths = min.map((m, i) => m + (((max[i] ?? m) - m) * (cw - sumMin)) / (sumMax - sumMin));
+		else widths = min;
+		const colX = widths.map((_, i) => sum(widths.slice(0, i)));
+		const kids: Placed[] = [];
+		const pending: Placed[] = [];
+		let y = 0;
+		for (const row of box.rows ?? []) {
+			const rs = row.style;
+			let col = 0;
+			const cells = row.cells.map((c) => {
+				const at = col;
+				col += c.span;
+				const w = sum(widths.slice(at, at + c.span));
+				return { c, at, w, natural: this.layout(c.box, { available: w, width: w, pctW: w }) };
+			});
+			const specH = this.length(rs, "height") ?? 0;
+			const h = Math.max(specH, ...cells.map((x) => x.natural.h));
+			const rowFrag: Fragment = {
+				box: {
+					type: "element",
+					el: row.el,
+					style: rs,
+					eid: row.eid,
+					kind: "block",
+					bfcRoot: true,
+					children: [],
+				},
+				w: sum(widths),
+				h,
+				kids: cells.map(({ c, at, w }) => ({
+					f: this.layout(c.box, { available: w, width: w, height: h, pctW: w, pctH: h }),
+					x: colX[at] ?? 0,
+					y: 0,
+				})),
+				mt: 0,
+				mb: 0,
+				pending: [],
+			};
+			kids.push({ f: rowFrag, x: 0, y });
+			y += h;
+		}
+		return { kids, height: y, pending, columns: widths };
+	}
+}
+
+/** A flex item while resolving a line (css-flexbox-1 §9). */
+export interface FlexItem {
+	box: ElementBox | TextRun;
+	grow: number;
+	shrink: number;
+	/** Flex base size and hypothetical main size (border box). */
+	base: number;
+	hypo: number;
+	/** Main-size limits (min: specified or the content-based minimum). */
+	min: number;
+	max: number;
+	/** The resolved main size. */
+	target: number;
+	frozen: boolean;
+	mainStart: number;
+	mainEnd: number;
+	mainMargins: number;
+	crossStart: number;
+	crossMargins: number;
+	crossMin: number;
+	crossMax: number;
+	autoMainStart: boolean;
+	autoMainEnd: boolean;
+	autoCrossStart: boolean;
+	autoCrossEnd: boolean;
+	align: string;
+	/** It stretches to the line's cross size. */
+	stretch: boolean;
+	/** Its cross size is set (width / height), not from its content. */
+	definiteCross: boolean;
+	cross?: number;
+	f?: Fragment;
+}
+
+/**
+ * Resolve the flexible lengths of a line (css-flexbox-1 §9.7): freeze the
+ * inflexible items, then repeatedly distribute the free space by flex
+ * factor (scaled by base size when shrinking) and freeze the items that hit
+ * their min / max.
+ */
+export function resolveFlexibleLengths(line: FlexItem[], avail: number, gaps: number): void {
+	const outer = (it: FlexItem, size: number) => size + it.mainMargins;
+	const growing = sum(line.map((it) => outer(it, it.hypo))) + gaps < avail;
+	for (const it of line) {
+		const factor = growing ? it.grow : it.shrink;
+		it.frozen = factor === 0 || (growing && it.base > it.hypo) || (!growing && it.base < it.hypo);
+		it.target = it.frozen ? it.hypo : it.base;
+	}
+	const used = () => sum(line.map((it) => outer(it, it.frozen ? it.target : it.base))) + gaps;
+	const initialFree = avail - used();
+	for (let round = 0; round <= line.length; round++) {
+		const open = line.filter((it) => !it.frozen);
+		if (open.length === 0) break;
+		let free = avail - used();
+		const factors = sum(open.map((it) => (growing ? it.grow : it.shrink)));
+		if (factors < 1) {
+			const scaled = initialFree * factors;
+			if (Math.abs(scaled) < Math.abs(free)) free = scaled;
+		}
+		for (const it of open) {
+			if (free === 0) it.target = it.base;
+			else if (growing) it.target = it.base + (factors > 0 ? (free * it.grow) / factors : 0);
+			else {
+				const scaled = sum(open.map((o) => o.shrink * o.base));
+				it.target = it.base - (scaled > 0 ? (Math.abs(free) * it.shrink * it.base) / scaled : 0);
+			}
+		}
+		let total = 0;
+		const violation = new Map<FlexItem, number>();
+		for (const it of open) {
+			const clamped = Math.max(it.min, Math.min(it.max, it.target));
+			violation.set(it, clamped - it.target);
+			total += clamped - it.target;
+			it.target = clamped;
+		}
+		for (const it of open)
+			if (
+				total === 0 ||
+				(total > 0 && (violation.get(it) ?? 0) > 0) ||
+				(total < 0 && (violation.get(it) ?? 0) < 0)
+			)
+				it.frozen = true;
+	}
+}

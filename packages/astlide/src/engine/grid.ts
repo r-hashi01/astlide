@@ -70,13 +70,15 @@ const minSize = (t: Track) => (t.kind === "fixed" ? t.px : t.min);
 /**
  * Parse `grid-template-columns` for a container whose content box is `inner`
  * px wide. `length` resolves a length to px (NaN for keywords). No columns
- * (`none`) is one `auto` column.
+ * (`none`) is one `auto` column. With `items`, `auto-fit` keeps only as many
+ * repetitions as there are items (empty tracks collapse, css-grid-1 §7.2.3.2).
  */
 export function parseTracks(
 	template: string,
 	length: (v: string) => number,
 	inner: number,
 	gap: number,
+	items?: number,
 ): Track[] {
 	const out: Track[] = [];
 	for (const token of tokens(template.trim() === "none" ? "" : template)) {
@@ -91,7 +93,10 @@ export function parseTracks(
 		let n = Number.parseInt(count, 10);
 		if (/^auto-(fill|fit)$/.test(count)) {
 			const size = unit.reduce((s, t) => s + minSize(t), 0) + gap * unit.length;
-			n = size > 0 ? Math.max(1, Math.floor((inner + gap) / size)) : 1;
+			// Zero-sized tracks fit any number of times: as many as there are items.
+			n = size > 0 ? Math.max(1, Math.floor((inner + gap) / size)) : Math.max(1, items ?? 1);
+			if (count === "auto-fit" && items !== undefined)
+				n = Math.max(1, Math.min(n, Math.ceil(items / unit.length)));
 		}
 		for (let i = 0; i < (Number.isFinite(n) ? n : 1); i++) out.push(...unit);
 	}

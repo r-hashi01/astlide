@@ -21,7 +21,9 @@ import Yoga, {
 } from "yoga-layout";
 import { type ElementBox, isElement, StyleContext, type TextRun } from "./box-tree";
 import { type Computed, computeStyle, type StyleSheets, toPx, type Viewport } from "./cascade";
+import { Flow, type Fragment } from "./flow";
 import { columnSpan, parseTracks, placeItems, sizeTracks } from "./grid";
+import type { NaturalSize } from "./images";
 import {
 	type FontRegistry,
 	type InlineItem,
@@ -896,8 +898,11 @@ export function layoutSlide(
 	sheets: StyleSheets,
 	fonts: FontRegistry,
 	vp: Viewport,
+	/** Natural sizes of the images the slide shows (see images.ts). */
+	images?: (src: string) => NaturalSize | null,
 ): SlideLayout {
 	const b = new Builder(sheets, fonts, vp);
+	if (images) b.ctx.images = images;
 	let parent: Computed | null = null;
 	for (const a of ancestors) {
 		parent = b.ctx.styleOf(a, parent);
@@ -917,6 +922,9 @@ export function layoutSlide(
 
 	const slideStyle = b.ctx.styleOf(slide, parent);
 	const tree = b.ctx.box(slide, slideStyle);
+	// The layout core laid out from constraints (#357), while it replaces the Yoga tree below.
+	if (process.env.ASTLIDE_ENGINE_CORE === "flow")
+		return flowLayout(b.ctx, tree, slideStyle, sheets, fonts, vp);
 	const root = tree ? b.yoga(tree) : null;
 	if (!root)
 		return {
@@ -1054,7 +1062,7 @@ export function layoutSlide(
 			);
 		}
 	}
-	const markers = listMarkers(b, boxes, lines, sheets, fonts);
+	const markers = listMarkers(b.ctx, boxes, lines, sheets, fonts);
 	const tables: TableBox[] = b.tables.map((t) => {
 		const p = b.absolute(t.node);
 		const columns: number[] = [];
@@ -1119,7 +1127,7 @@ const MARKERS: Record<string, string> = { disc: "•", circle: "◦", square: "�
 
 /** Outside list markers: text ends at the item's border-box start, on its first baseline. */
 function listMarkers(
-	b: Builder,
+	ctx: StyleContext,
 	boxes: Box[],
 	lines: TextLine[],
 	sheets: StyleSheets,
@@ -1131,18 +1139,18 @@ function listMarkers(
 		if ((box.style.get("display") ?? "") !== "list-item") continue;
 		const type = box.style.get("list-style-type") ?? "disc";
 		if (type === "none") continue;
-		const el = [...b.ctx.eids].find(([, id]) => id === box.eid)?.[0];
+		const el = [...ctx.eids].find(([, id]) => id === box.eid)?.[0];
 		if (!el) continue;
 		const n = (counters.get(el.parent as Element | null) ?? 0) + 1;
 		counters.set(el.parent as Element | null, n);
 		const text = MARKERS[type] ?? (type === "decimal" ? `${n}.` : "•");
 		const ms = computeStyle(sheets.declared(el, "marker"), {
 			parent: box.style,
-			rootFontSize: b.ctx.rootFontSize,
-			vp: b.vp,
+			rootFontSize: ctx.rootFontSize,
+			vp: ctx.vp,
 		});
 		ms.set("__alpha", box.style.get("__alpha") ?? "1");
-		const style = b.inlineStyle(ms);
+		const style = ctx.inlineStyle(ms);
 		// The item's first line: by its line box (glyphs overflow a tight line-height), inside the item.
 		const first = lines
 			.filter((l) => {
@@ -1167,4 +1175,228 @@ function listMarkers(
 		});
 	}
 	return out;
+}
+
+/**
+ * A slide laid out by the constraint-based core (flow.ts), read back as the
+ * same boxes, lines, inline boxes, markers and tables as {@link layoutSlide}.
+ * Output order is the box tree's (paint order), as before.
+ */
+function flowLayout(
+	ctx: StyleContext,
+	tree: ElementBox | null,
+	slideStyle: Computed,
+	sheets: StyleSheets,
+	fonts: FontRegistry,
+	vp: Viewport,
+): SlideLayout {
+	const empty: SlideLayout = {
+		width: 0,
+		height: 0,
+		style: slideStyle,
+		boxes: [],
+		inlineBoxes: [],
+		lines: [],
+		markers: [],
+		tables: [],
+		elements: [],
+	};
+	if (!tree) return empty;
+	const flow = new Flow(ctx);
+	const auto = (prop: string) => (slideStyle.get(prop) ?? "auto") === "auto";
+	const root = flow.layout(tree, {
+		available: vp.width,
+		pctW: vp.width,
+		pctH: vp.height,
+		...(auto("width") ? { width: vp.width } : {}),
+		...(auto("height") ? { height: vp.height } : {}),
+	});
+	// The slide is the containing block of what's still positioned against nothing.
+	const rootBorder = flow.edges(slideStyle).border;
+	for (const p of root.pending) root.kids.push(flow.placeAbsolute(p, root, rootBorder));
+	root.pending = [];
+
+	/** Where each box and text run ended up, in slide coordinates. */
+	const placedBox = new Map<ElementBox, Box>();
+	const placedText = new Map<
+		TextRun,
+		{ x: number; y: number; f: Fragment; a: Affine; clip?: Rect }
+	>();
+	const tableFrags = new Map<ElementBox, { f: Fragment; x: number; y: number; a: Affine }>();
+	const rowBoxes = new Map<number, Box>();
+	const walk = (f: Fragment, x: number, y: number, clip: Rect | undefined, outer: Affine) => {
+		if (f.box.type === "text") {
+			placedText.set(f.box, { x, y, f, a: outer, ...(clip ? { clip } : {}) });
+			return;
+		}
+		const { style } = f.box;
+		let a = outer;
+		const transform = style.get("transform");
+		if (transform && transform !== "none") {
+			const fs = Number.parseFloat(style.get("font-size") ?? "16");
+			const own = boxTransform(
+				transform,
+				style.get("transform-origin") ?? "",
+				{ x, y, w: f.w, h: f.h },
+				(v, basis) => toPx(v, fs, ctx.rootFontSize, vp, basis),
+			);
+			if (own) a = compose(a, own);
+		}
+		const box: Box = mapRect(a, {
+			...(clip ? { clip } : {}),
+			eid: f.box.eid,
+			tag: f.box.el.name,
+			x,
+			y,
+			w: f.w,
+			h: f.h,
+			style,
+			alpha: Number(style.get("__alpha") ?? 1),
+		});
+		const row = f.box.el.name === "tr" || (style.get("display") ?? "") === "table-row";
+		// Table rows are listed with their table (rowBoxes), the rest by box.
+		if (!row) placedBox.set(f.box, box);
+		if (f.box.kind === "table") tableFrags.set(f.box, { f, x, y, a });
+		if (row) rowBoxes.set(f.box.eid, box);
+		let inner = clip;
+		const o = `${style.get("overflow") ?? ""} ${style.get("overflow-x") ?? ""} ${style.get("overflow-y") ?? ""}`;
+		if (/hidden|clip|auto|scroll/.test(o)) {
+			const { border } = new Flow(ctx).edges(style);
+			const own = mapRect(a, {
+				x: x + border.left,
+				y: y + border.top,
+				w: f.w - border.left - border.right,
+				h: f.h - border.top - border.bottom,
+			});
+			inner = inner ? intersect(inner, own) : own;
+		}
+		for (const k of f.kids) walk(k.f, x + k.x, y + k.y, inner, a);
+	};
+	walk(root, 0, 0, undefined, IDENTITY);
+
+	const boxes: Box[] = [];
+	const lines: TextLine[] = [];
+	const inlineBoxes: InlineBox[] = [];
+	let leafId = 0;
+	const emitText = (run: TextRun) => {
+		const id = leafId++;
+		const at = placedText.get(run);
+		const r = at?.f.lines;
+		if (!at || !r) return;
+		const { x: px, y: py, f, a, clip } = at;
+		const block: TextBlock = { id, x: a.sx * px + a.tx, w: a.sx * f.w, align: run.align };
+		const scaled = (st: InlineStyle): InlineStyle =>
+			a.sy === 1 && a.sx === 1
+				? st
+				: {
+						...st,
+						size: st.size * a.sy,
+						lineHeight: st.lineHeight * a.sy,
+						letterSpacing: st.letterSpacing * a.sx,
+					};
+		for (const fr of r.fragments)
+			lines.push(
+				mapRect(a, {
+					text: fr.text,
+					x: px + fr.x,
+					y: py + fr.y,
+					w: fr.w,
+					h: fr.h,
+					style: scaled(fr.style),
+					...(clip ? { clip } : {}),
+					block,
+					line: fr.line,
+					lineTop: a.sy * (py + fr.lineTop) + a.ty,
+					lineHeight: a.sy * fr.lineHeight,
+				}),
+			);
+		for (const ib of r.inlineBoxes) {
+			const entry = ctx.inlineEls[ib.id];
+			if (!entry) continue;
+			const is = ctx.inlineStyle(entry.style);
+			const m = verticalMetrics(is.face, is.size);
+			const v = (prop: string) => {
+				const n = ctx.px(entry.style, prop);
+				return Number.isNaN(n) ? 0 : n;
+			};
+			const top = v("padding-top") + v("border-top-width");
+			const bottom = v("padding-bottom") + v("border-bottom-width");
+			inlineBoxes.push(
+				mapRect(a, {
+					eid: ctx.eids.get(entry.el) ?? -1,
+					tag: entry.el.name,
+					x: px + ib.x,
+					y: py + ib.baseline - m.ascent - top,
+					w: ib.w,
+					h: m.ascent + m.descent + top + bottom,
+					style: entry.style,
+					alpha: is.alpha,
+					...(clip ? { clip } : {}),
+				}),
+			);
+		}
+	};
+	const emit = (box: ElementBox, top: boolean) => {
+		const b = placedBox.get(box);
+		if (b && !top) boxes.push(b);
+		for (const c of box.children) {
+			if (c.type === "text") emitText(c);
+			else emit(c, false);
+		}
+		for (const row of box.rows ?? []) {
+			const rb = rowBoxes.get(row.eid);
+			if (rb) boxes.push(rb);
+			for (const c of row.cells) emit(c.box, false);
+		}
+	};
+	emit(tree, true);
+	const tables: TableBox[] = [];
+	for (const [tb, { f, x, y, a }] of tableFrags) {
+		const rows = f.kids.map((rk) => ({
+			eid: (rk.f.box as ElementBox).eid,
+			y: a.sy * (y + rk.y) + a.ty,
+			h: a.sy * rk.f.h,
+			cells: rk.f.kids.map((ck, i) => {
+				const cb = ck.f.box as ElementBox;
+				const row = tb.rows?.find((r) => r.eid === (rk.f.box as ElementBox).eid);
+				let col = 0;
+				for (const c of row?.cells.slice(0, i) ?? []) col += c.span;
+				const span = row?.cells[i]?.span ?? 1;
+				const { padding, border } = new Flow(ctx).edges(cb.style, ck.f.w);
+				return {
+					eid: cb.eid,
+					col,
+					span,
+					x: a.sx * (x + rk.x + ck.x) + a.tx,
+					y: a.sy * (y + rk.y + ck.y) + a.ty,
+					w: a.sx * ck.f.w,
+					h: a.sy * ck.f.h,
+					style: cb.style,
+					padding,
+					border,
+				};
+			}),
+		}));
+		tables.push({
+			eid: tb.eid,
+			x: a.sx * x + a.tx,
+			y: a.sy * y + a.ty,
+			w: a.sx * f.w,
+			h: a.sy * f.h,
+			columns: (f.columns ?? []).map((w) => a.sx * w),
+			rows,
+		});
+	}
+	const markers = listMarkers(ctx, boxes, lines, sheets, fonts);
+	return {
+		width: root.w,
+		height: root.h,
+		style: slideStyle,
+		boxes,
+		inlineBoxes,
+		lines,
+		markers,
+		tables,
+		elements: [...ctx.eids.keys()],
+	};
 }

@@ -12,6 +12,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { Box, Scene, SceneItem, TableBox } from "@astlide/core/engine";
+import { bitmapSize } from "@astlide/core/engine";
 import { mermaidThemeFor } from "@astlide/core/utils/mermaid";
 import { FetchBudget } from "@astlide/core/utils/network";
 import { consoleReporter, type Reporter } from "@astlide/core/utils/reporter";
@@ -79,23 +80,6 @@ type ImageSource =
 
 /** Bytes of a fetched remote image (see {@link fetchImages}). */
 const remoteImages = new Map<string, Buffer | null>();
-
-/** Natural size of a PNG (IHDR) or JPEG (first SOF marker). */
-function bitmapSize(b: Buffer): { format: "png" | "jpeg"; size: { w: number; h: number } } | null {
-	if (b.length > 24 && b.readUInt32BE(0) === 0x89504e47)
-		return { format: "png", size: { w: b.readUInt32BE(16), h: b.readUInt32BE(20) } };
-	if (b.length > 4 && b[0] === 0xff && b[1] === 0xd8) {
-		for (let i = 2; i + 9 < b.length; ) {
-			if (b[i] !== 0xff) return null;
-			const marker = b[i + 1] ?? 0;
-			const len = b.readUInt16BE(i + 2);
-			if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker))
-				return { format: "jpeg", size: { w: b.readUInt16BE(i + 7), h: b.readUInt16BE(i + 5) } };
-			i += 2 + len;
-		}
-	}
-	return null;
-}
 
 function imageSource(
 	src: string,

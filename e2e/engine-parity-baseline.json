@@ -1,15 +1,31 @@
 {
-	"//": "Boxes where the layout engine starts to differ from Chromium, per playground deck and platform (Chromium's fallback fonts differ between them; scripts/engine-parity.ts). Lower these as the engine improves; e2e/engine-parity-decks.test.ts fails if a deck goes above.",
+	"//": "Boxes where the layout engine starts to differ from Chromium, per playground deck, platform (Chromium's fallback fonts differ between them) and layout core (yoga: the current one; flow: the constraint-based core, ASTLIDE_ENGINE_CORE=flow, #357). scripts/engine-parity.ts. Lower these as the engine improves; e2e/engine-parity-decks.test.ts fails if a deck goes above.",
 	"darwin": {
-		"example-deck": 3,
-		"from-powerpoint": 23,
-		"from-template": 1,
-		"tour": 21
+		"yoga": {
+			"example-deck": 3,
+			"from-powerpoint": 23,
+			"from-template": 1,
+			"tour": 21
+		},
+		"flow": {
+			"example-deck": 3,
+			"from-powerpoint": 23,
+			"from-template": 1,
+			"tour": 17
+		}
 	},
 	"linux": {
-		"example-deck": 7,
-		"from-powerpoint": 23,
-		"from-template": 1,
-		"tour": 29
+		"yoga": {
+			"example-deck": 7,
+			"from-powerpoint": 23,
+			"from-template": 1,
+			"tour": 29
+		},
+		"flow": {
+			"example-deck": 7,
+			"from-powerpoint": 23,
+			"from-template": 1,
+			"tour": 25
+		}
 	}
 }
