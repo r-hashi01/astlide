@@ -5,13 +5,13 @@
 			"example-deck": 3,
 			"from-powerpoint": 23,
 			"from-template": 1,
-			"tour": 21
+			"tour": 17
 		},
 		"flow": {
 			"example-deck": 3,
-			"from-powerpoint": 23,
+			"from-powerpoint": 2,
 			"from-template": 1,
-			"tour": 17
+			"tour": 9
 		}
 	},
 	"linux": {

@@ -29,6 +29,8 @@ export interface ElementBox {
 	children: (ElementBox | TextRun)[];
 	/** A table's rows (header rows first, footer rows last). */
 	rows?: TableRow[];
+	/** A table's `<col>` styles, one per column they span. */
+	cols?: Computed[];
 }
 
 /** A run of inline content: one block of lines, or an anonymous flex / grid item. */
@@ -40,6 +42,8 @@ export interface TextRun {
 	align: string;
 	/** A run in block flow (its lines don't shrink), not an anonymous flex / grid item. */
 	inFlow: boolean;
+	/** `text-indent` of its first line, px (the block's first run only). */
+	indent: number;
 }
 
 export interface TableRow {
@@ -89,7 +93,36 @@ export function transformText(text: string, transform: string | undefined): stri
 	}
 }
 
+/** OpenType features from `font-variant-numeric` and `font-feature-settings` (on: listed; off: left out). */
+function featuresOf(style: Computed): { features?: string[] } {
+	const numeric: Record<string, string> = {
+		"tabular-nums": "tnum",
+		"proportional-nums": "pnum",
+		"lining-nums": "lnum",
+		"oldstyle-nums": "onum",
+		"slashed-zero": "zero",
+		"diagonal-fractions": "frac",
+		"stacked-fractions": "afrc",
+		ordinal: "ordn",
+	};
+	const out = new Set<string>();
+	for (const v of (style.get("font-variant-numeric") ?? "").split(/\s+/)) {
+		const tag = numeric[v];
+		if (tag) out.add(tag);
+	}
+	for (const m of (style.get("font-feature-settings") ?? "").matchAll(
+		/["']([a-z0-9]{4})["']\s*(on|off|\d+)?/gi,
+	)) {
+		const tag = m[1] ?? "";
+		if (m[2] === "off" || m[2] === "0") out.delete(tag);
+		else out.add(tag);
+	}
+	return out.size ? { features: [...out] } : {};
+}
+
 const INLINE = new Set(["inline", "inline-block", "inline-flex", "contents"]);
+/** Inline-level boxes laid out as a whole on a line. */
+const ATOMIC = new Set(["inline-block", "inline-flex", "inline-grid", "inline-table"]);
 
 /** Computed styles, element ids and inline content of one slide's elements. */
 export class StyleContext {
@@ -100,6 +133,12 @@ export class StyleContext {
 	rootFontSize = 16;
 	/** Natural sizes of images by `src` (absent: unknown). */
 	images?: (src: string) => NaturalSize | null;
+	/**
+	 * Inline-block / inline-flex … become atomic inline items (their own box
+	 * on the line) rather than their content inlined. The flow core lays
+	 * them out; the Yoga core doesn't.
+	 */
+	atomicInlines = false;
 	private readonly pseudoKids = new Map<Element, ChildNode[]>();
 
 	constructor(
@@ -132,10 +171,16 @@ export class StyleContext {
 		return s;
 	}
 
-	/** A length in px, or NaN for keywords. */
+	/** A length in px, or NaN for keywords (scaled by the element's `zoom`, see computeStyle). */
 	px(style: Computed, prop: string, basis = Number.NaN): number {
+		return this.lengthIn(style, style.get(prop) ?? "", basis);
+	}
+
+	/** A length value in `style`'s context: resolved unzoomed, then scaled by its zoom; percentages of `basis` aren't scaled. */
+	lengthIn(style: Computed, value: string, basis = Number.NaN): number {
+		const zoom = Number(style.get("__zoom") ?? 1) || 1;
 		const fs = Number.parseFloat(style.get("font-size") ?? "16");
-		return toPx(style.get(prop) ?? "", fs, this.rootFontSize, this.vp, basis);
+		return toPx(value, fs / zoom, this.rootFontSize, this.vp, basis / zoom) * zoom;
 	}
 
 	inlineStyle(style: Computed): InlineStyle {
@@ -170,6 +215,7 @@ export class StyleContext {
 				/break-word|anywhere/.test(
 					`${style.get("overflow-wrap") ?? ""} ${style.get("word-wrap") ?? ""}`,
 				) || style.get("word-break") === "break-all",
+			...featuresOf(style),
 			underline: /underline/.test(style.get("__decoration") ?? ""),
 			strike: /line-through/.test(style.get("__decoration") ?? ""),
 		};
@@ -228,6 +274,14 @@ export class StyleContext {
 			} else if (isElement(n)) {
 				const s = this.styleOf(n, parentStyle);
 				if (s.get("display") === "none") continue;
+				if (this.atomicInlines && ATOMIC.has(s.get("display") ?? "")) {
+					const box = this.box(n, s, true);
+					if (box) {
+						const wraps = !/^(pre|nowrap)$/.test(parentStyle.get("white-space") ?? "normal");
+						items.push({ kind: "atomic", box, wraps, width: 0, height: 0, baseline: 0 });
+					}
+					continue;
+				}
 				if (n.name === "br") {
 					items.push({
 						kind: "text",
@@ -265,11 +319,12 @@ export class StyleContext {
 		if (!isElement(n)) return false;
 		// Replaced elements aren't laid out inline (no atomic inlines yet): their own box.
 		if (n.name === "img" || n.name === "svg" || n.name === "iframe") return false;
-		return INLINE.has(this.styleOf(n, parentStyle).get("display") ?? "inline") || n.name === "br";
+		const display = this.styleOf(n, parentStyle).get("display") ?? "inline";
+		return INLINE.has(display) || (this.atomicInlines && ATOMIC.has(display)) || n.name === "br";
 	}
 
 	/** A run of inline content under a container with `style`. */
-	textRun(nodes: ChildNode[], style: Computed, inFlow: boolean): TextRun {
+	textRun(nodes: ChildNode[], style: Computed, inFlow: boolean, first = false): TextRun {
 		const items: InlineItem[] = [];
 		this.collectInline(nodes, style, items);
 		// Number text items in order: each text node keeps its own fragments.
@@ -281,6 +336,7 @@ export class StyleContext {
 			strut: this.inlineStyle(style),
 			align: style.get("text-align") ?? "start",
 			inFlow,
+			indent: (first && this.lengthIn(style, style.get("text-indent") ?? "0")) || 0,
 		};
 	}
 
@@ -308,7 +364,7 @@ export class StyleContext {
 		const kind: BoxKind =
 			display === "flex" || display === "inline-flex"
 				? "flex"
-				: display === "grid"
+				: display === "grid" || (this.atomicInlines && display === "inline-grid")
 					? "grid"
 					: "block";
 		const out = box(kind);
@@ -317,7 +373,7 @@ export class StyleContext {
 		const flushInline = () => {
 			const pre = /pre/.test(style.get("white-space") ?? "");
 			if (run.some((n) => !isText(n) || pre || n.data.trim() !== ""))
-				out.children.push(this.textRun(run, style, true));
+				out.children.push(this.textRun(run, style, true, out.children.length === 0));
 			run = [];
 		};
 		for (const child of this.childrenOf(el, style)) {
@@ -371,6 +427,24 @@ export class StyleContext {
 			}
 		};
 		visit(box.el, box.style, false);
+		// Columns: <col> elements, alone or in a <colgroup> (whose span / width covers its own when empty).
+		const cols: Computed[] = [];
+		const span = (el: Element) => Math.max(1, Number.parseInt(el.attribs.span ?? "1", 10) || 1);
+		for (const c of box.el.children) {
+			if (!isElement(c)) continue;
+			const cs = this.styleOf(c, box.style);
+			const d = cs.get("display") ?? "";
+			if (d === "table-column") cols.push(...Array(span(c)).fill(cs));
+			else if (d === "table-column-group") {
+				const inner = c.children.filter(isElement);
+				if (!inner.length) cols.push(...Array(span(c)).fill(cs));
+				for (const k of inner) {
+					const ks = this.styleOf(k, cs);
+					if ((ks.get("display") ?? "") === "table-column") cols.push(...Array(span(k)).fill(ks));
+				}
+			}
+		}
+		if (cols.length) box.cols = cols;
 		box.rows = [...rows, ...footers].map(([r, rs]) => {
 			const cells: TableRow["cells"] = [];
 			for (const c of r.children) {

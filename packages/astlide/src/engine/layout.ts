@@ -921,10 +921,11 @@ export function layoutSlide(
 	number(slide);
 
 	const slideStyle = b.ctx.styleOf(slide, parent);
+	const flow = process.env.ASTLIDE_ENGINE_CORE === "flow";
+	b.ctx.atomicInlines = flow;
 	const tree = b.ctx.box(slide, slideStyle);
 	// The layout core laid out from constraints (#357), while it replaces the Yoga tree below.
-	if (process.env.ASTLIDE_ENGINE_CORE === "flow")
-		return flowLayout(b.ctx, tree, slideStyle, sheets, fonts, vp);
+	if (flow) return flowLayout(b.ctx, tree, slideStyle, sheets, fonts, vp);
 	const root = tree ? b.yoga(tree) : null;
 	if (!root)
 		return {
@@ -1227,18 +1228,19 @@ function flowLayout(
 	const walk = (f: Fragment, x: number, y: number, clip: Rect | undefined, outer: Affine) => {
 		if (f.box.type === "text") {
 			placedText.set(f.box, { x, y, f, a: outer, ...(clip ? { clip } : {}) });
+			// Its atomic inlines.
+			for (const k of f.kids) walk(k.f, x + k.x, y + k.y, clip, outer);
 			return;
 		}
 		const { style } = f.box;
 		let a = outer;
 		const transform = style.get("transform");
 		if (transform && transform !== "none") {
-			const fs = Number.parseFloat(style.get("font-size") ?? "16");
 			const own = boxTransform(
 				transform,
 				style.get("transform-origin") ?? "",
 				{ x, y, w: f.w, h: f.h },
-				(v, basis) => toPx(v, fs, ctx.rootFontSize, vp, basis),
+				(v, basis) => ctx.lengthIn(style, v, basis),
 			);
 			if (own) a = compose(a, own);
 		}
@@ -1340,8 +1342,10 @@ function flowLayout(
 		const b = placedBox.get(box);
 		if (b && !top) boxes.push(b);
 		for (const c of box.children) {
-			if (c.type === "text") emitText(c);
-			else emit(c, false);
+			if (c.type === "text") {
+				emitText(c);
+				for (const it of c.items) if (it.kind === "atomic") emit(it.box as ElementBox, false);
+			} else emit(c, false);
 		}
 		for (const row of box.rows ?? []) {
 			const rb = rowBoxes.get(row.eid);

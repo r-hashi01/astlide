@@ -186,6 +186,17 @@ describe("layout engine vs Chromium", () => {
 		).toEqual([]);
 	});
 
+	it("zoom: lengths, text and nested zooms", async () => {
+		expect(
+			await differences(
+				"zoom",
+				`.z{zoom:0.8;width:500px;padding:20px;font-size:30px}.z p{margin:10px 0;line-height:40px}
+.zz{zoom:150%;width:100px;height:2rem;margin-top:10px}`,
+				'<div class="z" data-c="z"><p data-c="p">Zoomed text that wraps in the box</p><div class="zz" data-c="zz"></div></div>',
+			),
+		).toEqual([]);
+	});
+
 	it("a percentage height in a stretched row item", async () => {
 		expect(
 			await differences(

@@ -14,6 +14,17 @@ export interface FontFace {
 	font: fontkit.Font;
 	/** The font file (absent on fallback fonts, which are system fonts). */
 	file?: string;
+	/**
+	 * The other families of the `font-family` list it was chosen from, in
+	 * order: characters this face lacks are looked up in them first (CSS
+	 * Fonts §5.4), then in the registered fallbacks.
+	 */
+	chain?: FontFace[];
+	/**
+	 * The `unicode-range` the page serves this family with: characters
+	 * outside it come from the next font even when the file has them.
+	 */
+	ranges?: [number, number][];
 }
 
 /** Common fonts standing for CSS generic families, best first. */
@@ -50,6 +61,14 @@ const GENERIC_FAMILIES: Record<string, string[]> = {
 	"ui-monospace": MONO,
 };
 
+/** Whether a face draws a character: the font has it and the page serves it (`unicode-range`). */
+function covers(face: FontFace, cp: number): boolean {
+	return (
+		face.font.hasGlyphForCodePoint(cp) &&
+		(!face.ranges || face.ranges.some(([from, to]) => cp >= from && cp <= to))
+	);
+}
+
 export class FontRegistry {
 	private faces: FontFace[] = [];
 	private fallbacks: FontFace[] = [];
@@ -76,8 +95,11 @@ export class FontRegistry {
 		for (const ch of text) {
 			const cp = ch.codePointAt(0) ?? 0;
 			let f = face;
-			if (cp > 0x20 && !face.font.hasGlyphForCodePoint(cp)) {
-				f = this.fallbacks.find((fb) => fb.font.hasGlyphForCodePoint(cp)) ?? face;
+			if (cp > 0x20 && !covers(face, cp)) {
+				f =
+					face.chain?.find((c) => covers(c, cp)) ??
+					this.fallbacks.find((fb) => covers(fb, cp)) ??
+					face;
 			}
 			const last = out[out.length - 1];
 			if (last && last.face === f) last.text += ch;
@@ -87,9 +109,15 @@ export class FontRegistry {
 	}
 
 	/** Register a TTF / OTF file for a family name. */
-	add(family: string, weight: number, italic: boolean, path: string): void {
+	add(
+		family: string,
+		weight: number,
+		italic: boolean,
+		path: string,
+		ranges?: [number, number][],
+	): void {
 		const font = fontkit.create(readFileSync(path)) as fontkit.Font;
-		this.faces.push({ family: family.toLowerCase(), weight, italic, font, file: path });
+		this.faces.push({ family: family.toLowerCase(), weight, italic, font, file: path, ranges });
 	}
 
 	/** Files of the registered faces (fallbacks excluded). */
@@ -130,33 +158,60 @@ export class FontRegistry {
 		};
 		// A named family we have is the font; a generic one stands in for the first named.
 		let requested: string | undefined;
+		const found: FontFace[] = [];
+		/** The first face found is a family the list names (not a generic's stand-in). */
+		let named = false;
 		for (const name of names) {
 			const fam = name.toLowerCase();
 			const generic = GENERIC_FAMILIES[fam];
-			if (!generic) {
-				const face = nearest(fam);
-				if (face) return { face };
-				requested ??= name;
-				continue;
-			}
-			const face = generic.map(nearest).find(Boolean);
-			if (face) return { face, requested };
+			const face = generic ? generic.map(nearest).find(Boolean) : nearest(fam);
+			if (face) {
+				if (found.length === 0) named = !generic;
+				// Generic families stand for system fonts we don't have: only the
+				// families the list names back up the first one.
+				if (!found.includes(face) && (found.length === 0 || !generic)) found.push(face);
+			} else if (!generic && found.length === 0) requested ??= name;
 		}
-		const face = SANS.map(nearest).find(Boolean) ?? this.faces[0];
-		if (!face) throw new Error("no fonts registered");
-		return { face, requested };
+		if (named) requested = undefined;
+		const primary = found[0] ?? SANS.map(nearest).find(Boolean) ?? this.faces[0];
+		if (!primary) throw new Error("no fonts registered");
+		// The rest of the list backs up characters the first face lacks.
+		const chain = found.slice(1);
+		if (chain.length === 0) return { face: primary, ...(requested ? { requested } : {}) };
+		const key = `${primary.family}|${primary.weight}|${primary.italic}|${chain.map((c) => `${c.family}:${c.weight}`).join(">")}`;
+		let face = this.chained.get(key);
+		if (!face) {
+			face = { ...primary, chain };
+			this.chained.set(key, face);
+		}
+		return { face, ...(requested ? { requested } : {}) };
 	}
 
-	/** Advance width of `text` in px (kerning applied), plus letter spacing per character. */
-	width(face: FontFace, size: number, text: string, letterSpacing = 0): number {
-		const key = `${face.family}|${face.weight}|${face.italic}|${size}|${letterSpacing}|${text}`;
+	/** Faces with a fallback chain, by list (so a list keeps one face object). */
+	private readonly chained = new Map<string, FontFace>();
+
+	/**
+	 * Advance width of `text` in px (kerning applied, and OpenType `features`
+	 * such as tabular numbers), plus letter spacing per character.
+	 */
+	width(
+		face: FontFace,
+		size: number,
+		text: string,
+		letterSpacing = 0,
+		features?: readonly string[],
+	): number {
+		const chain = face.chain?.map((c) => `${c.family}:${c.weight}`).join(">") ?? "";
+		const key = `${face.family}|${face.weight}|${face.italic}|${chain}|${size}|${letterSpacing}|${features?.join(",") ?? ""}|${text}`;
 		const hit = this.widthCache.get(key);
 		if (hit !== undefined) return hit;
 		let w = letterSpacing * [...text].length;
 		for (const seg of this.segments(face, text)) {
 			let units: number;
 			try {
-				const run = seg.face.font.layout(seg.text);
+				const run = features?.length
+					? seg.face.font.layout(seg.text, [...features])
+					: seg.face.font.layout(seg.text);
 				units = run.positions.reduce((sum, p) => sum + p.xAdvance, 0);
 			} catch {
 				// fontkit can fail decoding some glyph outlines; advances alone come
@@ -225,6 +280,8 @@ export interface InlineStyle {
 	alpha: number;
 	/** Words too long for a line may break anywhere (overflow-wrap: break-word / anywhere, word-break: break-all). */
 	breakWord?: boolean;
+	/** OpenType features to apply (from `font-variant-numeric`, `font-feature-settings`). */
+	features?: string[];
 	/** Text decorations in effect (the element's or an ancestor's). */
 	underline?: boolean;
 	strike?: boolean;
@@ -235,7 +292,22 @@ export type InlineItem =
 	| { kind: "text"; text: string; style: InlineStyle; nodeIndex: number }
 	| { kind: "space"; width: number }
 	/** Start / end of an inline element's box (background, border, padding). */
-	| { kind: "open" | "close"; id: number };
+	| { kind: "open" | "close"; id: number }
+	/**
+	 * An inline-level box laid out as a whole (inline-block, inline-flex …):
+	 * its margin box size and baseline (from its top), set before line layout.
+	 */
+	| AtomicInline;
+
+export interface AtomicInline {
+	kind: "atomic";
+	box: object;
+	/** Whether lines may break around it (its parent's `white-space`). */
+	wraps: boolean;
+	width: number;
+	height: number;
+	baseline: number;
+}
 
 /** The part of an inline element's box on one line, relative to the block's content box. */
 export interface PlacedInlineBox {
@@ -267,6 +339,10 @@ export interface LineBreakResult {
 	height: number;
 	fragments: PlacedFragment[];
 	inlineBoxes: PlacedInlineBox[];
+	/** Where each atomic inline's margin box went (top left, relative to the content box). */
+	atomics: { item: AtomicInline; x: number; y: number }[];
+	/** Each line's baseline, from the top of the content box. */
+	baselines: number[];
 }
 
 interface Word {
@@ -283,6 +359,9 @@ interface Word {
 	forcedBreak?: boolean;
 	/** Zero-width marker for an inline box edge. */
 	edge?: { kind: "open" | "close"; id: number };
+	atomic?: AtomicInline;
+	/** Lines may break here (`white-space` isn't `nowrap` / `pre`). */
+	wraps?: boolean;
 }
 
 /**
@@ -299,7 +378,7 @@ const CJK =
 const NO_BREAK_BEFORE =
 	/[、。，．・：；？！‼⁇⁈⁉）〕］｝〉》」』】〙〗〟’”｠»ゝゞヽヾー々〻ぁぃぅぇぉっゃゅょゎゕゖァィゥェォッャュョヮヵヶㇰ-ㇿ〜～…‥゛゜)\]}.,:;!?%]/u;
 /** Never at the end of a line: opening brackets and quotes. */
-const NO_BREAK_AFTER = /[（〔［｛〈《「『【〘〖〝‘“｟«(\[{]/u;
+const NO_BREAK_AFTER = /[（〔［｛〈《「『【〘〖〝‘“｟«([{]/u;
 
 /**
  * A word's break opportunities (UAX #14, the cases slides need): after a
@@ -328,6 +407,43 @@ function breakPieces(word: string): string[] {
 	return pieces;
 }
 
+/** Fullwidth punctuation, by how `text-spacing-trim` treats it. */
+const OPEN_PUNCT = /[「『（〔［｛〈《【〘〖〝]/u;
+const CLOSE_PUNCT = /[」』）〕］｝〉》】〙〗〟、。，．]/u;
+const MIDDLE_PUNCT = /[・：；]/u;
+
+/**
+ * `text-spacing-trim: normal`'s trim-adjacent (CSS Text 4 §9.2): fullwidth
+ * punctuation next to other punctuation loses its blank half — an opening
+ * bracket after punctuation, closing punctuation before closing or middle
+ * punctuation (`」「` is 1.5em, not 2em).
+ */
+function trimAdjacent(words: Word[], fonts: FontRegistry): void {
+	const chars: { word: Word; ch: string }[] = [];
+	const run = () => {
+		for (const [i, { word, ch }] of chars.entries()) {
+			const style = word.style;
+			if (!style) continue;
+			const prev = chars[i - 1]?.ch ?? "";
+			const next = chars[i + 1]?.ch ?? "";
+			const trim =
+				(OPEN_PUNCT.test(ch) &&
+					(OPEN_PUNCT.test(prev) || CLOSE_PUNCT.test(prev) || MIDDLE_PUNCT.test(prev))) ||
+				(CLOSE_PUNCT.test(ch) && (CLOSE_PUNCT.test(next) || MIDDLE_PUNCT.test(next)));
+			// Only a fullwidth glyph has a blank half.
+			if (trim && fonts.width(style.face, style.size, ch, 0) >= style.size * 0.9)
+				word.width -= style.size / 2;
+		}
+		chars.length = 0;
+	};
+	for (const word of words) {
+		// White space, forced breaks and atomic inlines separate the punctuation.
+		if (word.space || word.forcedBreak || word.atomic || (word.width && !word.style)) run();
+		else if (word.style) for (const ch of word.text) chars.push({ word, ch });
+	}
+	run();
+}
+
 /**
  * Lay out inline items into lines of at most `maxWidth` px. `strut` is the
  * block container's own inline style (it sets the minimum line height).
@@ -338,6 +454,8 @@ export function layoutLines(
 	strut: InlineStyle,
 	textAlign: string,
 	fonts: FontRegistry,
+	/** `text-indent`: the first line starts this far in. */
+	indent = 0,
 ): LineBreakResult {
 	// 1. Collapse white space (white-space: normal) and split into words.
 	const words: Word[] = [];
@@ -345,6 +463,21 @@ export function layoutLines(
 	for (const item of items) {
 		if (item.kind === "space") {
 			words.push({ text: "", style: null, nodeIndex: -1, width: item.width, space: false });
+			continue;
+		}
+		if (item.kind === "atomic") {
+			// A line may break before and after one (like U+FFFC); spaces after it are kept.
+			words.push({
+				text: "",
+				style: null,
+				nodeIndex: -1,
+				width: item.width,
+				space: false,
+				breakBefore: true,
+				atomic: item,
+				wraps: item.wraps,
+			});
+			prevSpace = false;
 			continue;
 		}
 		if (item.kind !== "text") {
@@ -381,7 +514,13 @@ export function layoutLines(
 			const wraps = !/^(pre|nowrap)$/.test(item.style.whiteSpace);
 			const pieces = isSpace || !wraps ? [part] : breakPieces(part);
 			pieces.forEach((piece, k) => {
-				const w = fonts.width(item.style.face, item.style.size, piece, item.style.letterSpacing);
+				const w = fonts.width(
+					item.style.face,
+					item.style.size,
+					piece,
+					item.style.letterSpacing,
+					item.style.features,
+				);
 				words.push({
 					text: piece,
 					style: item.style,
@@ -390,11 +529,14 @@ export function layoutLines(
 					space: isSpace,
 					pre,
 					breakBefore: k > 0,
+					wraps,
 				});
 			});
 			prevSpace = isSpace;
 		}
 	}
+
+	trimAdjacent(words, fonts);
 
 	// 2. Greedy line breaking at spaces and at break opportunities inside words.
 	type Line = { words: Word[]; width: number };
@@ -405,16 +547,20 @@ export function layoutLines(
 		for (let i = l.words.length - 1; i >= 0 && l.words[i]?.space; i--) w -= l.words[i]?.width ?? 0;
 		return w;
 	};
+	/** Width for the line being filled (the first one is indented). */
+	const room = () => maxWidth - (lines.length === 0 ? indent : 0);
 	for (const word of words) {
 		if (word.forcedBreak) {
 			lines.push(line);
 			line = { words: [], width: 0 };
 			continue;
 		}
-		if (!word.space && line.words.length > 0 && line.width + word.width > maxWidth + FIT) {
+		if (!word.space && line.words.length > 0 && line.width + word.width > room() + FIT) {
 			const prev = line.words[line.words.length - 1];
 			// Break after white space, or at a break opportunity inside a word.
-			if (prev?.space || word.breakBefore) {
+			const after = (prev?.space || prev?.atomic) && prev.wraps !== false;
+			// The white space (or atomic inline) before decides; inside a word, the word's own style.
+			if (after || (word.breakBefore && word.wraps !== false)) {
 				lines.push(line);
 				line = { words: [], width: 0 };
 			}
@@ -424,8 +570,9 @@ export function layoutLines(
 		let rest = word;
 		while (
 			!rest.space &&
+			rest.wraps !== false &&
 			rest.style?.breakWord &&
-			line.width + rest.width > maxWidth + FIT &&
+			line.width + rest.width > room() + FIT &&
 			[...rest.text].length > 1
 		) {
 			const style = rest.style;
@@ -439,8 +586,9 @@ export function layoutLines(
 						style.size,
 						chars.slice(0, n + 1).join(""),
 						style.letterSpacing,
+						style.features,
 					) <=
-					maxWidth + FIT
+					room() + FIT
 			)
 				n++;
 			if (n === 0 && line.words.length > 0) {
@@ -451,7 +599,7 @@ export function layoutLines(
 			n = Math.max(1, n);
 			const head = chars.slice(0, n).join("");
 			const tail = chars.slice(n).join("");
-			const hw = fonts.width(style.face, style.size, head, style.letterSpacing);
+			const hw = fonts.width(style.face, style.size, head, style.letterSpacing, style.features);
 			line.words.push({ ...rest, text: head, width: hw });
 			line.width += hw;
 			lines.push(line);
@@ -459,7 +607,7 @@ export function layoutLines(
 			rest = {
 				...rest,
 				text: tail,
-				width: fonts.width(style.face, style.size, tail, style.letterSpacing),
+				width: fonts.width(style.face, style.size, tail, style.letterSpacing, style.features),
 				breakBefore: true,
 			};
 		}
@@ -471,6 +619,8 @@ export function layoutLines(
 	// 3. Vertical layout per line: baseline alignment with half-leading.
 	const fragments: PlacedFragment[] = [];
 	const inlineBoxes: PlacedInlineBox[] = [];
+	const atomics: LineBreakResult["atomics"] = [];
+	const baselines: number[] = [];
 	/** Inline boxes still open at the end of the previous line (continue on the next). */
 	let carried: number[] = [];
 	let y = 0;
@@ -487,16 +637,25 @@ export function layoutLines(
 			above = Math.max(above, m.ascent + half);
 			below = Math.max(below, m.descent + leading - half);
 		}
+		// vertical-align: baseline — the box's baseline on the line's.
+		for (const w of l.words) {
+			if (!w.atomic) continue;
+			above = Math.max(above, w.atomic.baseline);
+			below = Math.max(below, w.atomic.height - w.atomic.baseline);
+		}
 		const lineHeight = above + below;
 		const baseline = y + above;
+		baselines.push(baseline);
 		const lw = contentWidth(l);
-		maxW = Math.max(maxW, lw);
+		const lead = li === 0 ? indent : 0;
+		maxW = Math.max(maxW, lw + lead);
 		const offset =
-			textAlign === "center"
-				? (maxWidth - lw) / 2
+			lead +
+			(textAlign === "center"
+				? (maxWidth - lead - lw) / 2
 				: textAlign === "right" || textAlign === "end"
-					? maxWidth - lw
-					: 0;
+					? maxWidth - lead - lw
+					: 0);
 		// Merge consecutive words of the same text node into fragments.
 		let x = offset;
 		let frag: PlacedFragment | null = null;
@@ -514,6 +673,7 @@ export function layoutLines(
 				frag = null;
 				return;
 			}
+			if (w.atomic) atomics.push({ item: w.atomic, x, y: baseline - w.atomic.baseline });
 			if (!w.style || w.nodeIndex < 0) {
 				frag = null;
 				x += w.width;
@@ -550,5 +710,5 @@ export function layoutLines(
 		y += lineHeight;
 	}
 	for (const f of fragments) f.text = f.text.trimEnd();
-	return { width: maxW, height: y, fragments, inlineBoxes };
+	return { width: maxW, height: y, fragments, inlineBoxes, atomics, baselines };
 }

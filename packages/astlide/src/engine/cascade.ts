@@ -54,6 +54,8 @@ table{display:table}
 thead{display:table-header-group}
 tbody{display:table-row-group}
 tfoot{display:table-footer-group}
+colgroup{display:table-column-group}
+col{display:table-column}
 tr{display:table-row}
 td,th{display:table-cell;padding:1px}
 th{text-align:center}
@@ -80,6 +82,8 @@ const INHERITED = new Set([
 	"overflow-wrap",
 	"word-wrap",
 	"word-break",
+	"font-variant-numeric",
+	"font-feature-settings",
 ]);
 
 const INITIAL: Record<string, string> = {
@@ -246,6 +250,15 @@ const BORDER_STYLES = new Set([
 	"outset",
 ]);
 
+const FONT_LONGHANDS = [
+	"font-style",
+	"font-weight",
+	"font-size",
+	"line-height",
+	"font-family",
+	"font-variant-numeric",
+];
+
 function expand(prop: string, value: string): Declaration[] {
 	const d = (p: string, v: string): Declaration => ({ prop: p, value: v, important: false });
 	switch (prop) {
@@ -256,6 +269,8 @@ function expand(prop: string, value: string): Declaration[] {
 			return boxSides("", "", value).map((x) => ({ ...x, prop: x.prop.slice(1) }));
 		case "border-width":
 			return boxSides("border", "-width", value);
+		case "border-style":
+			return boxSides("border", "-style", value);
 		case "border":
 		case "border-top":
 		case "border-right":
@@ -272,8 +287,35 @@ function expand(prop: string, value: string): Declaration[] {
 			}
 			return sides.flatMap((s) => [
 				d(`border-${s}-width`, style === "none" || style === "hidden" ? "0" : width),
+				d(`border-${s}-style`, style),
 				d(`border-${s}-color`, color),
 			]);
+		}
+		case "font": {
+			// [style || variant || weight || stretch]? size[/line-height]? family (css-fonts-4 §2.8);
+			// a system font keyword (caption, menu …) is left as is.
+			const m = value
+				.trim()
+				.match(
+					/^((?:(?:normal|italic|oblique|small-caps|bold|bolder|lighter|\d{3}|(?:ultra-|extra-|semi-)?(?:condensed|expanded))\s+)*)([\d.]+[a-z%]*|(?:xx?-|xxx-)?(?:small|large)|medium|larger|smaller)(?:\s*\/\s*(\S+))?\s+(\S.*)$/i,
+				);
+			// With var(): every longhand waits for the substitution (see declare).
+			if (/var\(/i.test(value)) return FONT_LONGHANDS.map((p) => d(p, value));
+			if (!m) return [d(prop, value)];
+			let style = "normal";
+			let weight = "normal";
+			for (const t of (m[1] ?? "").trim().split(/\s+/)) {
+				if (/^(italic|oblique)$/i.test(t)) style = t;
+				else if (/^(bold|bolder|lighter|\d{3})$/i.test(t)) weight = t;
+			}
+			return [
+				d("font-style", style),
+				d("font-weight", weight),
+				d("font-size", m[2] ?? "medium"),
+				d("line-height", m[3] ?? "normal"),
+				d("font-family", m[4] ?? ""),
+				d("font-variant-numeric", "normal"),
+			];
 		}
 		case "gap": {
 			const [r, c = r] = tokens(value);
@@ -596,6 +638,14 @@ const FONT_SIZES: Record<string, number> = {
 	larger: 1.2,
 };
 
+/** A `zoom` value as a factor: a number or percentage; `normal` (and anything else) is 1. */
+function zoomFactor(v: string): number {
+	const t = v.trim();
+	const pct = t.match(/^([\d.]+)%$/);
+	const n = pct ? Number(pct[1]) / 100 : /^[\d.]+$/.test(t) ? Number(t) : 1;
+	return n > 0 ? n : 1;
+}
+
 /**
  * Computed style of an element: cascade → inheritance → var() → absolute
  * font-size; other lengths stay as specified strings (resolved at layout).
@@ -628,17 +678,33 @@ export function computeStyle(declared: Map<string, string>, ctx: Context): Compu
 	};
 
 	const parentFs = Number.parseFloat(parent?.get("font-size") ?? "16");
+	// zoom (css-viewport): every length inside is multiplied by the product
+	// of the zooms down the tree. Lengths are resolved unzoomed, then scaled;
+	// inherited px values already carry the parent's zoom.
+	const parentZoom = Number(parent?.get("__zoom") ?? 1) || 1;
+	const ownZoom = zoomFactor(declared.has("zoom") ? value("zoom") : "");
+	const zoom = parentZoom * ownZoom;
+	if (zoom !== 1 || parent?.has("__zoom")) out.set("__zoom", String(zoom));
+	const own = (prop: string) =>
+		declared.has(prop) && !/^(inherit|unset)$/.test(declared.get(prop) ?? "");
 	let fsRaw = value("font-size");
 	let fs: number;
-	if (fsRaw in FONT_SIZES) {
+	if (!own("font-size")) fs = parentFs * ownZoom;
+	else if (fsRaw in FONT_SIZES) {
 		const k = FONT_SIZES[fsRaw] ?? 16;
-		fs = fsRaw === "smaller" || fsRaw === "larger" ? parentFs * k : k;
+		fs = fsRaw === "smaller" || fsRaw === "larger" ? parentFs * k * ownZoom : k * zoom;
 	} else {
-		fs = toPx(fsRaw, parentFs, ctx.rootFontSize, ctx.vp, parentFs);
-		if (Number.isNaN(fs)) fs = parentFs;
+		const base = parentFs / parentZoom;
+		fs = toPx(fsRaw, base, ctx.rootFontSize, ctx.vp, base) * zoom;
+		if (Number.isNaN(fs)) fs = parentFs * ownZoom;
 	}
 	fsRaw = `${fs}px`;
 	out.set("font-size", fsRaw);
+	/** A length property in px: declared ones resolved unzoomed and scaled; inherited ones scaled by this element's zoom. */
+	const zoomed = (prop: string, v: string) =>
+		own(prop)
+			? `${toPx(v, fs / zoom, ctx.rootFontSize, ctx.vp, fs / zoom) * zoom}px`
+			: `${Number.parseFloat(v) * ownZoom}px`;
 
 	const props = new Set<string>([
 		...Object.keys(INITIAL),
@@ -648,12 +714,28 @@ export function computeStyle(declared: Map<string, string>, ctx: Context): Compu
 		if (prop === "font-size") continue;
 		let v = value(prop);
 		if (prop === "font-weight") v = FONT_WEIGHTS[v] ?? v;
-		if (prop === "line-height" && /(em|rem|%)$/.test(v))
-			v = `${toPx(v, fs, ctx.rootFontSize, ctx.vp, fs)}px`;
-		if (prop === "letter-spacing" && v !== "normal")
-			v = `${toPx(v, fs, ctx.rootFontSize, ctx.vp, fs)}px`;
+		if (prop === "line-height" && /(px|em|rem|%|vw|vh|pt)$/.test(v)) v = zoomed(prop, v);
+		if (prop === "letter-spacing" && v !== "normal") v = zoomed(prop, v);
 		if (prop === "color" && v.toLowerCase() === "currentcolor") v = parent?.get("color") ?? "#000";
 		out.set(prop, v);
+	}
+	// Border widths (CSS backgrounds-3 §3.3): 0 without a border style; a style
+	// without a width is medium. Zoomed widths snap to whole pixels as in
+	// Chromium (at least 1px), kept unzoomed like the other lengths.
+	for (const side of ["top", "right", "bottom", "left"]) {
+		const style = (out.get(`border-${side}-style`) ?? "none").trim();
+		const width = out.get(`border-${side}-width`);
+		if (style === "none" || style === "hidden") {
+			if (width !== undefined) out.set(`border-${side}-width`, "0");
+			continue;
+		}
+		const raw = (width ?? "medium").trim();
+		const keyword = { thin: 1, medium: 3, thick: 5 }[raw];
+		const unzoomed = keyword ?? toPx(raw, fs / zoom, ctx.rootFontSize, ctx.vp, Number.NaN);
+		if (Number.isNaN(unzoomed)) continue;
+		const used = unzoomed * zoom;
+		const snapped = used <= 0 ? 0 : used < 1 ? 1 : zoom === 1 ? used : Math.floor(used);
+		out.set(`border-${side}-width`, `${snapped / zoom}px`);
 	}
 	// currentColor elsewhere (border / background / outline / fill …) is this element's color.
 	const color = out.get("color") ?? "#000";
