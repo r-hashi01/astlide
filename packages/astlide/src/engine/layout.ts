@@ -179,6 +179,12 @@ interface BoxNode {
 	eid: number;
 }
 
+/** A deferred percentage size: the percentage and the box it refers to. */
+interface Cyclic {
+	pct: number;
+	parent: YogaNode;
+}
+
 /** A grid container while building: its items, columns sized once its width is known. */
 interface GridNode {
 	node: YogaNode;
@@ -254,6 +260,8 @@ class Builder {
 	readonly boxNodes: BoxNode[] = [];
 	readonly tables: TableNode[] = [];
 	readonly grids: GridNode[] = [];
+	/** Boxes whose width comes from their content (a row flex item, an inline-block …). */
+	readonly contentSized = new Set<YogaNode>();
 	rootFontSize = 16;
 	readonly config = Yoga.Config.create();
 	/** Parent of each node we created (Yoga's getParent/getChild return fresh wrappers). */
@@ -399,7 +407,9 @@ class Builder {
 		this.margins.set(node, vertical);
 		const ar = (style.get("aspect-ratio") ?? "auto").match(/([\d.]+)\s*(?:\/\s*([\d.]+))?/);
 		const ratio = ar && Number(ar[1]) > 0 ? Number(ar[1]) / Number(ar[2] ?? 1) : 0;
-		if (ratio) node.setAspectRatio(ratio);
+		// With both width and height set, aspect-ratio doesn't apply.
+		const sized = (prop: string) => !/^(auto|)$/.test((style.get(prop) ?? "auto").trim());
+		if (ratio && !(sized("width") && sized("height"))) node.setAspectRatio(ratio);
 		// Absolute boxes are placed against their containing block, the nearest
 		// positioned ancestor: static boxes (CSS's default) don't count, as in browsers.
 		const position = style.get("position") ?? "static";
@@ -518,11 +528,16 @@ class Builder {
 		for (const it of items) if (it.kind === "text" && it.nodeIndex !== -1) it.nodeIndex = k++;
 		const strut = this.inlineStyle(containerStyle);
 		const node = Yoga.Node.create(this.config);
+		// The text's width on one line per forced break (max-content), measured once.
+		let maxContent: number | undefined;
 		node.setMeasureFunc((width, widthMode) => {
 			const max = widthMode === MeasureMode.Undefined ? Number.POSITIVE_INFINITY : width;
 			const r = layoutLines(items, max, strut, "left", this.fonts);
+			maxContent ??= layoutLines(items, Number.POSITIVE_INFINITY, strut, "left", this.fonts).width;
 			return {
-				width: widthMode === MeasureMode.Exactly ? width : Math.min(r.width, max),
+				// Shrink-to-fit, as CSS: max-content, or all the room when that's wider
+				// (not the widest of the lines it wrapped into).
+				width: widthMode === MeasureMode.Exactly ? width : Math.min(maxContent, max),
 				height: r.height,
 			};
 		});
@@ -638,6 +653,89 @@ class Builder {
 	 * call (after a layout with unsized items) records their content widths
 	 * for `auto` columns. Returns whether a width changed.
 	 */
+	/**
+	 * Percentages inside a box sized by its content are cyclic: as in
+	 * browsers, the box is sized with them as `auto`, then they resolve
+	 * against its size. Widths are cyclic in a content-sized box (a row flex
+	 * item that doesn't grow, an inline-block …); heights in any box whose
+	 * height isn't a length. {@link deferCyclicSizes} before the first layout,
+	 * then {@link resolveCyclicSizes} once the containers' sizes are known.
+	 */
+	private readonly cyclic = {
+		width: new Map<YogaNode, Cyclic>(),
+		height: new Map<YogaNode, Cyclic>(),
+	};
+
+	/** Before the first layout: cyclic percentages as auto (see {@link resolveCyclicSizes}). */
+	deferCyclicSizes(): void {
+		const styles = new Map(this.boxNodes.map((bn) => [bn.node, bn.style]));
+		const fixedHeight = (node: YogaNode) =>
+			!/^(auto|fit-content|max-content|min-content|)$/.test(
+				(styles.get(node)?.get("height") ?? "auto").trim(),
+			);
+		for (const bn of this.boxNodes) {
+			const parent = this.parents.get(bn.node);
+			if (!parent) continue;
+			for (const axis of ["width", "height"] as const) {
+				const pending = this.cyclic[axis];
+				const pct = (bn.style.get(axis) ?? "").trim().match(/^([\d.]+)%$/);
+				if (!pct) continue;
+				// Tree order: a parent whose own percentage is deferred comes first.
+				const cyclic =
+					pending.has(parent) ||
+					(axis === "width"
+						? this.contentSized.has(parent)
+						: styles.has(parent) && !fixedHeight(parent));
+				if (!cyclic) continue;
+				pending.set(bn.node, { pct: Number(pct[1]), parent });
+				// As auto: a picture's own size (its width / height attribute), else its content's.
+				const own = Number.parseFloat(bn.el.attribs[axis] ?? "");
+				const picture = /^(svg|img)$/.test(bn.el.name) && own > 0;
+				if (axis === "width") picture ? bn.node.setWidth(own) : bn.node.setWidthAuto();
+				else picture ? bn.node.setHeight(own) : bn.node.setHeightAuto();
+			}
+		}
+	}
+
+	/** Resolve the deferred percentages, outer boxes first, laying out again as it goes. */
+	resolveCyclicSizes(relayout: () => void): void {
+		const { width, height } = this.cyclic;
+		if (width.size + height.size === 0) return;
+		const resolved = { width: new Set<YogaNode>(), height: new Set<YogaNode>() };
+		// Widths first: they decide how text wraps, and so the heights.
+		for (const axis of ["width", "height"] as const) {
+			const pending = this.cyclic[axis];
+			for (let pass = 0; pass < 8 && pending.size > 0; pass++) {
+				const ready = [...pending].filter(([, p]) => !pending.has(p.parent));
+				for (const [node, { pct, parent }] of ready) {
+					const [a, b] = axis === "width" ? [Edge.Left, Edge.Right] : [Edge.Top, Edge.Bottom];
+					const outer = axis === "width" ? parent.getComputedWidth() : parent.getComputedHeight();
+					const content =
+						outer -
+						parent.getComputedPadding(a) -
+						parent.getComputedPadding(b) -
+						parent.getComputedBorder(a) -
+						parent.getComputedBorder(b);
+					// The parent keeps the size it got with the percentage as auto —
+					// unless it's a percentage itself, already set (fixing it again
+					// would shrink it twice).
+					if (!resolved[axis].has(parent)) {
+						const size = parent.getBoxSizing() === BoxSizing.BorderBox ? outer : content;
+						axis === "width" ? parent.setWidth(size) : parent.setHeight(size);
+					}
+					const size = (pct / 100) * content;
+					axis === "width" ? node.setWidth(size) : node.setHeight(size);
+					// Width and height both set again: aspect-ratio no longer applies.
+					if (!this.cyclic.width.has(node) && !this.cyclic.height.has(node))
+						node.setAspectRatio(Number.NaN);
+					pending.delete(node);
+					resolved[axis].add(node);
+				}
+				relayout();
+			}
+		}
+	}
+
 	sizeGrids(): boolean {
 		let changed = false;
 		for (const g of this.grids) {
@@ -764,7 +862,8 @@ class Builder {
 		if (auto("width") && w > 0) node.setWidth(w);
 		else if (auto("width") && el.name !== "img" && !(ratio > 0)) node.setWidth(300);
 		if (auto("height") && !(ratio > 0)) node.setHeight(h > 0 ? h : 150);
-		if (ratio > 0) node.setAspectRatio(ratio);
+		// The picture's ratio sizes the side CSS leaves auto; with both set, it doesn't apply.
+		if (ratio > 0 && (auto("width") || auto("height"))) node.setAspectRatio(ratio);
 	}
 
 	/**
@@ -879,6 +978,12 @@ class Builder {
 			// min-height: auto doesn't shrink below its content (it overflows).
 			if (!container || (column && (cs.get("min-height") ?? "auto") === "auto"))
 				yn.setFlexShrink(0);
+			// In a row, an aspect-ratio box shrinks like any other (its height
+			// follows); only its height keeps it from shrinking in a column.
+			else if (container && !column && (cs.get("aspect-ratio") ?? "auto") !== "auto") {
+				const shrink = Number(cs.get("flex-shrink") ?? 1);
+				yn.setFlexShrink(Number.isNaN(shrink) ? 1 : shrink);
+			}
 			if (
 				/^(fit-content|max-content|min-content)$/.test(w) &&
 				stretches &&
@@ -888,6 +993,24 @@ class Builder {
 				yn.setAlignSelf(Align.FlexStart);
 			}
 			const entry: BoxNode = { node: yn, el: child, style: cs, eid: this.eids.get(child) ?? -1 };
+			// Content-sized: a row flex item that doesn't grow, a column flex item
+			// that isn't stretched, or (in flow) an inline-block, float or absolute
+			// box. Grid items take their column's width; flex and grid items are
+			// blockified, so inline-block doesn't make them shrink-to-fit.
+			if (
+				!grid &&
+				/^(auto|fit-content|max-content|min-content)$/.test(w) &&
+				((container &&
+					!column &&
+					Number(cs.get("flex-grow") ?? 0) === 0 &&
+					(cs.get("flex-basis") ?? "auto") === "auto") ||
+					(container && !stretches) ||
+					/^(absolute|fixed)$/.test(cs.get("position") ?? "") ||
+					(!container &&
+						(/^inline-(block|flex|grid)$/.test(childDisplay) ||
+							/^(left|right)$/.test(cs.get("float") ?? ""))))
+			)
+				this.contentSized.add(yn);
 			// Absolutely positioned children aren't grid items.
 			if (grid && !/^(absolute|fixed)$/.test(cs.get("position") ?? "")) {
 				yn.setFlexGrow(0);
@@ -1028,6 +1151,7 @@ export function layoutSlide(
 	if ((slideStyle.get("width") ?? "auto") === "auto") root.setWidth(vp.width);
 	if ((slideStyle.get("height") ?? "auto") === "auto") root.setHeight(vp.height);
 
+	b.deferCyclicSizes();
 	root.calculateLayout(vp.width, vp.height, Direction.LTR);
 	// Grid columns, once the containers' widths are known: again while a nested
 	// grid's container width changes with its parent's columns (one more level
@@ -1035,6 +1159,8 @@ export function layoutSlide(
 	for (let pass = 0; pass < 8 && b.sizeGrids(); pass++)
 		root.calculateLayout(vp.width, vp.height, Direction.LTR);
 	// Tables: column widths from the table's width, then lay out again.
+	// Cyclic percentages, once grid columns have set the widths they depend on.
+	b.resolveCyclicSizes(() => root.calculateLayout(vp.width, vp.height, Direction.LTR));
 	if (b.sizeTables()) root.calculateLayout(vp.width, vp.height, Direction.LTR);
 
 	// Clipping: ancestors with overflow ≠ visible clip descendants to their padding box.
