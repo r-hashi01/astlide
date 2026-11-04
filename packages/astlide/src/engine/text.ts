@@ -285,6 +285,13 @@ interface Word {
 	edge?: { kind: "open" | "close"; id: number };
 }
 
+/**
+ * How far a line may run past its box before it breaks: Yoga rounds layout
+ * to 1/64px, so a box sized to its text can come out that much narrower than
+ * the text measured into it.
+ */
+const FIT = 1 / 32;
+
 /** Kana, CJK ideographs and symbols, Hangul, full-width forms: a line may break around each one. */
 const CJK =
 	/[\u2e80-\u2fff\u3000-\u30ff\u3100-\u31ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uffef]|[\u{20000}-\u{3134f}]/u;
@@ -404,7 +411,7 @@ export function layoutLines(
 			line = { words: [], width: 0 };
 			continue;
 		}
-		if (!word.space && line.words.length > 0 && line.width + word.width > maxWidth + 0.01) {
+		if (!word.space && line.words.length > 0 && line.width + word.width > maxWidth + FIT) {
 			const prev = line.words[line.words.length - 1];
 			// Break after white space, or at a break opportunity inside a word.
 			if (prev?.space || word.breakBefore) {
@@ -418,7 +425,7 @@ export function layoutLines(
 		while (
 			!rest.space &&
 			rest.style?.breakWord &&
-			line.width + rest.width > maxWidth + 0.01 &&
+			line.width + rest.width > maxWidth + FIT &&
 			[...rest.text].length > 1
 		) {
 			const style = rest.style;
@@ -433,7 +440,7 @@ export function layoutLines(
 						chars.slice(0, n + 1).join(""),
 						style.letterSpacing,
 					) <=
-					maxWidth + 0.01
+					maxWidth + FIT
 			)
 				n++;
 			if (n === 0 && line.words.length > 0) {
