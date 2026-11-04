@@ -97,6 +97,27 @@ describe("engine layout", () => {
 		for (const l of long.lines) expect(l.w).toBeLessThanOrEqual(100.5);
 	});
 
+	it("breaks Japanese text between characters, with kinsoku", () => {
+		const text = "日本語の文章は空白なしで続きます。「括弧」の前後でも、句読点は行頭に来ません。";
+		// The test font has no CJK glyphs: each character measures ~5px.
+		const p = page(".p{width:60px}", `<div class="p">${text}</div>`);
+		const lines = p.lines.map((l) => l.text);
+		expect(lines.length).toBeGreaterThan(2);
+		expect(lines.join("")).toBe(text);
+		for (const l of p.lines) expect(l.w).toBeLessThanOrEqual(60.5);
+		for (const l of lines) {
+			expect(l).not.toMatch(/^[、。」]/);
+			expect(l).not.toMatch(/「$/);
+		}
+	});
+
+	it("keeps Latin words whole next to CJK, and doesn't break nowrap text", () => {
+		const mixed = page(".p{width:60px}", '<div class="p">漢字漢字漢字abcdefgh漢字漢字</div>');
+		expect(mixed.lines.map((l) => l.text).some((l) => l.includes("abcdefgh"))).toBe(true);
+		const nowrap = page(".p{width:20px;white-space:nowrap}", '<div class="p">日本語の文章</div>');
+		expect(nowrap.lines.map((l) => l.text)).toEqual(["日本語の文章"]);
+	});
+
 	it("applies text-transform to the text it lays out", () => {
 		const s = page(".u{text-transform:uppercase}", '<div class="u">Quarterly review</div>');
 		expect(s.lines.map((l) => l.text)).toEqual(["QUARTERLY REVIEW"]);

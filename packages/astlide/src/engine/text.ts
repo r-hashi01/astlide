@@ -285,6 +285,42 @@ interface Word {
 	edge?: { kind: "open" | "close"; id: number };
 }
 
+/** Kana, CJK ideographs and symbols, Hangul, full-width forms: a line may break around each one. */
+const CJK =
+	/[\u2e80-\u2fff\u3000-\u30ff\u3100-\u31ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uffef]|[\u{20000}-\u{3134f}]/u;
+/** Never at the start of a line (kinsoku): closing punctuation, small kana, iteration and prolonged marks. */
+const NO_BREAK_BEFORE =
+	/[、。，．・：；？！‼⁇⁈⁉）〕］｝〉》」』】〙〗〟’”｠»ゝゞヽヾー々〻ぁぃぅぇぉっゃゅょゎゕゖァィゥェォッャュョヮヵヶㇰ-ㇿ〜～…‥゛゜)\]}.,:;!?%]/u;
+/** Never at the end of a line: opening brackets and quotes. */
+const NO_BREAK_AFTER = /[（〔［｛〈《「『【〘〖〝‘“｟«(\[{]/u;
+
+/**
+ * A word's break opportunities (UAX #14, the cases slides need): after a
+ * hyphen that follows a letter and precedes one, and around CJK characters —
+ * Japanese, Chinese and Korean text has no spaces to break at — except where
+ * kinsoku forbids it.
+ */
+function breakPieces(word: string): string[] {
+	const chars = [...word];
+	const pieces: string[] = [];
+	let piece = "";
+	for (const [i, ch] of chars.entries()) {
+		const prev = chars[i - 1];
+		if (prev !== undefined && piece !== "") {
+			const hyphen = prev === "-" && /[^\s-]/.test(chars[i - 2] ?? "") && /[A-Za-z]/.test(ch);
+			const cjk =
+				(CJK.test(prev) || CJK.test(ch)) && !NO_BREAK_BEFORE.test(ch) && !NO_BREAK_AFTER.test(prev);
+			if (hyphen || cjk) {
+				pieces.push(piece);
+				piece = "";
+			}
+		}
+		piece += ch;
+	}
+	pieces.push(piece);
+	return pieces;
+}
+
 /**
  * Lay out inline items into lines of at most `maxWidth` px. `strut` is the
  * block container's own inline style (it sets the minimum line height).
@@ -335,9 +371,8 @@ export function layoutLines(
 			}
 			const isSpace = /^[ \t]+$/.test(part);
 			if (isSpace && !pre && prevSpace) continue;
-			// UAX #14: a line may break after a hyphen that follows a letter, before a letter.
 			const wraps = !/^(pre|nowrap)$/.test(item.style.whiteSpace);
-			const pieces = isSpace || !wraps ? [part] : part.split(/(?<=[^\s-]-)(?=[A-Za-z])/);
+			const pieces = isSpace || !wraps ? [part] : breakPieces(part);
 			pieces.forEach((piece, k) => {
 				const w = fonts.width(item.style.face, item.style.size, piece, item.style.letterSpacing);
 				words.push({
@@ -354,7 +389,7 @@ export function layoutLines(
 		}
 	}
 
-	// 2. Greedy line breaking at spaces.
+	// 2. Greedy line breaking at spaces and at break opportunities inside words.
 	type Line = { words: Word[]; width: number };
 	const lines: Line[] = [];
 	let line: Line = { words: [], width: 0 };
