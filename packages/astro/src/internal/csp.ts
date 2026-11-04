@@ -29,9 +29,10 @@ export const DEFAULT_DECK_CSP = [
 	"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
 	"font-src 'self' https://fonts.gstatic.com data:",
 	"img-src 'self' data: https: blob:",
-	// `data:` and `blob:` allowed so the in-browser PDF exporter can fetch
-	// its own rasterised page images while assembling the document.
-	"connect-src 'self' data: blob:",
+	// The in-browser PDF exporter fetches its own rasterised page images
+	// (`data:`, `blob:`) and the fonts it embeds: the deck's Google Fonts and
+	// the Noto Sans JP fallback for Japanese text and symbols.
+	"connect-src 'self' data: blob: https://fonts.googleapis.com https://fonts.gstatic.com",
 	"frame-src 'self' https://www.youtube-nocookie.com",
 	...HARDENING,
 ].join("; ");

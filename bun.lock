@@ -74,7 +74,7 @@
         "vue": "^3.5.44",
       },
       "optionalDependencies": {
-        "@astlide/crispdf": "^0.0.1",
+        "@astlide/crispdf": "^0.0.3",
         "playwright": "^1.64.1",
       },
       "peerDependencies": {
@@ -287,7 +287,7 @@
 
     "@astlide/core": ["@astlide/core@workspace:packages/astlide"],
 
-    "@astlide/crispdf": ["@astlide/crispdf@0.0.1", "", { "dependencies": { "@pdf-lib/standard-fonts": "^1.0.0", "fontkit": "^2.0.4", "html-to-image": "^1.11.13", "woff2-encoder": "^2.0.0" }, "peerDependencies": { "pdfjs-dist": "^5.0.0" }, "optionalPeers": ["pdfjs-dist"] }, "sha512-37n7hAoXbi5/OJNiesFgpb6ZsSwM+IuM6DzN6XmBWSXh4QjCb7sSVLFRn97iQmkNB1W+UZ2EC/fTgExp4wBRCg=="],
+    "@astlide/crispdf": ["@astlide/crispdf@0.0.3", "", { "dependencies": { "@pdf-lib/standard-fonts": "^1.0.0", "fontkit": "^2.0.4", "html-to-image": "^1.11.13", "woff2-encoder": "^2.0.0" }, "peerDependencies": { "pdfjs-dist": "^5.0.0" }, "optionalPeers": ["pdfjs-dist"] }, "sha512-fnDF+VxTuit0BYrcVY2evLhvFwEFib6y0BJ148jkSIcXVkQLgN4KcI+rirmegdFSCAChOwLduHIFyd/T3JX/8A=="],
 
     "@astlide/next": ["@astlide/next@workspace:packages/next"],
 
