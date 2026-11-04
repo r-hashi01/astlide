@@ -6,6 +6,7 @@
 
 import { readFileSync } from "node:fs";
 import * as fontkit from "fontkit";
+import type { Keyword } from "./properties";
 
 export interface FontFace {
 	family: string;
@@ -274,7 +275,7 @@ export interface InlineStyle {
 	/** Used line height in px. */
 	lineHeight: number;
 	letterSpacing: number;
-	whiteSpace: string;
+	whiteSpace: Keyword<"white-space">;
 	color: string;
 	/** Effective opacity (element and ancestors). */
 	alpha: number;
@@ -565,7 +566,7 @@ export function layoutLines(
 			}
 			const isSpace = /^[ \t]+$/.test(part);
 			if (isSpace && !pre && prevSpace) continue;
-			const wraps = !/^(pre|nowrap)$/.test(item.style.whiteSpace);
+			const wraps = item.style.whiteSpace !== "pre" && item.style.whiteSpace !== "nowrap";
 			const pieces = isSpace || !wraps ? [part] : breakPieces(part);
 			pieces.forEach((piece, k) => {
 				const w = measure(piece);

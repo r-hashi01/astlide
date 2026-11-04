@@ -11,6 +11,15 @@ import { compile } from "css-select";
 import { parse as parseSelector, type Selector } from "css-what";
 import type { Element } from "domhandler";
 import postcss, { type AtRule, type ChildNode, type Rule } from "postcss";
+import {
+	blockified,
+	value as computedValue,
+	initialValue,
+	isAbsolute,
+	isFloat,
+	isInherited,
+	PROPERTIES,
+} from "./properties";
 
 export interface Viewport {
 	width: number;
@@ -57,78 +66,14 @@ tfoot{display:table-footer-group}
 colgroup{display:table-column-group}
 col{display:table-column}
 tr{display:table-row}
-td,th{display:table-cell;padding:1px}
+thead,tbody,tfoot,tr{vertical-align:middle}
+td,th{display:table-cell;padding:1px;vertical-align:inherit}
 th{text-align:center}
 caption{display:table-caption;text-align:center}
 button,input,select,textarea{display:inline-block;font-size:13.333px;font-family:system-ui,sans-serif}
 button,select{padding:1px 6px;border:2px solid #767676;border-radius:3px;background-color:#efefef;color:#000;text-align:center}
 input,textarea{padding:1px 2px;border:2px solid #767676;background-color:#fff;color:#000}
 `;
-
-/** Properties inherited by default (the subset we compute). */
-const INHERITED = new Set([
-	"color",
-	"font-family",
-	"font-size",
-	"font-weight",
-	"font-style",
-	"line-height",
-	"letter-spacing",
-	"text-align",
-	"white-space",
-	"visibility",
-	"list-style-type",
-	"text-transform",
-	"overflow-wrap",
-	"word-wrap",
-	"word-break",
-	"font-variant-numeric",
-	"font-feature-settings",
-]);
-
-const INITIAL: Record<string, string> = {
-	display: "inline",
-	position: "static",
-	color: "#000",
-	"font-family": "serif",
-	"font-size": "16px",
-	"font-weight": "400",
-	"font-style": "normal",
-	"line-height": "normal",
-	"letter-spacing": "normal",
-	"text-align": "start",
-	"white-space": "normal",
-	visibility: "visible",
-	opacity: "1",
-	"box-sizing": "content-box",
-	"flex-direction": "row",
-	"flex-wrap": "nowrap",
-	"flex-grow": "0",
-	"flex-shrink": "1",
-	"flex-basis": "auto",
-	"justify-content": "flex-start",
-	"align-items": "stretch",
-	"align-self": "auto",
-	"align-content": "normal",
-	"row-gap": "normal",
-	"column-gap": "normal",
-	width: "auto",
-	height: "auto",
-	"min-width": "auto",
-	"min-height": "auto",
-	"max-width": "none",
-	"max-height": "none",
-	"background-color": "transparent",
-	"grid-template-columns": "none",
-	"list-style-type": "disc",
-	"text-transform": "none",
-};
-for (const side of ["top", "right", "bottom", "left"]) {
-	INITIAL[`margin-${side}`] = "0";
-	INITIAL[`padding-${side}`] = "0";
-	INITIAL[`border-${side}-width`] = "medium";
-	INITIAL[side] = "auto";
-}
 
 // ── Specificity ──────────────────────────────────────────────────────────
 
@@ -779,11 +724,11 @@ export function computeStyle(declared: Map<string, string>, ctx: Context): Compu
 			v = expand(shorthand, resolved).find((d) => d.prop === prop)?.value;
 		}
 		if (v !== undefined) v = resolveVars(v, custom).trim();
-		if (v === undefined || v === "" || v === "inherit" || (v === "unset" && INHERITED.has(prop))) {
-			if (v === undefined && !INHERITED.has(prop)) return INITIAL[prop] ?? "";
-			return parent?.get(prop) ?? INITIAL[prop] ?? "";
+		if (v === undefined || v === "" || v === "inherit" || (v === "unset" && isInherited(prop))) {
+			if (v === undefined && !isInherited(prop)) return initialValue(prop);
+			return parent?.get(prop) ?? initialValue(prop);
 		}
-		if (v === "initial" || v === "unset") return INITIAL[prop] ?? "";
+		if (v === "initial" || v === "unset") return initialValue(prop);
 		return v;
 	};
 
@@ -817,9 +762,7 @@ export function computeStyle(declared: Map<string, string>, ctx: Context): Compu
 			: `${Number.parseFloat(v) * ownZoom}px`;
 
 	const props = new Set<string>([
-		...Object.keys(INITIAL),
-		// Inherited ones without an initial value of ours still pass down.
-		...INHERITED,
+		...Object.keys(PROPERTIES),
 		...[...declared.keys()].filter((k) => !k.startsWith("--")),
 	]);
 	for (const prop of props) {
@@ -831,6 +774,13 @@ export function computeStyle(declared: Map<string, string>, ctx: Context): Compu
 		if (prop === "color" && v.toLowerCase() === "currentcolor") v = parent?.get("color") ?? "#000";
 		out.set(prop, v);
 	}
+	// Absolutely positioned and floated boxes, and flex / grid items, are
+	// block-level (CSS 2 §9.7, CSS Display 3 §2.7); an absolute box doesn't float.
+	const parentDisplay = parent?.get("display") ?? "";
+	const flexOrGridItem = /^(inline-)?(flex|grid)$/.test(parentDisplay);
+	if (isAbsolute(out)) out.set("float", "none");
+	if (isAbsolute(out) || isFloat(out) || flexOrGridItem)
+		out.set("display", blockified(computedValue(out, "display")));
 	// Border widths (CSS backgrounds-3 §3.3): 0 without a border style; a style
 	// without a width is medium. Zoomed widths snap to whole pixels as in
 	// Chromium (at least 1px), kept unzoomed like the other lengths.

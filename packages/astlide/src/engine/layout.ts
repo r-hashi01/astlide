@@ -24,6 +24,7 @@ import { type Computed, computeStyle, type StyleSheets, toPx, type Viewport } fr
 import { Flow, type Fragment } from "./flow";
 import { columnSpan, parseTracks, placeItems, sizeTracks } from "./grid";
 import type { NaturalSize } from "./images";
+import { clipsOverflow, keyword, value } from "./properties";
 import {
 	type FontRegistry,
 	type InlineItem,
@@ -256,7 +257,7 @@ class Builder {
 			const p = this.absolute(node);
 			const own = boxTransform(
 				transform,
-				style.get("transform-origin") ?? "",
+				value(style, "transform-origin"),
 				{ x: p.x, y: p.y, w: node.getComputedWidth(), h: node.getComputedHeight() },
 				(v, basis) => toPx(v, fs, this.ctx.rootFontSize, this.vp, basis),
 			);
@@ -1255,14 +1256,13 @@ function flowLayout(
 			style,
 			alpha: Number(style.get("__alpha") ?? 1),
 		});
-		const row = f.box.el.name === "tr" || (style.get("display") ?? "") === "table-row";
+		const row = f.box.el.name === "tr" || keyword(style, "display") === "table-row";
 		// Table rows are listed with their table (rowBoxes), the rest by box.
 		if (!row) placedBox.set(f.box, box);
 		if (f.box.kind === "table") tableFrags.set(f.box, { f, x, y, a });
 		if (row) rowBoxes.set(f.box.eid, box);
 		let inner = clip;
-		const o = `${style.get("overflow") ?? ""} ${style.get("overflow-x") ?? ""} ${style.get("overflow-y") ?? ""}`;
-		if (/hidden|clip|auto|scroll/.test(o)) {
+		if (clipsOverflow(style)) {
 			const { border } = new Flow(ctx).edges(style);
 			const own = mapRect(a, {
 				x: x + border.left,
