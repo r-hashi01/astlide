@@ -209,6 +209,52 @@ describe("layout core", () => {
 	});
 });
 
+describe("layout core, continued", () => {
+	it("evaluates calc() with products, quotients and nested calc()", () => {
+		const b = boxes(
+			".a{width:calc(10px * calc(1 + 2));height:calc((100px - 20px) / 4)}.b{width:calc(50% - 2 * 10px);height:10px}",
+			'<div class="a"></div><div class="b"></div>',
+		);
+		expect(b.a).toMatchObject({ w: 30, h: 20 });
+		expect(b.b?.w).toBe(480);
+	});
+
+	it("gives each item its own column with grid-auto-flow: column", () => {
+		const b = boxes(
+			".g{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:20px}",
+			'<div class="g"><div class="x">a</div><div class="y">b</div><div class="z">c</div></div>',
+		);
+		expect(b.x?.w).toBe(320);
+		expect(b.y?.x).toBe(340);
+		expect(b.z?.y).toBe(b.x?.y);
+	});
+
+	it("lines items up by their baselines with align-items: baseline", () => {
+		const b = boxes(
+			".r{display:flex;align-items:baseline}.big{font-size:40px;line-height:40px}.small{font-size:10px;line-height:10px}",
+			'<div class="r"><span class="big">A</span><span class="small">a</span></div>',
+		);
+		// The small item sits low, its baseline on the big one's.
+		expect(b.small?.y).toBeGreaterThan((b.big?.y ?? 0) + 20);
+	});
+
+	it("resolves a grid item's max-height: 100% against a definite lone row", () => {
+		const b = boxes(
+			".g{display:grid;height:100px}.i{max-height:100%;overflow:hidden}.tall{height:300px}",
+			'<div class="g"><div class="i"><div class="tall"></div></div></div>',
+		);
+		expect(b.i?.h).toBe(100);
+	});
+
+	it("breaks before an inline box after a space, padding and all", () => {
+		const b = boxes(
+			".p{width:200px;line-height:20px}code{padding:0 20px}",
+			'<p class="p">aaaa bbbb cccc <code>dddd</code></p>',
+		);
+		expect(b.p?.h).toBe(40);
+	});
+});
+
 describe("text-spacing-trim", () => {
 	it("sets punctuation after punctuation half-width", () => {
 		const fonts = new FontRegistry();
@@ -231,5 +277,28 @@ describe("text-spacing-trim", () => {
 		if (full < 18) return;
 		expect(width("」「")).toBeCloseTo(width("」") + full - 10, 5);
 		expect(width("。」")).toBeCloseTo(width("。") - 10 + width("」"), 5);
+	});
+
+	it("lets closing punctuation at a line end go half-width to fit", () => {
+		const fonts = new FontRegistry();
+		fonts.add("T", 400, false, FONT);
+		const face = fonts.pick("T", 400, false);
+		const style = {
+			face,
+			size: 20,
+			lineHeight: 20,
+			letterSpacing: 0,
+			whiteSpace: "normal",
+			color: "#000",
+			alpha: 1,
+			breakWord: false,
+		};
+		const lay = (text: string, w: number) =>
+			layoutLines([{ kind: "text", text, style, nodeIndex: 0 }], w, style, "left", fonts);
+		const full = lay("」", 1000).width;
+		if (full < 18) return;
+		const one = lay("あ」", 1000).width;
+		// 5px short of the full width: the 」 loses its blank half and the line holds.
+		expect(lay("あ」", one - 5).fragments.map((f) => f.line)).toEqual([0]);
 	});
 });

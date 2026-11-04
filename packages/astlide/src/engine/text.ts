@@ -444,6 +444,18 @@ function trimAdjacent(words: Word[], fonts: FontRegistry): void {
 	run();
 }
 
+/** An inline box edge, or its padding / border / margin: no text of its own. */
+const isEdge = (w: Word | undefined) => !!w && !w.atomic && !w.style && !w.space;
+const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
+
+/** How much a word ending in fullwidth closing punctuation can lose at a line end: its blank half. */
+function closingTrim(word: Word, fonts: FontRegistry): number {
+	const style = word.style;
+	const last = [...word.text].pop() ?? "";
+	if (!style || !CLOSE_PUNCT.test(last)) return 0;
+	return fonts.width(style.face, style.size, last, 0) >= style.size * 0.9 ? style.size / 2 : 0;
+}
+
 /**
  * Lay out inline items into lines of at most `maxWidth` px. `strut` is the
  * block container's own inline style (it sets the minimum line height).
@@ -495,6 +507,18 @@ export function layoutLines(
 		const preLine = item.style.whiteSpace === "pre-line";
 		const text = pre ? item.text : item.text.replace(preLine ? /[ \t]+/g : /\s+/g, " ");
 		const parts = text.split(pre || preLine ? /(\n|[ \t]+)/ : /( )/);
+		// Each piece measured after the character before it, so kerning across
+		// pieces counts (browsers shape the whole run).
+		let before = "";
+		const { face, size, letterSpacing, features } = item.style;
+		const measure = (piece: string): number => {
+			const w = before
+				? fonts.width(face, size, before + piece, letterSpacing, features) -
+					fonts.width(face, size, before, letterSpacing, features)
+				: fonts.width(face, size, piece, letterSpacing, features);
+			before = [...piece].pop() ?? before;
+			return w;
+		};
 		for (const part of parts) {
 			if (part === "") continue;
 			if (part === "\n") {
@@ -507,6 +531,7 @@ export function layoutLines(
 					forcedBreak: true,
 				});
 				prevSpace = true;
+				before = "";
 				continue;
 			}
 			const isSpace = /^[ \t]+$/.test(part);
@@ -514,13 +539,7 @@ export function layoutLines(
 			const wraps = !/^(pre|nowrap)$/.test(item.style.whiteSpace);
 			const pieces = isSpace || !wraps ? [part] : breakPieces(part);
 			pieces.forEach((piece, k) => {
-				const w = fonts.width(
-					item.style.face,
-					item.style.size,
-					piece,
-					item.style.letterSpacing,
-					item.style.features,
-				);
+				const w = measure(piece);
 				words.push({
 					text: piece,
 					style: item.style,
@@ -555,14 +574,37 @@ export function layoutLines(
 			line = { words: [], width: 0 };
 			continue;
 		}
+		// text-spacing-trim's allow-end: closing punctuation ending the line may
+		// go half-width to fit (the line then breaks after it).
+		const endTrim = word.wraps !== false ? closingTrim(word, fonts) : 0;
+		if (
+			endTrim > 0 &&
+			line.words.length > 0 &&
+			line.width + word.width > room() + FIT &&
+			line.width + word.width - endTrim <= room() + FIT
+		)
+			word.width -= endTrim;
 		if (!word.space && line.words.length > 0 && line.width + word.width > room() + FIT) {
-			const prev = line.words[line.words.length - 1];
+			// The word before, past inline box edges and their padding / margins:
+			// those move with this word to the next line.
+			let k = line.words.length;
+			while (k > 0 && isEdge(line.words[k - 1])) k--;
+			// An inline box's closing padding that doesn't fit takes the word it closes along.
+			let unit = word;
+			if (isEdge(word) && k > 0 && !line.words[k - 1]?.space) {
+				unit = line.words[k - 1] as Word;
+				k--;
+				while (k > 0 && isEdge(line.words[k - 1])) k--;
+			}
+			const prev = line.words[k - 1];
 			// Break after white space, or at a break opportunity inside a word.
 			const after = (prev?.space || prev?.atomic) && prev.wraps !== false;
 			// The white space (or atomic inline) before decides; inside a word, the word's own style.
-			if (after || (word.breakBefore && word.wraps !== false)) {
+			if (k > 0 && (after || (unit.breakBefore && unit.wraps !== false))) {
+				const moved = line.words.splice(k);
+				line.width -= sum(moved.map((w) => w.width));
 				lines.push(line);
-				line = { words: [], width: 0 };
+				line = { words: moved, width: sum(moved.map((w) => w.width)) };
 			}
 		}
 		if (word.space && !word.pre && line.words.length === 0) continue; // collapsible spaces at line start
