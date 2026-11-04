@@ -255,6 +255,93 @@ describe("layout core, continued", () => {
 	});
 });
 
+describe("spec rules found by comparing with Chromium (#363)", () => {
+	it("weights flex shrinking by the inner base size (css-flexbox-1 §9.7)", () => {
+		const items = [
+			item({ base: 600, hypo: 600, edges: 0 }),
+			item({ base: 400, hypo: 400, edges: 100 }),
+		];
+		resolveFlexibleLengths(items, 600, 0);
+		// 400px too wide, shared 600 : 300 (the second item's inner size).
+		expect(items[0]?.target).toBeCloseTo(600 - (400 * 600) / 900, 5);
+		expect(items[1]?.target).toBeCloseTo(400 - (400 * 300) / 900, 5);
+	});
+
+	it("floors a flex item's base size at its padding and border (§9.2)", () => {
+		const b = boxes(
+			".r{display:flex;width:300px;height:10px}.a,.b{flex:1 1 0%}.b{border:solid;border-width:0 10px}",
+			'<div class="r"><div class="a"></div><div class="b"></div></div>',
+		);
+		// The 20px of border come first; the rest is shared equally.
+		expect(b.a?.w).toBe(140);
+		expect(b.b?.w).toBe(160);
+	});
+
+	it("shrinks a flex item with a set width down to its content (§4.5)", () => {
+		const b = boxes(
+			".r{display:flex;width:100px;height:10px}.a,.b{width:80px}",
+			'<div class="r"><div class="a"></div><div class="b"></div></div>',
+		);
+		expect(b.a?.w).toBe(50);
+	});
+
+	it("adds up a nowrap flex row's items for its min-content width", () => {
+		const b = boxes(
+			".m{width:min-content}.r{display:flex}.x,.y{width:50px;flex-shrink:0;height:10px}",
+			'<div class="m"><div class="r"><div class="x"></div><div class="y"></div></div></div>',
+		);
+		expect(b.m?.w).toBe(100);
+	});
+
+	it("keeps a column item's width within its max-width", () => {
+		const b = boxes(".i{width:100%;max-width:200px;height:10px}", '<div class="i"></div>');
+		expect(b.i?.w).toBe(200);
+	});
+
+	it("gives a border with a style and no width the medium width (3px)", () => {
+		const b = boxes(
+			".d{box-sizing:content-box;border-style:solid;height:10px;width:10px}",
+			'<div class="d"></div>',
+		);
+		expect(b.d).toMatchObject({ w: 16, h: 16 });
+	});
+
+	it("passes inherited properties down even without an initial value of ours", () => {
+		const b = boxes(
+			".p{width:60px;line-height:20px;word-break:break-word}",
+			'<p class="p"><span>aaaaaaaaaaaaaaaaaaaaaaaa</span></p>',
+		);
+		expect(b.p?.h).toBeGreaterThan(20);
+	});
+
+	it("takes an absolutely positioned inline-flex box out of the line", () => {
+		const b = boxes(
+			".p{position:relative;line-height:20px}.a{position:absolute;display:inline-flex;right:0;top:0;width:30px;height:50px}",
+			'<p class="p">text<span class="a"></span></p>',
+		);
+		expect(b.p?.h).toBe(20);
+		expect(b.a?.x).toBe(970);
+	});
+
+	it("sizes implicit rows by grid-auto-rows: minmax(0, 1fr)", () => {
+		const b = boxes(
+			".g{display:grid;grid-auto-rows:minmax(0,1fr);height:100px}.t{height:300px}",
+			'<div class="g"><div class="i"><div class="t"></div></div></div>',
+		);
+		expect(b.i?.h).toBe(100);
+	});
+
+	it("narrows an image limited by max-height to keep its ratio (CSS 2 §10.4)", () => {
+		const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"></svg>';
+		const b = boxes(
+			".r{display:flex}.i{max-height:100px}",
+			'<div class="r"><img class="i" src="/i.svg"></div>',
+			{ "i.svg": svg },
+		);
+		expect(b.i).toMatchObject({ w: 200, h: 100 });
+	});
+});
+
 /**
  * Measures CJK characters a full em wide and the rest half an em, so the
  * punctuation rules are tested whatever fonts the machine has (the test
@@ -297,5 +384,42 @@ describe("text-spacing-trim", () => {
 		expect(lines("あ）", 35)).toEqual([0]);
 		// A full stop keeps its width: the line breaks before the character it sticks to.
 		expect(lines("ああ。", 55)).toEqual([0, 1]);
+	});
+});
+
+describe("line breaking", () => {
+	const fonts = new FullwidthFonts();
+	fonts.add("T", 400, false, FONT);
+	const style = {
+		face: fonts.pick("T", 400, false),
+		size: 20,
+		lineHeight: 20,
+		letterSpacing: 0,
+		whiteSpace: "normal",
+		color: "#000",
+		alpha: 1,
+		breakWord: false,
+	};
+	const text = (t: string, nodeIndex: number) => ({
+		kind: "text" as const,
+		text: t,
+		style,
+		nodeIndex,
+	});
+
+	it("breaks before small kana and the prolonged sound mark (line-break: normal)", () => {
+		expect(layoutLines([text("ップー", 0)], 0, style, "left", fonts).width).toBe(20);
+	});
+
+	it("breaks between text nodes, and goes back to the last opportunity", () => {
+		// 日本<b>語</b>: CJK across nodes may break.
+		expect(layoutLines([text("日本", 0), text("語", 1)], 0, style, "left", fonts).width).toBe(20);
+		// あい（<code>ABCD</code>: no break after （, so the line breaks before it.
+		const r = layoutLines([text("あい（", 0), text("ABCD", 1)], 70, style, "left", fonts);
+		expect(r.fragments.map((f) => [f.text, f.line])).toEqual([
+			["あい", 0],
+			["（", 1],
+			["ABCD", 1],
+		]);
 	});
 });

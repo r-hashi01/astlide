@@ -258,8 +258,17 @@ export class Flow {
 					undefined,
 					padding.top + padding.bottom + border.top + border.bottom,
 				);
-				const w =
+				let w =
 					nat.w ?? (h !== undefined && nat.ratio ? h * nat.ratio : box.el.name === "img" ? 0 : 300);
+				// Height limits carry over through the ratio (CSS 2 §10.4).
+				const ratio = this.ratio(style) || nat.ratio;
+				const extraY = padding.top + padding.bottom + border.top + border.bottom;
+				const maxH = this.specified(style, "max-height", undefined, extraY);
+				const minH = this.specified(style, "min-height", undefined, extraY);
+				if (ratio && h === undefined) {
+					if (maxH !== undefined) w = Math.min(w, (maxH - extraY) * ratio);
+					if (minH !== undefined) w = Math.max(w, (minH - extraY) * ratio);
+				}
 				// A percentage width makes a picture compressible: no min-content (§5.2.1).
 				const pct = /%$/.test((style.get("width") ?? "").trim());
 				inner = { min: pct ? 0 : w + extraX, max: w + extraX };
@@ -286,7 +295,7 @@ export class Flow {
 			const row = !/column/.test(box.style.get("flex-direction") ?? "row");
 			if (!row) return { min: largest("min"), max: largest("max") };
 			const gap = (this.length(box.style, "column-gap") ?? 0) * Math.max(0, kids.length - 1);
-			const wrap = /wrap/.test(box.style.get("flex-wrap") ?? "");
+			const wrap = /^wrap/.test((box.style.get("flex-wrap") ?? "nowrap").trim());
 			return {
 				min: wrap ? largest("min") : sum(each.map((c) => c.min)) + gap,
 				max: sum(each.map((c) => c.max)) + gap,
@@ -804,7 +813,12 @@ export class Flow {
 			const avail = mainSize ?? sum(line.map((it) => it.hypo + it.mainMargins)) + gaps;
 			resolveFlexibleLengths(line, avail, gaps);
 			contentMain = Math.max(contentMain, sum(line.map((it) => it.target + it.mainMargins)) + gaps);
-			for (const it of line) it.cross = this.flexCross(it, column, cw, ch, crossSize);
+			// Cross sizes within the item's min / max (min-width / max-width in a column).
+			for (const it of line)
+				it.cross = Math.max(
+					it.crossMin,
+					Math.min(it.crossMax, this.flexCross(it, column, cw, ch, crossSize)),
+				);
 		}
 		const lineCross = lines.map((line) =>
 			Math.max(0, ...line.map((it) => (it.cross ?? 0) + it.crossMargins)),
@@ -981,6 +995,7 @@ export class Flow {
 			: (["left", "right", "top", "bottom"] as const);
 		const it: FlexItem = {
 			...base,
+			edges: extraMain,
 			mainStart: m[ms],
 			mainEnd: m[me],
 			mainMargins: m[ms] + m[me],
@@ -1040,7 +1055,12 @@ export class Flow {
 		if (minSpec !== undefined) it.min = minSpec;
 		else if ((style.get(`min-${mainProp}`) ?? "auto").trim() === "auto" && !scroll) {
 			// The content-based minimum size (§4.5): min-content, no more than a specified size.
-			let content = column ? contentMain() : this.contribution(item).min - it.mainMargins;
+			// The content size suggestion: the content's min-content size, whatever the width says.
+			let content = column
+				? contentMain()
+				: item.kind === "replaced"
+					? this.contribution(item).min - it.mainMargins
+					: this.contentContribution(item).min + extraMain;
 			if (ratio && definiteCross !== undefined)
 				content = Math.max(
 					content,
@@ -1052,6 +1072,8 @@ export class Flow {
 		}
 		it.max =
 			this.specified(style, `max-${mainProp}`, mainBasis, extraMain) ?? Number.POSITIVE_INFINITY;
+		// Never below its padding and border (the content box can't be negative, §9.2).
+		it.base = Math.max(it.base, extraMain);
 		it.hypo = Math.max(it.min, Math.min(it.max, it.base));
 		return it;
 	}
@@ -1193,6 +1215,19 @@ export class Flow {
 		}
 		// Explicit row sizes (lengths only; others size to content).
 		for (const [i, t] of rowTracks.entries()) if (t.kind === "fixed" && i < nRows) rowH[i] = t.px;
+		// Implicit rows by grid-auto-rows: lengths, or fr rows sharing a definite height
+		// (minmax(0, 1fr): even when the content is taller).
+		const autoRows = (style.get("grid-auto-rows") ?? "auto").trim() || "auto";
+		if (rowTracks.length === 0 && autoRows !== "auto") {
+			const t = parseTracks(autoRows, this.lengthIn(style, ch), ch ?? 0, rowGap)[0];
+			const share =
+				ch !== undefined && nRows > 0 ? (ch - rowGap * Math.max(0, nRows - 1)) / nRows : undefined;
+			for (let r = 0; r < nRows; r++) {
+				if (t?.kind === "fixed") rowH[r] = t.px;
+				else if (t?.kind === "fr" && share !== undefined)
+					rowH[r] = /^minmax\(\s*0/.test(autoRows) ? share : Math.max(rowH[r] ?? 0, share);
+			}
+		}
 		// A definite height: auto rows stretch to fill it (§11.8).
 		const total = sum(rowH) + rowGap * Math.max(0, nRows - 1);
 		if (
@@ -1545,6 +1580,8 @@ export interface FlexItem {
 	shrink: number;
 	/** Flex base size and hypothetical main size (border box). */
 	base: number;
+	/** Padding + border in the main axis (shrinking is weighted by the inner base size). */
+	edges?: number;
 	hypo: number;
 	/** Main-size limits (min: specified or the content-based minimum). */
 	min: number;
@@ -1601,8 +1638,9 @@ export function resolveFlexibleLengths(line: FlexItem[], avail: number, gaps: nu
 			if (free === 0) it.target = it.base;
 			else if (growing) it.target = it.base + (factors > 0 ? (free * it.grow) / factors : 0);
 			else {
-				const scaled = sum(open.map((o) => o.shrink * o.base));
-				it.target = it.base - (scaled > 0 ? (Math.abs(free) * it.shrink * it.base) / scaled : 0);
+				const inner = (o: FlexItem) => Math.max(0, o.base - (o.edges ?? 0));
+				const scaled = sum(open.map((o) => o.shrink * inner(o)));
+				it.target = it.base - (scaled > 0 ? (Math.abs(free) * it.shrink * inner(it)) / scaled : 0);
 			}
 		}
 		let total = 0;

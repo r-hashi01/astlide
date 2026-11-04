@@ -126,7 +126,7 @@ const INITIAL: Record<string, string> = {
 for (const side of ["top", "right", "bottom", "left"]) {
 	INITIAL[`margin-${side}`] = "0";
 	INITIAL[`padding-${side}`] = "0";
-	INITIAL[`border-${side}-width`] = "0";
+	INITIAL[`border-${side}-width`] = "medium";
 	INITIAL[side] = "auto";
 }
 
@@ -818,6 +818,8 @@ export function computeStyle(declared: Map<string, string>, ctx: Context): Compu
 
 	const props = new Set<string>([
 		...Object.keys(INITIAL),
+		// Inherited ones without an initial value of ours still pass down.
+		...INHERITED,
 		...[...declared.keys()].filter((k) => !k.startsWith("--")),
 	]);
 	for (const prop of props) {

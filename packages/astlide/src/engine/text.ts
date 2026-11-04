@@ -376,7 +376,7 @@ const CJK =
 	/[\u2e80-\u2fff\u3000-\u30ff\u3100-\u31ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uffef]|[\u{20000}-\u{3134f}]/u;
 /** Never at the start of a line (kinsoku): closing punctuation, small kana, iteration and prolonged marks. */
 const NO_BREAK_BEFORE =
-	/[、。，．・：；？！‼⁇⁈⁉）〕］｝〉》」』】〙〗〟’”｠»ゝゞヽヾー々〻ぁぃぅぇぉっゃゅょゎゕゖァィゥェォッャュョヮヵヶㇰ-ㇿ〜～…‥゛゜)\]}.,:;!?%]/u;
+	/[、。，．・：；？！‼⁇⁈⁉）〕］｝〉》」』】〙〗〟’”｠»ゝゞヽヾ々〻〜～…‥゛゜)\]}.,:;!?%]/u;
 /** Never at the end of a line: opening brackets and quotes. */
 const NO_BREAK_AFTER = /[（〔［｛〈《「『【〘〖〝‘“｟«([{]/u;
 
@@ -386,6 +386,14 @@ const NO_BREAK_AFTER = /[（〔［｛〈《「『【〘〖〝‘“｟«([{]/u;
  * Japanese, Chinese and Korean text has no spaces to break at — except where
  * kinsoku forbids it.
  */
+/** Whether a line may break between `prev` and `ch` (`before`: the character before `prev`). */
+function breakBetween(before: string, prev: string, ch: string): boolean {
+	const hyphen = prev === "-" && /[^\s-]/.test(before) && /[A-Za-z]/.test(ch);
+	const cjk =
+		(CJK.test(prev) || CJK.test(ch)) && !NO_BREAK_BEFORE.test(ch) && !NO_BREAK_AFTER.test(prev);
+	return hyphen || cjk;
+}
+
 function breakPieces(word: string): string[] {
 	const chars = [...word];
 	const pieces: string[] = [];
@@ -393,10 +401,7 @@ function breakPieces(word: string): string[] {
 	for (const [i, ch] of chars.entries()) {
 		const prev = chars[i - 1];
 		if (prev !== undefined && piece !== "") {
-			const hyphen = prev === "-" && /[^\s-]/.test(chars[i - 2] ?? "") && /[A-Za-z]/.test(ch);
-			const cjk =
-				(CJK.test(prev) || CJK.test(ch)) && !NO_BREAK_BEFORE.test(ch) && !NO_BREAK_AFTER.test(prev);
-			if (hyphen || cjk) {
+			if (breakBetween(chars[i - 2] ?? "", prev, ch)) {
 				pieces.push(piece);
 				piece = "";
 			}
@@ -444,6 +449,27 @@ function trimAdjacent(words: Word[], fonts: FontRegistry): void {
 	run();
 }
 
+/**
+ * Where the last break opportunity in `words` is, as the index the next
+ * line starts at (0: none). Before a word: after white space or an atomic
+ * inline, or at a break opportunity the word starts with; inline box edges
+ * just before it go with it.
+ */
+function lastBreak(words: Word[]): number {
+	for (let j = words.length - 1; j > 0; j--) {
+		const w = words[j] as Word;
+		if (isEdge(w) || w.space) continue;
+		let k = j;
+		while (k > 0 && isEdge(words[k - 1])) k--;
+		const prev = words[k - 1];
+		if (!prev) return 0;
+		// The white space (or atomic inline) before decides; inside a word, the word's own style.
+		const after = (prev.space || prev.atomic) && prev.wraps !== false;
+		if (after || (w.breakBefore && w.wraps !== false)) return k;
+	}
+	return 0;
+}
+
 /** An inline box edge, or its padding / border / margin: no text of its own. */
 const isEdge = (w: Word | undefined) => !!w && !w.atomic && !w.style && !w.space;
 const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
@@ -472,6 +498,8 @@ export function layoutLines(
 ): LineBreakResult {
 	// 1. Collapse white space (white-space: normal) and split into words.
 	const words: Word[] = [];
+	/** The last two characters laid out (across text nodes), for break opportunities between nodes. */
+	let tail = "";
 	let prevSpace = true; // leading white space at the start of the block collapses away
 	for (const item of items) {
 		if (item.kind === "space") {
@@ -541,6 +569,8 @@ export function layoutLines(
 			const pieces = isSpace || !wraps ? [part] : breakPieces(part);
 			pieces.forEach((piece, k) => {
 				const w = measure(piece);
+				const chars = [...tail];
+				const first = [...piece][0] ?? "";
 				words.push({
 					text: piece,
 					style: item.style,
@@ -548,9 +578,15 @@ export function layoutLines(
 					width: w,
 					space: isSpace,
 					pre,
-					breakBefore: k > 0,
+					// A break between text nodes ("日本<b>語</b>") follows the same rules.
+					breakBefore:
+						k > 0 ||
+						(!isSpace &&
+							chars.length > 0 &&
+							breakBetween(chars[chars.length - 2] ?? "", chars[chars.length - 1] ?? "", first)),
 					wraps,
 				});
+				tail = isSpace ? "" : [...(tail + piece)].slice(-2).join("");
 			});
 			prevSpace = isSpace;
 		}
@@ -586,23 +622,11 @@ export function layoutLines(
 		)
 			word.width -= endTrim;
 		if (!word.space && line.words.length > 0 && line.width + word.width > room() + FIT) {
-			// The word before, past inline box edges and their padding / margins:
-			// those move with this word to the next line.
-			let k = line.words.length;
-			while (k > 0 && isEdge(line.words[k - 1])) k--;
-			// An inline box's closing padding that doesn't fit takes the word it closes along.
-			let unit = word;
-			if (isEdge(word) && k > 0 && !line.words[k - 1]?.space) {
-				unit = line.words[k - 1] as Word;
-				k--;
-				while (k > 0 && isEdge(line.words[k - 1])) k--;
-			}
-			const prev = line.words[k - 1];
-			// Break after white space, or at a break opportunity inside a word.
-			const after = (prev?.space || prev?.atomic) && prev.wraps !== false;
-			// The white space (or atomic inline) before decides; inside a word, the word's own style.
-			if (k > 0 && (after || (unit.breakBefore && unit.wraps !== false))) {
-				const moved = line.words.splice(k);
+			// Break at the last opportunity on the line (this word included): what
+			// follows it, with the inline box edges before it, moves to the next line.
+			const cut = lastBreak([...line.words, word]);
+			if (cut > 0) {
+				const moved = line.words.splice(cut);
 				line.width -= sum(moved.map((w) => w.width));
 				lines.push(line);
 				line = { words: moved, width: sum(moved.map((w) => w.width)) };
