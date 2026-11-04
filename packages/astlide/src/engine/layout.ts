@@ -1,10 +1,11 @@
 /**
- * Box layout: map computed styles onto a Yoga tree (block flow as a column
- * flexbox, flex as flex, equal-column grids) with inline formatting contexts
- * as measured leaves, then read back absolute boxes and text lines.
+ * Box layout: map the box tree (box-tree.ts) onto a Yoga tree (block flow as
+ * a column flexbox, flex as flex, grids as rows of columns) with inline
+ * formatting contexts as measured leaves, then read back absolute boxes and
+ * text lines.
  */
 
-import { type ChildNode, Element, Text } from "domhandler";
+import type { Element } from "domhandler";
 import Yoga, {
 	Align,
 	BoxSizing,
@@ -18,6 +19,7 @@ import Yoga, {
 	Wrap,
 	type Node as YogaNode,
 } from "yoga-layout";
+import { type ElementBox, isElement, StyleContext, type TextRun } from "./box-tree";
 import { type Computed, computeStyle, type StyleSheets, toPx, type Viewport } from "./cascade";
 import { columnSpan, parseTracks, placeItems, sizeTracks } from "./grid";
 import {
@@ -116,49 +118,6 @@ export function intersect(a: Rect, b: Rect): Rect {
 	};
 }
 
-/** Tag of the synthetic elements that stand for `::before` / `::after`. */
-const PSEUDO_TAG = "astlide-pseudo";
-
-/**
- * The text a `content` value generates: strings (with CSS escapes) and
- * `attr()`; counters and quotes give nothing. `none` / `normal` / unset: no box.
- */
-function generatedContent(value: string | undefined, el: Element): string | null {
-	const v = value?.trim();
-	if (!v || v === "none" || v === "normal") return null;
-	let out = "";
-	for (const m of v.matchAll(/"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|attr\(\s*([\w-]+)\s*\)/g)) {
-		if (m[3]) out += el.attribs[m[3]] ?? "";
-		else
-			out += (m[1] ?? m[2] ?? "").replace(
-				/\\([0-9a-f]{1,6})\s?|\\(.)/gi,
-				(_, hex: string, ch: string) => (hex ? String.fromCodePoint(Number.parseInt(hex, 16)) : ch),
-			);
-	}
-	return out;
-}
-
-const isElement = (n: ChildNode): n is Element =>
-	n.type === "tag" || n.type === "script" || n.type === "style";
-const isText = (n: ChildNode): n is Text => n.type === "text";
-
-/** Text as `text-transform` shows it. */
-export function transformText(text: string, transform: string | undefined): string {
-	switch (transform) {
-		case "uppercase":
-			return text.toUpperCase();
-		case "lowercase":
-			return text.toLowerCase();
-		case "capitalize":
-			return text.replace(
-				/(^|[^\p{L}\p{N}'’])(\p{L})/gu,
-				(_, before, ch) => before + ch.toUpperCase(),
-			);
-		default:
-			return text;
-	}
-}
-const INLINE = new Set(["inline", "inline-block", "inline-flex", "contents"]);
 const EDGES: [string, Edge][] = [
 	["top", Edge.Top],
 	["right", Edge.Right],
@@ -255,20 +214,17 @@ export interface Sides {
 }
 
 class Builder {
-	readonly styles = new Map<Element, Computed>();
-	readonly eids = new Map<Element, number>();
+	/** Computed styles, element ids and inline content: the box tree's side (box-tree.ts). */
+	readonly ctx: StyleContext;
 	readonly leaves: Leaf[] = [];
 	readonly boxNodes: BoxNode[] = [];
 	readonly tables: TableNode[] = [];
 	readonly grids: GridNode[] = [];
 	/** Boxes whose width comes from their content (a row flex item, an inline-block …). */
 	readonly contentSized = new Set<YogaNode>();
-	rootFontSize = 16;
 	readonly config = Yoga.Config.create();
 	/** Parent of each node we created (Yoga's getParent/getChild return fresh wrappers). */
 	readonly parents = new Map<YogaNode, YogaNode>();
-	/** Inline elements by inline-box id (backgrounds / borders across lines). */
-	readonly inlineEls: { el: Element; style: Computed }[] = [];
 	/** Resolved vertical margins of block boxes (px), for margin collapsing. */
 	readonly margins = new Map<YogaNode, { top: number; bottom: number }>();
 
@@ -300,7 +256,7 @@ class Builder {
 				transform,
 				style.get("transform-origin") ?? "",
 				{ x: p.x, y: p.y, w: node.getComputedWidth(), h: node.getComputedHeight() },
-				(v, basis) => toPx(v, fs, this.rootFontSize, this.vp, basis),
+				(v, basis) => toPx(v, fs, this.ctx.rootFontSize, this.vp, basis),
 			);
 			if (own) a = compose(a, own);
 		}
@@ -324,75 +280,18 @@ class Builder {
 		readonly fonts: FontRegistry,
 		readonly vp: Viewport,
 	) {
+		this.ctx = new StyleContext(sheets, fonts, vp);
 		this.config.setUseWebDefaults(true);
 		this.config.setPointScaleFactor(64);
 	}
 
-	styleOf(el: Element, parent: Computed | null): Computed {
-		const hit = this.styles.get(el);
-		if (hit) return hit;
-		const s = computeStyle(this.sheets.declared(el), {
-			parent,
-			rootFontSize: this.rootFontSize,
-			vp: this.vp,
-		});
-		// Underline / line-through propagate to everything inside (text-decoration isn't inherited, but paints through).
-		const deco = `${s.get("text-decoration-line") ?? ""} ${s.get("text-decoration") ?? ""}`;
-		const lines = new Set((parent?.get("__decoration") ?? "").split(" ").filter(Boolean));
-		if (/\bunderline\b/.test(deco)) lines.add("underline");
-		if (/\bline-through\b/.test(deco)) lines.add("line-through");
-		s.set("__decoration", [...lines].join(" "));
-		// Effective opacity: not inherited, but multiplies down the tree.
-		const opacity = Number.parseFloat(s.get("opacity") ?? "1");
-		s.set(
-			"__alpha",
-			String(Number(parent?.get("__alpha") ?? 1) * (Number.isNaN(opacity) ? 1 : opacity)),
-		);
-		this.styles.set(el, s);
-		return s;
-	}
-
 	/** A length in px, or NaN for keywords. */
 	px(style: Computed, prop: string, basis = Number.NaN): number {
-		const fs = Number.parseFloat(style.get("font-size") ?? "16");
-		return toPx(style.get(prop) ?? "", fs, this.rootFontSize, this.vp, basis);
+		return this.ctx.px(style, prop, basis);
 	}
 
 	inlineStyle(style: Computed): InlineStyle {
-		const alpha =
-			(style.get("visibility") ?? "visible") === "hidden" ? 0 : Number(style.get("__alpha") ?? 1);
-		const size = Number.parseFloat(style.get("font-size") ?? "16");
-		const weight = Number.parseInt(style.get("font-weight") ?? "400", 10) || 400;
-		const italic = /italic|oblique/.test(style.get("font-style") ?? "");
-		const { face, requested } = this.fonts.resolve(
-			style.get("font-family") ?? "serif",
-			weight,
-			italic,
-		);
-		const lh = style.get("line-height") ?? "normal";
-		let lineHeight: number;
-		if (lh === "normal") {
-			const m = verticalMetrics(face, size);
-			lineHeight = m.ascent + m.descent + m.lineGap;
-		} else if (/^[\d.]+$/.test(lh)) lineHeight = Number(lh) * size;
-		else lineHeight = Number.parseFloat(lh);
-		const ls = style.get("letter-spacing") ?? "normal";
-		return {
-			face,
-			requested,
-			size,
-			lineHeight,
-			letterSpacing: ls === "normal" ? 0 : Number.parseFloat(ls) || 0,
-			whiteSpace: style.get("white-space") ?? "normal",
-			color: style.get("color") ?? "#000",
-			alpha,
-			breakWord:
-				/break-word|anywhere/.test(
-					`${style.get("overflow-wrap") ?? ""} ${style.get("word-wrap") ?? ""}`,
-				) || style.get("word-break") === "break-all",
-			underline: /underline/.test(style.get("__decoration") ?? ""),
-			strike: /line-through/.test(style.get("__decoration") ?? ""),
-		};
+		return this.ctx.inlineStyle(style);
 	}
 
 	private setLength(style: Computed, prop: string, set: (v: number | `${number}%`) => void): void {
@@ -465,100 +364,9 @@ class Builder {
 		if (alignSelf && alignSelf !== "auto") node.setAlignSelf(alignOf(alignSelf));
 	}
 
-	private readonly pseudoKids = new Map<Element, ChildNode[]>();
-
-	/**
-	 * An element's children plus its `::before` / `::after` boxes, as
-	 * synthetic elements holding their generated text, when `content` makes
-	 * them exist.
-	 */
-	childrenOf(el: Element, style: Computed): ChildNode[] {
-		const hit = this.pseudoKids.get(el);
-		if (hit) return hit;
-		const out: ChildNode[] = [...el.children];
-		if (el.name !== PSEUDO_TAG) {
-			for (const which of ["before", "after"] as const) {
-				const declared = this.sheets.declared(el, which);
-				const text = generatedContent(declared.get("content"), el);
-				if (text === null) continue;
-				const p = new Element(PSEUDO_TAG, {});
-				if (text) {
-					const t = new Text(text);
-					t.parent = p;
-					p.children = [t];
-				}
-				p.parent = el;
-				const s = computeStyle(declared, {
-					parent: style,
-					rootFontSize: this.rootFontSize,
-					vp: this.vp,
-				});
-				const opacity = Number.parseFloat(s.get("opacity") ?? "1");
-				s.set(
-					"__alpha",
-					String(Number(style.get("__alpha") ?? 1) * (Number.isNaN(opacity) ? 1 : opacity)),
-				);
-				this.styles.set(p, s);
-				if (which === "before") out.unshift(p);
-				else out.push(p);
-			}
-		}
-		this.pseudoKids.set(el, out);
-		return out;
-	}
-
-	/** Collect inline content (text + inline element edges) under `nodes`. */
-	private collectInline(nodes: ChildNode[], parentStyle: Computed, items: InlineItem[]): void {
-		for (const n of nodes) {
-			if (isText(n)) {
-				items.push({
-					kind: "text",
-					text: transformText(n.data, parentStyle.get("text-transform")),
-					style: this.inlineStyle(parentStyle),
-					nodeIndex: 0,
-				});
-			} else if (isElement(n)) {
-				const s = this.styleOf(n, parentStyle);
-				if (s.get("display") === "none") continue;
-				if (n.name === "br") {
-					items.push({
-						kind: "text",
-						text: "\n",
-						style: { ...this.inlineStyle(s), whiteSpace: "pre-line" },
-						nodeIndex: -1,
-					});
-					continue;
-				}
-				const sum = (...props: string[]) =>
-					props.reduce((acc, p) => {
-						const v = this.px(s, p);
-						return acc + (Number.isNaN(v) ? 0 : v);
-					}, 0);
-				const id = this.inlineEls.length;
-				this.inlineEls.push({ el: n, style: s });
-				// margin | open … border + padding | content | border + padding … close | margin
-				const ml = sum("margin-left");
-				if (ml) items.push({ kind: "space", width: ml });
-				items.push({ kind: "open", id });
-				const il = sum("border-left-width", "padding-left");
-				if (il) items.push({ kind: "space", width: il });
-				this.collectInline(this.childrenOf(n, s), s, items);
-				const ir = sum("border-right-width", "padding-right");
-				if (ir) items.push({ kind: "space", width: ir });
-				items.push({ kind: "close", id });
-				const mr = sum("margin-right");
-				if (mr) items.push({ kind: "space", width: mr });
-			}
-		}
-	}
-
-	private inlineLeaf(nodes: ChildNode[], containerStyle: Computed): YogaNode {
-		const items: InlineItem[] = [];
-		this.collectInline(nodes, containerStyle, items);
-		// Number text items in order: each text node keeps its own fragments.
-		let k = 0;
-		for (const it of items) if (it.kind === "text" && it.nodeIndex !== -1) it.nodeIndex = k++;
-		const strut = this.inlineStyle(containerStyle);
+	/** A run of inline content: a node measured by line breaking. */
+	private yogaLeaf(run: TextRun): YogaNode {
+		const { items, strut } = run;
 		const node = Yoga.Node.create(this.config);
 		// The text's width on one line per forced break (max-content), measured once.
 		let maxContent: number | undefined;
@@ -573,16 +381,8 @@ class Builder {
 				height: r.height,
 			};
 		});
-		this.leaves.push({ node, items, strut, align: containerStyle.get("text-align") ?? "start" });
+		this.leaves.push({ node, items, strut, align: run.align });
 		return node;
-	}
-
-	private isInlineLevel(n: ChildNode, parentStyle: Computed): boolean {
-		if (isText(n)) return true;
-		if (!isElement(n)) return false;
-		// Replaced elements aren't laid out inline (no atomic inlines yet): their own box.
-		if (n.name === "img" || n.name === "svg" || n.name === "iframe") return false;
-		return INLINE.has(this.styleOf(n, parentStyle).get("display") ?? "inline") || n.name === "br";
 	}
 
 	/**
@@ -590,51 +390,29 @@ class Builder {
 	 * width, so they are set after a first layout ({@link sizeTables}); here
 	 * each cell records its min- / max-content width.
 	 */
-	private buildTable(el: Element, style: Computed, node: YogaNode): YogaNode {
+	private yogaTable(box: ElementBox, node: YogaNode): YogaNode {
 		node.setFlexDirection(FlexDirection.Column);
 		node.setAlignItems(Align.Stretch);
-		const rows: [Element, Computed][] = [];
-		const footers: [Element, Computed][] = [];
-		const visit = (parent: Element, ps: Computed, footer: boolean) => {
-			for (const c of parent.children) {
-				if (!isElement(c)) continue;
-				const cs = this.styleOf(c, ps);
-				const d = cs.get("display") ?? "inline";
-				if (d === "table-row") (footer ? footers : rows).push([c, cs]);
-				else if (d === "table-header-group") {
-					const head: [Element, Computed][] = [];
-					const before = rows.length;
-					visit(c, cs, false);
-					head.push(...rows.splice(before));
-					rows.unshift(...head);
-				} else if (d === "table-row-group") visit(c, cs, footer);
-				else if (d === "table-footer-group") visit(c, cs, true);
-			}
-		};
-		visit(el, style, false);
-		const table: TableNode = { node, style, eid: this.eids.get(el) ?? -1, rows: [] };
+		const table: TableNode = { node, style: box.style, eid: box.eid, rows: [] };
 		const len = (s: Computed, prop: string) => {
 			const v = this.px(s, prop);
 			return Number.isNaN(v) ? 0 : v;
 		};
-		for (const [r, rs] of [...rows, ...footers]) {
+		for (const row of box.rows ?? []) {
 			const rowNode = Yoga.Node.create(this.config);
-			this.applyBox(rowNode, rs);
+			this.applyBox(rowNode, row.style);
 			rowNode.setFlexDirection(FlexDirection.Row);
 			rowNode.setAlignItems(Align.Stretch);
 			this.add(node, rowNode);
-			const rowEid = this.eids.get(r) ?? -1;
-			this.boxNodes.push({ node: rowNode, el: r, style: rs, eid: rowEid });
+			const rowEid = row.eid;
+			this.boxNodes.push({ node: rowNode, el: row.el, style: row.style, eid: rowEid });
 			const cells: CellNode[] = [];
 			let col = 0;
-			for (const c of r.children) {
-				if (!isElement(c)) continue;
-				const cs = this.styleOf(c, rs);
-				if ((cs.get("display") ?? "") !== "table-cell") continue;
+			for (const { box: cell, span } of row.cells) {
+				const cs = cell.style;
 				const before = this.leaves.length;
 				const at = this.boxNodes.length;
-				const cn = this.build(c, cs, true);
-				if (!cn) continue;
+				const cn = this.yoga(cell);
 				cn.setFlexGrow(0);
 				cn.setFlexShrink(0);
 				const va = cs.get("vertical-align") ?? "middle";
@@ -642,8 +420,8 @@ class Builder {
 					va === "top" ? Justify.FlexStart : va === "bottom" ? Justify.FlexEnd : Justify.Center,
 				);
 				this.add(rowNode, cn);
-				const eid = this.eids.get(c) ?? -1;
-				this.boxNodes.splice(at, 0, { node: cn, el: c, style: cs, eid });
+				const eid = cell.eid;
+				this.boxNodes.splice(at, 0, { node: cn, el: cell.el, style: cs, eid });
 				const leaves = this.leaves.slice(before);
 				const edges = ["padding-left", "padding-right", "border-left-width", "border-right-width"]
 					.map((p) => len(cs, p))
@@ -653,7 +431,6 @@ class Builder {
 						0,
 						...leaves.map((l) => layoutLines(l.items, w, l.strut, "left", this.fonts).width),
 					);
-				const span = Math.max(1, Number.parseInt(c.attribs.colspan ?? "1", 10) || 1);
 				cells.push({
 					node: cn,
 					style: cs,
@@ -672,19 +449,6 @@ class Builder {
 		return node;
 	}
 
-	/**
-	 * Column widths (CSS automatic table layout, simplified): every column gets
-	 * its max-content width when that fits, widened in proportion to fill a
-	 * table with a set width; otherwise between min- and max-content.
-	 * Returns whether anything changed (a relayout is needed).
-	 */
-	/**
-	 * Size grid columns from each container's content width and give every
-	 * item its columns' width; the item ending a row gets the rest of the row
-	 * as its right margin, so the next item starts a new flex line. The first
-	 * call (after a layout with unsized items) records their content widths
-	 * for `auto` columns. Returns whether a width changed.
-	 */
 	/**
 	 * Percentages inside a box sized by its content are cyclic: as in
 	 * browsers, the box is sized with them as `auto`, then they resolve
@@ -768,6 +532,13 @@ class Builder {
 		}
 	}
 
+	/**
+	 * Size grid columns from each container's content width and give every
+	 * item its columns' width; the item ending a row gets the rest of the row
+	 * as its right margin, so the next item starts a new flex line. The first
+	 * call (after a layout with unsized items) records their content widths
+	 * for `auto` columns. Returns whether a width changed.
+	 */
 	sizeGrids(): boolean {
 		let changed = false;
 		for (const g of this.grids) {
@@ -779,7 +550,7 @@ class Builder {
 				g.node.getComputedBorder(Edge.Left) -
 				g.node.getComputedBorder(Edge.Right);
 			const fs = Number.parseFloat(g.style.get("font-size") ?? "16");
-			const length = (v: string) => toPx(v, fs, this.rootFontSize, this.vp, inner);
+			const length = (v: string) => toPx(v, fs, this.ctx.rootFontSize, this.vp, inner);
 			const tracks = parseTracks(
 				g.style.get("grid-template-columns") ?? "none",
 				length,
@@ -817,6 +588,12 @@ class Builder {
 		return changed;
 	}
 
+	/**
+	 * Column widths (CSS automatic table layout, simplified): every column gets
+	 * its max-content width when that fits, widened in proportion to fill a
+	 * table with a set width; otherwise between min- and max-content.
+	 * Returns whether anything changed (a relayout is needed).
+	 */
 	sizeTables(): boolean {
 		for (const t of this.tables) {
 			const n = Math.max(
@@ -902,21 +679,19 @@ class Builder {
 	 * @param bfcRoot - The element establishes its own block formatting context
 	 *   (root, flex / grid item, overflow ≠ visible …): child margins don't collapse through it.
 	 */
-	build(el: Element, style: Computed, bfcRoot = true): YogaNode | null {
-		const display = style.get("display") ?? "inline";
-		if (display === "none") return null;
+	/** The Yoga node of a box and its subtree. */
+	yoga(box: ElementBox): YogaNode {
+		const { el, style, bfcRoot } = box;
 		const node = Yoga.Node.create(this.config);
 		this.applyBox(node, style);
-		if (el.name === "img") this.replacedSize(el, node, style);
-		// Inline SVG: a picture of its own size; its content is drawn as a whole (see toScene).
-		if (el.name === "svg" || el.name === "iframe") {
+		if (box.kind === "replaced") {
 			this.replacedSize(el, node, style);
 			return node;
 		}
-		if (display === "table" || display === "inline-table") return this.buildTable(el, style, node);
+		if (box.kind === "table") return this.yogaTable(box, node);
 
-		const isFlex = display === "flex" || display === "inline-flex";
-		const isGrid = display === "grid";
+		const isFlex = box.kind === "flex";
+		const isGrid = box.kind === "grid";
 		if (isFlex) {
 			const dir = style.get("flex-direction") ?? "row";
 			node.setFlexDirection(
@@ -964,43 +739,18 @@ class Builder {
 		if (grid) this.grids.push(grid);
 
 		const container = isFlex || isGrid;
-		let run: ChildNode[] = [];
-		const flushInline = () => {
-			const pre = /pre/.test(style.get("white-space") ?? "");
-			if (run.some((n) => !isText(n) || pre || n.data.trim() !== "")) {
-				const leaf = this.inlineLeaf(run, style);
-				leaf.setFlexShrink(0); // lines of text don't shrink in block flow
+		for (const childBox of box.children) {
+			if (childBox.type === "text") {
+				const leaf = this.yogaLeaf(childBox);
+				if (childBox.inFlow) leaf.setFlexShrink(0); // lines of text don't shrink in block flow
 				this.add(node, leaf);
-			}
-			run = [];
-		};
-		for (const child of this.childrenOf(el, style)) {
-			if (isText(child)) {
-				// In flex / grid containers each text run is its own anonymous item.
-				if (container) {
-					if (child.data.trim()) this.add(node, this.inlineLeaf([child], style));
-				} else run.push(child);
 				continue;
 			}
-			if (!isElement(child)) continue;
-			if (!container && this.isInlineLevel(child, style)) {
-				run.push(child);
-				continue;
-			}
-			flushInline();
-			const cs = this.styleOf(child, style);
+			const { el: child, style: cs } = childBox;
 			const childDisplay = cs.get("display") ?? "block";
-			const childBfc =
-				container ||
-				(cs.get("overflow") ?? "visible") !== "visible" ||
-				["flow-root", "inline-block", "flex", "grid", "inline-flex", "table"].includes(
-					childDisplay,
-				) ||
-				cs.get("position") === "absolute";
 			// Paint order is tree order: the child's box goes before its descendants'.
 			const at = this.boxNodes.length;
-			const yn = this.build(child, cs, childBfc);
-			if (!yn) continue;
+			const yn = this.yoga(childBox);
 			// width: fit-content / max-content in a column: size to content instead of stretching.
 			const w = (cs.get("width") ?? "auto").trim();
 			const stretches =
@@ -1024,7 +774,7 @@ class Builder {
 			) {
 				yn.setAlignSelf(Align.FlexStart);
 			}
-			const entry: BoxNode = { node: yn, el: child, style: cs, eid: this.eids.get(child) ?? -1 };
+			const entry: BoxNode = { node: yn, el: child, style: cs, eid: childBox.eid };
 			// Content-sized: a row flex item that doesn't grow, a column flex item
 			// that isn't stretched, or (in flow) an inline-block, float or absolute
 			// box. Grid items take their column's width; flex and grid items are
@@ -1052,7 +802,6 @@ class Builder {
 			this.add(node, yn);
 			this.boxNodes.splice(at, 0, entry);
 		}
-		flushInline();
 		if (!container) this.collapseMargins(node, style, bfcRoot);
 		return node;
 	}
@@ -1151,23 +900,24 @@ export function layoutSlide(
 	const b = new Builder(sheets, fonts, vp);
 	let parent: Computed | null = null;
 	for (const a of ancestors) {
-		parent = b.styleOf(a, parent);
-		if (a.name === "html") b.rootFontSize = Number.parseFloat(parent.get("font-size") ?? "16");
+		parent = b.ctx.styleOf(a, parent);
+		if (a.name === "html") b.ctx.rootFontSize = Number.parseFloat(parent.get("font-size") ?? "16");
 	}
 	// Element ids in document order (matches querySelectorAll("*") in the slide).
 	let next = 0;
 	const number = (el: Element) => {
 		for (const c of el.children) {
 			if (isElement(c)) {
-				b.eids.set(c, next++);
+				b.ctx.eids.set(c, next++);
 				number(c);
 			}
 		}
 	};
 	number(slide);
 
-	const slideStyle = b.styleOf(slide, parent);
-	const root = b.build(slide, slideStyle);
+	const slideStyle = b.ctx.styleOf(slide, parent);
+	const tree = b.ctx.box(slide, slideStyle);
+	const root = tree ? b.yoga(tree) : null;
 	if (!root)
 		return {
 			width: 0,
@@ -1279,7 +1029,7 @@ export function layoutSlide(
 				}),
 			);
 		for (const ib of r.inlineBoxes) {
-			const entry = b.inlineEls[ib.id];
+			const entry = b.ctx.inlineEls[ib.id];
 			if (!entry) continue;
 			const is = b.inlineStyle(entry.style);
 			const m = verticalMetrics(is.face, is.size);
@@ -1291,7 +1041,7 @@ export function layoutSlide(
 			const bottom = v("padding-bottom") + v("border-bottom-width");
 			inlineBoxes.push(
 				mapRect(a, {
-					eid: b.eids.get(entry.el) ?? -1,
+					eid: b.ctx.eids.get(entry.el) ?? -1,
 					tag: entry.el.name,
 					x: p.x + ib.x,
 					y: p.y + ib.baseline - m.ascent - top,
@@ -1361,7 +1111,7 @@ export function layoutSlide(
 		lines,
 		markers,
 		tables,
-		elements: [...b.eids.keys()],
+		elements: [...b.ctx.eids.keys()],
 	};
 }
 
@@ -1381,14 +1131,14 @@ function listMarkers(
 		if ((box.style.get("display") ?? "") !== "list-item") continue;
 		const type = box.style.get("list-style-type") ?? "disc";
 		if (type === "none") continue;
-		const el = [...b.eids].find(([, id]) => id === box.eid)?.[0];
+		const el = [...b.ctx.eids].find(([, id]) => id === box.eid)?.[0];
 		if (!el) continue;
 		const n = (counters.get(el.parent as Element | null) ?? 0) + 1;
 		counters.set(el.parent as Element | null, n);
 		const text = MARKERS[type] ?? (type === "decimal" ? `${n}.` : "•");
 		const ms = computeStyle(sheets.declared(el, "marker"), {
 			parent: box.style,
-			rootFontSize: b.rootFontSize,
+			rootFontSize: b.ctx.rootFontSize,
 			vp: b.vp,
 		});
 		ms.set("__alpha", box.style.get("__alpha") ?? "1");
