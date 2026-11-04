@@ -42,9 +42,15 @@ const GENERIC = new Set([
 /** CSS-wide keywords: a value of `font-family`, not a family (unless quoted). */
 const CSS_WIDE = new Set(["inherit", "initial", "unset", "revert", "revert-layer"]);
 
-/** Family names mentioned in CSS text, in order of appearance (generic keywords excluded). */
+/**
+ * Family names mentioned in CSS text (generic keywords excluded): first
+ * choices first — the families slides use — then second choices and so on,
+ * each in order of appearance. Callers that fetch a limited number of
+ * families get the ones in use before fallbacks like `Segoe UI`.
+ */
 export function familiesIn(css: string): string[] {
-	const out = new Set<string>();
+	/** Each family's earliest position in a list (0 = first choice), in order of appearance. */
+	const position = new Map<string, number>();
 	// font-family values and --font-* custom properties that hold family lists
 	// (not --font-size-* / --font-weight-*); @font-face blocks are skipped.
 	let withoutFaces = "";
@@ -58,17 +64,18 @@ export function familiesIn(css: string): string[] {
 		// No \s* before the value: [^;}] takes the spaces (overlapping quantifiers backtrack).
 		/(?:font-family|--font-(?!size|weight|style)[\w-]+)\s*:([^;}]+)/gi,
 	)) {
-		for (const raw of (m[1] ?? "").split(",")) {
+		for (const [index, raw] of (m[1] ?? "").split(",").entries()) {
 			let value = raw.trim();
 			if (value.toLowerCase().endsWith("!important")) value = value.slice(0, -10).trimEnd();
 			if (CSS_WIDE.has(value.toLowerCase())) continue;
 			const name = value.replace(/^["']|["']$/g, "").replace(/\)+$/, "");
 			if (!name || name.includes("(") || /^[\d.]/.test(name) || GENERIC.has(name.toLowerCase()))
 				continue;
-			out.add(name);
+			position.set(name, Math.min(position.get(name) ?? index, index));
 		}
 	}
-	return [...out];
+	// First choices first: they're the fonts slides use; fallbacks come after.
+	return [...position.keys()].sort((a, b) => (position.get(a) ?? 0) - (position.get(b) ?? 0));
 }
 
 /**
