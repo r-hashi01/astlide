@@ -1,0 +1,7 @@
+{
+	"//": "Boxes where the layout engine starts to differ from Chromium, per playground deck (scripts/engine-parity.ts). Lower these as the engine improves; e2e/engine-parity-decks.test.ts fails if a deck goes above.",
+	"example-deck": 3,
+	"from-powerpoint": 23,
+	"from-template": 1,
+	"tour": 21
+}
