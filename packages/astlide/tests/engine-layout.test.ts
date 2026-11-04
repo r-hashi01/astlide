@@ -152,6 +152,17 @@ describe("engine layout", () => {
 		}
 	});
 
+	it("keeps text on one line in a box a rounding step narrower than it", () => {
+		const text = "Dify 製品価値と導入";
+		const [wide] = page(".p{width:900px}", `<div class="p">${text}</div>`).lines;
+		// A width on Yoga's 1/64px grid, 0.01–1/32px narrower than the text.
+		const text64 = (wide?.w ?? 0) * 64;
+		let w = Math.floor(text64) / 64;
+		if (text64 / 64 - w <= 0.01) w -= 1 / 64;
+		const tight = page(`.p{width:${w}px}`, `<div class="p">${text}</div>`);
+		expect(tight.lines.map((l) => l.text)).toEqual([text]);
+	});
+
 	it("keeps Latin words whole next to CJK, and doesn't break nowrap text", () => {
 		const mixed = page(".p{width:60px}", '<div class="p">漢字漢字漢字abcdefgh漢字漢字</div>');
 		expect(mixed.lines.map((l) => l.text).some((l) => l.includes("abcdefgh"))).toBe(true);
