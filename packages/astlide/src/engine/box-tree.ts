@@ -7,6 +7,7 @@
 
 import { type ChildNode, Element, Text } from "domhandler";
 import { type Computed, computeStyle, type StyleSheets, toPx, type Viewport } from "./cascade";
+import type { NaturalSize } from "./images";
 import { type FontRegistry, type InlineItem, type InlineStyle, verticalMetrics } from "./text";
 
 /** Tag of the synthetic elements that stand for `::before` / `::after`. */
@@ -97,6 +98,8 @@ export class StyleContext {
 	/** Inline elements by inline-box id (backgrounds / borders across lines). */
 	readonly inlineEls: { el: Element; style: Computed }[] = [];
 	rootFontSize = 16;
+	/** Natural sizes of images by `src` (absent: unknown). */
+	images?: (src: string) => NaturalSize | null;
 	private readonly pseudoKids = new Map<Element, ChildNode[]>();
 
 	constructor(

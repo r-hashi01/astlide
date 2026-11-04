@@ -13,6 +13,7 @@ import type { Element } from "domhandler";
 import { parseDocument } from "htmlparser2";
 import { declaredValue, StyleSheets, UA_CSS, type Viewport } from "./cascade";
 import { distFile, isInside } from "./dist";
+import { imageSizes } from "./images";
 import {
 	type Box,
 	intersect,
@@ -34,6 +35,7 @@ export {
 } from "./diagrams";
 export { distFile, isInside } from "./dist";
 export { familiesIn, GOOGLE_FONT_LIMITS, loadFontFaces, loadGoogleFonts } from "./fonts";
+export { bitmapSize, imageSizes, type NaturalSize } from "./images";
 export type { Box, Rect, SlideLayout, TableBox, TableCellBox, TextLine } from "./layout";
 export { intersect } from "./layout";
 export { CJK_FAMILY, CJK_TEXT, DEFAULT_EA_FONT, loadPageFonts, type PageFonts } from "./page-fonts";
@@ -106,9 +108,10 @@ export function layoutPage(
 	const slides = body.children.filter(
 		(c): c is Element => c.type === "tag" && (c.attribs.class ?? "").split(/\s+/).includes("slide"),
 	);
+	const images = imageSizes(distDir);
 	return slides.map((s) =>
 		withFrames(
-			layoutSlide(s, [html, body], sheets, fonts, vp),
+			layoutSlide(s, [html, body], sheets, fonts, vp, images),
 			dirname(htmlPath),
 			distDir,
 			fonts,
