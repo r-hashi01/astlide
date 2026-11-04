@@ -15,12 +15,13 @@
  * largest differences.
  */
 
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { extname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { type Browser, chromium } from "playwright";
+import { type Browser, chromium, type Page } from "playwright";
 import { checkLayouts, layoutBuiltPage } from "../packages/astlide/src/mcp/check";
 
 /** One element whose box differs from Chromium's. */
@@ -109,6 +110,35 @@ export function decksIn(dist: string): string[] {
 
 type Rect = [number, number, number, number];
 
+/**
+ * Serve Google Fonts (stylesheets and font files) from a disk cache, so
+ * Chromium lays out with the same fonts every run: a dropped or throttled
+ * download otherwise leaves it on a fallback font.
+ */
+async function cacheWebFonts(page: Page, dir: string): Promise<void> {
+	mkdirSync(dir, { recursive: true });
+	await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, async (route) => {
+		const key = createHash("sha256").update(route.request().url()).digest("hex");
+		const body = join(dir, key);
+		const meta = `${body}.json`;
+		if (existsSync(body) && existsSync(meta)) {
+			const { contentType } = JSON.parse(readFileSync(meta, "utf-8"));
+			await route.fulfill({ body: readFileSync(body), contentType });
+			return;
+		}
+		const response = await route.fetch().catch(() => null);
+		if (!response) return route.abort();
+		if (response.ok()) {
+			writeFileSync(body, await response.body());
+			writeFileSync(
+				meta,
+				JSON.stringify({ contentType: response.headers()["content-type"] ?? "" }),
+			);
+		}
+		await route.fulfill({ response });
+	});
+}
+
 /** Compare one deck. */
 export async function compareDeck(
 	browser: Browser,
@@ -119,13 +149,37 @@ export async function compareDeck(
 ): Promise<DeckReport> {
 	const tolerance = options.tolerance ?? 2;
 	const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+	await cacheWebFonts(
+		page,
+		join(options.cacheDir ?? join("node_modules", ".cache", "astlide-fonts"), "chromium"),
+	);
 	await page.goto(`${baseUrl}/${encodeURIComponent(deck)}/all/`, { waitUntil: "networkidle" });
-	await page.evaluate(() => document.fonts.ready);
 	await page
 		.waitForFunction(() => document.documentElement.hasAttribute("data-diagrams-ready"), null, {
 			timeout: 15_000,
 		})
 		.catch(() => {});
+	// Chromium lays out with a fallback font while a web font loads, or for good when it
+	// fails: measure only once every font has settled, and reload when one failed (a
+	// dropped download), so the comparison doesn't depend on the network.
+	for (let attempt = 1; ; attempt++) {
+		await page.evaluate(async () => {
+			for (let i = 0; i < 100; i++) {
+				await document.fonts.ready;
+				if (![...document.fonts].some((f) => f.status === "loading")) return;
+				await new Promise((r) => setTimeout(r, 100));
+			}
+		});
+		const failed = await page.evaluate(() =>
+			[...document.fonts].filter((f) => f.status === "error").map((f) => `${f.family} ${f.weight}`),
+		);
+		if (failed.length === 0) break;
+		if (attempt === 3) {
+			console.error(`${deck}: fonts failed to load, measured without them: ${failed.join(", ")}`);
+			break;
+		}
+		await page.reload({ waitUntil: "networkidle" });
+	}
 	// Per slide, per element index: its box relative to the slide, or null without one.
 	const chromiumBoxes = await page.evaluate(() =>
 		[...document.querySelectorAll("body > .slide")].map((slide) => {
