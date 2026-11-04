@@ -104,6 +104,30 @@ export function parseTracks(
 }
 
 /**
+ * A grid's column tracks: the template's, plus, with `grid-auto-flow:
+ * column`, an implicit column for each item beyond them, sized by
+ * `grid-auto-columns` (its pattern repeated; css-grid-1 §7.6).
+ */
+export function columnTracks(
+	template: string,
+	autoFlow: string,
+	autoColumns: string,
+	length: (v: string) => number,
+	inner: number,
+	gap: number,
+	items: number,
+): Track[] {
+	const explicit = parseTracks(template, length, inner, gap, items);
+	if (!/column/.test(autoFlow)) return explicit;
+	const none = template.trim() === "none" || template.trim() === "";
+	const out = none ? [] : explicit;
+	const pattern = tokens(autoColumns.trim() || "auto").map((t) => track(t, length));
+	for (let i = 0; out.length < items && pattern.length > 0; i++)
+		out.push(pattern[i % pattern.length] as Track);
+	return out.length > 0 ? out : explicit;
+}
+
+/**
  * Track widths: fixed tracks as given, `auto` tracks as wide as their widest
  * single-column item (`content`), `fr` tracks share what's left; with no `fr`
  * track, `auto` tracks share the leftover space (they stretch).

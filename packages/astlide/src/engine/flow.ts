@@ -17,7 +17,7 @@
 
 import type { ElementBox, StyleContext, TextRun } from "./box-tree";
 import type { Computed } from "./cascade";
-import { columnSpan, parseTracks, placeItems, sizeTracks } from "./grid";
+import { columnSpan, columnTracks, parseTracks, placeItems, sizeTracks } from "./grid";
 import {
 	type AtomicInline,
 	type InlineItem,
@@ -96,6 +96,25 @@ export class Flow {
 		if (pct) return basis === undefined ? undefined : (Number(pct[1]) / 100) * basis;
 		const v = this.ctx.px(style, prop, basis ?? Number.NaN);
 		return Number.isNaN(v) ? undefined : v;
+	}
+
+	/** A grid's column tracks (template and implicit ones), percentages against `basis`. */
+	private columnTracks(
+		style: Computed,
+		basis: number | undefined,
+		inner: number,
+		gap: number,
+		items: number,
+	) {
+		return columnTracks(
+			style.get("grid-template-columns") ?? "none",
+			style.get("grid-auto-flow") ?? "row",
+			style.get("grid-auto-columns") ?? "auto",
+			this.lengthIn(style, basis),
+			inner,
+			gap,
+			items,
+		);
 	}
 
 	/** A track size or other bare length in `style`'s context (percentages against `basis`). */
@@ -275,13 +294,7 @@ export class Flow {
 		}
 		if (box.kind === "grid") {
 			const gap = this.length(box.style, "column-gap") ?? 0;
-			const tracks = parseTracks(
-				box.style.get("grid-template-columns") ?? "none",
-				this.lengthIn(box.style, undefined),
-				0,
-				gap,
-				kids.length,
-			);
+			const tracks = this.columnTracks(box.style, undefined, 0, gap, kids.length);
 			const n = Math.max(1, tracks.length);
 			const placed = placeItems(
 				kids.map((k) =>
@@ -813,12 +826,12 @@ export class Flow {
 		const justify = (style.get("justify-content") ?? "normal").trim();
 		for (const li of lineOrder) {
 			const line = lines[li] ?? [];
-			const lc = lineCross[li] ?? 0;
+			const stretchTo = lineCross[li] ?? 0;
 			const avail = mainSize ?? contentMain;
 			// Stretched items (§9.4 step 11) and the final layout of every item.
 			for (const it of line) {
 				if (it.stretch)
-					it.cross = Math.max(it.crossMin, Math.min(it.crossMax, lc - it.crossMargins));
+					it.cross = Math.max(it.crossMin, Math.min(it.crossMax, stretchTo - it.crossMargins));
 				const w = column ? (it.cross ?? 0) : it.target;
 				const h = column ? it.target : (it.cross ?? 0);
 				it.f = this.layout(it.box, {
@@ -830,6 +843,25 @@ export class Flow {
 				});
 				if (!column && !it.stretch && !it.definiteCross) it.cross = it.f.h;
 			}
+			// Baseline alignment in a row (§8.5): the items' first baselines line up,
+			// at the deepest one; the line holds what's above and below it.
+			const baselineOf = new Map<FlexItem, number>();
+			if (!column)
+				for (const it of line) {
+					if (!/baseline/.test(it.align) || it.autoCrossStart || it.autoCrossEnd) continue;
+					const f = it.f as Fragment;
+					baselineOf.set(it, it.crossStart + (this.baseline(f, false) ?? f.h));
+				}
+			let lineBaseline = 0;
+			if (baselineOf.size > 0) {
+				lineBaseline = Math.max(...baselineOf.values());
+				const below = Math.max(
+					...[...baselineOf].map(([it, b]) => (it.cross ?? 0) + it.crossMargins - b),
+				);
+				if (!(lines.length === 1 && crossSize !== undefined))
+					lineCross[li] = Math.max(lineCross[li] ?? 0, lineBaseline + below);
+			}
+			const lc = lineCross[li] ?? 0;
 			// Main axis (§9.5): auto margins take free space first, then justify-content.
 			const gaps = mainGap * Math.max(0, line.length - 1);
 			let free = avail - sum(line.map((it) => it.target + it.mainMargins)) - gaps;
@@ -870,6 +902,8 @@ export class Flow {
 				const freeCross = lc - outerCross;
 				if (it.autoCrossStart && it.autoCrossEnd) cross += Math.max(0, freeCross) / 2;
 				else if (it.autoCrossStart) cross += Math.max(0, freeCross);
+				else if (baselineOf.has(it))
+					cross = it.crossStart + lineBaseline - (baselineOf.get(it) ?? 0);
 				else if (!it.autoCrossEnd) {
 					if (it.align === "center") cross += freeCross / 2;
 					else if (/^(flex-end|end|self-end)$/.test(it.align) !== (wrapValue === "wrap-reverse"))
@@ -1092,13 +1126,7 @@ export class Flow {
 		}
 		const colGap = this.length(style, "column-gap", cw) ?? 0;
 		const rowGap = this.length(style, "row-gap", ch) ?? 0;
-		const tracks = parseTracks(
-			style.get("grid-template-columns") ?? "none",
-			this.lengthIn(style, cw),
-			cw,
-			colGap,
-			items.length,
-		);
+		const tracks = this.columnTracks(style, cw, cw, colGap, items.length);
 		const placed = placeItems(
 			items.map((k) =>
 				k.type === "element" ? columnSpan(k.style.get("grid-column") ?? "", tracks.length) : 1,
@@ -1131,6 +1159,18 @@ export class Flow {
 		const areaW = (p: { col: number; span: number }) =>
 			sum(widths.slice(p.col, p.col + p.span)) + colGap * (p.span - 1);
 		const rowH = Array<number>(nRows).fill(0);
+		// Rows whose height is known before their items are sized: a fixed
+		// track, or a lone row filling a definite height. Item percentages
+		// (max-height: 100%) resolve against it.
+		const template = (style.get("grid-template-rows") ?? "none").trim();
+		const rowTracks =
+			template === "none" ? [] : parseTracks(template, this.lengthIn(style, ch), ch ?? 0, rowGap);
+		const knownH = (r: number): number | undefined => {
+			const t = rowTracks[r];
+			if (t?.kind === "fixed") return t.px;
+			if (t === undefined && rowTracks.length === 0 && nRows === 1) return ch;
+			return undefined;
+		};
 		for (const [i, p] of placed.entries()) {
 			const item = items[i];
 			if (!item) continue;
@@ -1139,22 +1179,20 @@ export class Flow {
 				item.type === "element"
 					? this.margins(item.style, cw)
 					: { top: 0, right: 0, bottom: 0, left: 0 };
+			const r = rows[i] ?? 0;
+			const ah = knownH(r);
 			const f = this.layout(item, {
 				available: aw,
 				pctW: aw,
+				...(ah !== undefined ? { pctH: ah } : {}),
 				...(this.stretches(item, "justify", style)
 					? { width: Math.max(0, aw - m.left - m.right) }
 					: { shrink: true }),
 			});
-			const r = rows[i] ?? 0;
 			rowH[r] = Math.max(rowH[r] ?? 0, f.h + m.top + m.bottom);
 		}
 		// Explicit row sizes (lengths only; others size to content).
-		const template = (style.get("grid-template-rows") ?? "none").trim();
-		if (template !== "none") {
-			const rowTracks = parseTracks(template, this.lengthIn(style, ch), ch ?? 0, rowGap);
-			for (const [i, t] of rowTracks.entries()) if (t.kind === "fixed" && i < nRows) rowH[i] = t.px;
-		}
+		for (const [i, t] of rowTracks.entries()) if (t.kind === "fixed" && i < nRows) rowH[i] = t.px;
 		// A definite height: auto rows stretch to fill it (§11.8).
 		const total = sum(rowH) + rowGap * Math.max(0, nRows - 1);
 		if (

@@ -557,7 +557,9 @@ export function toPx(
 ): number {
 	const v = value.trim();
 	if (v === "0") return 0;
-	const m = v.match(/^(-?[\d.]+)(px|em|rem|%|vw|vh|pt)?$/);
+	const m = v.match(
+		/^([+-]?[\d.]+(?:e[+-]?\d+)?)(px|em|rem|%|vw|vh|vmin|vmax|pt|pc|in|cm|mm|q|ch|ex)?$/i,
+	);
 	if (!m) {
 		const calc = v.match(/^calc\((.+)\)$/);
 		if (calc) return evalCalc(calc[1] ?? "", fontSize, rootFontSize, vp, basis);
@@ -576,7 +578,7 @@ export function toPx(
 		return Number.NaN;
 	}
 	const n = Number(m[1]);
-	switch (m[2]) {
+	switch (m[2]?.toLowerCase()) {
 		case "em":
 			return n * fontSize;
 		case "rem":
@@ -587,8 +589,26 @@ export function toPx(
 			return (n / 100) * vp.width;
 		case "vh":
 			return (n / 100) * vp.height;
+		case "vmin":
+			return (n / 100) * Math.min(vp.width, vp.height);
+		case "vmax":
+			return (n / 100) * Math.max(vp.width, vp.height);
 		case "pt":
 			return (n * 96) / 72;
+		case "pc":
+			return n * 16;
+		case "in":
+			return n * 96;
+		case "cm":
+			return (n * 96) / 2.54;
+		case "mm":
+			return (n * 96) / 25.4;
+		case "q":
+			return (n * 96) / 101.6;
+		// Without the font's metrics: half an em, as browsers fall back to.
+		case "ch":
+		case "ex":
+			return n * fontSize * 0.5;
 		default:
 			return n;
 	}
@@ -611,15 +631,105 @@ function splitArgs(s: string): string[] {
 	return out;
 }
 
+/** A calc() value: a number, or a length as px plus a percentage (resolved at the end). */
+interface CalcValue {
+	number: boolean;
+	px: number;
+	pct: number;
+}
+
+/**
+ * A calc() expression (css-values-4 §10): `+ - * /`, parentheses, nested
+ * calc() / min() / max() / clamp(), numbers and lengths. NaN when it
+ * can't be resolved (a percentage without its basis, a length times a
+ * length …).
+ */
 function evalCalc(expr: string, fs: number, rfs: number, vp: Viewport, basis: number): number {
-	// a ± b chains of lengths (enough for theme math)
-	const parts = expr.split(/\s+([+-])\s+/);
-	let acc = toPx(parts[0] ?? "", fs, rfs, vp, basis);
-	for (let i = 1; i < parts.length; i += 2) {
-		const n = toPx(parts[i + 1] ?? "", fs, rfs, vp, basis);
-		acc = parts[i] === "+" ? acc + n : acc - n;
-	}
-	return acc;
+	let i = 0;
+	const fail: CalcValue = { number: false, px: Number.NaN, pct: 0 };
+	const space = () => {
+		while (i < expr.length && /\s/.test(expr[i] ?? "")) i++;
+	};
+	const group = (): string => {
+		// expr[i] is just past "(": up to the matching ")".
+		let depth = 1;
+		const from = i;
+		while (i < expr.length && depth > 0) {
+			if (expr[i] === "(") depth++;
+			else if (expr[i] === ")") depth--;
+			i++;
+		}
+		return expr.slice(from, i - 1);
+	};
+	const term = (): CalcValue => {
+		space();
+		const rest = expr.slice(i);
+		const fn = rest.match(/^(calc|min|max|clamp)?\(/i);
+		if (fn) {
+			i += fn[0].length;
+			const inner = group();
+			const name = (fn[1] ?? "calc").toLowerCase();
+			if (name === "calc") return sub(inner);
+			const px = toPx(`${name}(${inner})`, fs, rfs, vp, basis);
+			return { number: false, px, pct: 0 };
+		}
+		const m = rest.match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)([a-z%]*)/i);
+		if (!m) return fail;
+		i += m[0].length;
+		if (!m[2]) return { number: true, px: Number(m[1]), pct: 0 };
+		if (m[2] === "%") return { number: false, px: 0, pct: Number(m[1]) };
+		return { number: false, px: toPx(m[0], fs, rfs, vp, basis), pct: 0 };
+	};
+	const product = (): CalcValue => {
+		let a = term();
+		for (;;) {
+			space();
+			const op = expr[i];
+			if (op !== "*" && op !== "/") return a;
+			i++;
+			const b = term();
+			if (op === "*") {
+				if (a.number) a = { number: b.number, px: b.px * a.px, pct: b.pct * a.px };
+				else if (b.number) a = { number: false, px: a.px * b.px, pct: a.pct * b.px };
+				else return fail;
+			} else {
+				if (!b.number || b.px === 0) return fail;
+				a = { number: a.number, px: a.px / b.px, pct: a.pct / b.px };
+			}
+		}
+	};
+	const sum = (): CalcValue => {
+		let a = product();
+		for (;;) {
+			space();
+			const op = expr[i];
+			if (op !== "+" && op !== "-") return a;
+			i++;
+			const b = product();
+			const sign = op === "+" ? 1 : -1;
+			// A bare 0 adds to a length (lenient, like the old parser).
+			if (a.number !== b.number && !(a.number && a.px === 0) && !(b.number && b.px === 0))
+				return fail;
+			a = {
+				number: a.number && b.number,
+				px: a.px + sign * b.px,
+				pct: a.pct + sign * b.pct,
+			};
+		}
+	};
+	const sub = (text: string): CalcValue => {
+		const saved = [expr, i] as const;
+		expr = text;
+		i = 0;
+		const v = sum();
+		space();
+		const done = i >= expr.length;
+		[expr, i] = saved;
+		return done ? v : fail;
+	};
+	const v = sub(expr);
+	if (v.pct === 0) return v.px;
+	return Number.isNaN(basis) ? Number.NaN : v.px + (v.pct / 100) * basis;
 }
 
 const FONT_WEIGHTS: Record<string, string> = {
