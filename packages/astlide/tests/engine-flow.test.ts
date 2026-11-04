@@ -255,50 +255,47 @@ describe("layout core, continued", () => {
 	});
 });
 
+/**
+ * Measures CJK characters a full em wide and the rest half an em, so the
+ * punctuation rules are tested whatever fonts the machine has (the test
+ * font has no CJK glyphs).
+ */
+class FullwidthFonts extends FontRegistry {
+	override width(_face: unknown, size: number, text: string, letterSpacing = 0): number {
+		let w = 0;
+		for (const ch of text) w += (ch.codePointAt(0) ?? 0) >= 0x3000 ? size : size / 2;
+		return w + letterSpacing * [...text].length;
+	}
+}
+
 describe("text-spacing-trim", () => {
+	const fonts = new FullwidthFonts();
+	fonts.add("T", 400, false, FONT);
+	const style = {
+		face: fonts.pick("T", 400, false),
+		size: 20,
+		lineHeight: 20,
+		letterSpacing: 0,
+		whiteSpace: "normal",
+		color: "#000",
+		alpha: 1,
+		breakWord: false,
+	};
+	const lay = (text: string, w = 1000) =>
+		layoutLines([{ kind: "text", text, style, nodeIndex: 0 }], w, style, "left", fonts);
+	const lines = (text: string, w: number) => lay(text, w).fragments.map((f) => f.line);
+
 	it("sets punctuation after punctuation half-width", () => {
-		const fonts = new FontRegistry();
-		fonts.add("T", 400, false, FONT);
-		const face = fonts.pick("T", 400, false);
-		const style = {
-			face,
-			size: 20,
-			lineHeight: 20,
-			letterSpacing: 0,
-			whiteSpace: "normal",
-			color: "#000",
-			alpha: 1,
-			breakWord: false,
-		};
-		const width = (text: string) =>
-			layoutLines([{ kind: "text", text, style, nodeIndex: 0 }], 1000, style, "left", fonts).width;
-		const full = width("「");
-		// Only a fullwidth glyph has a blank half to trim.
-		if (full < 18) return;
-		expect(width("」「")).toBeCloseTo(width("」") + full - 10, 5);
-		expect(width("。」")).toBeCloseTo(width("。") - 10 + width("」"), 5);
+		expect(lay("」「").width).toBe(30);
+		expect(lay("。」").width).toBe(30);
+		expect(lay("あ「").width).toBe(40);
 	});
 
-	it("lets closing punctuation at a line end go half-width to fit", () => {
-		const fonts = new FontRegistry();
-		fonts.add("T", 400, false, FONT);
-		const face = fonts.pick("T", 400, false);
-		const style = {
-			face,
-			size: 20,
-			lineHeight: 20,
-			letterSpacing: 0,
-			whiteSpace: "normal",
-			color: "#000",
-			alpha: 1,
-			breakWord: false,
-		};
-		const lay = (text: string, w: number) =>
-			layoutLines([{ kind: "text", text, style, nodeIndex: 0 }], w, style, "left", fonts);
-		const full = lay("」", 1000).width;
-		if (full < 18) return;
-		const one = lay("あ」", 1000).width;
-		// 5px short of the full width: the 」 loses its blank half and the line holds.
-		expect(lay("あ」", one - 5).fragments.map((f) => f.line)).toEqual([0]);
+	it("lets closing brackets at a line end go half-width to fit, not a full stop", () => {
+		// 35px for 40px of text: the 」 loses its blank half and the line holds.
+		expect(lines("あ」", 35)).toEqual([0]);
+		expect(lines("あ）", 35)).toEqual([0]);
+		// A full stop keeps its width: the line breaks before the character it sticks to.
+		expect(lines("ああ。", 55)).toEqual([0, 1]);
 	});
 });

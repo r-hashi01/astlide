@@ -452,7 +452,8 @@ const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
 function closingTrim(word: Word, fonts: FontRegistry): number {
 	const style = word.style;
 	const last = [...word.text].pop() ?? "";
-	if (!style || !CLOSE_PUNCT.test(last)) return 0;
+	// Closing brackets only: a full stop or comma keeps its width.
+	if (!style || !CLOSE_PUNCT.test(last) || /[、。，．]/u.test(last)) return 0;
 	return fonts.width(style.face, style.size, last, 0) >= style.size * 0.9 ? style.size / 2 : 0;
 }
 
