@@ -2,7 +2,7 @@
  * The layout engine against Chromium on the playground's decks: the number of
  * boxes where the engine starts to differ (scripts/engine-parity.ts) must not
  * go above e2e/engine-parity-baseline.json. When the engine gets closer,
- * lower the baseline.
+ * lower the baseline (per platform: Chromium's fallback fonts differ).
  */
 
 import { readFileSync } from "node:fs";
@@ -12,10 +12,12 @@ import { compareDeck } from "../scripts/engine-parity";
 import { useBrowser } from "./helpers/browser";
 
 const browser = useBrowser();
-const baseline: Record<string, number> = JSON.parse(
+const baselines: Record<string, Record<string, number>> = JSON.parse(
 	readFileSync(resolve("e2e/engine-parity-baseline.json"), "utf-8"),
 );
-const decks = Object.keys(baseline).filter((k) => !k.startsWith("//"));
+// Per platform: Chromium's fallback fonts differ between them.
+const baseline = baselines[process.platform] ?? baselines.linux ?? {};
+const decks = Object.keys(baseline);
 
 describe("layout engine vs Chromium, playground decks", () => {
 	for (const deck of decks)
@@ -31,6 +33,9 @@ describe("layout engine vs Chromium, playground decks", () => {
 				.sort((a, b) => b.amount - a.amount)
 				.slice(0, 5)
 				.map((d) => `slide ${d.slide} ${d.element}: engine ${d.engine}, Chromium ${d.chromium}`);
+			console.log(
+				`${deck}: ${report.own} boxes where the difference starts (baseline ${baseline[deck]})`,
+			);
 			expect(report.own, worst.join("\n")).toBeLessThanOrEqual(baseline[deck] ?? 0);
 		}, 120_000);
 });

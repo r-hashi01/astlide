@@ -18,7 +18,7 @@
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { extname, join, normalize, resolve } from "node:path";
+import { extname, join, normalize, resolve, sep } from "node:path";
 import { parseArgs } from "node:util";
 import { type Browser, chromium } from "playwright";
 import { checkLayouts, layoutBuiltPage } from "../packages/astlide/src/mcp/check";
@@ -73,8 +73,14 @@ export async function serve(dist: string): Promise<{ url: string; server: Server
 	const root = resolve(dist);
 	const server = createServer((req, res) => {
 		const path = normalize(join(root, decodeURIComponent((req.url ?? "/").split("?")[0] ?? "/")));
+		// Nothing outside dist.
+		if (path !== root && !path.startsWith(`${root}${sep}`)) {
+			res.writeHead(404);
+			res.end();
+			return;
+		}
 		const file = [path, join(path, "index.html")].find(
-			(f) => f.startsWith(root) && existsSync(f) && statSync(f).isFile(),
+			(f) => existsSync(f) && statSync(f).isFile(),
 		);
 		if (!file) {
 			res.writeHead(404);

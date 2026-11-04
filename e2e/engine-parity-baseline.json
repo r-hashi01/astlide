@@ -1,7 +1,15 @@
 {
-	"//": "Boxes where the layout engine starts to differ from Chromium, per playground deck (scripts/engine-parity.ts). Lower these as the engine improves; e2e/engine-parity-decks.test.ts fails if a deck goes above.",
-	"example-deck": 3,
-	"from-powerpoint": 23,
-	"from-template": 1,
-	"tour": 21
+	"//": "Boxes where the layout engine starts to differ from Chromium, per playground deck and platform (Chromium's fallback fonts differ between them; scripts/engine-parity.ts). Lower these as the engine improves; e2e/engine-parity-decks.test.ts fails if a deck goes above.",
+	"darwin": {
+		"example-deck": 3,
+		"from-powerpoint": 23,
+		"from-template": 1,
+		"tour": 21
+	},
+	"linux": {
+		"example-deck": 7,
+		"from-powerpoint": 23,
+		"from-template": 1,
+		"tour": 29
+	}
 }
