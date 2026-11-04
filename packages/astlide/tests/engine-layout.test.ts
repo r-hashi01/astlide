@@ -77,6 +77,38 @@ describe("engine layout", () => {
 		expect(b.y).toMatchObject({ y: 200, h: 200 });
 	});
 
+	it("lays out grid columns: auto beside fr, fixed widths, spans", () => {
+		const icon = boxes(
+			".g{display:grid;grid-template-columns:auto 1fr;column-gap:20px;width:600px}.ic{width:64px;height:64px}.t{height:30px}",
+			'<div class="g"><div class="i"><div class="ic"></div></div><div class="t"></div></div>',
+		);
+		expect(icon.i).toMatchObject({ x: 0, y: 0, w: 64 });
+		expect(icon.t).toMatchObject({ x: 84, y: 0, w: 516 });
+		const footer = boxes(
+			".g{display:grid;grid-template-columns:1fr auto 1fr;width:900px}.m{width:100px;height:10px}",
+			'<div class="g"><div class="l"></div><div class="c"><div class="m"></div></div><div class="r"></div></div>',
+		);
+		expect([footer.l?.x, footer.c?.x, footer.r?.x]).toEqual([0, 400, 500]);
+		expect(footer.c?.w).toBe(100);
+		const fixed = boxes(
+			".g{display:grid;grid-template-columns:100px 100px;width:900px}.g>div{height:20px}",
+			'<div class="g"><div class="a"></div><div class="b"></div><div class="c"></div><div class="h"></div></div>',
+		);
+		expect(fixed.c).toMatchObject({ x: 0, y: 20, w: 100 });
+		const span = boxes(
+			".g{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:320px}.g>div{height:20px}.h{grid-column:1 / -1}",
+			'<div class="g"><div class="h"></div><div class="a"></div><div class="b"></div></div>',
+		);
+		expect(span.h).toMatchObject({ x: 0, y: 0, w: 320 });
+		expect(span.a).toMatchObject({ x: 0, y: 30, w: 100 });
+		expect(span.b).toMatchObject({ x: 110, y: 30, w: 100 }); // Fractional sizes: the two columns still share a row.
+		const frac = boxes(
+			".g{display:grid;grid-template-columns:1fr 1fr;column-gap:0.8px;width:999.9px}.g>div{height:20px}",
+			'<div class="g"><div class="a"></div><div class="b"></div></div>',
+		);
+		expect(frac.b).toMatchObject({ y: 0 });
+	});
+
 	it("resolves min() with what it knows", () => {
 		const b = boxes(".m{width:min(480px, 100%);height:10px}", '<div class="m"></div>');
 		expect(b.m?.w).toBe(480);

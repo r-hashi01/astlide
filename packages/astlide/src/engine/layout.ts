@@ -19,6 +19,7 @@ import Yoga, {
 	type Node as YogaNode,
 } from "yoga-layout";
 import { type Computed, computeStyle, type StyleSheets, toPx, type Viewport } from "./cascade";
+import { columnSpan, parseTracks, placeItems, sizeTracks } from "./grid";
 import {
 	type FontRegistry,
 	type InlineItem,
@@ -176,8 +177,16 @@ interface BoxNode {
 	el: Element;
 	style: Computed;
 	eid: number;
-	gridCols?: number;
-	gridGap?: number;
+}
+
+/** A grid container while building: its items, columns sized once its width is known. */
+interface GridNode {
+	node: YogaNode;
+	style: Computed;
+	gap: number;
+	items: { node: YogaNode; gridColumn: string }[];
+	/** Each item's width from the first layout (its content), for `auto` columns. */
+	content?: number[];
 }
 
 /** A table cell while building: its grid position and content widths (border box). */
@@ -244,6 +253,7 @@ class Builder {
 	readonly leaves: Leaf[] = [];
 	readonly boxNodes: BoxNode[] = [];
 	readonly tables: TableNode[] = [];
+	readonly grids: GridNode[] = [];
 	rootFontSize = 16;
 	readonly config = Yoga.Config.create();
 	/** Parent of each node we created (Yoga's getParent/getChild return fresh wrappers). */
@@ -621,6 +631,62 @@ class Builder {
 	 * table with a set width; otherwise between min- and max-content.
 	 * Returns whether anything changed (a relayout is needed).
 	 */
+	/**
+	 * Size grid columns from each container's content width and give every
+	 * item its columns' width; the item ending a row gets the rest of the row
+	 * as its right margin, so the next item starts a new flex line. The first
+	 * call (after a layout with unsized items) records their content widths
+	 * for `auto` columns. Returns whether a width changed.
+	 */
+	sizeGrids(): boolean {
+		let changed = false;
+		for (const g of this.grids) {
+			g.content ??= g.items.map((it) => it.node.getComputedWidth());
+			const inner =
+				g.node.getComputedWidth() -
+				g.node.getComputedPadding(Edge.Left) -
+				g.node.getComputedPadding(Edge.Right) -
+				g.node.getComputedBorder(Edge.Left) -
+				g.node.getComputedBorder(Edge.Right);
+			const fs = Number.parseFloat(g.style.get("font-size") ?? "16");
+			const length = (v: string) => toPx(v, fs, this.rootFontSize, this.vp, inner);
+			const tracks = parseTracks(
+				g.style.get("grid-template-columns") ?? "none",
+				length,
+				inner,
+				g.gap,
+			);
+			const placed = placeItems(
+				g.items.map((it) => columnSpan(it.gridColumn, tracks.length)),
+				tracks.length,
+			);
+			const content = tracks.map(() => 0);
+			for (const [i, p] of placed.entries())
+				if (p.span === 1) content[p.col] = Math.max(content[p.col] ?? 0, g.content[i] ?? 0);
+			const widths = sizeTracks(tracks, inner, g.gap, content);
+			let used = 0;
+			for (const [i, p] of placed.entries()) {
+				const item = g.items[i];
+				if (!item) continue;
+				const w =
+					widths.slice(p.col, p.col + p.span).reduce((s, x) => s + x, 0) + g.gap * (p.span - 1);
+				used += (p.col > 0 ? g.gap : 0) + w;
+				// Half a pixel under the rest of the row (negative for a full row): Yoga
+				// adds widths in float32, and a row a hair over the width wraps.
+				const margin = p.rowEnd ? inner - used - 0.5 : 0;
+				if (p.rowEnd) used = 0;
+				if (
+					Math.abs(item.node.getComputedWidth() - w) > 0.01 ||
+					Math.abs(item.node.getComputedMargin(Edge.Right) - margin) > 0.01
+				)
+					changed = true;
+				item.node.setWidth(w);
+				item.node.setMargin(Edge.Right, margin);
+			}
+		}
+		return changed;
+	}
+
 	sizeTables(): boolean {
 		for (const t of this.tables) {
 			const n = Math.max(
@@ -761,12 +827,10 @@ class Builder {
 		if (!Number.isNaN(rg)) node.setGap(Gutter.Row, rg);
 		if (!Number.isNaN(cg)) node.setGap(Gutter.Column, cg);
 
-		let gridCols = 0;
-		if (isGrid) {
-			const t = style.get("grid-template-columns") ?? "none";
-			const rep = t.match(/repeat\(\s*(\d+)\s*,\s*1fr\s*\)/);
-			gridCols = rep ? Number(rep[1]) : (t.match(/1fr/g) ?? []).length || 1;
-		}
+		const grid: GridNode | null = isGrid
+			? { node, style, gap: Number.isNaN(cg) ? 0 : cg, items: [] }
+			: null;
+		if (grid) this.grids.push(grid);
 
 		const container = isFlex || isGrid;
 		let run: ChildNode[] = [];
@@ -824,11 +888,11 @@ class Builder {
 				yn.setAlignSelf(Align.FlexStart);
 			}
 			const entry: BoxNode = { node: yn, el: child, style: cs, eid: this.eids.get(child) ?? -1 };
-			if (gridCols > 0) {
+			// Absolutely positioned children aren't grid items.
+			if (grid && !/^(absolute|fixed)$/.test(cs.get("position") ?? "")) {
 				yn.setFlexGrow(0);
 				yn.setFlexShrink(0);
-				entry.gridCols = gridCols;
-				entry.gridGap = Number.isNaN(cg) ? 0 : cg;
+				grid.items.push({ node: yn, gridColumn: cs.get("grid-column") ?? "" });
 			}
 			this.add(node, yn);
 			this.boxNodes.splice(at, 0, entry);
@@ -965,22 +1029,11 @@ export function layoutSlide(
 	if ((slideStyle.get("height") ?? "auto") === "auto") root.setHeight(vp.height);
 
 	root.calculateLayout(vp.width, vp.height, Direction.LTR);
-	// Grid items: (container content width − gaps) / columns, once the width is known.
-	let changed = false;
-	for (const bn of b.boxNodes) {
-		if (!bn.gridCols) continue;
-		const p = b.parents.get(bn.node);
-		if (!p) continue;
-		const inner =
-			p.getComputedWidth() -
-			p.getComputedPadding(Edge.Left) -
-			p.getComputedPadding(Edge.Right) -
-			p.getComputedBorder(Edge.Left) -
-			p.getComputedBorder(Edge.Right);
-		bn.node.setWidth((inner - (bn.gridCols - 1) * (bn.gridGap ?? 0)) / bn.gridCols);
-		changed = true;
-	}
-	if (changed) root.calculateLayout(vp.width, vp.height, Direction.LTR);
+	// Grid columns, once the containers' widths are known: again while a nested
+	// grid's container width changes with its parent's columns (one more level
+	// settles per pass).
+	for (let pass = 0; pass < 8 && b.sizeGrids(); pass++)
+		root.calculateLayout(vp.width, vp.height, Direction.LTR);
 	// Tables: column widths from the table's width, then lay out again.
 	if (b.sizeTables()) root.calculateLayout(vp.width, vp.height, Direction.LTR);
 
