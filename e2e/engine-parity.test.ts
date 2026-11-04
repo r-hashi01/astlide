@@ -174,6 +174,18 @@ describe("layout engine vs Chromium", () => {
 		).toEqual([]);
 	});
 
+	it("transforms: scale about the center, translate, a custom origin", async () => {
+		expect(
+			await differences(
+				"transform",
+				`:root{--s:.9}.a{width:400px;height:100px;transform:translateX(0) scaleX(var(--s)) scaleY(var(--s))}
+.b{width:200px;height:50px;margin-top:20px;transform:translate(10px, 25%)}
+.c{width:300px;height:60px;margin-top:20px;transform:scale(0.5);transform-origin:left top}`,
+				'<div class="a" data-c="a"><p data-c="a-p">Scaled text inside</p></div><div class="b" data-c="b"></div><div class="c" data-c="c"><div data-c="c-in" style="height:20px"></div></div>',
+			),
+		).toEqual([]);
+	});
+
 	it("a percentage height in a stretched row item", async () => {
 		expect(
 			await differences(

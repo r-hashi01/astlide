@@ -27,6 +27,7 @@ import {
 	layoutLines,
 	verticalMetrics,
 } from "./text";
+import { type Affine, boxTransform, compose, IDENTITY, mapRect } from "./transform";
 
 /** A rectangle in slide coordinates. */
 export interface Rect {
@@ -274,6 +275,37 @@ class Builder {
 	private add(parent: YogaNode, child: YogaNode): void {
 		parent.insertChild(child, parent.getChildCount());
 		this.parents.set(child, parent);
+	}
+
+	private readonly affines = new Map<YogaNode, Affine>();
+	private readonly nodeStyles = new Map<YogaNode, Computed>();
+
+	/**
+	 * Where a node's own transform and its ancestors' put what's laid out in
+	 * it (translations and scales; see `transform.ts`).
+	 */
+	affineOf(node: YogaNode): Affine {
+		const known = this.affines.get(node);
+		if (known) return known;
+		if (this.nodeStyles.size === 0)
+			for (const bn of this.boxNodes) this.nodeStyles.set(bn.node, bn.style);
+		const parent = this.parents.get(node);
+		let a = parent ? this.affineOf(parent) : IDENTITY;
+		const style = this.nodeStyles.get(node);
+		const transform = style?.get("transform");
+		if (style && transform && transform !== "none") {
+			const fs = Number.parseFloat(style.get("font-size") ?? "16");
+			const p = this.absolute(node);
+			const own = boxTransform(
+				transform,
+				style.get("transform-origin") ?? "",
+				{ x: p.x, y: p.y, w: node.getComputedWidth(), h: node.getComputedHeight() },
+				(v, basis) => toPx(v, fs, this.rootFontSize, this.vp, basis),
+			);
+			if (own) a = compose(a, own);
+		}
+		this.affines.set(node, a);
+		return a;
 	}
 
 	/** Absolute position of a node's border box. */
@@ -1176,7 +1208,7 @@ export function layoutSlide(
 			const o = `${ps.get("overflow") ?? ""} ${ps.get("overflow-x") ?? ""} ${ps.get("overflow-y") ?? ""}`;
 			if (/hidden|clip|auto|scroll/.test(o)) {
 				const p = b.absolute(parent);
-				const own = {
+				const own = mapRect(b.affineOf(parent), {
 					x: p.x + parent.getComputedBorder(Edge.Left),
 					y: p.y + parent.getComputedBorder(Edge.Top),
 					w:
@@ -1187,7 +1219,7 @@ export function layoutSlide(
 						parent.getComputedHeight() -
 						parent.getComputedBorder(Edge.Top) -
 						parent.getComputedBorder(Edge.Bottom),
-				};
+				});
 				clip = clip ? intersect(clip, own) : own;
 			}
 		}
@@ -1197,17 +1229,19 @@ export function layoutSlide(
 	const boxes: Box[] = [];
 	for (const bn of b.boxNodes) {
 		const p = b.absolute(bn.node);
-		boxes.push({
-			clip: clipOf(bn.node),
-			eid: bn.eid,
-			tag: bn.el.name,
-			x: p.x,
-			y: p.y,
-			w: bn.node.getComputedWidth(),
-			h: bn.node.getComputedHeight(),
-			style: bn.style,
-			alpha: Number(bn.style.get("__alpha") ?? 1),
-		});
+		boxes.push(
+			mapRect(b.affineOf(bn.node), {
+				clip: clipOf(bn.node),
+				eid: bn.eid,
+				tag: bn.el.name,
+				x: p.x,
+				y: p.y,
+				w: bn.node.getComputedWidth(),
+				h: bn.node.getComputedHeight(),
+				style: bn.style,
+				alpha: Number(bn.style.get("__alpha") ?? 1),
+			}),
+		);
 	}
 	const lines: TextLine[] = [];
 	const inlineBoxes: InlineBox[] = [];
@@ -1215,22 +1249,35 @@ export function layoutSlide(
 		const p = b.absolute(leaf.node);
 		const width = leaf.node.getComputedWidth();
 		const r = layoutLines(leaf.items, width, leaf.strut, leaf.align, fonts);
-		const block: TextBlock = { id, x: p.x, w: width, align: leaf.align };
+		const a = b.affineOf(leaf.node);
+		const block: TextBlock = { id, x: a.sx * p.x + a.tx, w: a.sx * width, align: leaf.align };
 		const clip = clipOf(leaf.node);
+		// Scaled text is drawn at the scaled size.
+		const scaled = (st: InlineStyle): InlineStyle =>
+			a.sy === 1 && a.sx === 1
+				? st
+				: {
+						...st,
+						size: st.size * a.sy,
+						lineHeight: st.lineHeight * a.sy,
+						letterSpacing: st.letterSpacing * a.sx,
+					};
 		for (const f of r.fragments)
-			lines.push({
-				text: f.text,
-				x: p.x + f.x,
-				y: p.y + f.y,
-				w: f.w,
-				h: f.h,
-				style: f.style,
-				clip,
-				block,
-				line: f.line,
-				lineTop: p.y + f.lineTop,
-				lineHeight: f.lineHeight,
-			});
+			lines.push(
+				mapRect(a, {
+					text: f.text,
+					x: p.x + f.x,
+					y: p.y + f.y,
+					w: f.w,
+					h: f.h,
+					style: scaled(f.style),
+					clip,
+					block,
+					line: f.line,
+					lineTop: a.sy * (p.y + f.lineTop) + a.ty,
+					lineHeight: a.sy * f.lineHeight,
+				}),
+			);
 		for (const ib of r.inlineBoxes) {
 			const entry = b.inlineEls[ib.id];
 			if (!entry) continue;
@@ -1242,17 +1289,19 @@ export function layoutSlide(
 			};
 			const top = v("padding-top") + v("border-top-width");
 			const bottom = v("padding-bottom") + v("border-bottom-width");
-			inlineBoxes.push({
-				eid: b.eids.get(entry.el) ?? -1,
-				tag: entry.el.name,
-				x: p.x + ib.x,
-				y: p.y + ib.baseline - m.ascent - top,
-				w: ib.w,
-				h: m.ascent + m.descent + top + bottom,
-				style: entry.style,
-				alpha: is.alpha,
-				clip,
-			});
+			inlineBoxes.push(
+				mapRect(a, {
+					eid: b.eids.get(entry.el) ?? -1,
+					tag: entry.el.name,
+					x: p.x + ib.x,
+					y: p.y + ib.baseline - m.ascent - top,
+					w: ib.w,
+					h: m.ascent + m.descent + top + bottom,
+					style: entry.style,
+					alpha: is.alpha,
+					clip,
+				}),
+			);
 		}
 	}
 	const markers = listMarkers(b, boxes, lines, sheets, fonts);
@@ -1261,13 +1310,15 @@ export function layoutSlide(
 		const columns: number[] = [];
 		const rows = t.rows.map((r) => {
 			const rp = b.absolute(r.node);
+			const ra = b.affineOf(r.node);
 			return {
 				eid: r.eid,
-				y: rp.y,
-				h: r.node.getComputedHeight(),
+				y: ra.sy * rp.y + ra.ty,
+				h: ra.sy * r.node.getComputedHeight(),
 				cells: r.cells.map((c) => {
 					const cp = b.absolute(c.node);
-					const w = c.node.getComputedWidth();
+					const ca = b.affineOf(c.node);
+					const w = ca.sx * c.node.getComputedWidth();
 					if (c.span === 1) columns[c.col] = w;
 					const sides = (get: (e: Edge) => number): Sides => ({
 						top: get(Edge.Top),
@@ -1279,10 +1330,10 @@ export function layoutSlide(
 						eid: c.eid,
 						col: c.col,
 						span: c.span,
-						x: cp.x,
-						y: cp.y,
+						x: ca.sx * cp.x + ca.tx,
+						y: ca.sy * cp.y + ca.ty,
 						w,
-						h: c.node.getComputedHeight(),
+						h: ca.sy * c.node.getComputedHeight(),
 						style: c.style,
 						padding: sides((e) => c.node.getComputedPadding(e)),
 						border: sides((e) => c.node.getComputedBorder(e)),
@@ -1290,12 +1341,13 @@ export function layoutSlide(
 				}),
 			};
 		});
+		const ta = b.affineOf(t.node);
 		return {
 			eid: t.eid,
-			x: p.x,
-			y: p.y,
-			w: t.node.getComputedWidth(),
-			h: t.node.getComputedHeight(),
+			x: ta.sx * p.x + ta.tx,
+			y: ta.sy * p.y + ta.ty,
+			w: ta.sx * t.node.getComputedWidth(),
+			h: ta.sy * t.node.getComputedHeight(),
 			columns: [...columns].map((w) => w ?? 0),
 			rows,
 		};
