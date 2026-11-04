@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FontRegistry, GOOGLE_FONT_LIMITS, loadGoogleFonts } from "@astlide/core/engine";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { parseUnicodeRange } from "../src/engine/fonts";
 
 /** A real TrueType font (KaTeX ships some) to stand in for downloads. */
 const TTF = readFileSync(
@@ -16,14 +17,19 @@ const TTF = readFileSync(
 	),
 );
 
-/** Google Fonts stand-in: every weight of a family answers with the same file. */
-function serveFonts() {
+/**
+ * Google Fonts stand-in: every weight of a family answers with the same
+ * file; a browser asking gets subsets covering `ranges`.
+ */
+function serveFonts(ranges = "U+0000-10FFFF") {
 	const downloads: string[] = [];
 	vi.stubGlobal(
 		"fetch",
-		vi.fn(async (url: string) => {
+		vi.fn(async (url: string, init?: { headers?: Record<string, string> }) => {
 			downloads.push(url);
 			const family = new URL(url).searchParams.get("family")?.split(":")[0];
+			if (init?.headers?.["user-agent"])
+				return new Response(`@font-face{src:url(a.woff2);unicode-range:${ranges}}`);
 			if (url.startsWith("https://fonts.googleapis.com/"))
 				return new Response(
 					`@font-face{src:url(https://fonts.gstatic.com/${encodeURIComponent(family ?? "")}.ttf)}`,
@@ -47,6 +53,7 @@ describe("Google Fonts cache", () => {
 		expect(ttfs).toHaveLength(2);
 		for (const f of ttfs) expect(f).toMatch(/^[0-9a-f]{64}\.ttf$/);
 		expect(downloads.filter((u) => u.endsWith(".ttf"))).toHaveLength(2);
+		expect(readdirSync(dir).filter((f) => f.endsWith(".ranges"))).toHaveLength(2);
 		// Cached: nothing downloaded again.
 		const before = downloads.length;
 		await loadGoogleFonts(new FontRegistry(), ["游ゴシック"], dir, [400, 700]);
@@ -69,5 +76,34 @@ describe("Google Fonts cache", () => {
 		} finally {
 			GOOGLE_FONT_LIMITS.cacheBytes = cap;
 		}
+	});
+
+	it("draws characters outside the family's unicode-range with the next family", async () => {
+		serveFonts("U+0000-00FF");
+		const dir = mkdtempSync(join(tmpdir(), "astlide-gfonts-"));
+		const fonts = new FontRegistry();
+		await loadGoogleFonts(fonts, ["Sans"], dir, [400]);
+		// The file has "→", but the page's subsets don't serve it.
+		fonts.add(
+			"Next",
+			400,
+			false,
+			join(dir, readdirSync(dir).find((f) => f.endsWith(".ttf")) ?? ""),
+		);
+		const { face } = fonts.resolve("Sans, Next", 400, false);
+		expect(fonts.segments(face, "a→").map((s) => [s.face.family, s.text])).toEqual([
+			["sans", "a"],
+			["next", "→"],
+		]);
+	});
+});
+
+describe("unicode-range", () => {
+	it("reads single code points, ranges and wildcards", () => {
+		expect(parseUnicodeRange("U+0000-00FF, U+2191,u+4??")).toEqual([
+			[0, 0xff],
+			[0x2191, 0x2191],
+			[0x400, 0x4ff],
+		]);
 	});
 });

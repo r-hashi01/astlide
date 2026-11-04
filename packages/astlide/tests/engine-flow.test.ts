@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FontRegistry, layoutPage } from "../src/engine";
 import { type FlexItem, resolveFlexibleLengths } from "../src/engine/flow";
+import { layoutLines } from "../src/engine/text";
 
 /** A font every install has (KaTeX ships TrueType), for text. */
 const FONT = join(
@@ -45,7 +46,14 @@ function boxes(css: string, body: string, files: Record<string, string> = {}) {
 }
 
 const item = (over: Partial<FlexItem>): FlexItem => ({
-	box: { type: "text", items: [], strut: undefined as never, align: "left", inFlow: false },
+	box: {
+		type: "text",
+		items: [],
+		strut: undefined as never,
+		align: "left",
+		inFlow: false,
+		indent: 0,
+	},
 	grow: 0,
 	shrink: 1,
 	base: 0,
@@ -149,5 +157,79 @@ describe("layout core", () => {
 			'<div class="c"><span class="f">short</span></div>',
 		);
 		expect(b.f?.w).toBeLessThan(200);
+	});
+
+	it("lays out an inline-block on the line, by its baseline and vertical-align", () => {
+		const line = (va: string) =>
+			boxes(
+				`.p{line-height:20px}.ib{display:inline-block;width:50px;height:40px;vertical-align:${va}}`,
+				'<p class="p">x <span class="ib"></span> y</p>',
+			);
+		const base = line("baseline");
+		expect(base.ib).toMatchObject({ w: 50, h: 40 });
+		// An empty inline-block sits on the baseline by its bottom edge: the line grows to hold it.
+		expect(base.p?.h).toBeGreaterThan(40);
+		expect((base.ib?.y ?? 0) - (base.p?.y ?? 0)).toBe(0);
+		// Lowered 10px: 30px above the baseline and 10px below it, which the line holds.
+		expect(line("-10px").p?.h).toBe(40);
+	});
+
+	it("keeps nowrap text on one line", () => {
+		const b = boxes(
+			".n{width:50px;line-height:20px;white-space:nowrap}.w{width:50px;line-height:20px}",
+			'<p class="n">aaa bbb ccc</p><p class="w">aaa bbb ccc</p>',
+		);
+		expect(b.n?.h).toBe(20);
+		expect(b.w?.h).toBeGreaterThan(20);
+	});
+
+	it("reads the font shorthand", () => {
+		const b = boxes(".f{font:30px/60px T}", '<p class="f">x</p>');
+		expect(b.f?.h).toBe(60);
+	});
+
+	it("indents the first line by text-indent (a hanging bullet)", () => {
+		const b = boxes(
+			".p{padding-left:30px;text-indent:-30px}.ib{display:inline-block;width:30px;height:10px}",
+			'<p class="p"><span class="ib"></span>text</p>',
+		);
+		expect(b.ib?.x).toBe(b.p?.x);
+	});
+
+	it("sizes table columns: <col> widths, set widths no narrower than the content", () => {
+		const b = boxes(
+			"table{border-spacing:0;width:600px}.n{width:10px;white-space:nowrap}",
+			'<table><colgroup><col style="width:200px"><col><col></colgroup><tr><td class="a">a</td><td class="n">wide words</td><td class="c">c</td></tr></table>',
+		);
+		// The fixed columns get their widths (the nowrap one its content's); the auto column the rest.
+		expect(b.a?.w).toBe(200);
+		expect(b.n?.w).toBeGreaterThan(10);
+		expect((b.a?.w ?? 0) + (b.n?.w ?? 0) + (b.c?.w ?? 0)).toBe(600);
+		expect(b.c?.w).toBe(600 - 200 - (b.n?.w ?? 0));
+	});
+});
+
+describe("text-spacing-trim", () => {
+	it("sets punctuation after punctuation half-width", () => {
+		const fonts = new FontRegistry();
+		fonts.add("T", 400, false, FONT);
+		const face = fonts.pick("T", 400, false);
+		const style = {
+			face,
+			size: 20,
+			lineHeight: 20,
+			letterSpacing: 0,
+			whiteSpace: "normal",
+			color: "#000",
+			alpha: 1,
+			breakWord: false,
+		};
+		const width = (text: string) =>
+			layoutLines([{ kind: "text", text, style, nodeIndex: 0 }], 1000, style, "left", fonts).width;
+		const full = width("「");
+		// Only a fullwidth glyph has a blank half to trim.
+		if (full < 18) return;
+		expect(width("」「")).toBeCloseTo(width("」") + full - 10, 5);
+		expect(width("。」")).toBeCloseTo(width("。") - 10 + width("」"), 5);
 	});
 });

@@ -16,9 +16,16 @@
  */
 
 import type { ElementBox, StyleContext, TextRun } from "./box-tree";
-import { type Computed, toPx } from "./cascade";
+import type { Computed } from "./cascade";
 import { columnSpan, parseTracks, placeItems, sizeTracks } from "./grid";
-import { type LineBreakResult, layoutLines } from "./text";
+import {
+	type AtomicInline,
+	type InlineItem,
+	type InlineStyle,
+	type LineBreakResult,
+	layoutLines,
+	verticalMetrics,
+} from "./text";
 
 /** The constraints a box is laid out in. */
 export interface Space {
@@ -33,6 +40,8 @@ export interface Space {
 	pctH?: number;
 	/** An auto width shrinks to fit (fit-content) instead of filling the available space. */
 	shrink?: boolean;
+	/** Border widths to use instead of the box's own (a cell in a collapsed-border table). */
+	borders?: Sides;
 }
 
 /** A laid-out box: its border-box size and its children, positioned in it. */
@@ -91,8 +100,7 @@ export class Flow {
 
 	/** A track size or other bare length in `style`'s context (percentages against `basis`). */
 	private lengthIn(style: Computed, basis: number | undefined): (v: string) => number {
-		const fs = Number.parseFloat(style.get("font-size") ?? "16");
-		return (v) => toPx(v, fs, this.ctx.rootFontSize, this.ctx.vp, basis ?? Number.NaN);
+		return (v) => this.ctx.lengthIn(style, v, basis ?? Number.NaN);
 	}
 
 	/** Padding and border widths (percentage padding against the containing block's width; 0 when indefinite). */
@@ -102,7 +110,7 @@ export class Flow {
 		for (const s of SIDES) {
 			padding[s] = Math.max(0, this.length(style, `padding-${s}`, pctW ?? 0) ?? 0);
 			const bw = this.ctx.px(style, `border-${s}-width`);
-			border[s] = bw > 0 ? bw : 0;
+			border[s] = Math.max(bw, 0);
 		}
 		return { padding, border };
 	}
@@ -177,7 +185,12 @@ export class Flow {
 				? w / h
 				: (fileRatio ??
 					((view[2] ?? 0) > 0 && (view[3] ?? 0) > 0 ? (view[2] ?? 1) / (view[3] ?? 1) : undefined));
-		return { w, h, ratio };
+		const zoom = Number(box.style.get("__zoom") ?? 1) || 1;
+		return {
+			...(w !== undefined ? { w: w * zoom } : {}),
+			...(h !== undefined ? { h: h * zoom } : {}),
+			...(ratio !== undefined ? { ratio } : {}),
+		};
 	}
 
 	// ── Intrinsic sizes ──────────────────────────────────────────────────
@@ -192,10 +205,23 @@ export class Flow {
 		if (hit) return hit;
 		let out: { min: number; max: number };
 		if (box.type === "text") {
+			// An atomic inline counts with its own contribution.
+			const sized = (key: "min" | "max") =>
+				box.items.map((it) =>
+					it.kind === "atomic"
+						? { ...it, width: this.contribution(it.box as ElementBox)[key] }
+						: it,
+				);
 			out = {
-				min: layoutLines(box.items, 0, box.strut, "left", this.ctx.fonts).width,
-				max: layoutLines(box.items, Number.POSITIVE_INFINITY, box.strut, "left", this.ctx.fonts)
-					.width,
+				min: layoutLines(sized("min"), 0, box.strut, "left", this.ctx.fonts, box.indent).width,
+				max: layoutLines(
+					sized("max"),
+					Number.POSITIVE_INFINITY,
+					box.strut,
+					"left",
+					this.ctx.fonts,
+					box.indent,
+				).width,
 			};
 		} else {
 			const { style } = box;
@@ -301,8 +327,125 @@ export class Flow {
 		const w =
 			space.width ??
 			(space.shrink ? Math.min(c.max, Math.max(c.min, space.available)) : space.available);
-		const lines = layoutLines(run.items, w, run.strut, run.align, this.ctx.fonts);
-		return { box: run, w, h: lines.height, kids: [], lines, mt: 0, mb: 0, pending: [] };
+		// Atomic inlines: laid out first (shrink-to-fit in the line's width), then placed by the lines.
+		const laid = new Map<AtomicInline, { f: Fragment; m: Sides }>();
+		const items: InlineItem[] = run.items.map((it) => {
+			if (it.kind !== "atomic") return it;
+			const box = it.box as ElementBox;
+			const f = this.layout(box, { available: w, pctW: w, shrink: true });
+			const m = this.margins(box.style, w);
+			const height = f.h + m.top + m.bottom;
+			const sized: AtomicInline = {
+				...it,
+				width: f.w + m.left + m.right,
+				height,
+				baseline: this.verticalAlign(box, m.top + this.inlineBaseline(box, f), height, run.strut),
+			};
+			laid.set(sized, { f, m });
+			return sized;
+		});
+		const lines = layoutLines(items, w, run.strut, run.align, this.ctx.fonts, run.indent);
+		const kids: Placed[] = [];
+		const pending: Placed[] = [];
+		for (const a of lines.atomics) {
+			const at = laid.get(a.item);
+			if (!at) continue;
+			const x = a.x + at.m.left;
+			const y = a.y + at.m.top;
+			kids.push({ f: at.f, x, y });
+			for (const p of at.f.pending) pending.push({ ...p, x: p.x + x, y: p.y + y });
+		}
+		return { box: run, w, h: lines.height, kids, lines, mt: 0, mb: 0, pending };
+	}
+
+	/**
+	 * Where an atomic inline's baseline is, from its border-box top: an
+	 * inline-block's last line box (its bottom margin edge when it has none
+	 * or clips its overflow, CSS 2 §10.8.1); an inline flex / grid / table
+	 * box's first baseline, else its border-box bottom (css-align-3 §9).
+	 */
+	private inlineBaseline(box: ElementBox, f: Fragment): number {
+		const last = box.kind === "block";
+		const clips = (box.style.get("overflow") ?? "visible") !== "visible";
+		const m = this.margins(box.style);
+		const own = last && clips ? undefined : this.baseline(f, last);
+		return own ?? (last ? f.h + m.bottom : f.h);
+	}
+
+	/**
+	 * A table row's baseline: its first baseline-aligned cell's, else the
+	 * bottom of the lowest cell's content box (CSS 2 §17.5.3).
+	 */
+	private rowBaseline(row: Fragment): number | undefined {
+		let low: number | undefined;
+		for (const c of row.kids) {
+			if (c.f.box.type !== "element") continue;
+			const { style } = c.f.box;
+			if ((style.get("vertical-align") ?? "baseline").trim() === "baseline") {
+				const b = this.baseline(c.f, false);
+				if (b !== undefined) return c.y + b;
+			}
+			const { padding, border } = this.edges(style, row.w);
+			low = Math.max(low ?? 0, c.y + c.f.h - padding.bottom - border.bottom);
+		}
+		return low;
+	}
+
+	/**
+	 * Where the line's baseline crosses an atomic inline of `height` whose
+	 * own baseline is at `baseline` (from its margin-box top), by its
+	 * `vertical-align` against the parent's font (CSS 2 §10.8.1). `top` /
+	 * `bottom` align as `baseline`.
+	 */
+	private verticalAlign(
+		box: ElementBox,
+		baseline: number,
+		height: number,
+		parent: InlineStyle,
+	): number {
+		const va = (box.style.get("vertical-align") ?? "baseline").trim();
+		const m = verticalMetrics(parent.face, parent.size);
+		switch (va) {
+			case "middle": {
+				const f = parent.face.font;
+				const xHeight = ((f.xHeight || f.unitsPerEm / 2) / f.unitsPerEm) * parent.size;
+				return height / 2 + xHeight / 2;
+			}
+			case "text-top":
+				return m.ascent;
+			case "text-bottom":
+				return height - m.descent;
+			// Chromium's shifts: a fifth of the font size down, a third up (plus 1px).
+			case "sub":
+				return baseline - (parent.size / 5 + 1);
+			case "super":
+				return baseline + parent.size / 3 + 1;
+		}
+		// A length or a percentage of its line-height raises it.
+		const own = this.ctx.inlineStyle(box.style).lineHeight;
+		const shift = this.ctx.lengthIn(box.style, va, own);
+		return Number.isNaN(shift) ? baseline : baseline + shift;
+	}
+
+	/** A fragment's first (or last) baseline, from its top; undefined when it has no line. */
+	baseline(f: Fragment, last: boolean): number | undefined {
+		if (f.lines) {
+			const b = f.lines.baselines;
+			if (b.length) return last ? b[b.length - 1] : b[0];
+		}
+		if (f.box.type === "element" && f.box.kind === "replaced") return undefined;
+		if (f.box.type === "element" && f.box.kind === "table") {
+			const row = last ? f.kids[f.kids.length - 1] : f.kids[0];
+			const b = row && this.rowBaseline(row.f);
+			return b === undefined || !row ? undefined : row.y + b;
+		}
+		const kids = last ? [...f.kids].reverse() : f.kids;
+		for (const k of kids) {
+			if (this.absolute(k.f.box)) continue;
+			const b = this.baseline(k.f, last);
+			if (b !== undefined) return k.y + b;
+		}
+		return undefined;
 	}
 
 	/** The border-box width a box gets in `space`. */
@@ -372,7 +515,9 @@ export class Flow {
 
 	private element(box: ElementBox, space: Space): Fragment {
 		const { style } = box;
-		const { padding, border } = this.edges(style, space.pctW);
+		const edges = this.edges(style, space.pctW);
+		const padding = edges.padding;
+		const border = space.borders ?? edges.border;
 		const extraX = padding.left + padding.right + border.left + border.right;
 		const extraY = padding.top + padding.bottom + border.top + border.bottom;
 		const w = this.usedWidth(box, space, extraX, extraY);
@@ -975,7 +1120,14 @@ export class Flow {
 			if (p.rowEnd) row++;
 		}
 		const nRows = row;
-		const colX = widths.map((_, i) => sum(widths.slice(0, i)) + colGap * i);
+		const colSpace = distribute(
+			cw - sum(widths) - colGap * Math.max(0, widths.length - 1),
+			widths.length,
+			(style.get("justify-content") ?? "normal").trim(),
+		);
+		const colX = widths.map(
+			(_, i) => colSpace.start + sum(widths.slice(0, i)) + (colGap + colSpace.between) * i,
+		);
 		const areaW = (p: { col: number; span: number }) =>
 			sum(widths.slice(p.col, p.col + p.span)) + colGap * (p.span - 1);
 		const rowH = Array<number>(nRows).fill(0);
@@ -1012,7 +1164,15 @@ export class Flow {
 			/^(normal|stretch)$/.test(style.get("align-content") ?? "normal")
 		)
 			for (let r = 0; r < nRows; r++) rowH[r] = (rowH[r] ?? 0) + (ch - total) / nRows;
-		const rowY = rowH.map((_, i) => sum(rowH.slice(0, i)) + rowGap * i);
+		// Tracks aligned in the container (css-align-3 §5.3: align-content / justify-content).
+		const rowSpace = distribute(
+			ch === undefined ? 0 : ch - sum(rowH) - rowGap * Math.max(0, nRows - 1),
+			nRows,
+			(style.get("align-content") ?? "normal").trim(),
+		);
+		const rowY = rowH.map(
+			(_, i) => rowSpace.start + sum(rowH.slice(0, i)) + (rowGap + rowSpace.between) * i,
+		);
 		const kids: Placed[] = [];
 		for (const [i, p] of placed.entries()) {
 			const item = items[i];
@@ -1080,8 +1240,36 @@ export class Flow {
 
 	// ── Tables ───────────────────────────────────────────────────────────
 
+	private collapsed(box: ElementBox): boolean {
+		return (box.style.get("border-collapse") ?? "separate").trim() === "collapse";
+	}
+
+	/**
+	 * A cell's min / max widths. A set width makes the column fixed: its
+	 * max is that width, but never below the content's min-content width
+	 * (CSS 2 §17.5.2.2). In a collapsed-border table a cell keeps half of
+	 * each border (`half`: what that saves).
+	 */
+	private cellContribution(
+		box: ElementBox,
+		half: number,
+	): { min: number; max: number; fixed: boolean } {
+		const k = this.contribution(box);
+		const { padding, border } = this.edges(box.style);
+		const extraX = padding.left + padding.right + border.left + border.right;
+		const spec = this.specified(box.style, "width", undefined, extraX);
+		if (spec === undefined) return { min: k.min - half, max: k.max - half, fixed: false };
+		const m = this.margins(box.style);
+		const minW = this.specified(box.style, "min-width", undefined, extraX) ?? 0;
+		const content =
+			Math.max(minW, this.contentContribution(box).min + extraX) + m.left + m.right - half;
+		// A border-box width already holds the halves.
+		const set = (this.borderBox(box.style) ? spec : spec - half) + m.left + m.right;
+		return { min: content, max: Math.max(set, content), fixed: true };
+	}
+
 	/** Column min / max widths from the cells (span-1 cells first, then spanning cells spread). */
-	tableColumns(box: ElementBox): { min: number[]; max: number[] } {
+	tableColumns(box: ElementBox): { min: number[]; max: number[]; fixed: boolean[] } {
 		const rows = box.rows ?? [];
 		const placed = rows.map((r) => {
 			let col = 0;
@@ -1094,15 +1282,25 @@ export class Flow {
 		const n = Math.max(0, ...placed.map((r) => r.reduce((a, c) => Math.max(a, c.col + c.span), 0)));
 		const min = Array<number>(n).fill(0);
 		const max = Array<number>(n).fill(0);
+		const fixed = Array<boolean>(n).fill(false);
 		const cells = placed.flat();
+		const collapse = this.collapsed(box);
 		const widths = (c: (typeof cells)[number]) => {
-			const k = this.contribution(c.box);
-			return { min: k.min, max: k.max };
+			const { border } = this.edges(c.box.style);
+			return this.cellContribution(c.box, collapse ? (border.left + border.right) / 2 : 0);
 		};
 		for (const c of cells.filter((c) => c.span === 1)) {
 			const k = widths(c);
 			min[c.col] = Math.max(min[c.col] ?? 0, k.min);
 			max[c.col] = Math.max(max[c.col] ?? 0, k.max);
+			if (k.fixed) fixed[c.col] = true;
+		}
+		// A <col> width is the column's width, if its cells fit (CSS 2 §17.5.2.2).
+		for (const [i, cs] of (box.cols ?? []).entries()) {
+			const w = i < n ? this.length(cs, "width") : undefined;
+			if (w === undefined) continue;
+			max[i] = Math.max(min[i] ?? 0, w);
+			fixed[i] = true;
 		}
 		for (const c of cells.filter((c) => c.span > 1)) {
 			const k = widths(c);
@@ -1115,7 +1313,39 @@ export class Flow {
 				if (need > have) for (const i of cols) arr[i] = (arr[i] ?? 0) + (need - have) / cols.length;
 			}
 		}
-		return { min, max };
+		return { min, max, fixed };
+	}
+
+	/**
+	 * Column widths for a table `cw` wide (Chromium's auto layout): from
+	 * the min widths, fixed columns grow to their set widths first, then
+	 * the others toward their max widths, in proportion to how far each
+	 * can grow. Space beyond every max goes to the non-fixed columns (all
+	 * of them when every column is fixed), in proportion to their max.
+	 */
+	private columnWidths(min: number[], max: number[], fixed: boolean[], cw: number): number[] {
+		const grow = (from: number[], to: number[], which: (i: number) => boolean, room: number) => {
+			const gap = from.map((f, i) => (which(i) ? Math.max(0, (to[i] ?? f) - f) : 0));
+			const total = sum(gap);
+			if (total <= 0 || room <= 0) return from;
+			const t = Math.min(1, room / total);
+			return from.map((f, i) => f + (gap[i] ?? 0) * t);
+		};
+		let widths = min;
+		widths = grow(widths, max, (i) => fixed[i] === true, cw - sum(widths));
+		widths = grow(widths, max, (i) => !fixed[i], cw - sum(widths));
+		const extra = cw - sum(widths);
+		if (extra > 0) {
+			const loose = fixed.some((f) => !f) ? (i: number) => !fixed[i] : () => true;
+			const weight = widths.map((w, i) => (loose(i) ? w : 0));
+			const total = sum(weight);
+			const count = widths.filter((_, i) => loose(i)).length;
+			widths = widths.map(
+				(w, i) =>
+					w + (loose(i) ? (total > 0 ? ((weight[i] ?? 0) / total) * extra : extra / count) : 0),
+			);
+		}
+		return widths;
 	}
 
 	/** A table's rows: columns between their min and max widths, each row as tall as its tallest cell. */
@@ -1123,31 +1353,80 @@ export class Flow {
 		box: ElementBox,
 		cw: number,
 	): { kids: Placed[]; height: number; pending: Placed[]; columns: number[] } {
-		const { min, max } = this.tableColumns(box);
-		const n = min.length;
-		const sumMin = sum(min);
-		const sumMax = sum(max);
+		const { min, max, fixed } = this.tableColumns(box);
 		const auto = (box.style.get("width") ?? "auto").trim() === "auto";
-		let widths: number[];
-		if (sumMax <= cw)
-			widths = auto
-				? max
-				: max.map((m) => m + (cw - sumMax) * (sumMax ? m / sumMax : 1 / Math.max(1, n)));
-		else if (sumMin < cw)
-			widths = min.map((m, i) => m + (((max[i] ?? m) - m) * (cw - sumMin)) / (sumMax - sumMin));
-		else widths = min;
-		const colX = widths.map((_, i) => sum(widths.slice(0, i)));
+		// An auto-width table is no wider than its columns' max widths.
+		let widths = this.columnWidths(min, max, fixed, auto ? Math.min(cw, sum(max)) : cw);
+		const collapse = this.collapsed(box);
+		const rows = box.rows ?? [];
+		// The collapsing border model (CSS 2 §17.6.2): between two cells the
+		// wider of their borders, each taking half; at the table's edges the
+		// wider of the cell's and the table's, half inside the cell and half
+		// in the table's edge.
+		const own = new Map<ElementBox, Sides>();
+		const grid: (ElementBox | undefined)[][] = rows.map((row) => {
+			const line: (ElementBox | undefined)[] = [];
+			for (const c of row.cells) {
+				own.set(c.box, this.edges(c.box.style).border);
+				for (let k = 0; k < c.span; k++) line.push(c.box);
+			}
+			return line;
+		});
+		const tableBorder = this.edges(box.style).border;
+		const halvesOf = new Map<ElementBox, Sides>();
+		const inset = { top: 0, right: 0, bottom: 0, left: 0 };
+		if (collapse)
+			for (const [r, line] of grid.entries())
+				for (const [col, cell] of line.entries()) {
+					if (!cell || line[col - 1] === cell) continue;
+					const b = own.get(cell) as Sides;
+					const span = line.filter((x) => x === cell).length;
+					const above = grid[r - 1]?.[col];
+					const below = grid[r + 1]?.[col];
+					const left = line[col - 1];
+					const right = line[col + span];
+					const half = {
+						top: Math.max(b.top, above ? (own.get(above)?.bottom ?? 0) : tableBorder.top) / 2,
+						bottom: Math.max(b.bottom, below ? (own.get(below)?.top ?? 0) : tableBorder.bottom) / 2,
+						left: Math.max(b.left, left ? (own.get(left)?.right ?? 0) : tableBorder.left) / 2,
+						right: Math.max(b.right, right ? (own.get(right)?.left ?? 0) : tableBorder.right) / 2,
+					};
+					halvesOf.set(cell, half);
+					if (!above) inset.top = Math.max(inset.top, half.top);
+					if (!below) inset.bottom = Math.max(inset.bottom, half.bottom);
+					if (!left) inset.left = Math.max(inset.left, half.left);
+					if (!right) inset.right = Math.max(inset.right, half.right);
+				}
+		const halves = (cell: ElementBox): Sides | undefined => halvesOf.get(cell);
+		if (collapse) {
+			const inner = cw - inset.left - inset.right;
+			const scale = sum(widths) > 0 && sum(widths) > inner ? inner / sum(widths) : 1;
+			if (scale !== 1) widths = widths.map((w) => w * scale);
+		}
+		const colX = widths.map((_, i) => inset.left + sum(widths.slice(0, i)));
 		const kids: Placed[] = [];
 		const pending: Placed[] = [];
-		let y = 0;
-		for (const row of box.rows ?? []) {
+		let y = inset.top;
+		for (const row of rows) {
 			const rs = row.style;
 			let col = 0;
 			const cells = row.cells.map((c) => {
 				const at = col;
 				col += c.span;
 				const w = sum(widths.slice(at, at + c.span));
-				return { c, at, w, natural: this.layout(c.box, { available: w, width: w, pctW: w }) };
+				const borders = halves(c.box);
+				return {
+					c,
+					at,
+					w,
+					borders,
+					natural: this.layout(c.box, {
+						available: w,
+						width: w,
+						pctW: w,
+						...(borders ? { borders } : {}),
+					}),
+				};
 			});
 			const specH = this.length(rs, "height") ?? 0;
 			const h = Math.max(specH, ...cells.map((x) => x.natural.h));
@@ -1163,8 +1442,15 @@ export class Flow {
 				},
 				w: sum(widths),
 				h,
-				kids: cells.map(({ c, at, w }) => ({
-					f: this.layout(c.box, { available: w, width: w, height: h, pctW: w, pctH: h }),
+				kids: cells.map(({ c, at, w, borders }) => ({
+					f: this.layout(c.box, {
+						available: w,
+						width: w,
+						height: h,
+						pctW: w,
+						pctH: h,
+						...(borders ? { borders } : {}),
+					}),
 					x: colX[at] ?? 0,
 					y: 0,
 				})),
@@ -1172,10 +1458,45 @@ export class Flow {
 				mb: 0,
 				pending: [],
 			};
-			kids.push({ f: rowFrag, x: 0, y });
+			kids.push({ f: rowFrag, x: inset.left, y });
 			y += h;
 		}
-		return { kids, height: y, pending, columns: widths };
+		// Rows are placed at the inset; their cells at the columns' x relative to the row.
+		for (const k of kids) for (const cell of k.f.kids) cell.x -= inset.left;
+		return { kids, height: y + inset.bottom, pending, columns: widths };
+	}
+}
+
+/**
+ * Where `n` tracks (or lines) start and the extra space between them, for a
+ * `align-content` / `justify-content` value and the free space
+ * (css-align-3 §5.3). Negative free space falls back as the spec says:
+ * space-between to start, space-around / space-evenly to center.
+ */
+export function distribute(
+	free: number,
+	n: number,
+	value: string,
+): { start: number; between: number } {
+	const v = value.replace(/^(safe|unsafe)\s+/, "");
+	if (n <= 0) return { start: 0, between: 0 };
+	if (free < 0 && /^space-(around|evenly)$/.test(v)) return { start: free / 2, between: 0 };
+	if (free < 0 && v === "space-between") return { start: 0, between: 0 };
+	switch (v) {
+		case "center":
+			return { start: free / 2, between: 0 };
+		case "end":
+		case "flex-end":
+		case "right":
+			return { start: free, between: 0 };
+		case "space-between":
+			return { start: 0, between: n > 1 ? free / (n - 1) : 0 };
+		case "space-around":
+			return { start: free / n / 2, between: free / n };
+		case "space-evenly":
+			return { start: free / (n + 1), between: free / (n + 1) };
+		default:
+			return { start: 0, between: 0 };
 	}
 }
 

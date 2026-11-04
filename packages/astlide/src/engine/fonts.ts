@@ -42,6 +42,17 @@ const GENERIC = new Set([
 /** CSS-wide keywords: a value of `font-family`, not a family (unless quoted). */
 const CSS_WIDE = new Set(["inherit", "initial", "unset", "revert", "revert-layer"]);
 
+/** The font weights CSS text asks for (`bold` as 700), always with 400 and 700. */
+export function weightsIn(css: string): number[] {
+	const out = new Set([400, 700]);
+	for (const m of css.matchAll(/font-weight\s*:\s*(\d{3}|bold|normal)/gi)) {
+		const v = m[1]?.toLowerCase();
+		const n = v === "bold" ? 700 : v === "normal" ? 400 : Number(v);
+		if (n >= 100 && n <= 900) out.add(Math.round(n / 100) * 100);
+	}
+	return [...out].sort((a, b) => a - b);
+}
+
 /**
  * Family names mentioned in CSS text (generic keywords excluded): first
  * choices first — the families slides use — then second choices and so on,
@@ -114,9 +125,13 @@ const FONT_LIMIT = 32 * 1024 * 1024;
 const DOWNLOAD_TIMEOUT = 30_000;
 
 /** A response body of at most `limit` bytes, or null (failed, too large, timed out). */
-async function download(url: string, limit: number): Promise<Buffer | null> {
+async function download(
+	url: string,
+	limit: number,
+	headers?: Record<string, string>,
+): Promise<Buffer | null> {
 	try {
-		const res = await fetch(url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT) });
+		const res = await fetch(url, { headers, signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT) });
 		if (!res.ok || Number(res.headers.get("content-length") ?? 0) > limit) {
 			await res.body?.cancel();
 			return null;
@@ -192,6 +207,7 @@ export async function loadGoogleFonts(
 	pruneCache(cacheDir, GOOGLE_FONT_LIMITS.cacheBytes);
 	const missing = families.slice(GOOGLE_FONT_LIMITS.families);
 	for (const family of families.slice(0, GOOGLE_FONT_LIMITS.families)) {
+		const ranges = await googleRanges(family, cacheDir);
 		let found = false;
 		for (const w of weights) {
 			for (const italic of [false, true]) {
@@ -216,13 +232,58 @@ export async function loadGoogleFonts(
 					writeAtomic(ref, name);
 				}
 				// Google returns the nearest weight when one doesn't exist; that's fine.
-				fonts.add(family, w, italic, file);
+				fonts.add(family, w, italic, file, ranges);
 				found = true;
 			}
 		}
 		if (!found) missing.push(family);
 	}
 	return missing;
+}
+
+/** A browser's User-Agent: Google then answers with its subsets and their `unicode-range`s. */
+const BROWSER_UA =
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+
+/**
+ * The characters a browser gets from a Google font: the union of its
+ * subsets' `unicode-range`s. The TrueType file we measure with has every
+ * glyph, but a browser draws a character no subset covers (`→` in Geist)
+ * with the next family. Undefined when Google can't be reached.
+ */
+async function googleRanges(
+	family: string,
+	cacheDir: string,
+): Promise<[number, number][] | undefined> {
+	const file = join(cacheDir, `${sha256(`${family}\nunicode-range`)}.ranges`);
+	let text = existsSync(file) ? readFileSync(file, "utf-8") : undefined;
+	if (text === undefined) {
+		const css = await download(
+			`https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}`,
+			CSS_LIMIT,
+			{ "user-agent": BROWSER_UA },
+		);
+		if (!css) return undefined;
+		text = [...css.toString("utf-8").matchAll(/unicode-range\s*:([^;}]+)/gi)]
+			.map((m) => (m[1] ?? "").trim())
+			.join(",");
+		writeAtomic(file, text);
+	}
+	const ranges = parseUnicodeRange(text);
+	return ranges.length > 0 ? ranges : undefined;
+}
+
+/** `U+0000-00FF, U+2191, U+4??` as code point ranges. */
+export function parseUnicodeRange(value: string): [number, number][] {
+	const out: [number, number][] = [];
+	for (const part of value.split(",")) {
+		const m = part.trim().match(/^u\+([0-9a-f?]{1,6})(?:-([0-9a-f]{1,6}))?$/i);
+		if (!m?.[1]) continue;
+		const from = Number.parseInt(m[1].replace(/\?/g, "0"), 16);
+		const to = Number.parseInt(m[2] ?? m[1].replace(/\?/g, "f"), 16);
+		if (from <= to) out.push([from, to]);
+	}
+	return out;
 }
 
 /**
