@@ -11,7 +11,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { Element } from "domhandler";
 import { parseDocument } from "htmlparser2";
-import { StyleSheets, UA_CSS, type Viewport } from "./cascade";
+import { declaredValue, StyleSheets, UA_CSS, type Viewport } from "./cascade";
 import { distFile, isInside } from "./dist";
 import {
 	type Box,
@@ -260,7 +260,7 @@ function withFrames(
 			bodyBg && bodyBg !== "transparent"
 				? bodyBg
 				: html
-					? sheets.declared(html).get("background-color")
+					? declaredValue(sheets.declared(html), "background-color")
 					: undefined;
 		const canvas: Box = {
 			eid: -1,
