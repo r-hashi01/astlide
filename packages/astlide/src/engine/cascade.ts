@@ -358,7 +358,7 @@ export class StyleSheets {
 			const value = decl.value;
 			for (const x of prop.startsWith("--")
 				? [{ prop: decl.prop, value, important: false }]
-				: expand(prop, value)) {
+				: declare(prop, value)) {
 				declarations.push({ ...x, important: decl.important });
 			}
 		});
@@ -435,13 +435,32 @@ function parseInline(style: string): Declaration[] {
 		const important = /!important$/i.test(value);
 		value = value.replace(/!important$/i, "").trim();
 		if (!prop || !value) continue;
-		for (const x of prop.startsWith("--")
-			? [{ prop, value, important: false }]
-			: expand(prop, value)) {
+		for (const x of declare(prop, value)) {
 			out.push({ ...x, important });
 		}
 	}
 	return out;
+}
+
+/** Marks a longhand whose shorthand has `var()`: expanded per element, after substitution. */
+const PENDING = "\u0000";
+
+/**
+ * Expand a declaration into longhands. A shorthand with `var()` can't be
+ * split yet (`padding: var(--p)` may be `2rem 4rem`): each longhand keeps
+ * the shorthand and is resolved by {@link computeStyle}.
+ */
+function declare(prop: string, value: string): Declaration[] {
+	if (prop.startsWith("--")) return [{ prop, value, important: false }];
+	const longhands = expand(prop, value);
+	if (!value.includes("var(") || longhands.every((d) => d.prop === prop)) return longhands;
+	return longhands.map((d) => ({ ...d, value: `${PENDING}${prop}${PENDING}${value}` }));
+}
+
+/** A declared value as written, or undefined while it waits on var() substitution ({@link declare}). */
+export function declaredValue(declared: Map<string, string>, prop: string): string | undefined {
+	const v = declared.get(prop);
+	return v?.startsWith(PENDING) ? undefined : v;
 }
 
 // ── Computed values ──────────────────────────────────────────────────────
@@ -593,6 +612,12 @@ export function computeStyle(declared: Map<string, string>, ctx: Context): Compu
 
 	const value = (prop: string): string => {
 		let v = declared.get(prop);
+		if (v?.startsWith(PENDING)) {
+			// A longhand of a shorthand with var(): substitute, then expand.
+			const [, shorthand = "", raw = ""] = v.split(PENDING);
+			const resolved = resolveVars(raw, custom).trim();
+			v = expand(shorthand, resolved).find((d) => d.prop === prop)?.value;
+		}
 		if (v !== undefined) v = resolveVars(v, custom).trim();
 		if (v === undefined || v === "" || v === "inherit" || (v === "unset" && INHERITED.has(prop))) {
 			if (v === undefined && !INHERITED.has(prop)) return INITIAL[prop] ?? "";

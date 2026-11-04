@@ -109,6 +109,15 @@ describe("engine layout", () => {
 		expect(frac.b).toMatchObject({ y: 0 });
 	});
 
+	it("expands shorthands with var() after substituting it", () => {
+		const b = boxes(
+			":root{--p:20px 40px;--m:5px}.s{display:flex;flex-direction:column;width:500px;height:100px;padding:var(--p, 4px);margin:var(--m) 0 0}.in{height:10px}",
+			'<div class="s"><div class="in"></div></div>',
+		);
+		expect(b.s).toMatchObject({ x: 0, y: 5, w: 580 });
+		expect(b.in).toMatchObject({ x: 40, y: 25, w: 500 });
+	});
+
 	it("resolves min() with what it knows", () => {
 		const b = boxes(".m{width:min(480px, 100%);height:10px}", '<div class="m"></div>');
 		expect(b.m?.w).toBe(480);
