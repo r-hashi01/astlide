@@ -214,7 +214,7 @@ export class StyleContext {
 			breakWord:
 				/break-word|anywhere/.test(
 					`${style.get("overflow-wrap") ?? ""} ${style.get("word-wrap") ?? ""}`,
-				) || style.get("word-break") === "break-all",
+				) || /^(break-all|break-word)$/.test(style.get("word-break") ?? ""),
 			...featuresOf(style),
 			underline: /underline/.test(style.get("__decoration") ?? ""),
 			strike: /line-through/.test(style.get("__decoration") ?? ""),
@@ -319,7 +319,15 @@ export class StyleContext {
 		if (!isElement(n)) return false;
 		// Replaced elements aren't laid out inline (no atomic inlines yet): their own box.
 		if (n.name === "img" || n.name === "svg" || n.name === "iframe") return false;
-		const display = this.styleOf(n, parentStyle).get("display") ?? "inline";
+		const style = this.styleOf(n, parentStyle);
+		// Absolutely positioned and floated boxes are blockified (CSS 2 §9.7).
+		if (
+			this.atomicInlines &&
+			(/^(absolute|fixed)$/.test(style.get("position") ?? "") ||
+				!/^(none|)$/.test(style.get("float") ?? "none"))
+		)
+			return false;
+		const display = style.get("display") ?? "inline";
 		return INLINE.has(display) || (this.atomicInlines && ATOMIC.has(display)) || n.name === "br";
 	}
 
