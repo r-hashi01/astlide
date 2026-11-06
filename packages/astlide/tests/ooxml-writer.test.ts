@@ -296,8 +296,6 @@ describe("PptxFile", () => {
 						secondary: "64748B",
 						accent: "F59E0B",
 						muted: "F1F5F9",
-						codeBg: "1E1E1E",
-						codeFg: "D4D4D4",
 					},
 				}),
 		).not.toThrow();

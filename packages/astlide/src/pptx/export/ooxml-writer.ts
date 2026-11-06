@@ -14,7 +14,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { deflateRawSync } from "node:zlib";
 import { toEot } from "./eot";
-import type { ThemeColors } from "./theme-map";
+import { DEFAULT_THEME, type ThemeColors } from "./theme-map";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Public types — SlideSpec IR (consumed by hast-builder, produced for writer)
@@ -1163,17 +1163,6 @@ export interface PptxFileOptions {
 	/** The East Asian font of the theme (what PowerPoint uses for Japanese text typed into the file). */
 	eaFont?: string;
 }
-
-const DEFAULT_THEME: ThemeColors = {
-	bg: "FFFFFF",
-	fg: "1A1A1A",
-	primary: "3B82F6",
-	secondary: "64748B",
-	accent: "F59E0B",
-	muted: "F1F5F9",
-	codeBg: "1E1E1E",
-	codeFg: "D4D4D4",
-};
 
 /** Give every run with a font, in text boxes and table cells, `eaFont` for its East Asian text. */
 function withEaFont(spec: SlideSpec, eaFont: string): void {

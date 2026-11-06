@@ -37,7 +37,7 @@ import {
 	type TextRunOptions,
 } from "./ooxml-writer";
 import { type SvgNode, svgToShapes } from "./svg-shapes";
-import { getTheme } from "./theme-map";
+import { themeColors } from "./theme-map";
 
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 
@@ -1140,7 +1140,8 @@ export async function pptxFromPrintView(o: PrintViewPptxOptions): Promise<void> 
 	const pptx = new PptxFile({
 		title: str(config.title) ?? deck,
 		author: str(config.author) ?? "",
-		theme: getTheme(str(config.theme)),
+		// The theme as the deck applied it (built-in, template or plugin): its CSS variables.
+		theme: themeColors(layouts[0]?.style),
 		fonts: embeddedFonts(used, warn),
 		eaFont,
 	});
