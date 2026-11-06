@@ -1,8 +1,9 @@
 /**
- * TrueType / OpenType → Embedded OpenType (EOT), the container PowerPoint
- * stores embedded fonts in (`ppt/fonts/*.fntdata`). Version 0x00020001,
+ * Embedded OpenType (EOT), the container PowerPoint stores embedded fonts in
+ * (`ppt/fonts/*.fntdata`): written by the export (version 0x00020001,
  * uncompressed and unobfuscated: a header copied from the font's OS/2, head
- * and name tables, followed by the font file unchanged.
+ * and name tables, followed by the font file unchanged), and read back by the
+ * import.
  *
  * @module
  */
@@ -157,4 +158,20 @@ function tableChecksum(font: Buffer, offset: number, length: number): number {
 		sum = (sum + (word >>> 0)) >>> 0;
 	}
 	return sum;
+}
+
+/**
+ * The TrueType / OpenType file inside an embedded font (EOT, as PowerPoint
+ * stores them in ppt/fonts/*.fntdata): uncompressed EOTs, XOR-obfuscated or
+ * not. MicroType-compressed ones (and anything else) give null.
+ */
+export function fontFromEot(eot: Buffer | undefined): Buffer | null {
+	if (!eot || eot.length < 82) return null;
+	const dataSize = eot.readUInt32LE(4);
+	const flags = eot.readUInt32LE(12);
+	if (flags & 0x4 || dataSize <= 0 || dataSize > eot.length) return null; // MTX compressed
+	const font = Buffer.from(eot.subarray(eot.length - dataSize));
+	if (flags & 0x10000000) for (let i = 0; i < font.length; i++) font[i] = (font[i] ?? 0) ^ 0x50;
+	const magic = font.readUInt32BE(0);
+	return magic === 0x00010000 || magic === 0x4f54544f || magic === 0x74727565 ? font : null;
 }

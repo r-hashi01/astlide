@@ -3,9 +3,9 @@
  *
  * Generates a valid .pptx file (ZIP of OOXML XML) using only Node.js built-ins
  * (`zlib` for deflate, `Buffer` for binary). The slide description is in
- * `ooxml/spec`, the slide XML in `ooxml/slide-xml`, the other parts in
- * `ooxml/package-xml` and the zip in `ooxml/zip-writer`; this file puts them
- * together.
+ * `writer/spec`, the slide XML in `writer/slide-xml`, the other parts in
+ * `writer/package-xml`, and the zip and units in `pptx/ooxml/` (shared with
+ * the import); this file puts them together.
  *
  * Usage:
  *   const pptx = new PptxFile({ title: "...", author: "..." });
@@ -15,7 +15,9 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { toEot } from "./eot";
+import { toEot } from "../ooxml/eot";
+import { buildDate, ZipWriter } from "../ooxml/zip-writer";
+import { DEFAULT_THEME, type ThemeColors } from "./theme-map";
 import {
 	appPropsXml,
 	contentTypesXml,
@@ -35,11 +37,9 @@ import {
 	tableStylesXml,
 	themeXml,
 	viewPropsXml,
-} from "./ooxml/package-xml";
-import { buildSlideRels, buildSlideXml } from "./ooxml/slide-xml";
-import { type EmbeddedFont, FONT_SLOTS, type SlideSpec } from "./ooxml/spec";
-import { buildDate, ZipWriter } from "./ooxml/zip-writer";
-import { DEFAULT_THEME, type ThemeColors } from "./theme-map";
+} from "./writer/package-xml";
+import { buildSlideRels, buildSlideXml } from "./writer/slide-xml";
+import { type EmbeddedFont, FONT_SLOTS, type SlideSpec } from "./writer/spec";
 
 export interface PptxFileOptions {
 	title?: string;

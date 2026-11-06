@@ -29,8 +29,9 @@ import {
 	titleTypes,
 	xfrmOf,
 } from "./import";
+import { EMU_PER_POINT } from "./ooxml/units";
+import { type Element, kid, kids, path } from "./ooxml/xml";
 import { slugify } from "./slug";
-import { type Element, kid, kids, path } from "./xml";
 
 /** A placeholder's box on the canvas (px) and the CSS for its text. */
 export interface TemplateRegion {
@@ -233,7 +234,7 @@ function regionOf(
 	const body: Record<string, string> = {};
 	for (const c of chain) Object.assign(body, path(c, "p:txBody", "a:bodyPr")?.attribs ?? {});
 	const ins = (k: string, d: number) => r2(Number(body[k] ?? d) * s);
-	const ptPx = 12700 * s;
+	const ptPx = EMU_PER_POINT * s;
 	const isTitle = titleTypes.has(ph.type);
 	const face =
 		resolveFont(props.font, ctx.fonts) ?? (isTitle ? ctx.fonts.major : ctx.fonts.minor) ?? "";

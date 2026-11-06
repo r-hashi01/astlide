@@ -5,9 +5,9 @@
  */
 
 import { readFileSync } from "node:fs";
+import { embeddingPermissions, withLegacyFamilyOnly } from "../ooxml/eot";
 import type { TextItem, Warn } from "./common";
-import { embeddingPermissions, withLegacyFamilyOnly } from "./eot";
-import type { EmbeddedFont } from "./ooxml/spec";
+import type { EmbeddedFont } from "./writer/spec";
 
 const WEIGHT_NAMES: Record<number, string> = {
 	100: "Thin",

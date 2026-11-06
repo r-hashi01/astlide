@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { embeddingPermissions, toEot, withLegacyFamilyOnly } from "../src/pptx/export/eot";
+import { embeddingPermissions, toEot, withLegacyFamilyOnly } from "../src/pptx/ooxml/eot";
 
 /** A minimal sfnt with OS/2, head and name tables (enough for the EOT header). */
 function fakeFont(names: Record<number, string>, fsType = 0): Buffer {

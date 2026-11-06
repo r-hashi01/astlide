@@ -21,8 +21,10 @@ import {
 	DEFAULT_COLOR_MAP,
 	type ThemeColors,
 } from "./color";
-import { type Element, find, kid, kids, num, parseXml, path, textOf } from "./xml";
-import { readZip, type ZipFiles } from "./zip";
+import { fontFromEot } from "./ooxml/eot";
+import { EMU_PER_POINT } from "./ooxml/units";
+import { type Element, find, kid, kids, num, parseXml, path, textOf } from "./ooxml/xml";
+import { readZip, type ZipFiles } from "./ooxml/zip";
 
 export interface ImportedSlide {
 	/** 1-based position in the presentation. */
@@ -938,7 +940,7 @@ function lineCss(ln: Element | undefined, ctx: SlideContext, styleColor?: Elemen
 			? cssColor(styleColor, ctx.colors)
 			: null;
 	if (!color) return null;
-	const width = Math.max(0.5, num(ln, "w", 12700) * ctx.scale);
+	const width = Math.max(0.5, num(ln, "w", EMU_PER_POINT) * ctx.scale);
 	// Dashes as an SVG dash array: preset patterns (in line widths) or custom ones.
 	let pattern: number[] | undefined;
 	const custom = kids(kid(ln, "a:custDash"), "a:ds");
@@ -1361,22 +1363,6 @@ function notesOf(pkg: Package, slidePart: string): string {
 		.join("\n\n");
 }
 
-/**
- * The TrueType / OpenType file inside an embedded font (EOT, as PowerPoint
- * stores them in ppt/fonts/*.fntdata): uncompressed EOTs, XOR-obfuscated or
- * not. MicroType-compressed ones (and anything else) give null.
- */
-export function fontFromEot(eot: Buffer | undefined): Buffer | null {
-	if (!eot || eot.length < 82) return null;
-	const dataSize = eot.readUInt32LE(4);
-	const flags = eot.readUInt32LE(12);
-	if (flags & 0x4 || dataSize <= 0 || dataSize > eot.length) return null; // MTX compressed
-	const font = Buffer.from(eot.subarray(eot.length - dataSize));
-	if (flags & 0x10000000) for (let i = 0; i < font.length; i++) font[i] = (font[i] ?? 0) ^ 0x50;
-	const magic = font.readUInt32BE(0);
-	return magic === 0x00010000 || magic === 0x4f54544f || magic === 0x74727565 ? font : null;
-}
-
 /** @internal Level styles for a shape's text: master text style → master / layout placeholder → shape. */
 export function levelStyle(
 	level: number,
@@ -1447,7 +1433,7 @@ function textBody(
 	const anchor = body.anchor === "ctr" ? "center" : body.anchor === "b" ? "flex-end" : "flex-start";
 	const wrap = body.wrap !== "none";
 	const counters = new Map<number, number>();
-	const ptPx = 12700 * s; // px per point
+	const ptPx = EMU_PER_POINT * s; // px per point
 
 	let html = "";
 	for (const p of paras) {

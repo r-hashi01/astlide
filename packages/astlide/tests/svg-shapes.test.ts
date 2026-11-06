@@ -1,7 +1,7 @@
 import { parseDocument } from "htmlparser2";
 import { describe, expect, it } from "vitest";
-import type { RectSpec, ShapeSpec, TextBoxSpec } from "../src/pptx/export/ooxml/spec";
 import { type SvgNode, svgToShapes } from "../src/pptx/export/svg-shapes";
+import type { RectSpec, ShapeSpec, TextBoxSpec } from "../src/pptx/export/writer/spec";
 
 const BOX = { x: 100, y: 50, w: 200, h: 100, color: "112233", fontFace: "Inter", fontSize: 16 };
 const K = 0.01; // inches per px

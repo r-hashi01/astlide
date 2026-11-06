@@ -19,10 +19,10 @@ import { type EmbedInfo, resolveEmbeds } from "./embeds";
 import { embeddedFonts } from "./fonts";
 import { fetchImages, type RemoteImages } from "./images";
 import { speakerNotes } from "./notes";
-import type { SlideSpec } from "./ooxml/spec";
 import { PptxFile } from "./ooxml-writer";
 import { slideSpec } from "./slide";
 import { themeColors } from "./theme-map";
+import type { SlideSpec } from "./writer/spec";
 
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 
