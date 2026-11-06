@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FontRegistry, layoutPage } from "../src/engine";
 import { type FlexItem, resolveFlexibleLengths } from "../src/engine/flow/flex";
-import { layoutLines } from "../src/engine/text";
+import { layoutLines } from "../src/engine/lines";
 
 /** A font every install has (KaTeX ships TrueType), for text. */
 const FONT = join(

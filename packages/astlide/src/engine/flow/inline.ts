@@ -5,14 +5,9 @@
 
 import { edgesOf, marginsOf, type Sides } from "../box-model";
 import type { ElementBox, TextRun } from "../box-tree";
+import { type AtomicInline, type InlineItem, layoutLines } from "../lines";
 import { clipsOverflow, value } from "../properties";
-import {
-	type AtomicInline,
-	type InlineItem,
-	type InlineStyle,
-	layoutLines,
-	verticalMetrics,
-} from "../text";
+import { type InlineStyle, verticalMetrics } from "../text";
 
 import type { Flow, Fragment, Placed, Sizes, Space } from "./index";
 
