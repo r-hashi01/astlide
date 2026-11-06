@@ -261,6 +261,15 @@ describe("engine layout", () => {
 		]);
 	});
 
+	it("paints no box gradient behind gradient text (-webkit-background-clip: text)", () => {
+		const s = page(
+			".g{background-image:linear-gradient(red,blue);width:50px;height:20px}.t{-webkit-background-clip:text;color:transparent}",
+			'<div class="g">box</div><div class="g t">text</div>',
+		);
+		const fills = toScene(s).items.filter((i) => i.kind !== "text");
+		expect(fills).toHaveLength(1);
+	});
+
 	it("reads font families from CSS quickly, even from pathological input", () => {
 		expect(familiesIn('body{font-family: "Inter", "Noto Sans JP", sans-serif}')).toEqual([
 			"Inter",

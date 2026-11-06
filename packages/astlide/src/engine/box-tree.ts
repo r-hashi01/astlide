@@ -8,6 +8,7 @@
 import { type ChildNode, Element, Text } from "domhandler";
 import { type Computed, computeStyle, type StyleSheets, toPx, type Viewport } from "./cascade";
 import type { NaturalSize } from "./images";
+import { clipsOverflow, isAbsolute, keyword, value, wraps } from "./properties";
 import { type FontRegistry, type InlineItem, type InlineStyle, verticalMetrics } from "./text";
 
 /** Tag of the synthetic elements that stand for `::before` / `::after`. */
@@ -106,11 +107,11 @@ function featuresOf(style: Computed): { features?: string[] } {
 		ordinal: "ordn",
 	};
 	const out = new Set<string>();
-	for (const v of (style.get("font-variant-numeric") ?? "").split(/\s+/)) {
+	for (const v of value(style, "font-variant-numeric").split(/\s+/)) {
 		const tag = numeric[v];
 		if (tag) out.add(tag);
 	}
-	for (const m of (style.get("font-feature-settings") ?? "").matchAll(
+	for (const m of value(style, "font-feature-settings").matchAll(
 		/["']([a-z0-9]{4})["']\s*(on|off|\d+)?/gi,
 	)) {
 		const tag = m[1] ?? "";
@@ -162,7 +163,7 @@ export class StyleContext {
 		if (/\bline-through\b/.test(deco)) lines.add("line-through");
 		s.set("__decoration", [...lines].join(" "));
 		// Effective opacity: not inherited, but multiplies down the tree.
-		const opacity = Number.parseFloat(s.get("opacity") ?? "1");
+		const opacity = Number.parseFloat(value(s, "opacity"));
 		s.set(
 			"__alpha",
 			String(Number(parent?.get("__alpha") ?? 1) * (Number.isNaN(opacity) ? 1 : opacity)),
@@ -173,48 +174,43 @@ export class StyleContext {
 
 	/** A length in px, or NaN for keywords (scaled by the element's `zoom`, see computeStyle). */
 	px(style: Computed, prop: string, basis = Number.NaN): number {
-		return this.lengthIn(style, style.get(prop) ?? "", basis);
+		return this.lengthIn(style, value(style, prop), basis);
 	}
 
 	/** A length value in `style`'s context: resolved unzoomed, then scaled by its zoom; percentages of `basis` aren't scaled. */
-	lengthIn(style: Computed, value: string, basis = Number.NaN): number {
+	lengthIn(style: Computed, length: string, basis = Number.NaN): number {
 		const zoom = Number(style.get("__zoom") ?? 1) || 1;
-		const fs = Number.parseFloat(style.get("font-size") ?? "16");
-		return toPx(value, fs / zoom, this.rootFontSize, this.vp, basis / zoom) * zoom;
+		const fs = Number.parseFloat(value(style, "font-size"));
+		return toPx(length, fs / zoom, this.rootFontSize, this.vp, basis / zoom) * zoom;
 	}
 
 	inlineStyle(style: Computed): InlineStyle {
-		const alpha =
-			(style.get("visibility") ?? "visible") === "hidden" ? 0 : Number(style.get("__alpha") ?? 1);
-		const size = Number.parseFloat(style.get("font-size") ?? "16");
-		const weight = Number.parseInt(style.get("font-weight") ?? "400", 10) || 400;
-		const italic = /italic|oblique/.test(style.get("font-style") ?? "");
-		const { face, requested } = this.fonts.resolve(
-			style.get("font-family") ?? "serif",
-			weight,
-			italic,
-		);
-		const lh = style.get("line-height") ?? "normal";
+		const alpha = keyword(style, "visibility") === "hidden" ? 0 : Number(style.get("__alpha") ?? 1);
+		const size = Number.parseFloat(value(style, "font-size"));
+		const weight = Number.parseInt(value(style, "font-weight"), 10) || 400;
+		const italic = /italic|oblique/.test(value(style, "font-style"));
+		const { face, requested } = this.fonts.resolve(value(style, "font-family"), weight, italic);
+		const lh = value(style, "line-height");
 		let lineHeight: number;
 		if (lh === "normal") {
 			const m = verticalMetrics(face, size);
 			lineHeight = m.ascent + m.descent + m.lineGap;
 		} else if (/^[\d.]+$/.test(lh)) lineHeight = Number(lh) * size;
 		else lineHeight = Number.parseFloat(lh);
-		const ls = style.get("letter-spacing") ?? "normal";
+		const ls = value(style, "letter-spacing");
 		return {
 			face,
 			requested,
 			size,
 			lineHeight,
 			letterSpacing: ls === "normal" ? 0 : Number.parseFloat(ls) || 0,
-			whiteSpace: style.get("white-space") ?? "normal",
-			color: style.get("color") ?? "#000",
+			whiteSpace: keyword(style, "white-space"),
+			color: value(style, "color"),
 			alpha,
 			breakWord:
-				/break-word|anywhere/.test(
-					`${style.get("overflow-wrap") ?? ""} ${style.get("word-wrap") ?? ""}`,
-				) || /^(break-all|break-word)$/.test(style.get("word-break") ?? ""),
+				keyword(style, "overflow-wrap") !== "normal" ||
+				keyword(style, "word-wrap") !== "normal" ||
+				/^(break-all|break-word)$/.test(keyword(style, "word-break")),
 			...featuresOf(style),
 			underline: /underline/.test(style.get("__decoration") ?? ""),
 			strike: /line-through/.test(style.get("__decoration") ?? ""),
@@ -247,7 +243,7 @@ export class StyleContext {
 					rootFontSize: this.rootFontSize,
 					vp: this.vp,
 				});
-				const opacity = Number.parseFloat(s.get("opacity") ?? "1");
+				const opacity = Number.parseFloat(value(s, "opacity"));
 				s.set(
 					"__alpha",
 					String(Number(style.get("__alpha") ?? 1) * (Number.isNaN(opacity) ? 1 : opacity)),
@@ -267,18 +263,18 @@ export class StyleContext {
 			if (isText(n)) {
 				items.push({
 					kind: "text",
-					text: transformText(n.data, parentStyle.get("text-transform")),
+					text: transformText(n.data, value(parentStyle, "text-transform")),
 					style: this.inlineStyle(parentStyle),
 					nodeIndex: 0,
 				});
 			} else if (isElement(n)) {
 				const s = this.styleOf(n, parentStyle);
-				if (s.get("display") === "none") continue;
-				if (this.atomicInlines && ATOMIC.has(s.get("display") ?? "")) {
+				if (keyword(s, "display") === "none") continue;
+				if (this.atomicInlines && ATOMIC.has(keyword(s, "display"))) {
 					const box = this.box(n, s, true);
 					if (box) {
-						const wraps = !/^(pre|nowrap)$/.test(parentStyle.get("white-space") ?? "normal");
-						items.push({ kind: "atomic", box, wraps, width: 0, height: 0, baseline: 0 });
+						const wrap = wraps(parentStyle);
+						items.push({ kind: "atomic", box, wraps: wrap, width: 0, height: 0, baseline: 0 });
 					}
 					continue;
 				}
@@ -319,15 +315,8 @@ export class StyleContext {
 		if (!isElement(n)) return false;
 		// Replaced elements aren't laid out inline (no atomic inlines yet): their own box.
 		if (n.name === "img" || n.name === "svg" || n.name === "iframe") return false;
-		const style = this.styleOf(n, parentStyle);
-		// Absolutely positioned and floated boxes are blockified (CSS 2 §9.7).
-		if (
-			this.atomicInlines &&
-			(/^(absolute|fixed)$/.test(style.get("position") ?? "") ||
-				!/^(none|)$/.test(style.get("float") ?? "none"))
-		)
-			return false;
-		const display = style.get("display") ?? "inline";
+		// Absolutely positioned and floated boxes come blockified from the cascade.
+		const display = keyword(this.styleOf(n, parentStyle), "display");
 		return INLINE.has(display) || (this.atomicInlines && ATOMIC.has(display)) || n.name === "br";
 	}
 
@@ -342,9 +331,9 @@ export class StyleContext {
 			type: "text",
 			items,
 			strut: this.inlineStyle(style),
-			align: style.get("text-align") ?? "start",
+			align: value(style, "text-align"),
 			inFlow,
-			indent: (first && this.lengthIn(style, style.get("text-indent") ?? "0")) || 0,
+			indent: (first && this.lengthIn(style, value(style, "text-indent"))) || 0,
 		};
 	}
 
@@ -353,7 +342,7 @@ export class StyleContext {
 	 * `bfcRoot`: it establishes its own block formatting context.
 	 */
 	box(el: Element, style: Computed, bfcRoot = true): ElementBox | null {
-		const display = style.get("display") ?? "inline";
+		const display = keyword(style, "display");
 		if (display === "none") return null;
 		const eid = this.eids.get(el) ?? -1;
 		const box = (kind: BoxKind): ElementBox => ({
@@ -379,7 +368,7 @@ export class StyleContext {
 		const container = kind !== "block";
 		let run: ChildNode[] = [];
 		const flushInline = () => {
-			const pre = /pre/.test(style.get("white-space") ?? "");
+			const pre = keyword(style, "white-space").startsWith("pre");
 			if (run.some((n) => !isText(n) || pre || n.data.trim() !== ""))
 				out.children.push(this.textRun(run, style, true, out.children.length === 0));
 			run = [];
@@ -399,14 +388,14 @@ export class StyleContext {
 			}
 			flushInline();
 			const cs = this.styleOf(child, style);
-			const childDisplay = cs.get("display") ?? "block";
+			const childDisplay = keyword(cs, "display");
 			const childBfc =
 				container ||
-				(cs.get("overflow") ?? "visible") !== "visible" ||
+				clipsOverflow(cs) ||
 				["flow-root", "inline-block", "flex", "grid", "inline-flex", "table"].includes(
 					childDisplay,
 				) ||
-				cs.get("position") === "absolute";
+				isAbsolute(cs);
 			const c = this.box(child, cs, childBfc);
 			if (c) out.children.push(c);
 		}
@@ -422,7 +411,7 @@ export class StyleContext {
 			for (const c of parent.children) {
 				if (!isElement(c)) continue;
 				const cs = this.styleOf(c, ps);
-				const d = cs.get("display") ?? "inline";
+				const d = keyword(cs, "display");
 				if (d === "table-row") (footer ? footers : rows).push([c, cs]);
 				else if (d === "table-header-group") {
 					const head: [Element, Computed][] = [];
@@ -441,14 +430,14 @@ export class StyleContext {
 		for (const c of box.el.children) {
 			if (!isElement(c)) continue;
 			const cs = this.styleOf(c, box.style);
-			const d = cs.get("display") ?? "";
+			const d = keyword(cs, "display");
 			if (d === "table-column") cols.push(...Array(span(c)).fill(cs));
 			else if (d === "table-column-group") {
 				const inner = c.children.filter(isElement);
 				if (!inner.length) cols.push(...Array(span(c)).fill(cs));
 				for (const k of inner) {
 					const ks = this.styleOf(k, cs);
-					if ((ks.get("display") ?? "") === "table-column") cols.push(...Array(span(k)).fill(ks));
+					if (keyword(ks, "display") === "table-column") cols.push(...Array(span(k)).fill(ks));
 				}
 			}
 		}
@@ -458,7 +447,7 @@ export class StyleContext {
 			for (const c of r.children) {
 				if (!isElement(c)) continue;
 				const cs = this.styleOf(c, rs);
-				if ((cs.get("display") ?? "") !== "table-cell") continue;
+				if (keyword(cs, "display") !== "table-cell") continue;
 				const cell = this.box(c, cs, true);
 				if (!cell) continue;
 				cells.push({

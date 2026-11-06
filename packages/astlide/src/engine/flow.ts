@@ -19,6 +19,15 @@ import type { ElementBox, StyleContext, TextRun } from "./box-tree";
 import type { Computed } from "./cascade";
 import { columnSpan, columnTracks, parseTracks, placeItems, sizeTracks } from "./grid";
 import {
+	clipsOverflow,
+	isAbsolute,
+	isAuto,
+	isFloat,
+	isPositioned,
+	keyword,
+	value,
+} from "./properties";
+import {
 	type AtomicInline,
 	type InlineItem,
 	type InlineStyle,
@@ -90,7 +99,7 @@ export class Flow {
 
 	/** A length in px; percentages against `basis` (absent: indefinite → undefined); keywords → undefined. */
 	length(style: Computed, prop: string, basis?: number): number | undefined {
-		const raw = (style.get(prop) ?? "auto").trim();
+		const raw = value(style, prop);
 		if (KEYWORD.test(raw)) return undefined;
 		const pct = raw.match(/^(-?[\d.]+)%$/);
 		if (pct) return basis === undefined ? undefined : (Number(pct[1]) / 100) * basis;
@@ -107,9 +116,9 @@ export class Flow {
 		items: number,
 	) {
 		return columnTracks(
-			style.get("grid-template-columns") ?? "none",
-			style.get("grid-auto-flow") ?? "row",
-			style.get("grid-auto-columns") ?? "auto",
+			value(style, "grid-template-columns"),
+			value(style, "grid-auto-flow"),
+			value(style, "grid-auto-columns"),
 			this.lengthIn(style, basis),
 			inner,
 			gap,
@@ -142,11 +151,11 @@ export class Flow {
 	}
 
 	private autoMargin(style: Computed, side: (typeof SIDES)[number]): boolean {
-		return (style.get(`margin-${side}`) ?? "0").trim() === "auto";
+		return isAuto(style, `margin-${side}`);
 	}
 
 	private borderBox(style: Computed): boolean {
-		return style.get("box-sizing") === "border-box";
+		return keyword(style, "box-sizing") === "border-box";
 	}
 
 	/** A specified size (`width` / `height` …) as a border-box size, or undefined. */
@@ -162,16 +171,16 @@ export class Flow {
 	}
 
 	private ratio(style: Computed): number {
-		const ar = (style.get("aspect-ratio") ?? "auto").match(/([\d.]+)\s*(?:\/\s*([\d.]+))?/);
+		const ar = value(style, "aspect-ratio").match(/([\d.]+)\s*(?:\/\s*([\d.]+))?/);
 		return ar && Number(ar[1]) > 0 ? Number(ar[1]) / Number(ar[2] ?? 1) : 0;
 	}
 
 	private positioned(style: Computed): boolean {
-		return /^(relative|absolute|fixed|sticky)$/.test(style.get("position") ?? "static");
+		return isPositioned(style);
 	}
 
 	private absolute(box: ElementBox | TextRun): boolean {
-		return box.type === "element" && /^(absolute|fixed)$/.test(box.style.get("position") ?? "");
+		return box.type === "element" && isAbsolute(box.style);
 	}
 
 	/**
@@ -270,7 +279,7 @@ export class Flow {
 					if (minH !== undefined) w = Math.max(w, (minH - extraY) * ratio);
 				}
 				// A percentage width makes a picture compressible: no min-content (§5.2.1).
-				const pct = /%$/.test((style.get("width") ?? "").trim());
+				const pct = value(style, "width").endsWith("%");
 				inner = { min: pct ? 0 : w + extraX, max: w + extraX };
 			} else {
 				const c = this.contentContribution(box);
@@ -292,10 +301,10 @@ export class Flow {
 		const each = kids.map((k) => this.contribution(k));
 		const largest = (key: "min" | "max") => Math.max(0, ...each.map((c) => c[key]));
 		if (box.kind === "flex") {
-			const row = !/column/.test(box.style.get("flex-direction") ?? "row");
+			const row = !keyword(box.style, "flex-direction").startsWith("column");
 			if (!row) return { min: largest("min"), max: largest("max") };
 			const gap = (this.length(box.style, "column-gap") ?? 0) * Math.max(0, kids.length - 1);
-			const wrap = /^wrap/.test((box.style.get("flex-wrap") ?? "nowrap").trim());
+			const wrap = keyword(box.style, "flex-wrap") !== "nowrap";
 			return {
 				min: wrap ? largest("min") : sum(each.map((c) => c.min)) + gap,
 				max: sum(each.map((c) => c.max)) + gap,
@@ -306,9 +315,7 @@ export class Flow {
 			const tracks = this.columnTracks(box.style, undefined, 0, gap, kids.length);
 			const n = Math.max(1, tracks.length);
 			const placed = placeItems(
-				kids.map((k) =>
-					k.type === "element" ? columnSpan(k.style.get("grid-column") ?? "", n) : 1,
-				),
+				kids.map((k) => (k.type === "element" ? columnSpan(value(k.style, "grid-column"), n) : 1)),
 				n,
 			);
 			const per = (key: "min" | "max") => {
@@ -388,7 +395,7 @@ export class Flow {
 	 */
 	private inlineBaseline(box: ElementBox, f: Fragment): number {
 		const last = box.kind === "block";
-		const clips = (box.style.get("overflow") ?? "visible") !== "visible";
+		const clips = clipsOverflow(box.style);
 		const m = this.margins(box.style);
 		const own = last && clips ? undefined : this.baseline(f, last);
 		return own ?? (last ? f.h + m.bottom : f.h);
@@ -403,7 +410,7 @@ export class Flow {
 		for (const c of row.kids) {
 			if (c.f.box.type !== "element") continue;
 			const { style } = c.f.box;
-			if ((style.get("vertical-align") ?? "baseline").trim() === "baseline") {
+			if (value(style, "vertical-align") === "baseline") {
 				const b = this.baseline(c.f, false);
 				if (b !== undefined) return c.y + b;
 			}
@@ -425,7 +432,7 @@ export class Flow {
 		height: number,
 		parent: InlineStyle,
 	): number {
-		const va = (box.style.get("vertical-align") ?? "baseline").trim();
+		const va = value(box.style, "vertical-align");
 		const m = verticalMetrics(parent.face, parent.size);
 		switch (va) {
 			case "middle": {
@@ -476,8 +483,8 @@ export class Flow {
 		if (space.width !== undefined) return space.width;
 		const m = this.margins(style, space.pctW);
 		let w = this.specified(style, "width", space.pctW, extraX);
-		const keyword = (style.get("width") ?? "").trim();
-		const fitContent = /^(fit-content|max-content|min-content)$/.test(keyword);
+		const sizeKeyword = value(style, "width");
+		const fitContent = /^(fit-content|max-content|min-content)$/.test(sizeKeyword);
 		if (w === undefined && box.kind === "replaced") {
 			// CSS 2 §10.3.2: a set height and a ratio give the width; else the natural width.
 			const nat = this.natural(box);
@@ -498,9 +505,9 @@ export class Flow {
 				const c = this.contribution(box);
 				const mx = m.left + m.right;
 				w =
-					keyword === "max-content"
+					sizeKeyword === "max-content"
 						? c.max - mx
-						: keyword === "min-content"
+						: sizeKeyword === "min-content"
 							? c.min - mx
 							: Math.min(c.max - mx, Math.max(c.min - mx, avail));
 			} else w = avail;
@@ -591,8 +598,8 @@ export class Flow {
 			k.y += origin.y;
 		}
 		// Table cells (and anything given a height taller than its content) align their content.
-		const va = style.get("vertical-align") ?? "";
-		if ((style.get("display") ?? "") === "table-cell" && content.height + extraY < h) {
+		const va = value(style, "vertical-align");
+		if (keyword(style, "display") === "table-cell" && content.height + extraY < h) {
 			const free = h - extraY - content.height;
 			const shift = va === "top" ? 0 : va === "bottom" ? free : free / 2;
 			for (const k of content.kids) k.y += shift;
@@ -629,10 +636,8 @@ export class Flow {
 		const top = inset("top", ph);
 		const bottom = inset("bottom", ph);
 		const m = this.margins(style, pw);
-		const stretchW =
-			left !== undefined && right !== undefined && (style.get("width") ?? "auto") === "auto";
-		const stretchH =
-			top !== undefined && bottom !== undefined && (style.get("height") ?? "auto") === "auto";
+		const stretchW = left !== undefined && right !== undefined && isAuto(style, "width");
+		const stretchH = top !== undefined && bottom !== undefined && isAuto(style, "height");
 		const f = this.layout(box, {
 			available: pw,
 			pctW: pw,
@@ -666,8 +671,7 @@ export class Flow {
 		pctW: number,
 		pctH: number | undefined,
 	): { dx: number; dy: number } {
-		if ((style.get("position") ?? "") !== "relative" && (style.get("position") ?? "") !== "sticky")
-			return { dx: 0, dy: 0 };
+		if (!/^(relative|sticky)$/.test(keyword(style, "position"))) return { dx: 0, dy: 0 };
 		const left = this.length(style, "left", pctW);
 		const right = this.length(style, "right", pctW);
 		const top = this.length(style, "top", pctH);
@@ -719,7 +723,7 @@ export class Flow {
 				continue;
 			}
 			const cs = child.style;
-			const shrink = /^(left|right)$/.test(cs.get("float") ?? "");
+			const shrink = isFloat(cs);
 			const f = this.layout(child, { available: cw, pctW: cw, pctH: ch, shrink });
 			const cm = this.margins(cs, cw);
 			let x = cm.left;
@@ -760,10 +764,10 @@ export class Flow {
 		ch: number | undefined,
 	): { kids: Placed[]; height: number; pending: Placed[] } {
 		const { style } = box;
-		const dir = (style.get("flex-direction") ?? "row").trim();
+		const dir = keyword(style, "flex-direction");
 		const column = dir.startsWith("column");
 		const reverse = dir.endsWith("-reverse");
-		const wrapValue = (style.get("flex-wrap") ?? "nowrap").trim();
+		const wrapValue = keyword(style, "flex-wrap");
 		const wrap = wrapValue !== "nowrap";
 		const mainGap =
 			(column ? this.length(style, "row-gap", ch) : this.length(style, "column-gap", cw)) ?? 0;
@@ -771,7 +775,7 @@ export class Flow {
 			(column ? this.length(style, "column-gap", cw) : this.length(style, "row-gap", ch)) ?? 0;
 		const mainSize = column ? ch : cw;
 		const crossSize = column ? cw : ch;
-		const alignItems = (style.get("align-items") ?? "normal").trim();
+		const alignItems = value(style, "align-items");
 
 		const pending: Placed[] = [];
 		const items: FlexItem[] = [];
@@ -826,7 +830,7 @@ export class Flow {
 		// A single line in a definite cross size takes all of it.
 		if (lines.length === 1 && crossSize !== undefined) lineCross[0] = crossSize;
 		else if (crossSize !== undefined && lines.length > 1) {
-			const ac = (style.get("align-content") ?? "normal").trim();
+			const ac = value(style, "align-content");
 			const free = crossSize - sum(lineCross) - crossGap * (lines.length - 1);
 			if (free > 0 && /^(normal|stretch)$/.test(ac))
 				for (let i = 0; i < lineCross.length; i++)
@@ -837,7 +841,7 @@ export class Flow {
 		const lineOrder =
 			wrapValue === "wrap-reverse" ? [...lines.keys()].reverse() : [...lines.keys()];
 		let crossAt = 0;
-		const justify = (style.get("justify-content") ?? "normal").trim();
+		const justify = value(style, "justify-content");
 		for (const li of lineOrder) {
 			const line = lines[li] ?? [];
 			const stretchTo = lineCross[li] ?? 0;
@@ -1006,11 +1010,11 @@ export class Flow {
 			autoCrossStart: this.autoMargin(style, cs),
 			autoCrossEnd: this.autoMargin(style, ce),
 		};
-		const grow = Number(style.get("flex-grow") ?? 0);
-		const shrink = Number(style.get("flex-shrink") ?? 1);
+		const grow = Number(value(style, "flex-grow"));
+		const shrink = Number(value(style, "flex-shrink"));
 		it.grow = Number.isNaN(grow) ? 0 : grow;
 		it.shrink = Number.isNaN(shrink) ? 1 : shrink;
-		const self = (style.get("align-self") ?? "auto").trim();
+		const self = value(style, "align-self");
 		it.align = self === "auto" ? (alignItems === "normal" ? "stretch" : alignItems) : self;
 		const crossProp = column ? "width" : "height";
 		const mainProp = column ? "height" : "width";
@@ -1018,7 +1022,7 @@ export class Flow {
 		const mainBasis = column ? ch : cw;
 		const definiteCross = this.specified(style, crossProp, crossBasis, extraCross);
 		it.definiteCross = definiteCross !== undefined;
-		const crossKeyword = (style.get(crossProp) ?? "auto").trim();
+		const crossKeyword = value(style, crossProp);
 		it.stretch =
 			/^(normal|stretch)$/.test(it.align) &&
 			crossKeyword === "auto" &&
@@ -1040,7 +1044,7 @@ export class Flow {
 					: this.fitWidth(item, cw - it.crossMargins));
 			return this.layout(item, { available: w, width: w, pctW: cw }).h;
 		};
-		const basis = (style.get("flex-basis") ?? "auto").trim();
+		const basis = value(style, "flex-basis");
 		const basisLength =
 			basis === "auto" || basis === "content"
 				? undefined
@@ -1049,11 +1053,9 @@ export class Flow {
 		const ratio = this.ratio(style);
 		if (it.base === undefined || Number.isNaN(it.base)) it.base = contentMain();
 		const minSpec = this.specified(style, `min-${mainProp}`, mainBasis, extraMain);
-		const scroll = /hidden|clip|auto|scroll/.test(
-			`${style.get("overflow") ?? ""} ${style.get(`overflow-${column ? "y" : "x"}`) ?? ""}`,
-		);
+		const scroll = clipsOverflow(style, column ? "y" : "x");
 		if (minSpec !== undefined) it.min = minSpec;
-		else if ((style.get(`min-${mainProp}`) ?? "auto").trim() === "auto" && !scroll) {
+		else if (isAuto(style, `min-${mainProp}`) && !scroll) {
 			// The content-based minimum size (§4.5): min-content, no more than a specified size.
 			// The content size suggestion: the content's min-content size, whatever the width says.
 			let content = column
@@ -1151,7 +1153,7 @@ export class Flow {
 		const tracks = this.columnTracks(style, cw, cw, colGap, items.length);
 		const placed = placeItems(
 			items.map((k) =>
-				k.type === "element" ? columnSpan(k.style.get("grid-column") ?? "", tracks.length) : 1,
+				k.type === "element" ? columnSpan(value(k.style, "grid-column"), tracks.length) : 1,
 			),
 			tracks.length,
 		);
@@ -1173,7 +1175,7 @@ export class Flow {
 		const colSpace = distribute(
 			cw - sum(widths) - colGap * Math.max(0, widths.length - 1),
 			widths.length,
-			(style.get("justify-content") ?? "normal").trim(),
+			value(style, "justify-content"),
 		);
 		const colX = widths.map(
 			(_, i) => colSpace.start + sum(widths.slice(0, i)) + (colGap + colSpace.between) * i,
@@ -1184,7 +1186,7 @@ export class Flow {
 		// Rows whose height is known before their items are sized: a fixed
 		// track, or a lone row filling a definite height. Item percentages
 		// (max-height: 100%) resolve against it.
-		const template = (style.get("grid-template-rows") ?? "none").trim();
+		const template = value(style, "grid-template-rows");
 		const rowTracks =
 			template === "none" ? [] : parseTracks(template, this.lengthIn(style, ch), ch ?? 0, rowGap);
 		const knownH = (r: number): number | undefined => {
@@ -1217,7 +1219,7 @@ export class Flow {
 		for (const [i, t] of rowTracks.entries()) if (t.kind === "fixed" && i < nRows) rowH[i] = t.px;
 		// Implicit rows by grid-auto-rows: lengths, or fr rows sharing a definite height
 		// (minmax(0, 1fr): even when the content is taller).
-		const autoRows = (style.get("grid-auto-rows") ?? "auto").trim() || "auto";
+		const autoRows = value(style, "grid-auto-rows") || "auto";
 		if (rowTracks.length === 0 && autoRows !== "auto") {
 			const t = parseTracks(autoRows, this.lengthIn(style, ch), ch ?? 0, rowGap)[0];
 			const share =
@@ -1234,14 +1236,14 @@ export class Flow {
 			ch !== undefined &&
 			total < ch &&
 			nRows > 0 &&
-			/^(normal|stretch)$/.test(style.get("align-content") ?? "normal")
+			/^(normal|stretch)$/.test(value(style, "align-content"))
 		)
 			for (let r = 0; r < nRows; r++) rowH[r] = (rowH[r] ?? 0) + (ch - total) / nRows;
 		// Tracks aligned in the container (css-align-3 §5.3: align-content / justify-content).
 		const rowSpace = distribute(
 			ch === undefined ? 0 : ch - sum(rowH) - rowGap * Math.max(0, nRows - 1),
 			nRows,
-			(style.get("align-content") ?? "normal").trim(),
+			value(style, "align-content"),
 		);
 		const rowY = rowH.map(
 			(_, i) => rowSpace.start + sum(rowH.slice(0, i)) + (rowGap + rowSpace.between) * i,
@@ -1288,7 +1290,7 @@ export class Flow {
 
 	/** An item's `align-self` / `justify-self`, `auto` taken from the container's `*-items`. */
 	private selfAlign(item: ElementBox, axis: "align" | "justify", container: Computed): string {
-		const self = (item.style.get(`${axis}-self`) ?? "auto").trim();
+		const self = value(item.style, `${axis}-self`);
 		return self !== "auto" ? self : (container.get(`${axis}-items`) ?? "normal").trim();
 	}
 
@@ -1302,7 +1304,7 @@ export class Flow {
 		const a = this.selfAlign(item, axis, container);
 		if (!/^(normal|stretch)$/.test(a)) return false;
 		const size = axis === "justify" ? "width" : "height";
-		if ((item.style.get(size) ?? "auto").trim() !== "auto") return false;
+		if (!isAuto(item.style, size)) return false;
 		const [s1, s2] =
 			axis === "justify" ? (["left", "right"] as const) : (["top", "bottom"] as const);
 		if (this.autoMargin(item.style, s1) || this.autoMargin(item.style, s2)) return false;
@@ -1314,7 +1316,7 @@ export class Flow {
 	// ── Tables ───────────────────────────────────────────────────────────
 
 	private collapsed(box: ElementBox): boolean {
-		return (box.style.get("border-collapse") ?? "separate").trim() === "collapse";
+		return keyword(box.style, "border-collapse") === "collapse";
 	}
 
 	/**
@@ -1427,7 +1429,7 @@ export class Flow {
 		cw: number,
 	): { kids: Placed[]; height: number; pending: Placed[]; columns: number[] } {
 		const { min, max, fixed } = this.tableColumns(box);
-		const auto = (box.style.get("width") ?? "auto").trim() === "auto";
+		const auto = isAuto(box.style, "width");
 		// An auto-width table is no wider than its columns' max widths.
 		let widths = this.columnWidths(min, max, fixed, auto ? Math.min(cw, sum(max)) : cw);
 		const collapse = this.collapsed(box);

@@ -9,6 +9,7 @@ import render from "dom-serializer";
 import type { Element } from "domhandler";
 import { type Computed, toPx } from "./cascade";
 import type { Rect, SlideLayout, TextBlock, TextLine } from "./layout";
+import { keyword, value } from "./properties";
 
 export interface Color {
 	/** `rrggbb` */
@@ -225,9 +226,12 @@ function backgroundLayers(
 	style: Computed,
 	alpha: number,
 ): SceneItem[] {
-	const image = style.get("background-image") ?? "none";
+	const image = value(style, "background-image");
 	if (image === "none") return [];
-	if (/text/.test(style.get("background-clip") ?? style.get("-webkit-background-clip") ?? ""))
+	// Gradient text: the standard property or the -webkit- one (both stay set; neither is a fallback).
+	if (
+		/text/.test(`${value(style, "background-clip")} ${style.get("-webkit-background-clip") ?? ""}`)
+	)
 		return [];
 	const radius = radiusOf(style, w, h);
 	const out: SceneItem[] = [];
@@ -242,8 +246,8 @@ function backgroundLayers(
 				h,
 				src: url[1],
 				fit: {
-					size: style.get("background-size") ?? "auto",
-					position: style.get("background-position") ?? "0% 0%",
+					size: value(style, "background-size"),
+					position: value(style, "background-position"),
 				},
 			});
 			continue;
@@ -339,7 +343,7 @@ export function parseColor(value: string | undefined): Color | null {
 /** A length property in px (em against the element's font size, rem against 16px). */
 function px(style: Computed, prop: string): number {
 	const raw = (style.get(prop) ?? "0").trim().split(/\s+/)[0] ?? "0";
-	const fontSize = Number.parseFloat(style.get("font-size") ?? "16");
+	const fontSize = Number.parseFloat(value(style, "font-size"));
 	const n = toPx(raw, fontSize, 16, { width: 1920, height: 1080, media: "screen" });
 	return Number.isNaN(n) ? 0 : n;
 }
@@ -464,13 +468,13 @@ export function toScene(
 	// The slide's own background image / gradient, under everything.
 	const items: SceneItem[] = backgroundLayers(0, 0, layout.width, layout.height, layout.style, 1);
 	for (const b of layout.boxes) {
-		if (b.alpha < 0.01 || (b.style.get("visibility") ?? "visible") === "hidden") continue;
+		if (b.alpha < 0.01 || keyword(b.style, "visibility") === "hidden") continue;
 		const first = items.length;
 		items.push(...boxRects(b.x, b.y, b.w, b.h, b.style, b.alpha));
 		items.push(...backgroundLayers(b.x, b.y, b.w, b.h, b.style, b.alpha));
 		const el = elementOf?.(b.eid);
 		if (b.tag === "img" && el?.attribs.src) {
-			const fit = b.style.get("object-fit") ?? "fill";
+			const fit = value(b.style, "object-fit");
 			items.push({
 				kind: "image",
 				x: b.x,
@@ -483,7 +487,7 @@ export function toScene(
 						? undefined
 						: {
 								size: fit === "none" ? "auto" : fit === "scale-down" ? "contain" : fit,
-								position: b.style.get("object-position") ?? "50% 50%",
+								position: value(b.style, "object-position"),
 							},
 				href: linkOf(el),
 			});
@@ -515,8 +519,8 @@ export function toScene(
 				h: b.h,
 				markup: render(el, { xmlMode: true }),
 				color: parseColor(b.style.get("color")) ?? { hex: "000000", alpha: 1 },
-				fontFamily: b.style.get("font-family") ?? "sans-serif",
-				fontSize: Number.parseFloat(b.style.get("font-size") ?? "16") || 16,
+				fontFamily: value(b.style, "font-family"),
+				fontSize: Number.parseFloat(value(b.style, "font-size")) || 16,
 			});
 		if (b.clip) for (let i = first; i < items.length; i++) (items[i] as SceneItem).clip = b.clip;
 	}
