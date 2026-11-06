@@ -397,6 +397,29 @@ describe("engine layout", () => {
 		expect(slide?.lines.map((l) => l.text) ?? []).not.toContain("secret");
 	});
 
+	it("resolves corner radii in rem and vw against the page, in any colour syntax (#317)", () => {
+		const s = page(
+			"html{font-size:20px}.a{width:50px;height:20px;border-radius:1rem;background:oklch(0.623 0.214 259.815)}.b{width:50px;height:20px;border-radius:1vw 0 0 0;background:hsl(120 100% 25%)}",
+			'<div class="a"></div><div class="b"></div>',
+		);
+		const rects = toScene(s).items.flatMap((i) =>
+			i.kind === "rect" ? [{ radius: i.radius, fill: i.fill?.hex }] : [],
+		);
+		expect(rects).toEqual([
+			{ radius: 20, fill: "2b7fff" },
+			{ radius: 10, fill: "008000" },
+		]);
+	});
+
+	it("shows an iframe's document inside its padding, in any unit (#317)", () => {
+		const s = page(
+			"html{font-size:20px}iframe{border:0;width:300px;height:100px;padding:1rem}",
+			'<iframe srcdoc="&lt;body style=&quot;margin:0&quot;&gt;inside&lt;/body&gt;"></iframe>',
+		);
+		const inside = s.lines.find((l) => l.text === "inside");
+		expect(inside).toMatchObject({ x: 20, y: 20 });
+	});
+
 	it("lays out a srcdoc iframe into the slide, clipped to the frame", () => {
 		const s = page(
 			"iframe{border:0;width:300px;height:100px;margin-left:50px}",

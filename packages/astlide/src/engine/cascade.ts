@@ -216,6 +216,16 @@ function expand(prop: string, value: string): Declaration[] {
 			return boxSides("border", "-width", value);
 		case "border-style":
 			return boxSides("border", "-style", value);
+		case "border-radius": {
+			// Each corner's horizontal radius (elliptical corners draw as circular).
+			const [r1 = "0", r2 = r1, r3 = r1, r4 = r2] = tokens(value.split("/")[0] ?? "");
+			return [
+				d("border-top-left-radius", r1),
+				d("border-top-right-radius", r2),
+				d("border-bottom-right-radius", r3),
+				d("border-bottom-left-radius", r4),
+			];
+		}
 		case "border":
 		case "border-top":
 		case "border-right":
@@ -771,6 +781,12 @@ export function computeStyle(declared: Map<string, string>, ctx: Context): Compu
 		if (prop === "font-weight") v = FONT_WEIGHTS[v] ?? v;
 		if (prop === "line-height" && /(px|em|rem|%|vw|vh|pt)$/.test(v)) v = zoomed(prop, v);
 		if (prop === "letter-spacing" && v !== "normal") v = zoomed(prop, v);
+		// Corner radii in px here (rem / vw need the page; layout doesn't read them),
+		// a percentage kept: it's of the box.
+		if (/^border-[a-z]+-[a-z]+-radius$/.test(prop) && !v.includes("%")) {
+			const r = zoomed(prop, (v.split(/\s+/)[0] ?? "0").trim());
+			if (!Number.isNaN(Number.parseFloat(r))) v = r;
+		}
 		if (prop === "color" && v.toLowerCase() === "currentcolor") v = parent?.get("color") ?? "#000";
 		out.set(prop, v);
 	}

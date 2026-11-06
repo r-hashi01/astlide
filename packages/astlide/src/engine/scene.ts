@@ -7,16 +7,10 @@
 
 import render from "dom-serializer";
 import type { Element } from "domhandler";
-import { type Computed, toPx } from "./cascade";
+import type { Computed } from "./cascade";
+import { type Color, parseColor } from "./color";
 import type { Rect, SlideLayout, TextBlock, TextLine } from "./layout";
 import { keyword, value } from "./properties";
-
-export interface Color {
-	/** `rrggbb` */
-	hex: string;
-	/** 0–1 */
-	alpha: number;
-}
 
 export type SceneItem = (
 	| {
@@ -293,59 +287,11 @@ export interface Scene {
 	items: SceneItem[];
 }
 
-const NAMED: Record<string, string> = {
-	black: "000000",
-	white: "ffffff",
-	red: "ff0000",
-	green: "008000",
-	blue: "0000ff",
-	gray: "808080",
-	grey: "808080",
-	orange: "ffa500",
-	yellow: "ffff00",
-	purple: "800080",
-	transparent: "000000",
-};
-
-/** Parse a computed CSS color (hex, rgb[a](), named). Unknown → null. */
-export function parseColor(value: string | undefined): Color | null {
-	if (!value) return null;
-	const v = value.trim().toLowerCase();
-	if (v === "transparent" || v === "none") return { hex: "000000", alpha: 0 };
-	const named = NAMED[v];
-	if (named) return { hex: named, alpha: 1 };
-	const hex = v.match(/^#([0-9a-f]{3,8})$/);
-	if (hex) {
-		let h = hex[1] ?? "";
-		if (h.length === 3 || h.length === 4) h = [...h].map((c) => c + c).join("");
-		const alpha = h.length === 8 ? Number.parseInt(h.slice(6), 16) / 255 : 1;
-		return { hex: h.slice(0, 6), alpha };
-	}
-	const rgb = v.match(/^rgba?\(([^)]+)\)$/);
-	if (rgb) {
-		const parts = (rgb[1] ?? "").split(/[\s,/]+/).filter(Boolean);
-		const ch = (p: string | undefined) => {
-			if (!p) return 0;
-			const n = p.endsWith("%") ? (Number.parseFloat(p) * 255) / 100 : Number.parseFloat(p);
-			return Math.max(0, Math.min(255, Math.round(n)));
-		};
-		const a = parts[3];
-		const alpha =
-			a === undefined ? 1 : a.endsWith("%") ? Number.parseFloat(a) / 100 : Number.parseFloat(a);
-		return {
-			hex: [parts[0], parts[1], parts[2]].map((p) => ch(p).toString(16).padStart(2, "0")).join(""),
-			alpha: Number.isNaN(alpha) ? 1 : alpha,
-		};
-	}
-	return null;
-}
-
-/** A length property in px (em against the element's font size, rem against 16px). */
+/** A border width in px: the cascade keeps it in px before zoom, as the layout reads it. */
 function px(style: Computed, prop: string): number {
-	const raw = (style.get(prop) ?? "0").trim().split(/\s+/)[0] ?? "0";
-	const fontSize = Number.parseFloat(value(style, "font-size"));
-	const n = toPx(raw, fontSize, 16, { width: 1920, height: 1080, media: "screen" });
-	return Number.isNaN(n) ? 0 : n;
+	const zoom = Number(style.get("__zoom") ?? 1) || 1;
+	const n = Number.parseFloat(value(style, prop));
+	return Number.isNaN(n) ? 0 : n * zoom;
 }
 
 /** The `href` of the closest enclosing link. */
@@ -359,12 +305,9 @@ function linkOf(el: Element): string | undefined {
 
 /** Corner radius in px (a % is of the box's shorter side; 50% makes a circle / pill). */
 function radiusOf(style: Computed, w: number, h: number): number {
-	const raw =
-		(style.get("border-radius") ?? style.get("border-top-left-radius") ?? "0")
-			.trim()
-			.split(/\s+/)[0] ?? "0";
+	const raw = value(style, "border-top-left-radius");
 	if (raw.endsWith("%")) return (Number.parseFloat(raw) / 100) * Math.min(w, h);
-	return px(style, "border-radius") || px(style, "border-top-left-radius");
+	return Number.parseFloat(raw) || 0;
 }
 
 /** Fill + borders of a box as rect items (uniform border → one rect; otherwise per-side strips). */
