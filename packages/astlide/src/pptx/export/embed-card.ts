@@ -7,7 +7,7 @@
 import { bitmapSize } from "@astlide/core/engine";
 import type { EmbedInfo } from "./embeds";
 import { placeBackground, type RemoteImages } from "./images";
-import type { SlideElement } from "./ooxml/spec";
+import type { SlideElement } from "./writer/spec";
 
 /** `text` cut to about `chars` characters, with an ellipsis (captions don't wrap). */
 const fit = (text: string, chars: number) =>

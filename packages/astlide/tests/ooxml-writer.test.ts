@@ -4,11 +4,11 @@ import { join } from "node:path";
 import { inflateRawSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { speakerNotes } from "../src/pptx/export/notes";
-import { langOf } from "../src/pptx/export/ooxml/slide-xml";
-import type { SlideSpec } from "../src/pptx/export/ooxml/spec";
-import { emu, esc, hpt } from "../src/pptx/export/ooxml/units";
-import { crc32, dosDateTime, ZipWriter } from "../src/pptx/export/ooxml/zip-writer";
 import { PptxFile } from "../src/pptx/export/ooxml-writer";
+import { langOf } from "../src/pptx/export/writer/slide-xml";
+import type { SlideSpec } from "../src/pptx/export/writer/spec";
+import { emu, esc, hpt } from "../src/pptx/ooxml/units";
+import { crc32, dosDateTime, ZipWriter } from "../src/pptx/ooxml/zip-writer";
 
 /**
  * Extract a file from a ZIP buffer by path name.

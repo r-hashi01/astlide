@@ -19,10 +19,10 @@ import {
 	rasterize,
 	svgPicture,
 } from "./images";
-import type { SlideElement, SlideSpec, TableSpec } from "./ooxml/spec";
 import { type SvgNode, svgToShapes } from "./svg-shapes";
 import { tableSpec } from "./table";
 import { blockBox, boxOf, fillBlock, inlineHighlights, runOptions } from "./text";
+import type { SlideElement, SlideSpec, TableSpec } from "./writer/spec";
 
 /**
  * The DrawingML preset pattern closest to parallel lines across a gradient

@@ -2,12 +2,12 @@ import { deflateRawSync } from "node:zlib";
 import PptxGenJS from "pptxgenjs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { colorOf } from "../src/pptx/color";
-import { toEot } from "../src/pptx/export/eot";
-import { ZipWriter } from "../src/pptx/export/ooxml/zip-writer";
-import { fontFromEot, type ImportedDeck, pptxToSlides, safeFontName } from "../src/pptx/import";
+import { type ImportedDeck, pptxToSlides, safeFontName } from "../src/pptx/import";
+import { fontFromEot, toEot } from "../src/pptx/ooxml/eot";
+import { parseXml } from "../src/pptx/ooxml/xml";
+import { readZip, ZIP_LIMITS } from "../src/pptx/ooxml/zip";
+import { ZipWriter } from "../src/pptx/ooxml/zip-writer";
 import { pptxToTemplate, templateCss } from "../src/pptx/template";
-import { parseXml } from "../src/pptx/xml";
-import { readZip, ZIP_LIMITS } from "../src/pptx/zip";
 
 /** 1×1 red PNG. */
 const PNG =

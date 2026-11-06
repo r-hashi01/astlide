@@ -8,7 +8,7 @@
 import type { Scene, SceneItem } from "@astlide/core/engine";
 import { hex, type TextItem } from "./common";
 import { fontFor } from "./fonts";
-import type { TextBoxSpec, TextRun, TextRunOptions } from "./ooxml/spec";
+import type { TextBoxSpec, TextRun, TextRunOptions } from "./writer/spec";
 
 export function runOptions(item: TextItem, k: number): TextRunOptions {
 	const f = fontFor(item.font.family, item.font.weight);
