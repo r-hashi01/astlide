@@ -33,8 +33,8 @@ import {
 } from "../box-model";
 import type { ElementBox, StyleContext, TextRun } from "../box-tree";
 import type { Computed } from "../cascade";
+import type { LineBreakResult } from "../lines";
 import { isAbsolute, isAuto, isPositioned, keyword, value } from "../properties";
-import type { LineBreakResult } from "../text";
 
 import { blockSizes, layoutBlock } from "./block";
 import { flexSizes, layoutFlex } from "./flex";

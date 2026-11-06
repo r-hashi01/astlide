@@ -8,8 +8,9 @@
 import { type ChildNode, Element, Text } from "domhandler";
 import { type Computed, computeStyle, type StyleSheets, toPx, type Viewport } from "./cascade";
 import type { NaturalSize } from "./images";
+import type { InlineItem } from "./lines";
 import { clipsOverflow, isAbsolute, keyword, value, wraps } from "./properties";
-import { type FontRegistry, type InlineItem, type InlineStyle, verticalMetrics } from "./text";
+import { type FontRegistry, type InlineStyle, verticalMetrics } from "./text";
 
 /** Tag of the synthetic elements that stand for `::before` / `::after`. */
 export const PSEUDO_TAG = "astlide-pseudo";

@@ -25,14 +25,9 @@ import { type Computed, computeStyle, type StyleSheets, toPx, type Viewport } fr
 import { Flow, type Fragment } from "./flow";
 import { columnSpan, parseTracks, placeItems, sizeTracks } from "./grid";
 import type { NaturalSize } from "./images";
+import { type InlineItem, layoutLines } from "./lines";
 import { clipsOverflow, keyword, value } from "./properties";
-import {
-	type FontRegistry,
-	type InlineItem,
-	type InlineStyle,
-	layoutLines,
-	verticalMetrics,
-} from "./text";
+import { type FontRegistry, type InlineStyle, verticalMetrics } from "./text";
 import { type Affine, boxTransform, compose, IDENTITY, mapRect } from "./transform";
 
 /** A rectangle in slide coordinates. */
