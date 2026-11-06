@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { columnSpan, parseTracks, placeItems, sizeTracks } from "../src/engine/grid";
+import {
+	columnSpan,
+	columnStart,
+	parseTracks,
+	placeGrid,
+	rowSpan,
+	sizeTracks,
+} from "../src/engine/grid";
 
 const px = (v: string) => {
 	const m = v.match(/^([\d.]+)px$/);
@@ -44,12 +51,52 @@ describe("grid columns", () => {
 		expect(columnSpan("span 2", 3)).toBe(2);
 		expect(columnSpan("1 / -1", 3)).toBe(3);
 		expect(columnSpan("", 3)).toBe(1);
-		expect(placeItems([1, 1, 3, 2, 2], 3)).toEqual([
-			{ col: 0, span: 1, rowEnd: false },
-			{ col: 1, span: 1, rowEnd: true },
-			{ col: 0, span: 3, rowEnd: true },
-			{ col: 0, span: 2, rowEnd: true },
-			{ col: 0, span: 2, rowEnd: true },
+		const cols = (spans: number[]) => spans.map((span) => ({ span, rowSpan: 1 }));
+		// Sparse: a 3-span skips to a new row; 2-spans don't backfill the gaps.
+		expect(placeGrid(cols([1, 1, 3, 2, 2]), 3)).toEqual([
+			{ col: 0, span: 1, row: 0, rowSpan: 1 },
+			{ col: 1, span: 1, row: 0, rowSpan: 1 },
+			{ col: 0, span: 3, row: 1, rowSpan: 1 },
+			{ col: 0, span: 2, row: 2, rowSpan: 1 },
+			{ col: 0, span: 2, row: 3, rowSpan: 1 },
+		]);
+	});
+
+	it("places items spanning rows, and items with a start column (§8.5)", () => {
+		expect(rowSpan("span 2")).toBe(2);
+		expect(columnStart("2", 3)).toBe(1);
+		expect(columnStart("1 / -1", 3)).toBeUndefined();
+		// The second column's item spans two rows: the next row's items flow around it.
+		expect(
+			placeGrid(
+				[
+					{ span: 1, rowSpan: 1 },
+					{ span: 1, rowSpan: 2 },
+					{ span: 1, rowSpan: 1 },
+					{ span: 1, rowSpan: 1 },
+					{ span: 1, rowSpan: 1 },
+				],
+				3,
+			).map((a) => [a.row, a.col]),
+		).toEqual([
+			[0, 0],
+			[0, 1],
+			[0, 2],
+			[1, 0],
+			[1, 2],
+		]);
+		// A start column before the cursor goes to the next row.
+		expect(
+			placeGrid(
+				[
+					{ span: 1, rowSpan: 1 },
+					{ span: 1, rowSpan: 1, col: 0 },
+				],
+				3,
+			).map((a) => [a.row, a.col]),
+		).toEqual([
+			[0, 0],
+			[1, 0],
 		]);
 	});
 });
