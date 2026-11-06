@@ -54,6 +54,12 @@ import {
 	verticalMetrics,
 } from "./text";
 
+/** Min-content and max-content widths, px (css-sizing-3 §5). */
+export interface Sizes {
+	min: number;
+	max: number;
+}
+
 /** The constraints a box is laid out in. */
 export interface Space {
 	/** Inline space available for the margin box (the containing block's content width), px. */
@@ -100,7 +106,8 @@ const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
 
 export class Flow {
 	private readonly cache = new Map<ElementBox | TextRun, Map<string, Fragment>>();
-	private readonly contributions = new Map<ElementBox | TextRun, { min: number; max: number }>();
+	private readonly contributions = new Map<ElementBox, Sizes>();
+	private readonly contents = new Map<ElementBox | TextRun, Sizes>();
 
 	constructor(readonly ctx: StyleContext) {}
 
@@ -196,64 +203,78 @@ export class Flow {
 	// ── Intrinsic sizes ──────────────────────────────────────────────────
 
 	/**
-	 * A box's min-content and max-content contributions: its outer (margin
-	 * box) width when its containing block is zero / infinitely wide
-	 * (css-sizing-3 §5.2). Percentage sizes count as auto (§5.2.1).
+	 * A box's min-content and max-content contributions (css-sizing-3 §5.2):
+	 * its margin-box width from its set width, or else its content's sizes,
+	 * within min / max-width. Percentage sizes count as auto (§5.2.1).
 	 */
-	contribution(box: ElementBox | TextRun): { min: number; max: number } {
+	contribution(box: ElementBox | TextRun): Sizes {
+		if (box.type === "text") return this.contentSizes(box);
 		const hit = this.contributions.get(box);
 		if (hit) return hit;
-		let out: { min: number; max: number };
-		if (box.type === "text") {
-			// An atomic inline counts with its own contribution.
-			const sized = (key: "min" | "max") =>
-				box.items.map((it) =>
-					it.kind === "atomic"
-						? { ...it, width: this.contribution(it.box as ElementBox)[key] }
-						: it,
-				);
-			out = {
-				min: layoutLines(sized("min"), 0, box.strut, "left", this.ctx.fonts, box.indent).width,
-				max: layoutLines(
-					sized("max"),
-					Number.POSITIVE_INFINITY,
-					box.strut,
-					"left",
-					this.ctx.fonts,
-					box.indent,
-				).width,
-			};
+		const { style } = box;
+		// Intrinsic: percentages count as auto (css-sizing-3 §5.2.1).
+		const bm = boxModel(this.ctx, style);
+		let own: Sizes;
+		if (bm.width !== undefined) own = { min: bm.width, max: bm.width };
+		else if (box.kind === "replaced") {
+			const nat = this.natural(box);
+			const ratio = bm.ratio || nat.ratio;
+			const w =
+				bm.height !== undefined && ratio
+					? contentHeight(bm, bm.height) * ratio + bm.inset.x
+					: (this.replacedAuto(box, bm)?.w ?? bm.inset.x);
+			// A percentage width makes a picture compressible: no min-content (§5.2.1).
+			const pct = value(style, "width").endsWith("%");
+			own = { min: pct ? 0 : w, max: w };
 		} else {
-			const { style } = box;
-			// Intrinsic: percentages count as auto (css-sizing-3 §5.2.1).
-			const bm = boxModel(this.ctx, style);
-			let inner: { min: number; max: number };
-			if (bm.width !== undefined) inner = { min: bm.width, max: bm.width };
-			else if (box.kind === "replaced") {
-				const nat = this.natural(box);
-				const ratio = bm.ratio || nat.ratio;
-				const w =
-					bm.height !== undefined && ratio
-						? contentHeight(bm, bm.height) * ratio + bm.inset.x
-						: (this.replacedAuto(box, bm)?.w ?? bm.inset.x);
-				// A percentage width makes a picture compressible: no min-content (§5.2.1).
-				const pct = value(style, "width").endsWith("%");
-				inner = { min: pct ? 0 : w, max: w };
-			} else {
-				const c = this.contentContribution(box);
-				inner = { min: c.min + bm.inset.x, max: c.max + bm.inset.x };
-			}
-			out = {
-				min: outerWidth(bm, clampWidth(bm, inner.min)),
-				max: outerWidth(bm, clampWidth(bm, inner.max)),
-			};
+			const c = this.contentSizes(box);
+			own = { min: c.min + bm.inset.x, max: c.max + bm.inset.x };
 		}
+		const out = {
+			min: outerWidth(bm, clampWidth(bm, own.min)),
+			max: outerWidth(bm, clampWidth(bm, own.max)),
+		};
 		this.contributions.set(box, out);
 		return out;
 	}
 
-	/** The content's contributions by how the box lays out its children. */
-	private contentContribution(box: ElementBox): { min: number; max: number } {
+	/**
+	 * The min-content and max-content widths of a box's content: what its
+	 * text or children need, laid out the way the box lays them out — its
+	 * content box, whatever the box's own width says (css-sizing-3 §5.1).
+	 * The content size suggestion of a flex item and a table cell's minimum
+	 * come from here, not from the contribution.
+	 */
+	contentSizes(box: ElementBox | TextRun): Sizes {
+		const hit = this.contents.get(box);
+		if (hit) return hit;
+		const out = box.type === "text" ? this.textSizes(box) : this.childSizes(box);
+		this.contents.set(box, out);
+		return out;
+	}
+
+	/** A run of inline content: its widest unbreakable piece, and its longest line unbroken. */
+	private textSizes(box: TextRun): Sizes {
+		// An atomic inline counts with its own contribution.
+		const sized = (key: "min" | "max") =>
+			box.items.map((it) =>
+				it.kind === "atomic" ? { ...it, width: this.contribution(it.box as ElementBox)[key] } : it,
+			);
+		return {
+			min: layoutLines(sized("min"), 0, box.strut, "left", this.ctx.fonts, box.indent).width,
+			max: layoutLines(
+				sized("max"),
+				Number.POSITIVE_INFINITY,
+				box.strut,
+				"left",
+				this.ctx.fonts,
+				box.indent,
+			).width,
+		};
+	}
+
+	/** The children's sizes, combined the way the box's formatting context places them. */
+	private childSizes(box: ElementBox): Sizes {
 		const kids = box.children.filter((c) => !this.absolute(c));
 		const each = kids.map((k) => this.contribution(k));
 		const largest = (key: "min" | "max") => Math.max(0, ...each.map((c) => c[key]));
@@ -1013,7 +1034,7 @@ export class Flow {
 				? contentMain()
 				: item.kind === "replaced"
 					? this.contribution(item).min - it.mainMargins
-					: this.contentContribution(item).min + main.inset;
+					: this.contentSizes(item).min + main.inset;
 			if (bm.ratio && definiteCross !== undefined) {
 				const crossContent = Math.max(0, definiteCross - cross.inset);
 				content = Math.max(
@@ -1273,7 +1294,7 @@ export class Flow {
 		const bm = boxModel(this.ctx, box.style);
 		if (bm.width === undefined) return { min: k.min - half, max: k.max - half, fixed: false };
 		const content =
-			outerWidth(bm, Math.max(bm.min.width, this.contentContribution(box).min + bm.inset.x)) - half;
+			outerWidth(bm, Math.max(bm.min.width, this.contentSizes(box).min + bm.inset.x)) - half;
 		// A border-box width already holds the halves.
 		const borderBox = keyword(box.style, "box-sizing") === "border-box";
 		const set = outerWidth(bm, borderBox ? bm.width : bm.width - half);
