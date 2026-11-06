@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FontRegistry, layoutPage } from "../src/engine";
-import { type FlexItem, resolveFlexibleLengths } from "../src/engine/flow";
+import { type FlexItem, resolveFlexibleLengths } from "../src/engine/flow/flex";
 import { layoutLines } from "../src/engine/text";
 
 /** A font every install has (KaTeX ships TrueType), for text. */
@@ -16,7 +16,7 @@ const FONT = join(
 	"KaTeX_Main-Regular.ttf",
 );
 
-// These tests lay out with the constraint-based core (flow.ts).
+// These tests lay out with the constraint-based core (engine/flow/).
 beforeEach(() => {
 	process.env.ASTLIDE_ENGINE_CORE = "flow";
 });

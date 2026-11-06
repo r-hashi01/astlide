@@ -1181,7 +1181,7 @@ function listMarkers(
 }
 
 /**
- * A slide laid out by the constraint-based core (flow.ts), read back as the
+ * A slide laid out by the constraint-based core (flow/), read back as the
  * same boxes, lines, inline boxes, markers and tables as {@link layoutSlide}.
  * Output order is the box tree's (paint order), as before.
  */
