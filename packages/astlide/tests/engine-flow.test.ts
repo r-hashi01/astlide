@@ -16,7 +16,7 @@ const FONT = join(
 	"KaTeX_Main-Regular.ttf",
 );
 
-// These tests lay out with the constraint-based core (flow.ts).
+// These tests lay out with the constraint-based core (engine/flow/).
 beforeEach(() => {
 	process.env.ASTLIDE_ENGINE_CORE = "flow";
 });
