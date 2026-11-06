@@ -331,6 +331,26 @@ describe("spec rules found by comparing with Chromium (#363)", () => {
 		expect(b.i?.h).toBe(100);
 	});
 
+	it("resolves a grid item's percentage margins against its grid area", () => {
+		const b = boxes(
+			".g{display:grid;grid-template-columns:200px 200px;width:400px;line-height:20px}.i{margin-left:50%}",
+			'<div class="g"><div class="i">aa bb</div></div>',
+		);
+		// 50% of the 200px area leaves 100px: one line (of the 400px grid it would leave none).
+		expect(b.i).toMatchObject({ x: 100, w: 100 });
+		expect(b.g?.h).toBe(20);
+	});
+
+	it("keeps a flex item image within max-width, its minimum too (§4.5)", () => {
+		const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400"></svg>';
+		const b = boxes(
+			".r{display:flex;width:300px}.i{max-width:100%}",
+			'<div class="r"><img class="i" src="/i.svg"></div>',
+			{ "i.svg": svg },
+		);
+		expect(b.i).toMatchObject({ w: 300, h: 150 });
+	});
+
 	it("narrows an image limited by max-height to keep its ratio (CSS 2 §10.4)", () => {
 		const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"></svg>';
 		const b = boxes(

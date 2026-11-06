@@ -15,6 +15,24 @@
  * - absolutely positioned boxes: against the nearest positioned ancestor
  */
 
+import {
+	alongAxes,
+	aspectRatio,
+	type BoxModel,
+	boxModel,
+	clampHeight,
+	clampWidth,
+	contentHeight,
+	contentWidth,
+	edgesOf,
+	lengthOf,
+	marginsOf,
+	outerWidth,
+	replacedSize,
+	type SIDES,
+	type Sides,
+	setSize,
+} from "./box-model";
 import type { ElementBox, StyleContext, TextRun } from "./box-tree";
 import type { Computed } from "./cascade";
 import { columnSpan, columnTracks, parseTracks, placeItems, sizeTracks } from "./grid";
@@ -76,15 +94,6 @@ export interface Placed {
 	y: number;
 }
 
-interface Sides {
-	top: number;
-	right: number;
-	bottom: number;
-	left: number;
-}
-
-const SIDES = ["top", "right", "bottom", "left"] as const;
-const KEYWORD = /^(auto|none|normal|)$|^(fit|min|max)-content$|^fit-content\(/;
 /** Margins collapse: the largest positive plus the most negative (CSS 2 §8.3.1). */
 const join = (a: number, b: number) => Math.max(a, b, 0) + Math.min(a, b, 0);
 const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
@@ -96,16 +105,6 @@ export class Flow {
 	constructor(readonly ctx: StyleContext) {}
 
 	// ── Values ───────────────────────────────────────────────────────────
-
-	/** A length in px; percentages against `basis` (absent: indefinite → undefined); keywords → undefined. */
-	length(style: Computed, prop: string, basis?: number): number | undefined {
-		const raw = value(style, prop);
-		if (KEYWORD.test(raw)) return undefined;
-		const pct = raw.match(/^(-?[\d.]+)%$/);
-		if (pct) return basis === undefined ? undefined : (Number(pct[1]) / 100) * basis;
-		const v = this.ctx.px(style, prop, basis ?? Number.NaN);
-		return Number.isNaN(v) ? undefined : v;
-	}
 
 	/** A grid's column tracks (template and implicit ones), percentages against `basis`. */
 	private columnTracks(
@@ -129,50 +128,6 @@ export class Flow {
 	/** A track size or other bare length in `style`'s context (percentages against `basis`). */
 	private lengthIn(style: Computed, basis: number | undefined): (v: string) => number {
 		return (v) => this.ctx.lengthIn(style, v, basis ?? Number.NaN);
-	}
-
-	/** Padding and border widths (percentage padding against the containing block's width; 0 when indefinite). */
-	edges(style: Computed, pctW?: number): { padding: Sides; border: Sides } {
-		const padding = { top: 0, right: 0, bottom: 0, left: 0 };
-		const border = { top: 0, right: 0, bottom: 0, left: 0 };
-		for (const s of SIDES) {
-			padding[s] = Math.max(0, this.length(style, `padding-${s}`, pctW ?? 0) ?? 0);
-			const bw = this.ctx.px(style, `border-${s}-width`);
-			border[s] = Math.max(bw, 0);
-		}
-		return { padding, border };
-	}
-
-	/** Margins in px (auto as 0; see `autoMargin`); percentages against the containing block's width. */
-	margins(style: Computed, pctW?: number): Sides {
-		const out = { top: 0, right: 0, bottom: 0, left: 0 };
-		for (const s of SIDES) out[s] = this.length(style, `margin-${s}`, pctW ?? 0) ?? 0;
-		return out;
-	}
-
-	private autoMargin(style: Computed, side: (typeof SIDES)[number]): boolean {
-		return isAuto(style, `margin-${side}`);
-	}
-
-	private borderBox(style: Computed): boolean {
-		return keyword(style, "box-sizing") === "border-box";
-	}
-
-	/** A specified size (`width` / `height` …) as a border-box size, or undefined. */
-	private specified(
-		style: Computed,
-		prop: string,
-		basis: number | undefined,
-		extra: number,
-	): number | undefined {
-		const v = this.length(style, prop, basis);
-		if (v === undefined) return undefined;
-		return this.borderBox(style) ? v : v + extra;
-	}
-
-	private ratio(style: Computed): number {
-		const ar = value(style, "aspect-ratio").match(/([\d.]+)\s*(?:\/\s*([\d.]+))?/);
-		return ar && Number(ar[1]) > 0 ? Number(ar[1]) / Number(ar[2] ?? 1) : 0;
 	}
 
 	private positioned(style: Computed): boolean {
@@ -221,6 +176,23 @@ export class Flow {
 		};
 	}
 
+	/**
+	 * A replaced box's border-box size when its width and height are both
+	 * auto (CSS 2 §10.4); undefined for an image whose size isn't known.
+	 */
+	private replacedAuto(box: ElementBox, bm: BoxModel): { w: number; h: number } | undefined {
+		const nat = this.natural(box);
+		const img = box.el.name === "img";
+		if (img && nat.w === undefined && nat.h === undefined && !nat.ratio) return undefined;
+		const r = replacedSize(
+			bm,
+			nat,
+			bm.ratio || nat.ratio,
+			img ? { w: 0, h: 0 } : { w: 300, h: 150 },
+		);
+		return { w: r.w + bm.inset.x, h: r.h + bm.inset.y };
+	}
+
 	// ── Intrinsic sizes ──────────────────────────────────────────────────
 
 	/**
@@ -253,43 +225,28 @@ export class Flow {
 			};
 		} else {
 			const { style } = box;
-			const { padding, border } = this.edges(style);
-			const extraX = padding.left + padding.right + border.left + border.right;
-			const m = this.margins(style);
-			const spec = this.specified(style, "width", undefined, extraX);
+			// Intrinsic: percentages count as auto (css-sizing-3 §5.2.1).
+			const bm = boxModel(this.ctx, style);
 			let inner: { min: number; max: number };
-			if (spec !== undefined) inner = { min: spec, max: spec };
+			if (bm.width !== undefined) inner = { min: bm.width, max: bm.width };
 			else if (box.kind === "replaced") {
 				const nat = this.natural(box);
-				const h = this.specified(
-					style,
-					"height",
-					undefined,
-					padding.top + padding.bottom + border.top + border.bottom,
-				);
-				let w =
-					nat.w ?? (h !== undefined && nat.ratio ? h * nat.ratio : box.el.name === "img" ? 0 : 300);
-				// Height limits carry over through the ratio (CSS 2 §10.4).
-				const ratio = this.ratio(style) || nat.ratio;
-				const extraY = padding.top + padding.bottom + border.top + border.bottom;
-				const maxH = this.specified(style, "max-height", undefined, extraY);
-				const minH = this.specified(style, "min-height", undefined, extraY);
-				if (ratio && h === undefined) {
-					if (maxH !== undefined) w = Math.min(w, (maxH - extraY) * ratio);
-					if (minH !== undefined) w = Math.max(w, (minH - extraY) * ratio);
-				}
+				const ratio = bm.ratio || nat.ratio;
+				const w =
+					bm.height !== undefined && ratio
+						? contentHeight(bm, bm.height) * ratio + bm.inset.x
+						: (this.replacedAuto(box, bm)?.w ?? bm.inset.x);
 				// A percentage width makes a picture compressible: no min-content (§5.2.1).
 				const pct = value(style, "width").endsWith("%");
-				inner = { min: pct ? 0 : w + extraX, max: w + extraX };
+				inner = { min: pct ? 0 : w, max: w };
 			} else {
 				const c = this.contentContribution(box);
-				inner = { min: c.min + extraX, max: c.max + extraX };
+				inner = { min: c.min + bm.inset.x, max: c.max + bm.inset.x };
 			}
-			const minW = this.specified(style, "min-width", undefined, extraX) ?? 0;
-			const maxW =
-				this.specified(style, "max-width", undefined, extraX) ?? Number.POSITIVE_INFINITY;
-			const clamp = (v: number) => Math.max(minW, Math.min(maxW, v));
-			out = { min: clamp(inner.min) + m.left + m.right, max: clamp(inner.max) + m.left + m.right };
+			out = {
+				min: outerWidth(bm, clampWidth(bm, inner.min)),
+				max: outerWidth(bm, clampWidth(bm, inner.max)),
+			};
 		}
 		this.contributions.set(box, out);
 		return out;
@@ -303,7 +260,7 @@ export class Flow {
 		if (box.kind === "flex") {
 			const row = !keyword(box.style, "flex-direction").startsWith("column");
 			if (!row) return { min: largest("min"), max: largest("max") };
-			const gap = (this.length(box.style, "column-gap") ?? 0) * Math.max(0, kids.length - 1);
+			const gap = (lengthOf(this.ctx, box.style, "column-gap") ?? 0) * Math.max(0, kids.length - 1);
 			const wrap = keyword(box.style, "flex-wrap") !== "nowrap";
 			return {
 				min: wrap ? largest("min") : sum(each.map((c) => c.min)) + gap,
@@ -311,7 +268,7 @@ export class Flow {
 			};
 		}
 		if (box.kind === "grid") {
-			const gap = this.length(box.style, "column-gap") ?? 0;
+			const gap = lengthOf(this.ctx, box.style, "column-gap") ?? 0;
 			const tracks = this.columnTracks(box.style, undefined, 0, gap, kids.length);
 			const n = Math.max(1, tracks.length);
 			const placed = placeItems(
@@ -362,7 +319,7 @@ export class Flow {
 			if (it.kind !== "atomic") return it;
 			const box = it.box as ElementBox;
 			const f = this.layout(box, { available: w, pctW: w, shrink: true });
-			const m = this.margins(box.style, w);
+			const m = marginsOf(this.ctx, box.style, w);
 			const height = f.h + m.top + m.bottom;
 			const sized: AtomicInline = {
 				...it,
@@ -396,7 +353,7 @@ export class Flow {
 	private inlineBaseline(box: ElementBox, f: Fragment): number {
 		const last = box.kind === "block";
 		const clips = clipsOverflow(box.style);
-		const m = this.margins(box.style);
+		const m = marginsOf(this.ctx, box.style);
 		const own = last && clips ? undefined : this.baseline(f, last);
 		return own ?? (last ? f.h + m.bottom : f.h);
 	}
@@ -414,7 +371,7 @@ export class Flow {
 				const b = this.baseline(c.f, false);
 				if (b !== undefined) return c.y + b;
 			}
-			const { padding, border } = this.edges(style, row.w);
+			const { padding, border } = edgesOf(this.ctx, style, row.w);
 			low = Math.max(low ?? 0, c.y + c.f.h - padding.bottom - border.bottom);
 		}
 		return low;
@@ -478,32 +435,26 @@ export class Flow {
 	}
 
 	/** The border-box width a box gets in `space`. */
-	private usedWidth(box: ElementBox, space: Space, extraX: number, extraY: number): number {
+	private usedWidth(box: ElementBox, space: Space, bm: BoxModel): number {
 		const { style } = box;
 		if (space.width !== undefined) return space.width;
-		const m = this.margins(style, space.pctW);
-		let w = this.specified(style, "width", space.pctW, extraX);
+		let w = bm.width;
 		const sizeKeyword = value(style, "width");
 		const fitContent = /^(fit-content|max-content|min-content)$/.test(sizeKeyword);
 		if (w === undefined && box.kind === "replaced") {
-			// CSS 2 §10.3.2: a set height and a ratio give the width; else the natural width.
+			// CSS 2 §10.3.2: a set height and a ratio give the width; else §10.4's table.
 			const nat = this.natural(box);
-			const h = this.specified(style, "height", space.pctH, extraY);
-			const ratio = this.ratio(style) || nat.ratio;
-			if (h !== undefined && ratio) w = (h - extraY) * ratio + extraX;
-			else if (nat.w !== undefined) w = nat.w + extraX;
-			else if (box.el.name !== "img") w = 300 + extraX;
+			const ratio = bm.ratio || nat.ratio;
+			if (bm.height !== undefined && ratio) w = contentHeight(bm, bm.height) * ratio + bm.inset.x;
+			else w = this.replacedAuto(box, bm)?.w;
 		}
+		if (w === undefined && bm.ratio && bm.height !== undefined)
+			w = contentHeight(bm, bm.height) * bm.ratio + bm.inset.x;
 		if (w === undefined) {
-			const ratio = this.ratio(style);
-			const h = this.specified(style, "height", space.pctH, extraY);
-			if (ratio && h !== undefined) w = (h - extraY) * ratio + extraX;
-		}
-		if (w === undefined) {
-			const avail = Math.max(0, space.available - m.left - m.right);
+			const mx = bm.margin.left + bm.margin.right;
+			const avail = Math.max(0, space.available - mx);
 			if (space.shrink || fitContent) {
 				const c = this.contribution(box);
-				const mx = m.left + m.right;
 				w =
 					sizeKeyword === "max-content"
 						? c.max - mx
@@ -512,53 +463,49 @@ export class Flow {
 							: Math.min(c.max - mx, Math.max(c.min - mx, avail));
 			} else w = avail;
 		}
-		const minW = this.specified(style, "min-width", space.pctW, extraX) ?? 0;
-		const maxW = this.specified(style, "max-width", space.pctW, extraX) ?? Number.POSITIVE_INFINITY;
-		return Math.max(minW, Math.min(maxW, w));
+		return clampWidth(bm, w);
 	}
 
 	/** The border-box height: set by the parent, specified, from the aspect ratio, or from the content. */
 	private usedHeight(
 		box: ElementBox,
 		space: Space,
+		bm: BoxModel,
 		w: number,
-		extraX: number,
-		extraY: number,
 		content: number,
 	): number {
-		const { style } = box;
-		let h = space.height ?? this.specified(style, "height", space.pctH, extraY);
+		let h = space.height ?? bm.height;
+		// Both auto: §10.4's table gave the width and gives the height with it.
+		if (
+			h === undefined &&
+			box.kind === "replaced" &&
+			space.width === undefined &&
+			bm.width === undefined
+		)
+			h = this.replacedAuto(box, bm)?.h;
 		if (h === undefined) {
-			const ratio =
-				this.ratio(style) || (box.kind === "replaced" ? this.natural(box).ratio : undefined);
-			if (ratio) h = (w - extraX) / ratio + extraY;
-			else if (box.kind === "replaced") h = (this.natural(box).h ?? 150) + extraY;
+			const ratio = bm.ratio || (box.kind === "replaced" ? this.natural(box).ratio : undefined);
+			if (ratio) h = contentWidth(bm, w) / ratio + bm.inset.y;
+			else if (box.kind === "replaced") h = (this.natural(box).h ?? 150) + bm.inset.y;
 		}
-		h ??= content + extraY;
+		h ??= content + bm.inset.y;
 		if (space.height !== undefined) return h;
-		const minH = this.specified(style, "min-height", space.pctH, extraY) ?? 0;
-		const maxH =
-			this.specified(style, "max-height", space.pctH, extraY) ?? Number.POSITIVE_INFINITY;
-		return Math.max(minH, Math.min(maxH, h));
+		return clampHeight(bm, h);
 	}
 
 	private element(box: ElementBox, space: Space): Fragment {
 		const { style } = box;
-		const edges = this.edges(style, space.pctW);
-		const padding = edges.padding;
-		const border = space.borders ?? edges.border;
-		const extraX = padding.left + padding.right + border.left + border.right;
-		const extraY = padding.top + padding.bottom + border.top + border.bottom;
-		const w = this.usedWidth(box, space, extraX, extraY);
-		const cw = Math.max(0, w - extraX);
+		const bm = boxModel(this.ctx, style, { width: space.pctW, height: space.pctH }, space.borders);
+		const { padding, border, margin: m } = bm;
+		const w = this.usedWidth(box, space, bm);
+		const cw = contentWidth(bm, w);
 		// The content height when it's known before laying out the content.
 		const definiteH =
 			space.height ??
-			this.specified(style, "height", space.pctH, extraY) ??
-			(this.ratio(style) ? (w - extraX) / this.ratio(style) + extraY : undefined);
-		const ch = definiteH === undefined ? undefined : Math.max(0, definiteH - extraY);
+			bm.height ??
+			(bm.ratio ? contentWidth(bm, w) / bm.ratio + bm.inset.y : undefined);
+		const ch = definiteH === undefined ? undefined : contentHeight(bm, definiteH);
 		const origin = { x: border.left + padding.left, y: border.top + padding.top };
-		const m = this.margins(style, space.pctW);
 
 		let content: {
 			kids: Placed[];
@@ -592,15 +539,15 @@ export class Flow {
 					space.height !== undefined || definiteH !== undefined,
 				);
 		}
-		const h = this.usedHeight(box, space, w, extraX, extraY, content.height);
+		const h = this.usedHeight(box, space, bm, w, content.height);
 		for (const k of content.kids) {
 			k.x += origin.x;
 			k.y += origin.y;
 		}
 		// Table cells (and anything given a height taller than its content) align their content.
 		const va = value(style, "vertical-align");
-		if (keyword(style, "display") === "table-cell" && content.height + extraY < h) {
-			const free = h - extraY - content.height;
+		if (keyword(style, "display") === "table-cell" && content.height + bm.inset.y < h) {
+			const free = h - bm.inset.y - content.height;
 			const shift = va === "top" ? 0 : va === "bottom" ? free : free / 2;
 			for (const k of content.kids) k.y += shift;
 		}
@@ -630,12 +577,12 @@ export class Flow {
 		const { style } = box;
 		const pw = cb.w - border.left - border.right;
 		const ph = cb.h - border.top - border.bottom;
-		const inset = (s: (typeof SIDES)[number], basis: number) => this.length(style, s, basis);
+		const inset = (s: (typeof SIDES)[number], basis: number) => lengthOf(this.ctx, style, s, basis);
 		const left = inset("left", pw);
 		const right = inset("right", pw);
 		const top = inset("top", ph);
 		const bottom = inset("bottom", ph);
-		const m = this.margins(style, pw);
+		const m = marginsOf(this.ctx, style, pw);
 		const stretchW = left !== undefined && right !== undefined && isAuto(style, "width");
 		const stretchH = top !== undefined && bottom !== undefined && isAuto(style, "height");
 		const f = this.layout(box, {
@@ -672,10 +619,10 @@ export class Flow {
 		pctH: number | undefined,
 	): { dx: number; dy: number } {
 		if (!/^(relative|sticky)$/.test(keyword(style, "position"))) return { dx: 0, dy: 0 };
-		const left = this.length(style, "left", pctW);
-		const right = this.length(style, "right", pctW);
-		const top = this.length(style, "top", pctH);
-		const bottom = this.length(style, "bottom", pctH);
+		const left = lengthOf(this.ctx, style, "left", pctW);
+		const right = lengthOf(this.ctx, style, "right", pctW);
+		const top = lengthOf(this.ctx, style, "top", pctH);
+		const bottom = lengthOf(this.ctx, style, "bottom", pctH);
 		return {
 			dx: left ?? (right !== undefined ? -right : 0),
 			dy: top ?? (bottom !== undefined ? -bottom : 0),
@@ -725,11 +672,11 @@ export class Flow {
 			const cs = child.style;
 			const shrink = isFloat(cs);
 			const f = this.layout(child, { available: cw, pctW: cw, pctH: ch, shrink });
-			const cm = this.margins(cs, cw);
+			const cm = marginsOf(this.ctx, cs, cw);
 			let x = cm.left;
 			const free = cw - f.w - cm.left - cm.right;
-			if (this.autoMargin(cs, "left") && this.autoMargin(cs, "right")) x = Math.max(0, free) / 2;
-			else if (this.autoMargin(cs, "left")) x = Math.max(0, free) + cm.left;
+			if (isAuto(cs, "margin-left") && isAuto(cs, "margin-right")) x = Math.max(0, free) / 2;
+			else if (isAuto(cs, "margin-left")) x = Math.max(0, free) + cm.left;
 			if (first && throughTop) {
 				// The first child's top margin collapses with this box's.
 				mt = join(mt, f.mt);
@@ -770,9 +717,13 @@ export class Flow {
 		const wrapValue = keyword(style, "flex-wrap");
 		const wrap = wrapValue !== "nowrap";
 		const mainGap =
-			(column ? this.length(style, "row-gap", ch) : this.length(style, "column-gap", cw)) ?? 0;
+			(column
+				? lengthOf(this.ctx, style, "row-gap", ch)
+				: lengthOf(this.ctx, style, "column-gap", cw)) ?? 0;
 		const crossGap =
-			(column ? this.length(style, "column-gap", cw) : this.length(style, "row-gap", ch)) ?? 0;
+			(column
+				? lengthOf(this.ctx, style, "column-gap", cw)
+				: lengthOf(this.ctx, style, "row-gap", ch)) ?? 0;
 		const mainSize = column ? ch : cw;
 		const crossSize = column ? cw : ch;
 		const alignItems = value(style, "align-items");
@@ -989,26 +940,24 @@ export class Flow {
 			return base;
 		}
 		const { style } = item;
-		const { padding, border } = this.edges(style, cw);
-		const extraX = padding.left + padding.right + border.left + border.right;
-		const extraY = padding.top + padding.bottom + border.top + border.bottom;
-		const [extraMain, extraCross] = column ? [extraY, extraX] : [extraX, extraY];
-		const m = this.margins(style, cw);
+		const bm = boxModel(this.ctx, style, { width: cw, height: ch });
+		const { main, cross } = alongAxes(bm, column);
+		const m = bm.margin;
 		const [ms, me, cs, ce] = column
 			? (["top", "bottom", "left", "right"] as const)
 			: (["left", "right", "top", "bottom"] as const);
 		const it: FlexItem = {
 			...base,
-			edges: extraMain,
+			edges: main.inset,
 			mainStart: m[ms],
 			mainEnd: m[me],
 			mainMargins: m[ms] + m[me],
 			crossStart: m[cs],
 			crossMargins: m[cs] + m[ce],
-			autoMainStart: this.autoMargin(style, ms),
-			autoMainEnd: this.autoMargin(style, me),
-			autoCrossStart: this.autoMargin(style, cs),
-			autoCrossEnd: this.autoMargin(style, ce),
+			autoMainStart: bm.autoMargin[ms],
+			autoMainEnd: bm.autoMargin[me],
+			autoCrossStart: bm.autoMargin[cs],
+			autoCrossEnd: bm.autoMargin[ce],
 		};
 		const grow = Number(value(style, "flex-grow"));
 		const shrink = Number(value(style, "flex-shrink"));
@@ -1018,21 +967,17 @@ export class Flow {
 		it.align = self === "auto" ? (alignItems === "normal" ? "stretch" : alignItems) : self;
 		const crossProp = column ? "width" : "height";
 		const mainProp = column ? "height" : "width";
-		const crossBasis = column ? cw : ch;
-		const mainBasis = column ? ch : cw;
-		const definiteCross = this.specified(style, crossProp, crossBasis, extraCross);
+		const definiteCross = cross.size;
 		it.definiteCross = definiteCross !== undefined;
-		const crossKeyword = value(style, crossProp);
 		it.stretch =
 			/^(normal|stretch)$/.test(it.align) &&
-			crossKeyword === "auto" &&
+			isAuto(style, crossProp) &&
 			definiteCross === undefined &&
 			!it.autoCrossStart &&
 			!it.autoCrossEnd;
-		it.crossMin = this.specified(style, `min-${crossProp}`, crossBasis, extraCross) ?? 0;
-		it.crossMax =
-			this.specified(style, `max-${crossProp}`, crossBasis, extraCross) ?? Number.POSITIVE_INFINITY;
-		const mainSpec = this.specified(style, mainProp, mainBasis, extraMain);
+		it.crossMin = cross.min;
+		it.crossMax = cross.max;
+		const mainSpec = main.size;
 		/** The item's size in the main axis from its content. */
 		const contentMain = (): number => {
 			if (!column) return this.contribution(item).max - it.mainMargins;
@@ -1048,12 +993,18 @@ export class Flow {
 		const basisLength =
 			basis === "auto" || basis === "content"
 				? undefined
-				: this.specified(style, "flex-basis", mainBasis, extraMain);
+				: setSize(this.ctx, style, bm, "flex-basis", column ? ch : cw, column ? "y" : "x");
 		it.base = basisLength ?? (basis === "content" ? undefined : mainSpec) ?? contentMain();
-		const ratio = this.ratio(style);
 		if (it.base === undefined || Number.isNaN(it.base)) it.base = contentMain();
-		const minSpec = this.specified(style, `min-${mainProp}`, mainBasis, extraMain);
 		const scroll = clipsOverflow(style, column ? "y" : "x");
+		const minSpec = setSize(
+			this.ctx,
+			style,
+			bm,
+			`min-${mainProp}`,
+			column ? ch : cw,
+			column ? "y" : "x",
+		);
 		if (minSpec !== undefined) it.min = minSpec;
 		else if (isAuto(style, `min-${mainProp}`) && !scroll) {
 			// The content-based minimum size (§4.5): min-content, no more than a specified size.
@@ -1062,20 +1013,20 @@ export class Flow {
 				? contentMain()
 				: item.kind === "replaced"
 					? this.contribution(item).min - it.mainMargins
-					: this.contentContribution(item).min + extraMain;
-			if (ratio && definiteCross !== undefined)
+					: this.contentContribution(item).min + main.inset;
+			if (bm.ratio && definiteCross !== undefined) {
+				const crossContent = Math.max(0, definiteCross - cross.inset);
 				content = Math.max(
 					content,
-					column
-						? (definiteCross - extraCross) / ratio + extraMain
-						: (definiteCross - extraCross) * ratio + extraMain,
+					(column ? crossContent / bm.ratio : crossContent * bm.ratio) + main.inset,
 				);
-			it.min = mainSpec !== undefined ? Math.min(mainSpec, content) : content;
+			}
+			// Never above the max main size (§4.5: "further clamped by the maximum main size").
+			it.min = Math.min(mainSpec !== undefined ? Math.min(mainSpec, content) : content, main.max);
 		}
-		it.max =
-			this.specified(style, `max-${mainProp}`, mainBasis, extraMain) ?? Number.POSITIVE_INFINITY;
+		it.max = main.max;
 		// Never below its padding and border (the content box can't be negative, §9.2).
-		it.base = Math.max(it.base, extraMain);
+		it.base = Math.max(it.base, main.inset);
 		it.hypo = Math.max(it.min, Math.min(it.max, it.base));
 		return it;
 	}
@@ -1093,28 +1044,16 @@ export class Flow {
 				? this.fitWidth(it.box, cw)
 				: this.layout(it.box, { available: it.target, width: it.target }).h;
 		const { style } = it.box;
-		const { padding, border } = this.edges(style, cw);
-		const extraCross = column
-			? padding.left + padding.right + border.left + border.right
-			: padding.top + padding.bottom + border.top + border.bottom;
-		const definite = this.specified(
-			style,
-			column ? "width" : "height",
-			column ? cw : ch,
-			extraCross,
-		);
-		if (definite !== undefined) return definite;
+		const bm = boxModel(this.ctx, style, { width: cw, height: ch });
+		const { main, cross } = alongAxes(bm, column);
+		if (cross.size !== undefined) return cross.size;
 		if (column) {
 			if (it.stretch && crossSize !== undefined) return Math.max(0, crossSize - it.crossMargins);
 			// fit-content (also for auto when not stretched), max-content, min-content.
 			return this.layout(it.box, { available: cw - it.crossMargins, shrink: true, pctW: cw }).w;
 		}
-		const ratio =
-			this.ratio(style) || (it.box.kind === "replaced" ? (this.natural(it.box).ratio ?? 0) : 0);
-		if (ratio) {
-			const extraMain = padding.left + padding.right + border.left + border.right;
-			return (it.target - extraMain) / ratio + extraCross;
-		}
+		const ratio = bm.ratio || (it.box.kind === "replaced" ? (this.natural(it.box).ratio ?? 0) : 0);
+		if (ratio) return (it.target - main.inset) / ratio + cross.inset;
 		return this.layout(it.box, { available: it.target, width: it.target, pctW: cw }).h;
 	}
 
@@ -1148,8 +1087,8 @@ export class Flow {
 				});
 			else items.push(child);
 		}
-		const colGap = this.length(style, "column-gap", cw) ?? 0;
-		const rowGap = this.length(style, "row-gap", ch) ?? 0;
+		const colGap = lengthOf(this.ctx, style, "column-gap", cw) ?? 0;
+		const rowGap = lengthOf(this.ctx, style, "row-gap", ch) ?? 0;
 		const tracks = this.columnTracks(style, cw, cw, colGap, items.length);
 		const placed = placeItems(
 			items.map((k) =>
@@ -1199,9 +1138,10 @@ export class Flow {
 			const item = items[i];
 			if (!item) continue;
 			const aw = areaW(p);
+			// Percentage margins are of the grid area, as when the item is placed below.
 			const m =
 				item.type === "element"
-					? this.margins(item.style, cw)
+					? marginsOf(this.ctx, item.style, aw)
 					: { top: 0, right: 0, bottom: 0, left: 0 };
 			const r = rows[i] ?? 0;
 			const ah = knownH(r);
@@ -1257,7 +1197,7 @@ export class Flow {
 			const ah = rowH[r] ?? 0;
 			const m =
 				item.type === "element"
-					? this.margins(item.style, aw)
+					? marginsOf(this.ctx, item.style, aw)
 					: { top: 0, right: 0, bottom: 0, left: 0 };
 			const stretchW = this.stretches(item, "justify", style);
 			const stretchH = this.stretches(item, "align", style);
@@ -1307,9 +1247,9 @@ export class Flow {
 		if (!isAuto(item.style, size)) return false;
 		const [s1, s2] =
 			axis === "justify" ? (["left", "right"] as const) : (["top", "bottom"] as const);
-		if (this.autoMargin(item.style, s1) || this.autoMargin(item.style, s2)) return false;
+		if (isAuto(item.style, `margin-${s1}`) || isAuto(item.style, `margin-${s2}`)) return false;
 		// normal: items with an aspect ratio or a natural size don't stretch.
-		if (a === "normal" && (item.kind === "replaced" || this.ratio(item.style))) return false;
+		if (a === "normal" && (item.kind === "replaced" || aspectRatio(item.style))) return false;
 		return true;
 	}
 
@@ -1330,16 +1270,13 @@ export class Flow {
 		half: number,
 	): { min: number; max: number; fixed: boolean } {
 		const k = this.contribution(box);
-		const { padding, border } = this.edges(box.style);
-		const extraX = padding.left + padding.right + border.left + border.right;
-		const spec = this.specified(box.style, "width", undefined, extraX);
-		if (spec === undefined) return { min: k.min - half, max: k.max - half, fixed: false };
-		const m = this.margins(box.style);
-		const minW = this.specified(box.style, "min-width", undefined, extraX) ?? 0;
+		const bm = boxModel(this.ctx, box.style);
+		if (bm.width === undefined) return { min: k.min - half, max: k.max - half, fixed: false };
 		const content =
-			Math.max(minW, this.contentContribution(box).min + extraX) + m.left + m.right - half;
+			outerWidth(bm, Math.max(bm.min.width, this.contentContribution(box).min + bm.inset.x)) - half;
 		// A border-box width already holds the halves.
-		const set = (this.borderBox(box.style) ? spec : spec - half) + m.left + m.right;
+		const borderBox = keyword(box.style, "box-sizing") === "border-box";
+		const set = outerWidth(bm, borderBox ? bm.width : bm.width - half);
 		return { min: content, max: Math.max(set, content), fixed: true };
 	}
 
@@ -1361,7 +1298,7 @@ export class Flow {
 		const cells = placed.flat();
 		const collapse = this.collapsed(box);
 		const widths = (c: (typeof cells)[number]) => {
-			const { border } = this.edges(c.box.style);
+			const { border } = edgesOf(this.ctx, c.box.style);
 			return this.cellContribution(c.box, collapse ? (border.left + border.right) / 2 : 0);
 		};
 		for (const c of cells.filter((c) => c.span === 1)) {
@@ -1372,7 +1309,7 @@ export class Flow {
 		}
 		// A <col> width is the column's width, if its cells fit (CSS 2 §17.5.2.2).
 		for (const [i, cs] of (box.cols ?? []).entries()) {
-			const w = i < n ? this.length(cs, "width") : undefined;
+			const w = i < n ? lengthOf(this.ctx, cs, "width") : undefined;
 			if (w === undefined) continue;
 			max[i] = Math.max(min[i] ?? 0, w);
 			fixed[i] = true;
@@ -1442,12 +1379,12 @@ export class Flow {
 		const grid: (ElementBox | undefined)[][] = rows.map((row) => {
 			const line: (ElementBox | undefined)[] = [];
 			for (const c of row.cells) {
-				own.set(c.box, this.edges(c.box.style).border);
+				own.set(c.box, edgesOf(this.ctx, c.box.style).border);
 				for (let k = 0; k < c.span; k++) line.push(c.box);
 			}
 			return line;
 		});
-		const tableBorder = this.edges(box.style).border;
+		const tableBorder = edgesOf(this.ctx, box.style).border;
 		const halvesOf = new Map<ElementBox, Sides>();
 		const inset = { top: 0, right: 0, bottom: 0, left: 0 };
 		if (collapse)
@@ -1503,7 +1440,7 @@ export class Flow {
 					}),
 				};
 			});
-			const specH = this.length(rs, "height") ?? 0;
+			const specH = lengthOf(this.ctx, rs, "height") ?? 0;
 			const h = Math.max(specH, ...cells.map((x) => x.natural.h));
 			const rowFrag: Fragment = {
 				box: {
