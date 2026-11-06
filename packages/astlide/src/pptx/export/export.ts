@@ -78,13 +78,14 @@ type ImageSource =
 	| { bitmap: Buffer; format: "png" | "jpeg"; size: { w: number; h: number } }
 	| { svg: string; size: { w: number; h: number } };
 
-/** Bytes of a fetched remote image (see {@link fetchImages}). */
-const remoteImages = new Map<string, Buffer | null>();
+/** Bytes of the remote images one export fetched, by URL (null: not downloaded); see {@link fetchImages}. */
+type RemoteImages = Map<string, Buffer | null>;
 
 function imageSource(
 	src: string,
 	dist: string,
 	distFile: (dist: string, url: string) => string | null,
+	remoteImages: RemoteImages,
 ): ImageSource | null {
 	let bytes: Buffer | null = null;
 	const data = src.match(/^data:([^;,]+)(;base64)?,(.*)$/s);
@@ -157,7 +158,9 @@ async function fetchImages(
 	cacheDir: string,
 	budget: FetchBudget,
 	warn: Warn,
-): Promise<void> {
+): Promise<RemoteImages> {
+	// This export's own: nothing outlives it, nothing is shared with another running at once.
+	const remoteImages: RemoteImages = new Map();
 	await mkdir(cacheDir, { recursive: true });
 	const failed: string[] = [];
 	await Promise.all(
@@ -180,6 +183,7 @@ async function fetchImages(
 		}),
 	);
 	if (failed.length) warn(`  ⚠ images not downloaded (offline?): ${failed.join(", ")}`);
+	return remoteImages;
 }
 
 /**
@@ -195,6 +199,7 @@ function embedCard(
 	item: { x: number; y: number; w: number; h: number; src: string; title: string },
 	fontFace: string,
 	k: number,
+	remoteImages: RemoteImages,
 	info?: EmbedInfo,
 ): SlideElement[] {
 	let host = item.src;
@@ -923,13 +928,14 @@ export async function pptxFromPrintView(o: PrintViewPptxOptions): Promise<void> 
 	// Thumbnails were chosen by the embedded pages: always public addresses only.
 	for (const info of embeds.values())
 		if (info.thumbnail && !remote.has(info.thumbnail)) remote.set(info.thumbnail, "remote");
-	if (remote.size)
-		await fetchImages(
-			remote,
-			join(options.root, "node_modules", ".cache", "astlide-images"),
-			budget,
-			warn,
-		);
+	const remoteImages: RemoteImages = remote.size
+		? await fetchImages(
+				remote,
+				join(options.root, "node_modules", ".cache", "astlide-images"),
+				budget,
+				warn,
+			)
+		: new Map();
 	if (budget.refused.length)
 		warn(
 			`  ⚠ ${budget.refused.length} remote file(s) skipped (download limits reached): ${budget.refused.slice(0, 3).join(", ")}${budget.refused.length > 3 ? " …" : ""}`,
@@ -1076,10 +1082,16 @@ export async function pptxFromPrintView(o: PrintViewPptxOptions): Promise<void> 
 				}
 			} else if (item.kind === "embed") {
 				elements.push(
-					...embedCard(item, fontFor(bodyFace.font.familyName, 400).face, k, embeds.get(item.src)),
+					...embedCard(
+						item,
+						fontFor(bodyFace.font.familyName, 400).face,
+						k,
+						remoteImages,
+						embeds.get(item.src),
+					),
 				);
 			} else if (item.kind === "image") {
-				const source = imageSource(item.src, dist, engine.distFile);
+				const source = imageSource(item.src, dist, engine.distFile, remoteImages);
 				// Background images and object-fit: placed by size / position and clipped to the box.
 				const place = source && item.fit ? placeBackground(item, item.fit, source.size) : null;
 				const drawn = place?.drawn ?? { x: item.x, y: item.y, w: item.w, h: item.h };
