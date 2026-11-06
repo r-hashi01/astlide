@@ -12,9 +12,10 @@ import type { Line, Word } from "./items";
 import { CLOSE_PUNCT } from "./measure";
 
 /**
- * How far a line may run past its box before it breaks: Yoga rounds layout
- * to 1/64px, so a box sized to its text can come out that much narrower than
- * the text measured into it.
+ * How far a line may run past its box before it breaks: browsers lay out in
+ * 1/64px units, so a box sized to its text can come out that much narrower
+ * than the text measured into it (without it, parity with Chromium on real
+ * decks drops a third).
  */
 const FIT = 1 / 32;
 

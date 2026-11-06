@@ -122,7 +122,7 @@ function featuresOf(style: Computed): { features?: string[] } {
 	return out.size ? { features: [...out] } : {};
 }
 
-const INLINE = new Set(["inline", "inline-block", "inline-flex", "contents"]);
+const INLINE = new Set(["inline", "contents"]);
 /** Inline-level boxes laid out as a whole on a line. */
 const ATOMIC = new Set(["inline-block", "inline-flex", "inline-grid", "inline-table"]);
 
@@ -135,12 +135,6 @@ export class StyleContext {
 	rootFontSize = 16;
 	/** Natural sizes of images by `src` (absent: unknown). */
 	images?: (src: string) => NaturalSize | null;
-	/**
-	 * Inline-block / inline-flex … become atomic inline items (their own box
-	 * on the line) rather than their content inlined. The flow core lays
-	 * them out; the Yoga core doesn't.
-	 */
-	atomicInlines = false;
 	private readonly pseudoKids = new Map<Element, ChildNode[]>();
 
 	constructor(
@@ -271,7 +265,7 @@ export class StyleContext {
 			} else if (isElement(n)) {
 				const s = this.styleOf(n, parentStyle);
 				if (keyword(s, "display") === "none") continue;
-				if (this.atomicInlines && ATOMIC.has(keyword(s, "display"))) {
+				if (ATOMIC.has(keyword(s, "display"))) {
 					const box = this.box(n, s, true);
 					if (box) {
 						const wrap = wraps(parentStyle);
@@ -318,7 +312,7 @@ export class StyleContext {
 		if (n.name === "img" || n.name === "svg" || n.name === "iframe") return false;
 		// Absolutely positioned and floated boxes come blockified from the cascade.
 		const display = keyword(this.styleOf(n, parentStyle), "display");
-		return INLINE.has(display) || (this.atomicInlines && ATOMIC.has(display)) || n.name === "br";
+		return INLINE.has(display) || ATOMIC.has(display) || n.name === "br";
 	}
 
 	/** A run of inline content under a container with `style`. */
@@ -362,7 +356,7 @@ export class StyleContext {
 		const kind: BoxKind =
 			display === "flex" || display === "inline-flex"
 				? "flex"
-				: display === "grid" || (this.atomicInlines && display === "inline-grid")
+				: display === "grid" || display === "inline-grid"
 					? "grid"
 					: "block";
 		const out = box(kind);
