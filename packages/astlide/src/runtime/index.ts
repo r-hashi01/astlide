@@ -145,7 +145,19 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 	}
 
 	// ── 2. Navigation helper (uses ClientRouter if available) ─
+	// Once this mount has asked to leave its slide, it takes no more navigation:
+	// a framework router (Nuxt, Next) changes the URL before the next slide's
+	// page has replaced this one, and a key pressed in between would move from
+	// this (old) slide. A navigation that hasn't replaced it in a while is taken
+	// to have been cancelled.
+	let leaving = false;
+	let leavingTimer: ReturnType<typeof setTimeout> | undefined;
 	function navTo(url: string): void {
+		if (leaving) return;
+		leaving = true;
+		leavingTimer = setTimeout(() => {
+			leaving = false;
+		}, 2000);
 		if (navigate) {
 			navigate(url, { replace: isEmbedded && !!window.__astlide_embed_host });
 			return;
@@ -545,6 +557,7 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 
 	// ── 5. Navigation ──────────────────────────────────────────
 	function goNext() {
+		if (leaving) return;
 		if (showNextStep()) {
 			broadcastStep();
 			return;
@@ -557,6 +570,7 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 	}
 
 	function goPrev() {
+		if (leaving) return;
 		if (showPrevStep()) {
 			broadcastStep();
 			return;
@@ -1521,6 +1535,7 @@ export function mountDeck(config: DeckRuntimeConfig, options: DeckRuntimeOptions
 		for (const off of unlisten) off();
 		if (timerInterval) clearInterval(timerInterval);
 		clearTimeout(laserTimer);
+		clearTimeout(leavingTimer);
 		if (saveTimer !== undefined) {
 			clearTimeout(saveTimer);
 			writeDrawings();

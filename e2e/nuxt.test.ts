@@ -83,10 +83,22 @@ describe("@astlide/nuxt", () => {
 			1,
 		);
 		await page.keyboard.press("ArrowRight");
-		await expect.poll(() => slideOf(page)).toBe(3);
+		// The router changes the URL before the next slide's page is in: wait for the page.
+		await expect.poll(() => page.locator(".nav-indicator").textContent()).toBe("3 / 29");
 		await page.keyboard.press("ArrowLeft");
 		await expect.poll(() => slideOf(page)).toBe(2);
 		expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe("default");
+		await page.close();
+	});
+
+	it("doesn't move from the old slide on a key pressed while the next one loads (#370)", async () => {
+		const page = await open("/tour/2");
+		await page.keyboard.press("ArrowRight");
+		// The URL says 3 while slide 2's page is still up: a key now must not go to 1.
+		await page.waitForURL(/\/tour\/3\/?$/, { waitUntil: "commit" });
+		await page.keyboard.press("ArrowLeft");
+		await page.waitForTimeout(1500);
+		expect([2, 3]).toContain(slideOf(page));
 		await page.close();
 	});
 
