@@ -19,6 +19,7 @@ import Yoga, {
 	Wrap,
 	type Node as YogaNode,
 } from "yoga-layout";
+import { edgesOf } from "./box-model";
 import { type ElementBox, isElement, StyleContext, type TextRun } from "./box-tree";
 import { type Computed, computeStyle, type StyleSheets, toPx, type Viewport } from "./cascade";
 import { Flow, type Fragment } from "./flow";
@@ -1214,7 +1215,7 @@ function flowLayout(
 		...(auto("height") ? { height: vp.height } : {}),
 	});
 	// The slide is the containing block of what's still positioned against nothing.
-	const rootBorder = flow.edges(slideStyle).border;
+	const rootBorder = edgesOf(ctx, slideStyle).border;
 	for (const p of root.pending) root.kids.push(flow.placeAbsolute(p, root, rootBorder));
 	root.pending = [];
 
@@ -1263,7 +1264,7 @@ function flowLayout(
 		if (row) rowBoxes.set(f.box.eid, box);
 		let inner = clip;
 		if (clipsOverflow(style)) {
-			const { border } = new Flow(ctx).edges(style);
+			const { border } = edgesOf(ctx, style);
 			const own = mapRect(a, {
 				x: x + border.left,
 				y: y + border.top,
@@ -1366,7 +1367,7 @@ function flowLayout(
 				let col = 0;
 				for (const c of row?.cells.slice(0, i) ?? []) col += c.span;
 				const span = row?.cells[i]?.span ?? 1;
-				const { padding, border } = new Flow(ctx).edges(cb.style, ck.f.w);
+				const { padding, border } = edgesOf(ctx, cb.style, ck.f.w);
 				return {
 					eid: cb.eid,
 					col,
