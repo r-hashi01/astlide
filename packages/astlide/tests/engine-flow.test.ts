@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FontRegistry, layoutPage } from "../src/engine";
-import { type FlexItem, resolveFlexibleLengths } from "../src/engine/flow";
+import { type FlexItem, resolveFlexibleLengths } from "../src/engine/flow/flex";
 import { layoutLines } from "../src/engine/text";
 
 /** A font every install has (KaTeX ships TrueType), for text. */
