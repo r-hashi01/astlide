@@ -323,6 +323,16 @@ describe("spec rules found by comparing with Chromium (#363)", () => {
 		expect(b.i?.h).toBe(100);
 	});
 
+	it("lays out an item spanning two grid rows, the rows sharing its height", () => {
+		const b = boxes(
+			".g{display:grid;grid-template-columns:100px 100px}.a{grid-row:span 2;height:100px}.b,.c{height:10px}",
+			'<div class="g"><div class="b"></div><div class="a"></div><div class="c"></div></div>',
+		);
+		// a sits beside b and c, in the second column; the two rows split its 100px.
+		expect(b.a).toMatchObject({ x: 100, y: 0, h: 100 });
+		expect(b.c).toMatchObject({ x: 0, y: 50 });
+	});
+
 	it("collapses margins through an empty block (CSS 2 §8.3.1)", () => {
 		const b = boxes(
 			".w{display:block}.a{height:10px;margin-bottom:10px}.e{margin:20px 0}.b{height:10px;margin-top:5px}",

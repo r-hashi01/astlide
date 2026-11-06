@@ -6,7 +6,16 @@
 import { aspectRatio, lengthOf, marginsOf } from "../box-model";
 import type { ElementBox, TextRun } from "../box-tree";
 import type { Computed } from "../cascade";
-import { columnSpan, columnTracks, parseTracks, placeItems, sizeTracks } from "../grid";
+import {
+	columnSpan,
+	columnStart,
+	columnTracks,
+	type GridArea,
+	parseTracks,
+	placeGrid,
+	rowSpan,
+	sizeTracks,
+} from "../grid";
 import { isAuto, value } from "../properties";
 
 import type { Flow, Placed, Sizes } from "./index";
@@ -59,10 +68,8 @@ export function layoutGrid(
 	const colGap = lengthOf(flow.ctx, style, "column-gap", cw) ?? 0;
 	const rowGap = lengthOf(flow.ctx, style, "row-gap", ch) ?? 0;
 	const tracks = gridTracks(flow, style, cw, cw, colGap, items.length);
-	const placed = placeItems(
-		items.map((k) =>
-			k.type === "element" ? columnSpan(value(k.style, "grid-column"), tracks.length) : 1,
-		),
+	const placed = placeGrid(
+		items.map((k) => areaOf(k, tracks.length)),
 		tracks.length,
 	);
 	const content = tracks.map(() => 0);
@@ -72,14 +79,7 @@ export function layoutGrid(
 			content[p.col] = Math.max(content[p.col] ?? 0, flow.contribution(item).max);
 	}
 	const widths = sizeTracks(tracks, cw, colGap, content);
-	// Rows: items in order, a new row after each row end.
-	const rows: number[] = [];
-	let row = 0;
-	for (const p of placed) {
-		rows.push(row);
-		if (p.rowEnd) row++;
-	}
-	const nRows = row;
+	const nRows = Math.max(0, ...placed.map((p) => p.row + p.rowSpan));
 	const colSpace = distribute(
 		cw - sum(widths) - colGap * Math.max(0, widths.length - 1),
 		widths.length,
@@ -103,6 +103,8 @@ export function layoutGrid(
 		if (t === undefined && rowTracks.length === 0 && nRows === 1) return ch;
 		return undefined;
 	};
+	/** Items spanning several rows, sized after the others (css-grid-1 §11.5). */
+	const spanning: { p: GridArea; h: number }[] = [];
 	for (const [i, p] of placed.entries()) {
 		const item = items[i];
 		if (!item) continue;
@@ -112,8 +114,8 @@ export function layoutGrid(
 			item.type === "element"
 				? marginsOf(flow.ctx, item.style, aw)
 				: { top: 0, right: 0, bottom: 0, left: 0 };
-		const r = rows[i] ?? 0;
-		const ah = knownH(r);
+		const r = p.row;
+		const ah = p.rowSpan === 1 ? knownH(r) : undefined;
 		const f = flow.layout(item, {
 			available: aw,
 			pctW: aw,
@@ -122,7 +124,16 @@ export function layoutGrid(
 				? { width: Math.max(0, aw - m.left - m.right) }
 				: { shrink: true }),
 		});
-		rowH[r] = Math.max(rowH[r] ?? 0, f.h + m.top + m.bottom);
+		const h = f.h + m.top + m.bottom;
+		if (p.rowSpan === 1) rowH[r] = Math.max(rowH[r] ?? 0, h);
+		else spanning.push({ p, h });
+	}
+	// What a spanning item needs beyond its rows goes to them in equal parts.
+	for (const { p, h } of spanning) {
+		const have = sum(rowH.slice(p.row, p.row + p.rowSpan)) + rowGap * (p.rowSpan - 1);
+		if (h > have)
+			for (let r = p.row; r < p.row + p.rowSpan; r++)
+				rowH[r] = (rowH[r] ?? 0) + (h - have) / p.rowSpan;
 	}
 	// Explicit row sizes (lengths only; others size to content).
 	for (const [i, t] of rowTracks.entries()) if (t.kind === "fixed" && i < nRows) rowH[i] = t.px;
@@ -161,9 +172,10 @@ export function layoutGrid(
 	for (const [i, p] of placed.entries()) {
 		const item = items[i];
 		if (!item) continue;
-		const r = rows[i] ?? 0;
+		const r = p.row;
 		const aw = areaW(p);
-		const ah = rowH[r] ?? 0;
+		const last = r + p.rowSpan - 1;
+		const ah = (rowY[last] ?? 0) + (rowH[last] ?? 0) - (rowY[r] ?? 0);
 		const m =
 			item.type === "element"
 				? marginsOf(flow.ctx, item.style, aw)
@@ -195,6 +207,20 @@ export function layoutGrid(
 		for (const pp of f.pending) pending.push({ ...pp, x: pp.x + x, y: pp.y + y });
 	}
 	return { kids, height: sum(rowH) + rowGap * Math.max(0, nRows - 1), pending };
+}
+
+/** An item's spans and start column, from its grid-column / grid-row. */
+function areaOf(
+	item: ElementBox | TextRun,
+	columns: number,
+): { span: number; rowSpan: number; col?: number } {
+	if (item.type !== "element") return { span: 1, rowSpan: 1 };
+	const gc = value(item.style, "grid-column");
+	return {
+		span: columnSpan(gc, columns),
+		rowSpan: rowSpan(value(item.style, "grid-row")),
+		col: columnStart(gc, columns),
+	};
 }
 
 /** An item's `align-self` / `justify-self`, `auto` taken from the container's `*-items`. */
@@ -267,8 +293,8 @@ export function gridSizes(flow: Flow, box: ElementBox): Sizes {
 	const gap = lengthOf(flow.ctx, box.style, "column-gap") ?? 0;
 	const tracks = gridTracks(flow, box.style, undefined, 0, gap, kids.length);
 	const n = Math.max(1, tracks.length);
-	const placed = placeItems(
-		kids.map((k) => (k.type === "element" ? columnSpan(value(k.style, "grid-column"), n) : 1)),
+	const placed = placeGrid(
+		kids.map((k) => areaOf(k, n)),
 		n,
 	);
 	const per = (key: "min" | "max") => {

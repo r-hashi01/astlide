@@ -163,29 +163,68 @@ export function columnSpan(gridColumn: string, columns: number): number {
 	return 1;
 }
 
-/** Where auto-placed items go: their first column, and whether each ends its row. */
-export function placeItems(
-	spans: readonly number[],
+/** An item's row span from its `grid-row`: `span N`, else 1. */
+export function rowSpan(gridRow: string): number {
+	const span = gridRow.trim().match(/span\s+(\d+)/);
+	return span ? Math.max(1, Number(span[1])) : 1;
+}
+
+/** An item's explicit start column (0-based) from `grid-column: N` / `N / …`, if it has one. */
+export function columnStart(gridColumn: string, columns: number): number | undefined {
+	const n = gridColumn.trim().match(/^(\d+)(\s*\/.*)?$/);
+	if (!n || /^1\s*\/\s*-1$/.test(gridColumn.trim())) return undefined;
+	const start = Number(n[1]) - 1;
+	return start >= 0 && start < columns ? start : undefined;
+}
+
+/** Where an item went: its first column and row, and how many of each it spans. */
+export interface GridArea {
+	col: number;
+	span: number;
+	row: number;
+	rowSpan: number;
+}
+
+/**
+ * Auto-placement (css-grid-1 §8.5, row flow, sparse): each item goes in
+ * the first area from the cursor that's free for its spans; an item with a
+ * start column goes in that column, on the cursor's row or a later one.
+ */
+export function placeGrid(
+	items: readonly { span: number; rowSpan: number; col?: number }[],
 	columns: number,
-): { col: number; span: number; rowEnd: boolean }[] {
-	const out: { col: number; span: number; rowEnd: boolean }[] = [];
+): GridArea[] {
+	const taken = new Set<string>();
+	const free = (row: number, col: number, span: number, rows: number) => {
+		for (let r = row; r < row + rows; r++)
+			for (let c = col; c < col + span; c++) if (taken.has(`${r},${c}`)) return false;
+		return true;
+	};
+	const out: GridArea[] = [];
+	let row = 0;
 	let col = 0;
-	for (const s of spans) {
-		const span = Math.max(1, Math.min(s, columns));
-		if (col + span > columns) {
-			const prev = out[out.length - 1];
-			if (prev) prev.rowEnd = true;
-			col = 0;
-		}
-		out.push({ col, span, rowEnd: false });
+	for (const item of items) {
+		const span = Math.max(1, Math.min(item.span, columns));
+		const rows = Math.max(1, item.rowSpan);
+		if (item.col !== undefined) {
+			const at = Math.min(item.col, columns - span);
+			if (at < col) row++;
+			while (!free(row, at, span, rows)) row++;
+			col = at;
+		} else
+			for (;;) {
+				if (col + span > columns) {
+					row++;
+					col = 0;
+					continue;
+				}
+				if (free(row, col, span, rows)) break;
+				col++;
+			}
+		for (let r = row; r < row + rows; r++)
+			for (let c = col; c < col + span; c++) taken.add(`${r},${c}`);
+		out.push({ col, span, row, rowSpan: rows });
 		col += span;
-		if (col >= columns) {
-			const last = out[out.length - 1];
-			if (last) last.rowEnd = true;
-			col = 0;
-		}
 	}
-	const last = out[out.length - 1];
-	if (last) last.rowEnd = true;
 	return out;
 }
