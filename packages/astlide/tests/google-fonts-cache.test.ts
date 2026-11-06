@@ -98,6 +98,24 @@ describe("Google Fonts cache", () => {
 	});
 });
 
+describe("monospace stand-in", () => {
+	it("draws a character no listed font serves with the monospace font's own file", async () => {
+		serveFonts("U+0000-00FF");
+		const dir = mkdtempSync(join(tmpdir(), "astlide-gfonts-"));
+		const fonts = new FontRegistry();
+		await loadGoogleFonts(fonts, ["Mono"], dir, [400]);
+		const file = join(dir, readdirSync(dir).find((f) => f.endsWith(".ttf")) ?? "");
+		fonts.addFallback(file);
+		const familyOf = (list: string) =>
+			fonts.segments(fonts.resolve(list, 400, false).face, "→")[0]?.face;
+		// With monospace in the list: the system's monospace font has "→"; Mono's file stands in.
+		expect(familyOf("Mono, monospace")?.family).toBe("mono");
+		expect(familyOf("Mono, monospace")?.ranges).toBeDefined();
+		// Without: the registered fallback.
+		expect(familyOf("Mono")?.ranges).toBeUndefined();
+	});
+});
+
 describe("unicode-range", () => {
 	it("reads single code points, ranges and wildcards", () => {
 		expect(parseUnicodeRange("U+0000-00FF, U+2191,u+4??")).toEqual([

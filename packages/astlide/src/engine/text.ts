@@ -26,6 +26,12 @@ export interface FontFace {
 	 * outside it come from the next font even when the file has them.
 	 */
 	ranges?: [number, number][];
+	/**
+	 * The list ends in `monospace`: a character none of its fonts serve is
+	 * drawn by the system's monospace font, which the faces' own files
+	 * stand in for (a monospace font has the same advance for it).
+	 */
+	monospace?: boolean;
 }
 
 /** Common fonts standing for CSS generic families, best first. */
@@ -99,6 +105,9 @@ export class FontRegistry {
 			if (cp > 0x20 && !covers(face, cp)) {
 				f =
 					face.chain?.find((c) => covers(c, cp)) ??
+					(face.monospace
+						? [face, ...(face.chain ?? [])].find((c) => c.font.hasGlyphForCodePoint(cp))
+						: undefined) ??
 					this.fallbacks.find((fb) => covers(fb, cp)) ??
 					face;
 			}
@@ -178,11 +187,13 @@ export class FontRegistry {
 		if (!primary) throw new Error("no fonts registered");
 		// The rest of the list backs up characters the first face lacks.
 		const chain = found.slice(1);
-		if (chain.length === 0) return { face: primary, ...(requested ? { requested } : {}) };
-		const key = `${primary.family}|${primary.weight}|${primary.italic}|${chain.map((c) => `${c.family}:${c.weight}`).join(">")}`;
+		const monospace = names.some((n) => n.toLowerCase() === "monospace");
+		if (chain.length === 0 && !monospace)
+			return { face: primary, ...(requested ? { requested } : {}) };
+		const key = `${primary.family}|${primary.weight}|${primary.italic}|${chain.map((c) => `${c.family}:${c.weight}`).join(">")}|${monospace}`;
 		let face = this.chained.get(key);
 		if (!face) {
-			face = { ...primary, chain };
+			face = { ...primary, chain, ...(monospace ? { monospace } : {}) };
 			this.chained.set(key, face);
 		}
 		return { face, ...(requested ? { requested } : {}) };
@@ -202,7 +213,7 @@ export class FontRegistry {
 		letterSpacing = 0,
 		features?: readonly string[],
 	): number {
-		const chain = face.chain?.map((c) => `${c.family}:${c.weight}`).join(">") ?? "";
+		const chain = `${face.chain?.map((c) => `${c.family}:${c.weight}`).join(">") ?? ""}${face.monospace ? "|mono" : ""}`;
 		const key = `${face.family}|${face.weight}|${face.italic}|${chain}|${size}|${letterSpacing}|${features?.join(",") ?? ""}|${text}`;
 		const hit = this.widthCache.get(key);
 		if (hit !== undefined) return hit;
