@@ -34,6 +34,8 @@ export interface Box {
 	alpha: number;
 	/** Where ancestors with `overflow` other than visible let it show (absent: nowhere clipped). */
 	clip?: Rect;
+	/** An iframe's content box (inside its padding and border), where its document shows. */
+	content?: Rect;
 }
 
 /** The part of an inline element's box (background / border) on one line. */
@@ -305,6 +307,15 @@ function layoutTree(
 			style,
 			alpha: Number(style.get("__alpha") ?? 1),
 		});
+		if (f.box.el.name === "iframe") {
+			const { padding, border } = edgesOf(ctx, style);
+			box.content = mapRect(a, {
+				x: x + border.left + padding.left,
+				y: y + border.top + padding.top,
+				w: f.w - border.left - padding.left - border.right - padding.right,
+				h: f.h - border.top - padding.top - border.bottom - padding.bottom,
+			});
+		}
 		const row = f.box.el.name === "tr" || keyword(style, "display") === "table-row";
 		// Table rows are listed with their table (rowBoxes), the rest by box.
 		if (!row) placedBox.set(f.box, box);

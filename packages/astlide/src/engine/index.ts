@@ -27,6 +27,7 @@ import {
 import type { FontRegistry } from "./text";
 
 export { transformText } from "./box-tree";
+export { type Color, parseColor } from "./color";
 export {
 	type MermaidOptions,
 	type RenderedDiagram,
@@ -41,9 +42,7 @@ export type { Box, Rect, SlideLayout, TableBox, TableCellBox, TextLine } from ".
 export { intersect } from "./layout";
 export { CJK_FAMILY, CJK_TEXT, DEFAULT_EA_FONT, loadPageFonts, type PageFonts } from "./page-fonts";
 export {
-	type Color,
 	type Gradient,
-	parseColor,
 	parseLinearGradient,
 	parseStripes,
 	type Scene,
@@ -216,11 +215,8 @@ function withFrames(
 		const html = all.find((e) => e.name === "html");
 		const body = all.find((e) => e.name === "body");
 		if (!body) continue;
-		const px = (prop: string) => Number.parseFloat(frame.style.get(prop) ?? "0") || 0;
-		const x0 = frame.x + px("border-left-width") + px("padding-left");
-		const y0 = frame.y + px("border-top-width") + px("padding-top");
-		const w = frame.w - (x0 - frame.x) - px("border-right-width") - px("padding-right");
-		const h = frame.h - (y0 - frame.y) - px("border-bottom-width") - px("padding-bottom");
+		// The content box, as laid out (padding and border in any unit).
+		const { x: x0, y: y0, w, h } = frame.content ?? frame;
 		if (w <= 0 || h <= 0) continue;
 		const fvp: Viewport = { width: w, height: h, media: vp.media };
 		const sheets = documentSheets(doc, found.dir, distDir, fvp);
