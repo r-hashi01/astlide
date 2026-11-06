@@ -418,6 +418,8 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 				updateConfig,
 				logger,
 			}) => {
+				// A file path (`URL.pathname` is percent-encoded, and wrong on Windows).
+				const srcDir = fileURLToPath(config.srcDir ?? new URL("src/", config.root));
 				for (const { kind, name, plugin } of resolved.dropped) {
 					logger.warn(
 						`Plugin "${plugin}" registers the ${kind} "${name}", which is already registered; it is ignored.`,
@@ -541,13 +543,7 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 								editorSecret ?? "",
 								config.base,
 								unlockCodes,
-								join(
-									config.srcDir instanceof URL
-										? fileURLToPath(config.srcDir)
-										: join(fileURLToPath(config.root), "src"),
-									"content",
-									"decks",
-								),
+								join(srcDir, "content", "decks"),
 							) as never,
 							// Speaker notes as a trailing `<!-- … -->`: MDX would reject the comment.
 							astlideCommentNotesPlugin() as never,
@@ -620,7 +616,6 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 					pattern: "/[deck]/[...slide]",
 					entrypoint: "@astlide/astro/internal/pages/slide.astro",
 				});
-				const srcDir = config.srcDir?.pathname ?? join(process.cwd(), "src");
 
 				// Index route at `/`. Skipped when the user supplies their own
 				// src/pages/index.* so the two don't collide (a route collision is a

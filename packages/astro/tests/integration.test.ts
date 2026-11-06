@@ -34,7 +34,7 @@ function createMockHookArgs(
 		root: pathToFileURL(`${process.cwd()}/`),
 		publicDir: pathToFileURL(`${process.cwd()}/public/`),
 		integrations: overrides.integrations ?? [],
-		srcDir: overrides.srcDir ? { pathname: overrides.srcDir } : undefined,
+		srcDir: overrides.srcDir ? pathToFileURL(`${overrides.srcDir}/`) : undefined,
 		trailingSlash: overrides.trailingSlash ?? "ignore",
 		build: { format: overrides.build?.format ?? "directory" },
 	};
@@ -115,7 +115,8 @@ describe("astlide integration", () => {
 		});
 
 		it("auto-skips the index route when the user has their own src/pages/index", () => {
-			const dir = mkdtempSync(join(tmpdir(), "astlide-idx-"));
+			// A space in the path: percent-encoded in the srcDir URL.
+			const dir = mkdtempSync(join(tmpdir(), "astlide idx-"));
 			mkdirSync(join(dir, "pages"), { recursive: true });
 			writeFileSync(join(dir, "pages", "index.astro"), "<h1>home</h1>");
 			try {

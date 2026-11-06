@@ -191,13 +191,18 @@ const SLIDE_SOURCE = /\.(mdx|md|html)$/i;
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
 /**
- * Resolve a slide path from the client to an absolute file path, or `null` if
- * it isn't an editable slide source inside `<root>/src/`.
+ * Resolve a slide path from the client (relative to `root`) to an absolute
+ * file path, or `null` if it isn't an editable slide source inside `dir`
+ * (default `<root>/src/`).
  */
-export function resolveSlideSource(root: string, path: unknown): string | null {
+export function resolveSlideSource(
+	root: string,
+	path: unknown,
+	dir = resolve(root, "src"),
+): string | null {
 	if (typeof path !== "string" || path.length === 0 || path.includes("\0")) return null;
 	if (!SLIDE_SOURCE.test(path)) return null;
-	const srcDir = resolve(root, "src");
+	const srcDir = resolve(dir);
 	const absolute = resolve(root, path);
 	const rel = relative(srcDir, absolute);
 	if (
@@ -338,7 +343,7 @@ export async function editableSource(
 	decksDir: string,
 	path: unknown,
 ): Promise<string | null> {
-	const file = resolveSlideSource(root, path);
+	const file = resolveSlideSource(root, path, decksDir);
 	if (!file) return null;
 	try {
 		const [real, decks] = await Promise.all([realpath(file), realpath(decksDir)]);
@@ -450,7 +455,7 @@ export function astlideEditorPlugin(
 			// A slide file added or removed changes the deck's order and length.
 			const onDeckFile = (removed: boolean) => (file: string) => {
 				const path = relative(root, file).split(sep).join("/");
-				if (resolveSlideSource(root, path)) {
+				if (resolveSlideSource(root, path, decksDir)) {
 					track({ event: DECK_CHANGED_EVENT, path, ...(removed ? { removed } : {}) });
 				}
 			};
