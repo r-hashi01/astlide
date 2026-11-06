@@ -37,6 +37,7 @@ import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { slideScriptsKept } from "@astlide/astro/internal/slide-scripts-option";
 import {
 	HTML_EXTENSION,
 	htmlWithoutNotes,
@@ -51,11 +52,7 @@ import {
 	withoutNotesComment,
 } from "@astlide/core/utils/comment-notes";
 import { pptxAssetDir, storePptxAsset } from "@astlide/core/utils/pptx-assets";
-import {
-	SLIDE_SCRIPTS_VERSION,
-	slideScriptsKept,
-	stripSlideScripts,
-} from "@astlide/core/utils/slide-scripts";
+import { SLIDE_SCRIPTS_VERSION, stripSlideScripts } from "@astlide/core/utils/slide-scripts";
 import type { Loader, LoaderContext } from "astro/loaders";
 import { glob } from "astro/loaders";
 
@@ -138,7 +135,9 @@ export function astlideDeckLoader(options: AstlideDeckLoaderOptions = {}): Loade
 			// Trailing-comment notes never reach the rendered body; scripts in Markdown /
 			// HTML / PowerPoint slides only run with `slideScripts: true`.
 			const withoutNotes = withoutMarkdownNotes(loaderContext);
-			const context = slideScriptsKept() ? withoutNotes : withoutSlideScripts(withoutNotes);
+			const context = slideScriptsKept(loaderContext.config)
+				? withoutNotes
+				: withoutSlideScripts(withoutNotes);
 			await markdownLoader.load(context);
 			const baseUrl = new URL(`${base.replace(/\/?$/, "/")}`, context.config.root);
 			await syncHtmlSlides(context, baseUrl);

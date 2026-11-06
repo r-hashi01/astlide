@@ -33,7 +33,7 @@ import {
 } from "../schema";
 import { extractCommentNotes, withoutNotesComment } from "../utils/comment-notes";
 import { consoleReporter, type Reporter } from "../utils/reporter";
-import { slideScriptsKept, stripSlideScripts } from "../utils/slide-scripts";
+import { stripSlideScripts } from "../utils/slide-scripts";
 import { slideTitle } from "../utils/slide-title";
 import {
 	HTML_EXTENSION,
@@ -157,7 +157,7 @@ function parseSlideData(data: Record<string, unknown>, file: string): SlideData 
 
 /** Read one deck folder. */
 export async function readDeck(dir: string, options: ReadDeckOptions = {}): Promise<Deck> {
-	const keepScripts = options.slideScripts ?? slideScriptsKept();
+	const keepScripts = options.slideScripts ?? false;
 	const clean = (html: string) => (keepScripts ? html : stripSlideScripts(html));
 	let render: SlideMarkdownRenderer | undefined =
 		typeof options.markdown === "function" ? options.markdown : undefined;

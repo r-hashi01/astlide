@@ -19,6 +19,7 @@ import {
 	loadTemplate,
 	storedTemplateFiles,
 } from "@astlide/astro/internal/pptx-templates";
+import { SLIDE_SCRIPTS_DEFINE } from "@astlide/astro/internal/slide-scripts-option";
 import {
 	astlideCommentNotesPlugin,
 	astlideSlideScriptsPlugin,
@@ -30,7 +31,7 @@ import { astlideCodeHighlight } from "@astlide/core/utils/code-highlight";
 import { EXPORT_BUILD_ENV, requestedExportBuild } from "@astlide/core/utils/export-build";
 import { astlideMermaid } from "@astlide/core/utils/mermaid";
 import { PPTX_ASSET_ROUTE, pptxAssetDir } from "@astlide/core/utils/pptx-assets";
-import { setSlideScripts, stripBuiltPages } from "@astlide/core/utils/slide-scripts";
+import { stripBuiltPages } from "@astlide/core/utils/slide-scripts";
 import mdx from "@astrojs/mdx";
 import type { AstroIntegration } from "astro";
 import { hashBuiltPages } from "./csp-hashes";
@@ -402,8 +403,6 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 	let editorSecret: string | undefined;
 	const unlockCodes = createUnlockCodes();
 	let devProtocol = "http";
-	// Read by the deck loader, which runs in this process.
-	setSlideScripts(options.slideScripts === true);
 	// Marks where slide content starts and ends in a page, for the CSP pass
 	// after the build: random per build, so content can't fake the end mark.
 	const slideMark = randomBytes(16).toString("hex");
@@ -459,7 +458,7 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 				for (const [theme, source] of sources) {
 					let t: LoadedTemplate;
 					try {
-						t = loadTemplate(theme, source, root, config.base);
+						t = loadTemplate(theme, source, root, config.base, options.slideScripts === true);
 					} catch (e) {
 						throw new Error(`[astlide] template "${theme}" (${source}): ${(e as Error).message}`);
 					}
@@ -529,7 +528,8 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 							astlideVirtualPlugin(resolved, { hasMermaid }) as never,
 							astlideTemplatesPlugin(
 								templates,
-								(t) => loadTemplate(t.theme, t.source, root, config.base),
+								(t) =>
+									loadTemplate(t.theme, t.source, root, config.base, options.slideScripts === true),
 								command === "dev" ? storeDir : undefined,
 							) as never,
 							// Dev only: slide scripts also leave the final HTML responses.
@@ -581,6 +581,8 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 							// Expose options to injected pages via Vite define
 							__ASTLIDE_CSP__: JSON.stringify(options.csp ?? true),
 							__ASTLIDE_SLIDE_MARK__: JSON.stringify(slideMark),
+							// Read by the deck loader from its context's config.
+							[SLIDE_SCRIPTS_DEFINE]: JSON.stringify(options.slideScripts === true),
 							__ASTLIDE_INDEXABLE__: JSON.stringify(options.indexable ?? false),
 							__ASTLIDE_THEME_NAMES__: JSON.stringify([...resolved.themeNames]),
 							__ASTLIDE_LAYOUT_NAMES__: JSON.stringify([...resolved.layoutNames]),

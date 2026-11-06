@@ -29,7 +29,7 @@ import { printViewAttributes, printViewMeta } from "../deck/print-view";
 import { renderSlideHtml, type SlideTemplate } from "../runtime/slide";
 import { THEMES } from "../schema";
 import { storePptxAsset } from "../utils/pptx-assets";
-import { slideScriptsKept, stripSlideScripts } from "../utils/slide-scripts";
+import { stripSlideScripts } from "../utils/slide-scripts";
 
 export type RenderFormat = "pptx" | "pdf" | "png";
 
@@ -46,6 +46,11 @@ export interface RenderDeckOptions {
 	template?: Uint8Array;
 	/** The Shiki theme for code blocks. Default `github-dark`. */
 	shikiTheme?: string;
+	/**
+	 * Keep scripts in Markdown, HTML and PowerPoint slides and in the
+	 * template's artwork, as the integration's `slideScripts` option. Default: removed.
+	 */
+	slideScripts?: boolean;
 	/**
 	 * The web font stylesheet (default: Inter and JetBrains Mono from Google
 	 * Fonts, as an Astlide site), or `null` for none.
@@ -101,11 +106,12 @@ const attributes = (attrs: Record<string, string>) =>
 async function loadTemplate(
 	data: Uint8Array,
 	assets: string,
+	keepScripts: boolean,
 ): Promise<{ css: string; template: SlideTemplate }> {
 	const { pptxToTemplate, templateCss } = await import("../pptx/index");
 	const t = pptxToTemplate(data, { media: (f) => storePptxAsset(assets, "/", f) });
 	// A template can come from someone else, like a slide: no scripts in its artwork.
-	const art = (html: string) => (slideScriptsKept() ? html : stripSlideScripts(html));
+	const art = (html: string) => (keepScripts ? html : stripSlideScripts(html));
 	return {
 		css: templateCss(t, TEMPLATE_THEME),
 		template: {
@@ -136,7 +142,7 @@ export interface PrintView {
 export async function writePrintView(
 	options: Pick<
 		RenderDeckOptions,
-		"dir" | "template" | "shikiTheme" | "fontHref" | "renderMdx" | "publicDir"
+		"dir" | "template" | "shikiTheme" | "fontHref" | "renderMdx" | "publicDir" | "slideScripts"
 	> & {
 		site: string;
 	},
@@ -150,6 +156,7 @@ export async function writePrintView(
 	const deck = await readDeck(options.dir, {
 		markdown: { shikiTheme: options.shikiTheme },
 		pptxMedia: (f) => storePptxAsset(assets, "/", f),
+		slideScripts: options.slideScripts,
 	});
 	const mdx = deck.slides.filter((s) => s.format === "mdx");
 	if (mdx.length && !options.renderMdx)
@@ -185,7 +192,7 @@ export async function writePrintView(
 	let template: SlideTemplate | undefined;
 	let theme = deck.config.theme ?? "default";
 	if (options.template) {
-		const loaded = await loadTemplate(options.template, assets);
+		const loaded = await loadTemplate(options.template, assets, options.slideScripts ?? false);
 		await writeFile(join(css, "template.css"), loaded.css);
 		links.splice(links.indexOf("/_astlide/css/slide.css"), 0, "/_astlide/css/template.css");
 		template = loaded.template;

@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { slideScriptsKept } from "@astlide/astro/internal/slide-scripts-option";
 import { exportBuildDir } from "@astlide/core/utils/export-build";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import astlide from "../src/index";
@@ -176,6 +177,21 @@ describe("astlide integration", () => {
 			const configCall = args.updateConfig.mock.calls[0][0];
 			expect(configCall.vite.define.__ASTLIDE_DRAWINGS_PERSIST__).toBe("true");
 		});
+	});
+
+	// ── Slide scripts ──
+
+	it("gives each config its own slideScripts, for the deck loader", () => {
+		const viteOf = (options?: Parameters<typeof astlide>[0]) => {
+			const { args } = runSetup(options);
+			return { vite: args.updateConfig.mock.calls[0][0].vite };
+		};
+		// Two configs in one process: neither takes the other's.
+		const kept = viteOf({ slideScripts: true });
+		const removed = viteOf();
+		expect(slideScriptsKept(kept)).toBe(true);
+		expect(slideScriptsKept(removed)).toBe(false);
+		expect(slideScriptsKept({})).toBe(false);
 	});
 
 	// ── Speaker notes ──
