@@ -56,12 +56,23 @@ export function layoutBlock(
 		const free = cw - f.w - cm.left - cm.right;
 		if (isAuto(cs, "margin-left") && isAuto(cs, "margin-right")) x = Math.max(0, free) / 2;
 		else if (isAuto(cs, "margin-left")) x = Math.max(0, free) + cm.left;
+		const { dx, dy } = flow.relative(cs, cw, ch);
+		// An empty block (no height, padding, border or content of its own): its
+		// top and bottom margins collapse through it, with the ones around it.
+		if (child.kind === "block" && !child.bfcRoot && f.h === 0) {
+			const through = join(f.mt, f.mb);
+			const at = y + join(carried ?? 0, f.mt);
+			kids.push({ f, x: x + dx, y: at + dy });
+			for (const p of f.pending) pending.push({ ...p, x: p.x + x + dx, y: p.y + at + dy });
+			if (first && throughTop) mt = join(mt, through);
+			else carried = join(carried ?? 0, through);
+			continue;
+		}
 		if (first && throughTop) {
 			// The first child's top margin collapses with this box's.
 			mt = join(mt, f.mt);
 		} else y += join(carried ?? 0, f.mt);
 		carried = null;
-		const { dx, dy } = flow.relative(cs, cw, ch);
 		kids.push({ f, x: x + dx, y: y + dy });
 		for (const p of f.pending) pending.push({ ...p, x: p.x + x + dx, y: p.y + y + dy });
 		y += f.h;
