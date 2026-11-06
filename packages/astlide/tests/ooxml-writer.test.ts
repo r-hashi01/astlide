@@ -195,8 +195,8 @@ describe("ZipWriter", () => {
 });
 
 describe("dosDateTime", () => {
-	it("encodes 1-based months and days", () => {
-		const { date, time } = dosDateTime(new Date(2026, 9, 9, 21, 22, 24));
+	it("encodes 1-based months and days, in UTC", () => {
+		const { date, time } = dosDateTime(new Date(Date.UTC(2026, 9, 9, 21, 22, 24)));
 		expect(date >> 9).toBe(2026 - 1980);
 		expect((date >> 5) & 0x0f).toBe(10);
 		expect(date & 0x1f).toBe(9);

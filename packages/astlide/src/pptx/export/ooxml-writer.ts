@@ -976,10 +976,10 @@ function themeXml(theme: ThemeColors, eaFont = ""): string {
 </a:theme>`;
 }
 
-function corePropsXml(title: string, author: string): string {
+function corePropsXml(title: string, author: string, date: Date): string {
 	// W3CDTF without fractional seconds: Office treats "…:45.652Z" as corrupt
 	// content and asks to repair the file.
-	const now = new Date().toISOString().replace(/\.\d+Z$/, "Z");
+	const now = date.toISOString().replace(/\.\d+Z$/, "Z");
 	return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 <dc:title>${esc(title)}</dc:title>
@@ -1040,19 +1040,40 @@ interface ZipEntry {
  */
 const ZIP_FLAGS = 0x0800;
 
-/** MS-DOS time / date for entry headers; month and day are 1-based (0 is invalid). */
+/**
+ * MS-DOS time / date for entry headers; month and day are 1-based (0 is
+ * invalid). In UTC, so the same date gives the same file in every time zone.
+ */
 export function dosDateTime(date: Date): { time: number; date: number } {
-	const year = Math.max(date.getFullYear(), 1980);
+	const year = Math.max(date.getUTCFullYear(), 1980);
 	return {
-		time: (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2),
-		date: ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate(),
+		time:
+			(date.getUTCHours() << 11) |
+			(date.getUTCMinutes() << 5) |
+			Math.floor(date.getUTCSeconds() / 2),
+		date: ((year - 1980) << 9) | ((date.getUTCMonth() + 1) << 5) | date.getUTCDate(),
 	};
+}
+
+/**
+ * When the file is made: `SOURCE_DATE_EPOCH` (seconds) when set, as for
+ * reproducible builds, else now. The same slides and date give the same file.
+ */
+export function buildDate(): Date {
+	const epoch = Number(process.env.SOURCE_DATE_EPOCH);
+	return process.env.SOURCE_DATE_EPOCH && Number.isFinite(epoch)
+		? new Date(epoch * 1000)
+		: new Date();
 }
 
 export class ZipWriter {
 	private entries: ZipEntry[] = [];
 	private offset = 0;
-	private readonly stamp = dosDateTime(new Date());
+	private readonly stamp: { time: number; date: number };
+
+	constructor(date: Date = buildDate()) {
+		this.stamp = dosDateTime(date);
+	}
 
 	add(path: string, data: string | Buffer): void {
 		const raw = typeof data === "string" ? Buffer.from(data, "utf-8") : data;
@@ -1162,6 +1183,8 @@ export interface PptxFileOptions {
 	fonts?: EmbeddedFont[];
 	/** The East Asian font of the theme (what PowerPoint uses for Japanese text typed into the file). */
 	eaFont?: string;
+	/** When the file is made (default: {@link buildDate}). */
+	date?: Date;
 }
 
 /** Give every run with a font, in text boxes and table cells, `eaFont` for its East Asian text. */
@@ -1184,8 +1207,10 @@ export class PptxFile {
 	private theme: ThemeColors;
 	private fonts: EmbeddedFont[];
 	private eaFont: string;
+	private date: Date;
 
 	constructor(opts: PptxFileOptions = {}) {
+		this.date = opts.date ?? buildDate();
 		this.title = opts.title ?? "";
 		this.author = opts.author ?? "";
 		this.theme = opts.theme ?? DEFAULT_THEME;
@@ -1198,7 +1223,7 @@ export class PptxFile {
 	}
 
 	async save(outputPath: string): Promise<void> {
-		const zip = new ZipWriter();
+		const zip = new ZipWriter(this.date);
 		const count = this.slides.length;
 		// Slides with speaker notes (1-based).
 		const notes = this.slides.flatMap((s, i) => (s.notes?.trim() ? [i + 1] : []));
@@ -1235,7 +1260,7 @@ export class PptxFile {
 		zip.add("ppt/presProps.xml", presPropsXml());
 		zip.add("ppt/viewProps.xml", viewPropsXml());
 		zip.add("ppt/tableStyles.xml", tableStylesXml());
-		zip.add("docProps/core.xml", corePropsXml(this.title, this.author));
+		zip.add("docProps/core.xml", corePropsXml(this.title, this.author, this.date));
 		zip.add("docProps/app.xml", appPropsXml(count));
 
 		// Slides

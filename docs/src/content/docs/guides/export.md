@@ -49,6 +49,12 @@ What ends up in the file:
 
 The fonts your theme loads are embedded in the file, so the slides keep their fonts on a computer that doesn't have them installed. A font whose license forbids embedding is left out, and the export prints a warning. For Japanese and other East Asian text, see [Japanese text in PowerPoint](#japanese-text-in-powerpoint).
 
+The file records when it was made. To get the same file from the same slides every time, for example to compare exports in CI, set `SOURCE_DATE_EPOCH` to a time in seconds since 1970:
+
+```bash
+SOURCE_DATE_EPOCH=1767225600 bunx astlide export my-talk --pptx
+```
+
 ## Speaker notes and `dist/`
 
 Every export starts with a build of its own in `node_modules/.astro/astlide-export`. Your `dist/` isn't touched, so exporting never changes what you deploy.
