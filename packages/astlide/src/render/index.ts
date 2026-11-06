@@ -308,7 +308,7 @@ async function serveFolder(dir: string): Promise<{ url: string; server: Server }
 async function drawDiagrams(view: PrintView, root: string, reporter?: Reporter): Promise<void> {
 	const source = await readFile(view.html, "utf-8");
 	if (!source.includes('class="astlide-mermaid"')) return;
-	const { diagramsInPrintView } = await import("../pptx/export/export");
+	const { diagramsInPrintView } = await import("../pptx/export/diagrams");
 	await writeFile(view.html, await diagramsInPrintView(view.html, view.site, root, reporter));
 }
 

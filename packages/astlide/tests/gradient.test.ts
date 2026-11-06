@@ -1,6 +1,6 @@
 import { parseLinearGradient, parseStripes } from "@astlide/core/engine";
 import { describe, expect, it } from "vitest";
-import { stripePreset } from "../src/pptx/export/export";
+import { stripePreset } from "../src/pptx/export/slide";
 
 describe("parseLinearGradient", () => {
 	it("reads an angle and stop positions", () => {
