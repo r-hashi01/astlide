@@ -1,5 +1,104 @@
 # @astlide/core
 
+## 3.1.0
+
+### Minor Changes
+
+- [#372](https://github.com/r-hashi01/astlide/pull/372) [`e4f040b`](https://github.com/r-hashi01/astlide/commit/e4f040b08828fe273eea2e725946bd1f806ca32d) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `check_deck` and PowerPoint export use the new layout engine, which lays slides out by the CSS specifications rather than through a flexbox library, and so matches the browser much more closely: grid, tables, inline-block, baselines, `zoom`, images and Japanese line breaking come out where Chromium puts them. The `yoga-layout` dependency is gone.
+
+### Patch Changes
+
+- [#346](https://github.com/r-hashi01/astlide/pull/346) [`fea6a5d`](https://github.com/r-hashi01/astlide/commit/fea6a5dbee45b4961376196afaf4379e46c826a1) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `check_deck` and PowerPoint export break Japanese, Chinese and Korean lines between characters (with kinsoku: no closing punctuation or small kana at the start of a line, no opening bracket at the end), as browsers do. Before, a sentence without spaces ran off the right edge and was reported as overflowing.
+
+- [#354](https://github.com/r-hashi01/astlide/pull/354) [`edac338`](https://github.com/r-hashi01/astlide/commit/edac3380cec064a032b3f0f8408a5f5a0138be1a) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `check_deck` and PowerPoint export size boxes more like browsers do:
+
+  - A percentage width or height inside a box sized by its content (a badge holding an icon at `width: 60%`, a `width: 100%` title in a centered column) is treated as `auto` while sizing that box, then resolved against it.
+  - A box that shrinks to fit wrapping text is as wide as the room it has, not as its widest line.
+  - An `aspect-ratio` box shrinks in a row like other flex items, and `aspect-ratio` doesn't apply once both width and height are set.
+
+- [#325](https://github.com/r-hashi01/astlide/pull/325) [`a790f15`](https://github.com/r-hashi01/astlide/commit/a790f1540852d8f8a769637ff5cff894fda932d2) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `@astlide/core/runtime/page` exports `slideUrl()`, `slideNeighbours()` and `noNotesText()`: a slide page's URL, its previous / next / first / last slides and the "no notes" text, computed one way for Astro, React, Vue, Next, Nuxt and the runtime. Astro slide pages now encode the deck name in their toolbar and presenter links, as the runtime already did.
+
+- [#367](https://github.com/r-hashi01/astlide/pull/367) [`5320952`](https://github.com/r-hashi01/astlide/commit/5320952815bbd3e6db4117e0020da4bc3c9c76cf) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `check_deck` and PowerPoint export size images like browsers do: `min-` / `max-width` and `-height` keep an image's proportions, and an image in a flex row stays within its `max-width` (`max-w-full`) instead of keeping its natural width.
+
+- [#362](https://github.com/r-hashi01/astlide/pull/362) [`5990c26`](https://github.com/r-hashi01/astlide/commit/5990c26990a627d38d653ed18d75528b6b9306ce) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `check_deck` and PowerPoint export lay out more like browsers do:
+
+  - `calc()` with `*`, `/`, parentheses and nested `calc()` (as in Tailwind / UnoCSS spacing utilities such as `space-y-*`) resolves; units `vmin`, `vmax`, `in`, `cm`, `mm`, `ch` and `ex` are recognised.
+  - A line breaks before an inline element that doesn't fit after a space (`<code>` with padding), and kerning between the pieces of a line counts.
+  - Closing punctuation at the end of a line goes half-width when that makes it fit, as in Chromium.
+
+- [#377](https://github.com/r-hashi01/astlide/pull/377) [`d8e83c5`](https://github.com/r-hashi01/astlide/commit/d8e83c513188a2d6ff5d0ef19c0deb49e3832138) Thanks [@r-hashi01](https://github.com/r-hashi01)! - PowerPoint export keeps colours written as `hsl()`, `hwb()`, `lab()`, `lch()`, `oklab()`, `oklch()` (Tailwind v4's palette), `color()`, `color-mix()` and every CSS named colour; before, fills, borders and text in these were dropped. Rounded corners in `rem` / `vw` and an iframe's padding in any unit now use the page's own sizes.
+
+- [#365](https://github.com/r-hashi01/astlide/pull/365) [`54a11b6`](https://github.com/r-hashi01/astlide/commit/54a11b63dee45115f6ff88f1b103b3cbb24f4245) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `check_deck` and PowerPoint export: table cells are vertically centred by default, as in browsers (`tr` is `vertical-align: middle` and cells inherit it).
+
+- [#375](https://github.com/r-hashi01/astlide/pull/375) [`7facbea`](https://github.com/r-hashi01/astlide/commit/7facbeaef81477f6e18ebe77825231c51008e519) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `check_deck` and PowerPoint export: an item taller than a flex row limited by `max-height` is centred with `align-items: center`, as in browsers, instead of sitting at the top.
+
+- [#373](https://github.com/r-hashi01/astlide/pull/373) [`92723fe`](https://github.com/r-hashi01/astlide/commit/92723fe422773a8d5be104610838f662801a6ef8) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `check_deck` and PowerPoint export: grid items spanning rows (`grid-row: span 2`) and items with a start column are placed as in browsers, margins collapse through empty blocks, and code in a monospace font keeps symbols such as `→` at the monospace width.
+
+- [#364](https://github.com/r-hashi01/astlide/pull/364) [`59196b6`](https://github.com/r-hashi01/astlide/commit/59196b6e837d5d4b07226370482141a9ba7fd561) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `check_deck` and PowerPoint export lay out more like browsers do:
+
+  - A border with a style but no width is 3px wide, as in browsers.
+  - `word-break` and `overflow-wrap` set on a parent apply to its text, and so do `font-variant-numeric` / `font-feature-settings` (such as `tabular-nums`).
+  - Japanese lines may break before small kana and `ー`, and between elements (`日本<b>語</b>`); a line that can't break right before the word that doesn't fit breaks at the last place it can.
+  - An image limited by `max-height` keeps its proportions.
+
+- [#361](https://github.com/r-hashi01/astlide/pull/361) [`5141f74`](https://github.com/r-hashi01/astlide/commit/5141f74cc66684cf277f5334aba6a38db56057fa) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `check_deck` and PowerPoint export measure text more like browsers do:
+
+  - A character the first font doesn't draw comes from the next font in the `font-family` list. For Google Fonts this also applies to characters the font's subsets leave out (Geist has no `→`).
+  - Fonts are loaded in every weight the deck uses, and `font-variant-numeric` / `font-feature-settings` (such as `tabular-nums`) apply.
+  - Fullwidth punctuation next to other punctuation is half-width (`」「`), as in Chromium.
+  - `white-space: nowrap` and `pre` keep text on one line.
+  - The `font` shorthand (`font: 1.2em/1.5 serif`), `zoom`, and `border-style: none` (no border width) apply.
+
+- [#356](https://github.com/r-hashi01/astlide/pull/356) [`883db38`](https://github.com/r-hashi01/astlide/commit/883db38ba1fd9d5dae136a13fd91d05d629035c8) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `check_deck` and PowerPoint export apply CSS `transform` translations and scales (about `transform-origin`), including the `var()` chains UnoCSS and Tailwind write: a diagram at `scale(0.9)` is checked and exported at the size it's shown. Rotations and skews are still ignored.
+
+- [#348](https://github.com/r-hashi01/astlide/pull/348) [`0c5f558`](https://github.com/r-hashi01/astlide/commit/0c5f5585f0b1d74578b1617c791545c524794d57) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `check_deck` and PowerPoint export fetch the fonts slides use before fallbacks: the first family of each `font-family` list comes first. Before, fallback names such as `SFMono-Regular` and `Segoe UI` used up the 12 Google Fonts families, and a theme's own fonts (e.g. Geist, Noto Sans JP) weren't fetched.
+
+- [#381](https://github.com/r-hashi01/astlide/pull/381) [`ac07bef`](https://github.com/r-hashi01/astlide/commit/ac07beff592926113a0f4b2d791f6cd46c669219) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Next.js and Nuxt: the toolbar's PDF download works, and with a base path or trailing slashes it captures the right print view. In Next.js, a deck whose name has a `%` no longer breaks the build. Nuxt has a `trailingSlash` option.
+
+- [#347](https://github.com/r-hashi01/astlide/pull/347) [`0a8765d`](https://github.com/r-hashi01/astlide/commit/0a8765d173fb8b14aaccb5b30d09ac6a9d313114) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `check_deck` and PowerPoint export lay out CSS grid columns as browsers do: `auto` columns as wide as their content, fixed widths, `fr` sharing the rest, `minmax()`, `repeat()` with `auto-fill` / `auto-fit`, and items spanning columns (`grid-column: span N` or `1 / -1`). Before, every grid had equal columns, one per `1fr`.
+
+- [#353](https://github.com/r-hashi01/astlide/pull/353) [`2541b0e`](https://github.com/r-hashi01/astlide/commit/2541b0edbbff605a612a371f6bf293dc368b92d4) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `check_deck` and PowerPoint export no longer move the last word of a line to a new line when the text is a fraction of a pixel wider than a box sized to it (layout is rounded to 1/64px).
+
+- [#384](https://github.com/r-hashi01/astlide/pull/384) [`9fff903`](https://github.com/r-hashi01/astlide/commit/9fff9030f981b703787fd33ed91ce3895fc2d70e) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `compileSlideMdx` / `evaluateSlideMdx` with `notes: false` leave out every `<SpeakerNotes>` / `<Notes>` element, also one that doesn't start a line (`<Left><SpeakerNotes>…</SpeakerNotes></Left>`), so Next and Nuxt pages built without notes don't carry their text.
+
+- [#326](https://github.com/r-hashi01/astlide/pull/326) [`90645a8`](https://github.com/r-hashi01/astlide/commit/90645a845801d98d2566fadaa26d9e7214a0a174) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `@astlide/core/runtime/deck-page` exports `mountDeckPage()` and `setUpDeckPageTools()`: what a framework's slide page does around the runtime (page flags, the `<body>` data exporters read, diagrams, media buttons, camera, recording and PDF download). `@astlide/react` and `@astlide/vue` use them instead of their own copies. Vue's `DeckPage` now mounts again when `loadMermaid` changes, as React's does, so diagrams draw when the loader is set after mounting.
+
+- [#319](https://github.com/r-hashi01/astlide/pull/319) [`012f634`](https://github.com/r-hashi01/astlide/commit/012f63471d957a962e5365aa07637bd7eee061fe) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Speaker notes stay out of production pages by default, as in the Astro integration: `createDeckRoutes()` and the Nuxt module take `notes: "dev" | "public"` (default `"dev"`). With `"dev"`, production pages, the print view and Nuxt's bundles carry no notes, from frontmatter, trailing comments or `<SpeakerNotes>`. Set `notes: "public"` to keep them, for example to export a PPTX with notes from a production server.
+
+  `compileSlideMdx()` and `evaluateSlideMdx()` take `notes: false` to leave `<SpeakerNotes>` / `<Notes>` blocks out of the compiled code.
+
+- [#323](https://github.com/r-hashi01/astlide/pull/323) [`afbbfd3`](https://github.com/r-hashi01/astlide/commit/afbbfd3eb4e437fc4f60a21f68e36bab7b85dc7c) Thanks [@r-hashi01](https://github.com/r-hashi01)! - The runtime sanitizes speaker notes with the same rules as the build: `id` attributes are dropped, `href` / `src` may not be protocol-relative (`//host`, `/\host`), a kept `target` gets `rel="noopener noreferrer"`, and HTML comments are removed. Both sanitizers now read one policy, so they can't drift apart again.
+
+- [#345](https://github.com/r-hashi01/astlide/pull/345) [`d76b3b7`](https://github.com/r-hashi01/astlide/commit/d76b3b79346070ca434bd3afb5d253f4429fbd80) Thanks [@r-hashi01](https://github.com/r-hashi01)! - The toolbar's PDF download no longer draws each slide's text twice, and keeps Japanese text: `@astlide/crispdf` 0.0.3 captures the print view in its own document, and the deck page's CSP lets it fetch fonts from Google Fonts. Text no font can draw stays in the image instead of disappearing.
+
+- [#378](https://github.com/r-hashi01/astlide/pull/378) [`23c2465`](https://github.com/r-hashi01/astlide/commit/23c2465266c47df5eed2a60db84cedbeddfa5a1b) Thanks [@r-hashi01](https://github.com/r-hashi01)! - PowerPoint export keeps the remote images it downloads for that export only. A long-running process (the MCP server, the render service) no longer holds every image it ever exported, and two exports at once no longer share them.
+
+- [#388](https://github.com/r-hashi01/astlide/pull/388) [`b2e32fd`](https://github.com/r-hashi01/astlide/commit/b2e32fd2d1f5cf2e958d1aad08d8d53cbc90ebc8) Thanks [@r-hashi01](https://github.com/r-hashi01)! - PowerPoint export: with `SOURCE_DATE_EPOCH` set, the same slides give the same `.pptx`, byte for byte. Its entry times are in UTC.
+
+- [#379](https://github.com/r-hashi01/astlide/pull/379) [`7a26d4d`](https://github.com/r-hashi01/astlide/commit/7a26d4d81ddbbf6552a1de466fd6d0d95d4ab826) Thanks [@r-hashi01](https://github.com/r-hashi01)! - PowerPoint export gives the file's theme (what PowerPoint offers as theme colours) the deck's own theme colours, read from its CSS: a template or plugin theme no longer gets the default theme's colours.
+
+- [#329](https://github.com/r-hashi01/astlide/pull/329) [`6d673a7`](https://github.com/r-hashi01/astlide/commit/6d673a796cec6b80e9a19af22a735df4b357f5d7) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `renderDeck()` takes a `reporter`: where its progress, results and warnings go. The default is the console, as before; `silentReporter` from the new `@astlide/core/utils/reporter` says nothing, and your own `Reporter` can collect them. PDF and PNG exports now show their slide-by-slide progress only on a terminal, like the PPTX export, so logs don't fill with it.
+
+- [#320](https://github.com/r-hashi01/astlide/pull/320) [`a7b60dc`](https://github.com/r-hashi01/astlide/commit/a7b60dcc72e25d3217cdc34a8fd67b0db2654fde) Thanks [@r-hashi01](https://github.com/r-hashi01)! - React and Vue deck pages no longer add a new set of listeners on every slide: the runtime's cleanup now removes every listener it added (pen, overview, go-to, notes, presenter timer), stops its timers, closes an open dialog and writes pending drawings. The overview marks the current slide and the presenter's next-slide preview follows after moving between slides.
+
+- [#376](https://github.com/r-hashi01/astlide/pull/376) [`b84e8d7`](https://github.com/r-hashi01/astlide/commit/b84e8d7e5803f1025fe83ba845e5c718ba2de182) Thanks [@r-hashi01](https://github.com/r-hashi01)! - With Nuxt or Next, a key pressed while the next slide is still loading no longer moves from the slide being left (one ArrowLeft right after ArrowRight could go back two slides). Navigation keys pressed in that moment are ignored, as on a page load.
+
+- [#335](https://github.com/r-hashi01/astlide/pull/335) [`9975d94`](https://github.com/r-hashi01/astlide/commit/9975d94cee159eeb017d60d3c44d6341749dc4bd) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Astlide's reset and element styles, and the deck page's `html, body` rules, now apply only on Astlide's pages (a deck, the print view, the deck index). In Next.js and Nuxt apps they no longer reach the app's other pages, which can scroll again. Animation keyframes are renamed with an `astlide-` prefix.
+
+  The utility classes `text-primary`, `text-secondary`, `text-accent`, `text-muted`, `bg-primary`, `bg-muted`, `text-center`, `text-left`, `text-right`, `mt-1`, `mt-2`, `mt-4`, `mb-1`, `mb-2` and `mb-4` are deprecated and will be removed in the next major version; the build warns when a slide's `class` uses one. `text-light` and `text-dark` stay.
+
+- [#330](https://github.com/r-hashi01/astlide/pull/330) [`81a5518`](https://github.com/r-hashi01/astlide/commit/81a551881795013bc8702a36b3620d74eb1a1ccb) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `check_deck` lays slides out with the same fonts as the PPTX export: an emoji fallback and, for Japanese / Chinese / Korean text, the CSS's CJK font or Noto Sans JP. Before, it measured East Asian text with whatever fallback it had, so a slide could pass the check and overflow in PowerPoint (or the reverse). Both use the engine's new `loadPageFonts()`.
+
+- [#324](https://github.com/r-hashi01/astlide/pull/324) [`adbe580`](https://github.com/r-hashi01/astlide/commit/adbe580ddf9d5dc7ecdf2ea5b1130ecb2c27efd5) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `@astlide/core/runtime/chrome` exports `TOOLBAR_ACTIONS` (and its `ToolbarAction` type): the toolbar's action buttons with their labels, tooltips and glyphs. `@astlide/react` and `@astlide/vue` render their toolbars from it instead of their own copies; the markup is unchanged.
+
+- [#382](https://github.com/r-hashi01/astlide/pull/382) [`3433e65`](https://github.com/r-hashi01/astlide/commit/3433e659a38cf387956fd66c47d156ba2ac89461) Thanks [@r-hashi01](https://github.com/r-hashi01)! - The `slideScripts` option belongs to its own Astro config: two configs in one process no longer share whichever was created last. `renderDeck` takes a `slideScripts` option. `setSlideScripts()` and `slideScriptsKept()` are gone from `@astlide/core/utils/slide-scripts`.
+
+- [#334](https://github.com/r-hashi01/astlide/pull/334) [`a1a8a9d`](https://github.com/r-hashi01/astlide/commit/a1a8a9db521d9ab080ee86d87899a3fe65d4b7b8) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Nuxt: the app's own `css` now overrides the built-in themes. Astro: the build warns when a plugin registers a theme, layout or transition name that's already taken.
+
+- [#336](https://github.com/r-hashi01/astlide/pull/336) [`ca69eb4`](https://github.com/r-hashi01/astlide/commit/ca69eb44d4674f3f9fa5f897cfef747483e9c0fc) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Toolbar icons are SVGs drawn in the button's color, the same on every OS, instead of emoji and text symbols. A theme replaces one with `--astlide-icon-<name>` (`--astlide-icon-notes`, …).
+
+- [#350](https://github.com/r-hashi01/astlide/pull/350) [`ba7bb19`](https://github.com/r-hashi01/astlide/commit/ba7bb196299a23c1bccc93243daec510d33a2313) Thanks [@r-hashi01](https://github.com/r-hashi01)! - `check_deck` and PowerPoint export read shorthands whose value comes from a custom property, such as `padding: var(--slide-padding)` with `--slide-padding: 2rem 4rem`, as browsers do. Before, each side got the whole value and counted as 0, so a theme's slide padding was lost and everything on the slide moved.
+
 ## 3.0.4
 
 ### Patch Changes

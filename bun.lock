@@ -30,7 +30,7 @@
     },
     "packages/astlide": {
       "name": "@astlide/core",
-      "version": "3.0.4",
+      "version": "3.1.0",
       "bin": {
         "astlide": "./src/cli/astlide.ts",
       },
@@ -105,7 +105,7 @@
     },
     "packages/astro": {
       "name": "@astlide/astro",
-      "version": "3.0.4",
+      "version": "3.1.0",
       "bin": {
         "astlide": "./bin/astlide.js",
       },
@@ -132,7 +132,7 @@
     },
     "packages/next": {
       "name": "@astlide/next",
-      "version": "3.0.4",
+      "version": "3.1.0",
       "dependencies": {
         "@astlide/core": "workspace:*",
         "@astlide/react": "workspace:*",
@@ -157,7 +157,7 @@
     },
     "packages/nuxt": {
       "name": "@astlide/nuxt",
-      "version": "3.0.4",
+      "version": "3.1.0",
       "dependencies": {
         "@astlide/core": "workspace:*",
         "@astlide/vue": "workspace:*",
@@ -179,7 +179,7 @@
     },
     "packages/react": {
       "name": "@astlide/react",
-      "version": "3.0.4",
+      "version": "3.1.0",
       "dependencies": {
         "@astlide/core": "workspace:*",
         "katex": "^0.19.1",
@@ -217,7 +217,7 @@
     },
     "packages/vue": {
       "name": "@astlide/vue",
-      "version": "3.0.4",
+      "version": "3.1.0",
       "dependencies": {
         "@astlide/core": "workspace:*",
         "katex": "^0.19.1",
