@@ -12,6 +12,8 @@ import { pageUrl } from "@astlide/core/utils/base-path";
 export interface ExportToPdfOptions {
 	/** Deck name (URL segment). */
 	deck: string;
+	/** The deck's print view. Default: `/<deck>/all` under the Astro site's base. */
+	url?: string;
 	/** Slide width in DOM pixels. Default 1920. */
 	width?: number;
 	/** Slide height in DOM pixels. Default 1080. */
@@ -35,6 +37,7 @@ const PT_PER_PX = 72 / 96;
  */
 export async function exportDeckToPdf(opts: ExportToPdfOptions): Promise<ExportToPdfResult> {
 	const { deck, width = 1920, height = 1080, onProgress } = opts;
+	const url = opts.url ?? pageUrl(`/${encodeURIComponent(deck)}/all`);
 
 	// Dynamic import keeps crispdf out of the main DeckLayout chunk.
 	const crispdf = await import("@astlide/crispdf");
@@ -45,7 +48,7 @@ export async function exportDeckToPdf(opts: ExportToPdfOptions): Promise<ExportT
 	iframe.style.cssText = "position:fixed; left:-99999px; top:0; border:0; visibility:hidden;";
 	iframe.width = String(width);
 	iframe.height = String(height);
-	iframe.src = pageUrl(`/${encodeURIComponent(deck)}/all`);
+	iframe.src = url;
 	document.body.appendChild(iframe);
 
 	try {
@@ -64,9 +67,10 @@ export async function exportDeckToPdf(opts: ExportToPdfOptions): Promise<ExportT
 		// …and for client-side diagrams (```mermaid) to finish rendering.
 		await waitForDiagrams(doc);
 
-		const slides = Array.from(doc.querySelectorAll<HTMLElement>("body > .slide"));
+		// The outermost slides: frameworks render them inside the app's own elements.
+		const slides = Array.from(doc.querySelectorAll<HTMLElement>(".slide:not(.slide *)"));
 		if (slides.length === 0) {
-			throw new Error(`No slides found at /${deck}/all`);
+			throw new Error(`No slides found at ${url}`);
 		}
 
 		const result = await crispdf.domToPdf({

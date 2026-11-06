@@ -8,6 +8,9 @@ import { defineComponent, h, onMounted, ref } from "vue";
 import { createError, navigateTo, useHead, useRoute } from "#app";
 import { findDeck, mermaidLoader, options, useMdxComponents } from "../shared";
 
+/** The toolbar's PDF download (`@astlide/crispdf`, loaded when it's clicked). */
+const loadPdfExport = () => import("@astlide/core/runtime/pdf-export");
+
 export default defineComponent({
 	name: "AstlideSlidePage",
 	async setup() {
@@ -18,7 +21,7 @@ export default defineComponent({
 		if (!page)
 			throw createError({ statusCode: 404, statusMessage: "Slide not found", fatal: true });
 		if (page.redirectTo !== undefined) {
-			await navigateTo(slideUrl(deck.name, page.redirectTo, { basePath: options.basePath }), {
+			await navigateTo(slideUrl(deck.name, page.redirectTo, options), {
 				redirectCode: 302,
 				replace: true,
 			});
@@ -60,12 +63,14 @@ export default defineComponent({
 					firstSlide: page.firstSlide,
 					lastSlide: page.lastSlide,
 					basePath: options.basePath,
+					trailingSlash: options.trailingSlash,
 					toolbar: options.toolbar,
 					outline: page.outline,
 					notesHtml: content.notesHtml,
 					deckContext: page.deckContext,
 					presenter: presenter.value,
 					navigate,
+					loadPdfExport,
 					...(loadMermaid.value ? { loadMermaid: loadMermaid.value } : {}),
 				},
 				() =>

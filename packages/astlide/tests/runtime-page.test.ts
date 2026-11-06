@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { noNotesText, slideNeighbours, slideUrl } from "../src/runtime/page";
+import { noNotesText, printUrl, slideNeighbours, slideUrl } from "../src/runtime/page";
+
+describe("printUrl", () => {
+	it("is the deck's /all page under the base path, with the trailing-slash convention", () => {
+		expect(printUrl("talk")).toBe("/talk/all");
+		expect(printUrl("q3 review", { basePath: "/decks", trailingSlash: true })).toBe(
+			"/decks/q3%20review/all/",
+		);
+	});
+});
 
 describe("slideUrl", () => {
 	it("builds a slide URL with the base path, trailing slash and query", () => {
