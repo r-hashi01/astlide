@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { FontRegistry, layoutPage } from "../src/engine";
 import { type FlexItem, resolveFlexibleLengths } from "../src/engine/flow/flex";
 import { layoutLines } from "../src/engine/lines";
@@ -15,14 +15,6 @@ const FONT = join(
 	"fonts",
 	"KaTeX_Main-Regular.ttf",
 );
-
-// These tests lay out with the constraint-based core (engine/flow/).
-beforeEach(() => {
-	process.env.ASTLIDE_ENGINE_CORE = "flow";
-});
-afterEach(() => {
-	delete process.env.ASTLIDE_ENGINE_CORE;
-});
 
 /** Lay out one slide; boxes by class, and the files written next to it. */
 function boxes(css: string, body: string, files: Record<string, string> = {}) {

@@ -2,9 +2,10 @@
  * The layout engine — lay out HTML + CSS slides without a browser (PPTX
  * export and `check_deck`; exported as `@astlide/core/engine`).
  *
- * Pipeline: HTML (htmlparser2) → cascade (cascade.ts) → Yoga box layout +
- * font-metric line breaking (layout.ts, text.ts) → boxes and text lines in
- * slide coordinates.
+ * Pipeline: HTML (htmlparser2) → cascade (cascade.ts, properties.ts) → box
+ * tree (box-tree.ts) → layout as a function of constraints (flow/, with the
+ * box model in box-model.ts and lines in lines/) → boxes and text lines in
+ * slide coordinates (layout.ts).
  */
 
 import { existsSync, readFileSync, statSync } from "node:fs";
