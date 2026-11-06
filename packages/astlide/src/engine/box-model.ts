@@ -191,3 +191,56 @@ export function outerWidth(bm: BoxModel, borderBoxWidth: number): number {
 export function outerHeight(bm: BoxModel, borderBoxHeight: number): number {
 	return borderBoxHeight + bm.margin.top + bm.margin.bottom;
 }
+
+/** A picture's own size: width / height attributes or its file, and its ratio (width / height). */
+export interface NaturalSize {
+	w?: number;
+	h?: number;
+	ratio?: number;
+}
+
+/**
+ * A replaced element's content-box size when width and height are both
+ * auto (CSS 2 §10.3.2, §10.6.2): its natural size, a missing dimension
+ * from the other and the ratio, then the min / max limits applied keeping
+ * the ratio (the table in §10.4). `fallback`: the size without one (an
+ * `<img>` with nothing to go on is 0×0, other replaced elements 300×150).
+ */
+export function replacedSize(
+	bm: BoxModel,
+	natural: NaturalSize,
+	ratio: number | undefined,
+	fallback: { w: number; h: number },
+): { w: number; h: number } {
+	let w = natural.w;
+	let h = natural.h;
+	if (w === undefined && h !== undefined && ratio) w = h * ratio;
+	if (h === undefined && w !== undefined && ratio) h = w / ratio;
+	w ??= fallback.w;
+	h ??= ratio && w ? w / ratio : fallback.h;
+	if (!ratio || w <= 0 || h <= 0) return { w, h };
+	// Limits as content-box sizes; a max below its min is raised to it.
+	const minW = contentWidth(bm, bm.min.width);
+	const minH = contentHeight(bm, bm.min.height);
+	const maxW = Math.max(minW, bm.max.width - bm.inset.x);
+	const maxH = Math.max(minH, bm.max.height - bm.inset.y);
+	const tooWide = w > maxW;
+	const tooTall = h > maxH;
+	const tooNarrow = w < minW;
+	const tooShort = h < minH;
+	if (tooWide && tooTall)
+		return maxW / w <= maxH / h
+			? { w: maxW, h: Math.max(minH, (maxW * h) / w) }
+			: { w: Math.max(minW, (maxH * w) / h), h: maxH };
+	if (tooNarrow && tooShort)
+		return minW / w <= minH / h
+			? { w: Math.min(maxW, (minH * w) / h), h: minH }
+			: { w: minW, h: Math.min(maxH, (minW * h) / w) };
+	if (tooNarrow && tooTall) return { w: minW, h: maxH };
+	if (tooWide && tooShort) return { w: maxW, h: minH };
+	if (tooWide) return { w: maxW, h: Math.max((maxW * h) / w, minH) };
+	if (tooNarrow) return { w: minW, h: Math.min((minW * h) / w, maxH) };
+	if (tooTall) return { w: Math.max((maxH * w) / h, minW), h: maxH };
+	if (tooShort) return { w: Math.min((minH * w) / h, maxW), h: minH };
+	return { w, h };
+}

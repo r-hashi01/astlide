@@ -28,6 +28,7 @@ import {
 	lengthOf,
 	marginsOf,
 	outerWidth,
+	replacedSize,
 	type SIDES,
 	type Sides,
 	setSize,
@@ -175,6 +176,23 @@ export class Flow {
 		};
 	}
 
+	/**
+	 * A replaced box's border-box size when its width and height are both
+	 * auto (CSS 2 §10.4); undefined for an image whose size isn't known.
+	 */
+	private replacedAuto(box: ElementBox, bm: BoxModel): { w: number; h: number } | undefined {
+		const nat = this.natural(box);
+		const img = box.el.name === "img";
+		if (img && nat.w === undefined && nat.h === undefined && !nat.ratio) return undefined;
+		const r = replacedSize(
+			bm,
+			nat,
+			bm.ratio || nat.ratio,
+			img ? { w: 0, h: 0 } : { w: 300, h: 150 },
+		);
+		return { w: r.w + bm.inset.x, h: r.h + bm.inset.y };
+	}
+
 	// ── Intrinsic sizes ──────────────────────────────────────────────────
 
 	/**
@@ -213,19 +231,14 @@ export class Flow {
 			if (bm.width !== undefined) inner = { min: bm.width, max: bm.width };
 			else if (box.kind === "replaced") {
 				const nat = this.natural(box);
-				const h = bm.height;
-				let w =
-					nat.w ?? (h !== undefined && nat.ratio ? h * nat.ratio : box.el.name === "img" ? 0 : 300);
-				// Height limits carry over through the ratio (CSS 2 §10.4).
 				const ratio = bm.ratio || nat.ratio;
-				if (ratio && h === undefined) {
-					if (bm.max.height < Number.POSITIVE_INFINITY)
-						w = Math.min(w, contentHeight(bm, bm.max.height) * ratio);
-					if (bm.min.height > 0) w = Math.max(w, contentHeight(bm, bm.min.height) * ratio);
-				}
+				const w =
+					bm.height !== undefined && ratio
+						? contentHeight(bm, bm.height) * ratio + bm.inset.x
+						: (this.replacedAuto(box, bm)?.w ?? bm.inset.x);
 				// A percentage width makes a picture compressible: no min-content (§5.2.1).
 				const pct = value(style, "width").endsWith("%");
-				inner = { min: pct ? 0 : w + bm.inset.x, max: w + bm.inset.x };
+				inner = { min: pct ? 0 : w, max: w };
 			} else {
 				const c = this.contentContribution(box);
 				inner = { min: c.min + bm.inset.x, max: c.max + bm.inset.x };
@@ -429,12 +442,11 @@ export class Flow {
 		const sizeKeyword = value(style, "width");
 		const fitContent = /^(fit-content|max-content|min-content)$/.test(sizeKeyword);
 		if (w === undefined && box.kind === "replaced") {
-			// CSS 2 §10.3.2: a set height and a ratio give the width; else the natural width.
+			// CSS 2 §10.3.2: a set height and a ratio give the width; else §10.4's table.
 			const nat = this.natural(box);
 			const ratio = bm.ratio || nat.ratio;
 			if (bm.height !== undefined && ratio) w = contentHeight(bm, bm.height) * ratio + bm.inset.x;
-			else if (nat.w !== undefined) w = nat.w + bm.inset.x;
-			else if (box.el.name !== "img") w = 300 + bm.inset.x;
+			else w = this.replacedAuto(box, bm)?.w;
 		}
 		if (w === undefined && bm.ratio && bm.height !== undefined)
 			w = contentHeight(bm, bm.height) * bm.ratio + bm.inset.x;
@@ -463,6 +475,14 @@ export class Flow {
 		content: number,
 	): number {
 		let h = space.height ?? bm.height;
+		// Both auto: §10.4's table gave the width and gives the height with it.
+		if (
+			h === undefined &&
+			box.kind === "replaced" &&
+			space.width === undefined &&
+			bm.width === undefined
+		)
+			h = this.replacedAuto(box, bm)?.h;
 		if (h === undefined) {
 			const ratio = bm.ratio || (box.kind === "replaced" ? this.natural(box).ratio : undefined);
 			if (ratio) h = contentWidth(bm, w) / ratio + bm.inset.y;
@@ -1001,7 +1021,8 @@ export class Flow {
 					(column ? crossContent / bm.ratio : crossContent * bm.ratio) + main.inset,
 				);
 			}
-			it.min = mainSpec !== undefined ? Math.min(mainSpec, content) : content;
+			// Never above the max main size (§4.5: "further clamped by the maximum main size").
+			it.min = Math.min(mainSpec !== undefined ? Math.min(mainSpec, content) : content, main.max);
 		}
 		it.max = main.max;
 		// Never below its padding and border (the content box can't be negative, §9.2).
@@ -1117,9 +1138,10 @@ export class Flow {
 			const item = items[i];
 			if (!item) continue;
 			const aw = areaW(p);
+			// Percentage margins are of the grid area, as when the item is placed below.
 			const m =
 				item.type === "element"
-					? marginsOf(this.ctx, item.style, cw)
+					? marginsOf(this.ctx, item.style, aw)
 					: { top: 0, right: 0, bottom: 0, left: 0 };
 			const r = rows[i] ?? 0;
 			const ah = knownH(r);
