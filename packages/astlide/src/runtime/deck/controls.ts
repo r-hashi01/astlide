@@ -1,9 +1,12 @@
 /**
- * The deck's controls: the keyboard, the toolbar's buttons and swipes.
+ * The deck's controls: the keyboard, the toolbar's buttons and swipes. Every
+ * action is defined once, in {@link createActions}; the key map and the
+ * toolbar's `data-action` buttons name them.
  *
  * @module
  */
 
+import { TOOLBAR_ACTIONS } from "../chrome";
 import type { Dialogs } from "./dialogs";
 import type { Drawing } from "./drawing";
 import type { Mount } from "./mount";
@@ -20,13 +23,78 @@ export interface Controls {
 	downloadPdf(): void;
 }
 
-export function setUpControls(
+/** What the deck can do from a key or a toolbar button. */
+export type ActionName =
+	| "next"
+	| "prev"
+	| "first"
+	| "last"
+	| "notes"
+	| "notes-larger"
+	| "notes-smaller"
+	| "overview"
+	| "goto"
+	| "draw"
+	| "laser"
+	| "clear"
+	| "clear-deck"
+	| "camera"
+	| "record"
+	| "presenter"
+	| "fullscreen"
+	| "enter-fullscreen"
+	| "print"
+	| "share"
+	| "download"
+	| "editor"
+	| "escape";
+
+/** A key's action. */
+interface KeyBinding {
+	action: ActionName;
+	/** Not in the presenter window. */
+	audience?: true;
+	/** Only with Shift held. */
+	shift?: true;
+	/** Keep the key's default (scrolling, typing into the go-to dialog …) from happening. */
+	preventDefault?: true;
+}
+
+/** The keyboard, by `KeyboardEvent.key`. */
+const KEYS: Readonly<Record<string, KeyBinding>> = {
+	ArrowRight: { action: "next", preventDefault: true },
+	" ": { action: "next", preventDefault: true },
+	ArrowLeft: { action: "prev", preventDefault: true },
+	ArrowUp: { action: "first", preventDefault: true },
+	Home: { action: "first", preventDefault: true },
+	ArrowDown: { action: "last", preventDefault: true },
+	End: { action: "last", preventDefault: true },
+	f: { action: "enter-fullscreen", audience: true },
+	Escape: { action: "escape" },
+	o: { action: "overview", audience: true },
+	g: { action: "goto", preventDefault: true },
+	d: { action: "draw" },
+	l: { action: "laser" },
+	v: { action: "camera" },
+	r: { action: "record" },
+	e: { action: "editor", audience: true },
+	c: { action: "clear" },
+	C: { action: "clear-deck" },
+	p: { action: "presenter", audience: true },
+	n: { action: "notes", audience: true },
+	s: { action: "share", audience: true },
+	">": { action: "notes-larger", shift: true, preventDefault: true },
+	".": { action: "notes-larger", shift: true, preventDefault: true },
+	"<": { action: "notes-smaller", shift: true, preventDefault: true },
+	",": { action: "notes-smaller", shift: true, preventDefault: true },
+};
+
+/** Every action, defined once. */
+export function createActions(
 	mount: Mount,
 	{ moves, navigation, dialogs, drawing, notes, downloadPdf }: Controls,
-): void {
+): Record<ActionName, () => void> {
 	const { currentSlide, firstSlide, lastSlide } = mount.config;
-	const { isPresenter, isEmbedded, slideUrl } = mount;
-	const { navTo } = navigation;
 
 	function toggleUrlFlag(flag: string): void {
 		const u = new URL(window.location.href);
@@ -34,163 +102,82 @@ export function setUpControls(
 		else u.searchParams.set(flag, "");
 		// Built from the slide number, not `u.pathname`: a path starting with
 		// `//` (some static hosts serve one) would make it protocol-relative.
-		navTo(slideUrl(currentSlide, u.search) + u.hash);
+		navigation.navTo(mount.slideUrl(currentSlide, u.search) + u.hash);
 	}
 
-	function handleToolbarClick(e: MouseEvent): void {
+	return {
+		next: moves.next,
+		prev: moves.prev,
+		first: () => moves.to(firstSlide),
+		last: () => moves.to(lastSlide),
+		notes: notes.toggle,
+		"notes-larger": () => notes.adjustFontSize(0.1),
+		"notes-smaller": () => notes.adjustFontSize(-0.1),
+		overview: dialogs.openOverview,
+		goto: dialogs.openGoto,
+		draw: () => drawing.setTool("draw"),
+		laser: () => drawing.setTool("laser"),
+		clear: () => {
+			if (drawing.tool === "draw") drawing.clear(true);
+		},
+		"clear-deck": () => {
+			if (drawing.tool === "draw") drawing.clearDeck(true);
+		},
+		camera: () => window.__astlide_media?.toggleCamera(),
+		record: () => window.__astlide_media?.toggleRecording(),
+		presenter: () => {
+			const u = new URL(window.location.href);
+			u.searchParams.set("presenter", "");
+			window.open(
+				u.toString(),
+				"astlide-presenter",
+				"width=1280,height=800,menubar=no,toolbar=no,status=no",
+			);
+		},
+		fullscreen: () => {
+			if (document.fullscreenElement) document.exitFullscreen?.();
+			else document.documentElement.requestFullscreen?.();
+		},
+		"enter-fullscreen": () => document.documentElement.requestFullscreen?.(),
+		print: () => toggleUrlFlag("print"),
+		share: () => toggleUrlFlag("share"),
+		download: downloadPdf,
+		// Dev only: the editor module isn't loaded in production builds.
+		editor: () => window.__astlide_editor?.toggle(),
+		// Put the tool away, else leave fullscreen, else close the notes.
+		escape: () => {
+			if (drawing.tool) drawing.setTool(drawing.tool);
+			else if (document.fullscreenElement) document.exitFullscreen?.();
+			else if (notes.open) notes.toggle();
+		},
+	};
+}
+
+export function setUpControls(mount: Mount, controls: Controls): void {
+	const { moves, dialogs, drawing } = controls;
+	const { isPresenter, isEmbedded } = mount;
+	const actions = createActions(mount, controls);
+
+	// The toolbar's action buttons (see TOOLBAR_ACTIONS); `prev` / `next` are links.
+	mount.listen(document, "click", (e: MouseEvent) => {
 		const btn = (e.target as Element | null)?.closest?.(".nav-btn[data-action]");
 		if (!btn) return;
 		e.preventDefault();
-		const action = btn.getAttribute("data-action");
-		switch (action) {
-			case "notes":
-				notes.toggle();
-				break;
-			case "overview":
-				dialogs.openOverview();
-				break;
-			case "goto":
-				dialogs.openGoto();
-				break;
-			case "camera":
-				window.__astlide_media?.toggleCamera();
-				break;
-			case "record":
-				window.__astlide_media?.toggleRecording();
-				break;
-			case "draw":
-				drawing.setTool("draw");
-				break;
-			case "laser":
-				drawing.setTool("laser");
-				break;
-			case "presenter": {
-				const u = new URL(window.location.href);
-				u.searchParams.set("presenter", "");
-				window.open(
-					u.toString(),
-					"astlide-presenter",
-					"width=1280,height=800,menubar=no,toolbar=no,status=no",
-				);
-				break;
-			}
-			case "fullscreen": {
-				if (document.fullscreenElement) document.exitFullscreen?.();
-				else document.documentElement.requestFullscreen?.();
-				break;
-			}
-			case "print":
-				toggleUrlFlag("print");
-				break;
-			case "share":
-				toggleUrlFlag("share");
-				break;
-			case "download":
-				downloadPdf();
-				break;
-		}
-	}
-	mount.listen(document, "click", handleToolbarClick);
+		const name = btn.getAttribute("data-action") ?? "";
+		if (Object.hasOwn(TOOLBAR_ACTIONS, name)) actions[name as ActionName]?.();
+	});
 
 	function handleKeydown(e: KeyboardEvent): void {
 		if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
 		if (dialogs.overviewOpen) {
 			if (e.key === "Escape" || e.key === "o") dialogs.closeOverview();
 			return;
 		}
-
-		switch (e.key) {
-			case "ArrowRight":
-			case " ":
-				e.preventDefault();
-				moves.next();
-				break;
-			case "ArrowLeft":
-				e.preventDefault();
-				moves.prev();
-				break;
-			case "ArrowUp":
-			case "Home":
-				e.preventDefault();
-				moves.to(firstSlide);
-				break;
-			case "ArrowDown":
-			case "End":
-				e.preventDefault();
-				moves.to(lastSlide);
-				break;
-			case "f":
-				if (!isPresenter) document.documentElement.requestFullscreen?.();
-				break;
-			case "Escape":
-				if (drawing.tool) drawing.setTool(drawing.tool);
-				else if (document.fullscreenElement) document.exitFullscreen?.();
-				else if (notes.open) notes.toggle();
-				break;
-			case "o":
-				if (!isPresenter) dialogs.openOverview();
-				break;
-			case "g":
-				e.preventDefault(); // keep the "g" out of the dialog's input
-				dialogs.openGoto();
-				break;
-			case "d":
-				drawing.setTool("draw");
-				break;
-			case "l":
-				drawing.setTool("laser");
-				break;
-			case "v":
-				if (window.__astlide_media) window.__astlide_media.toggleCamera();
-				break;
-			case "r":
-				if (window.__astlide_media) window.__astlide_media.toggleRecording();
-				break;
-			case "e":
-				// Dev only: the editor module isn't loaded in production builds.
-				if (window.__astlide_editor && !isPresenter) window.__astlide_editor.toggle();
-				break;
-			case "c":
-				if (drawing.tool === "draw") drawing.clear(true);
-				break;
-			case "C":
-				if (drawing.tool === "draw") drawing.clearDeck(true);
-				break;
-			case "p":
-				if (!isPresenter) {
-					const u = new URL(window.location.href);
-					u.searchParams.set("presenter", "");
-					window.open(
-						u.toString(),
-						"astlide-presenter",
-						"width=1280,height=800,menubar=no,toolbar=no,status=no",
-					);
-				}
-				break;
-			case "n":
-				if (!isPresenter) notes.toggle();
-				break;
-			case "s":
-				if (!isPresenter) toggleUrlFlag("share");
-				break;
-			case ">":
-			case ".":
-				if (e.shiftKey) {
-					e.preventDefault();
-					notes.adjustFontSize(0.1);
-				}
-				break;
-			case "<":
-			case ",":
-				if (e.shiftKey) {
-					e.preventDefault();
-					notes.adjustFontSize(-0.1);
-				}
-				break;
-		}
+		const key = Object.hasOwn(KEYS, e.key) ? KEYS[e.key] : undefined;
+		if (!key || (key.audience && isPresenter) || (key.shift && !e.shiftKey)) return;
+		if (key.preventDefault) e.preventDefault();
+		actions[key.action]();
 	}
-
 	if (!isEmbedded) mount.listen(document, "keydown", handleKeydown);
 
 	// Touch: a swipe moves on or back.
