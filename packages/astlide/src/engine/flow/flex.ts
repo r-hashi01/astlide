@@ -21,6 +21,8 @@ export function layoutFlex(
 	box: ElementBox,
 	cw: number,
 	ch: number | undefined,
+	/** The container's min / max content-box cross size, when its cross size is auto. */
+	crossLimits?: { min: number; max: number },
 ): { kids: Placed[]; height: number; pending: Placed[] } {
 	const { style } = box;
 	const dir = keyword(style, "flex-direction");
@@ -90,8 +92,11 @@ export function layoutFlex(
 	const lineCross = lines.map((line) =>
 		Math.max(0, ...line.map((it) => (it.cross ?? 0) + it.crossMargins)),
 	);
-	// A single line in a definite cross size takes all of it.
+	// A single line in a definite cross size takes all of it; otherwise it stays
+	// within the container's min / max cross size (§9.4 step 8).
 	if (lines.length === 1 && crossSize !== undefined) lineCross[0] = crossSize;
+	else if (lines.length === 1 && crossLimits)
+		lineCross[0] = Math.max(crossLimits.min, Math.min(crossLimits.max, lineCross[0] ?? 0));
 	else if (crossSize !== undefined && lines.length > 1) {
 		const ac = value(style, "align-content");
 		const free = crossSize - sum(lineCross) - crossGap * (lines.length - 1);

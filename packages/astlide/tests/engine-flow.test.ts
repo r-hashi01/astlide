@@ -333,6 +333,15 @@ describe("spec rules found by comparing with Chromium (#363)", () => {
 		expect(b.c).toMatchObject({ x: 0, y: 50 });
 	});
 
+	it("keeps a single flex line within the container's max-height, centring what overflows", () => {
+		const b = boxes(
+			".w{display:block}.r{display:flex;align-items:center;max-height:50px}.i{height:100px;width:10px}",
+			'<div class="w"><div class="r"><div class="i"></div></div></div>',
+		);
+		expect(b.r?.h).toBe(50);
+		expect(b.i?.y).toBe(-25);
+	});
+
 	it("collapses margins through an empty block (CSS 2 §8.3.1)", () => {
 		const b = boxes(
 			".w{display:block}.a{height:10px;margin-bottom:10px}.e{margin:20px 0}.b{height:10px;margin-top:5px}",

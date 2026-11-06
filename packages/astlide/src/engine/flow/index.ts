@@ -354,7 +354,14 @@ export class Flow {
 				content = { kids: [], height: 0, mt: m.top, mb: m.bottom, pending: [] };
 				break;
 			case "flex":
-				content = { ...layoutFlex(this, box, cw, ch), mt: m.top, mb: m.bottom };
+				content = {
+					...layoutFlex(this, box, cw, ch, {
+						min: contentHeight(bm, bm.min.height),
+						max: bm.max.height - bm.inset.y,
+					}),
+					mt: m.top,
+					mb: m.bottom,
+				};
 				break;
 			case "grid":
 				content = { ...layoutGrid(this, box, cw, ch), mt: m.top, mb: m.bottom };
