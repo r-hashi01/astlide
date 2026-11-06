@@ -1,0 +1,35 @@
+{
+	"parts": [
+		"[Content_Types].xml",
+		"_rels/.rels",
+		"docProps/app.xml",
+		"docProps/core.xml",
+		"ppt/_rels/presentation.xml.rels",
+		"ppt/fonts/font1.fntdata",
+		"ppt/media/image1.png",
+		"ppt/notesMasters/_rels/notesMaster1.xml.rels",
+		"ppt/notesMasters/notesMaster1.xml",
+		"ppt/notesSlides/_rels/notesSlide1.xml.rels",
+		"ppt/notesSlides/notesSlide1.xml",
+		"ppt/presProps.xml",
+		"ppt/presentation.xml",
+		"ppt/slideLayouts/_rels/slideLayout1.xml.rels",
+		"ppt/slideLayouts/slideLayout1.xml",
+		"ppt/slideMasters/_rels/slideMaster1.xml.rels",
+		"ppt/slideMasters/slideMaster1.xml",
+		"ppt/slides/_rels/slide1.xml.rels",
+		"ppt/slides/_rels/slide2.xml.rels",
+		"ppt/slides/_rels/slide3.xml.rels",
+		"ppt/slides/slide1.xml",
+		"ppt/slides/slide2.xml",
+		"ppt/slides/slide3.xml",
+		"ppt/tableStyles.xml",
+		"ppt/theme/theme1.xml",
+		"ppt/theme/theme2.xml",
+		"ppt/viewProps.xml"
+	],
+	"binaries": {
+		"ppt/fonts/font1.fntdata": "c6e1e8edd3c92019b46788a2b064523806f61e605770673890b22fa8af0cbf2b",
+		"ppt/media/image1.png": "52118dc09bdbdb776c39b453af01b30704ddf164c4fe8c8d6480075b567c313a"
+	}
+}

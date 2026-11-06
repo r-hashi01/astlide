@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+<p:cSld name="Slide 2"><p:bg><p:bgPr><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:effectLst/></p:bgPr></p:bg>
+<p:spTree>
+<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+<p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>
+<p:sp>
+<p:nvSpPr><p:cNvPr id="2" name="Rect 2"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+<p:spPr>
+<a:xfrm><a:off x="609600" y="457200"/><a:ext cx="3390900" cy="1000125"/></a:xfrm>
+<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 11429"/></a:avLst></a:prstGeom>
+<a:solidFill><a:srgbClr val="F1F5F9"/></a:solidFill><a:ln w="19050"><a:solidFill><a:srgbClr val="475569"></a:srgbClr></a:solidFill></a:ln>
+</p:spPr>
+</p:sp>
+<p:pic>
+<p:nvPicPr><p:cNvPr id="3" name="Picture 3"></p:cNvPr><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>
+<p:blipFill><a:blip r:embed="rIdImg1"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>
+<p:spPr><a:xfrm><a:off x="6629400" y="457200"/><a:ext cx="1905000" cy="952500"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>
+</p:pic>
+<p:sp>
+<p:nvSpPr><p:cNvPr id="4" name="TextBox 4"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
+<p:spPr>
+<a:xfrm><a:off x="923925" y="633412"/><a:ext cx="92869" cy="204787"/></a:xfrm>
+<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+<a:noFill/>
+</p:spPr>
+<p:txBody>
+<a:bodyPr wrap="none" lIns="0" tIns="0" rIns="0" bIns="0" rtlCol="0" anchor="ctr"><a:noAutofit/></a:bodyPr>
+<a:lstStyle/>
+<a:p><a:pPr algn="l"/><a:r><a:rPr lang="en-US" dirty="0" sz="1350"><a:solidFill><a:srgbClr val="1F2937"/></a:solidFill><a:latin typeface="KaTeX_Main"/><a:ea typeface="Yu Gothic"/><a:cs typeface="KaTeX_Main"/></a:rPr><a:t>•</a:t></a:r></a:p>
+</p:txBody>
+</p:sp>
+<p:sp>
+<p:nvSpPr><p:cNvPr id="5" name="TextBox 5"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
+<p:spPr>
+<a:xfrm><a:off x="923925" y="852488"/><a:ext cx="92869" cy="204787"/></a:xfrm>
+<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+<a:noFill/>
+</p:spPr>
+<p:txBody>
+<a:bodyPr wrap="none" lIns="0" tIns="0" rIns="0" bIns="0" rtlCol="0" anchor="ctr"><a:noAutofit/></a:bodyPr>
+<a:lstStyle/>
+<a:p><a:pPr algn="l"/><a:r><a:rPr lang="en-US" dirty="0" sz="1350"><a:solidFill><a:srgbClr val="1F2937"/></a:solidFill><a:latin typeface="KaTeX_Main"/><a:ea typeface="Yu Gothic"/><a:cs typeface="KaTeX_Main"/></a:rPr><a:t>•</a:t></a:r></a:p>
+</p:txBody>
+</p:sp>
+<p:sp>
+<p:nvSpPr><p:cNvPr id="6" name="TextBox 6"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
+<p:spPr>
+<a:xfrm><a:off x="923925" y="1071563"/><a:ext cx="92869" cy="204787"/></a:xfrm>
+<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+<a:noFill/>
+</p:spPr>
+<p:txBody>
+<a:bodyPr wrap="none" lIns="0" tIns="0" rIns="0" bIns="0" rtlCol="0" anchor="ctr"><a:noAutofit/></a:bodyPr>
+<a:lstStyle/>
+<a:p><a:pPr algn="l"/><a:r><a:rPr lang="en-US" dirty="0" sz="1350"><a:solidFill><a:srgbClr val="1F2937"/></a:solidFill><a:latin typeface="KaTeX_Main"/><a:ea typeface="Yu Gothic"/><a:cs typeface="KaTeX_Main"/></a:rPr><a:t>•</a:t></a:r></a:p>
+</p:txBody>
+</p:sp>
+<p:sp>
+<p:nvSpPr><p:cNvPr id="7" name="TextBox 7"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
+<p:spPr>
+<a:xfrm><a:off x="1009650" y="628650"/><a:ext cx="2865120" cy="219075"/></a:xfrm>
+<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+<a:noFill/>
+</p:spPr>
+<p:txBody>
+<a:bodyPr wrap="none" lIns="0" tIns="0" rIns="0" bIns="0" rtlCol="0" anchor="t"><a:noAutofit/></a:bodyPr>
+<a:lstStyle/>
+<a:p><a:pPr algn="l"><a:lnSpc><a:spcPts val="1725"/></a:lnSpc></a:pPr><a:r><a:rPr lang="en-US" dirty="0" sz="1350"><a:solidFill><a:srgbClr val="1F2937"/></a:solidFill><a:latin typeface="KaTeX_Main"/><a:ea typeface="Yu Gothic"/><a:cs typeface="KaTeX_Main"/></a:rPr><a:t>One</a:t></a:r></a:p>
+</p:txBody>
+</p:sp>
+<p:sp>
+<p:nvSpPr><p:cNvPr id="8" name="TextBox 8"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
+<p:spPr>
+<a:xfrm><a:off x="1009650" y="847725"/><a:ext cx="2865120" cy="219075"/></a:xfrm>
+<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+<a:noFill/>
+</p:spPr>
+<p:txBody>
+<a:bodyPr wrap="none" lIns="0" tIns="0" rIns="0" bIns="0" rtlCol="0" anchor="t"><a:noAutofit/></a:bodyPr>
+<a:lstStyle/>
+<a:p><a:pPr algn="l"><a:lnSpc><a:spcPts val="1725"/></a:lnSpc></a:pPr><a:r><a:rPr lang="en-US" dirty="0" sz="1350"><a:solidFill><a:srgbClr val="1F2937"/></a:solidFill><a:latin typeface="KaTeX_Main"/><a:ea typeface="Yu Gothic"/><a:cs typeface="KaTeX_Main"/></a:rPr><a:t>Two,</a:t></a:r><a:r><a:rPr lang="en-US" dirty="0" sz="1350"><a:solidFill><a:srgbClr val="1F2937"/></a:solidFill><a:latin typeface="KaTeX_Main"/><a:ea typeface="Yu Gothic"/><a:cs typeface="KaTeX_Main"/></a:rPr><a:t> </a:t></a:r><a:r><a:rPr lang="en-US" dirty="0" sz="1350"><a:solidFill><a:srgbClr val="1F2937"/></a:solidFill><a:latin typeface="KaTeX_Main"/><a:ea typeface="Yu Gothic"/><a:cs typeface="KaTeX_Main"/></a:rPr><a:t>bold</a:t></a:r></a:p>
+</p:txBody>
+</p:sp>
+<p:sp>
+<p:nvSpPr><p:cNvPr id="9" name="TextBox 9"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
+<p:spPr>
+<a:xfrm><a:off x="1009650" y="1066800"/><a:ext cx="2865120" cy="219075"/></a:xfrm>
+<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+<a:noFill/>
+</p:spPr>
+<p:txBody>
+<a:bodyPr wrap="none" lIns="0" tIns="0" rIns="0" bIns="0" rtlCol="0" anchor="t"><a:noAutofit/></a:bodyPr>
+<a:lstStyle/>
+<a:p><a:pPr algn="l"><a:lnSpc><a:spcPts val="1725"/></a:lnSpc></a:pPr><a:r><a:rPr lang="en-US" dirty="0" sz="1350"><a:solidFill><a:srgbClr val="1F2937"/></a:solidFill><a:latin typeface="KaTeX_Main"/><a:ea typeface="Yu Gothic"/><a:cs typeface="KaTeX_Main"/></a:rPr><a:t>Three</a:t></a:r></a:p>
+</p:txBody>
+</p:sp>
+</p:spTree>
+</p:cSld>
+<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>
+</p:sld>
