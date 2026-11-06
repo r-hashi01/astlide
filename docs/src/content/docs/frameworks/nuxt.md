@@ -51,6 +51,7 @@ Put a deck in `decks/my-talk/` and open `/decks/my-talk/1`.
 |---|---|---|
 | `dir` | `"decks"` | The folder with the deck folders, relative to the project root. |
 | `basePath` | `""` | The URL path the deck pages are under. |
+| `trailingSlash` | `false` | Page URLs end in `/`, as in `/my-talk/3/`. Turn it on when your host serves a static build's pages only at those URLs. |
 | `toolbar` | prev, counter, next | The toolbar buttons, as in the Astro integration's [`toolbar`](/reference/configuration/) option. |
 | `shikiTheme` | `"github-dark"` | The Shiki theme for code blocks. |
 | `showHidden` | in development | Show slides marked `hidden: true`. |

@@ -18,6 +18,8 @@ const loadMermaid = () =>
 		? (window.__astlide_load_mermaid() as never)
 		: (Promise.reject(new Error("no mermaid")) as never);
 const hasMermaid = () => typeof window !== "undefined" && !!window.__astlide_load_mermaid;
+/** The toolbar's PDF download (`@astlide/crispdf`, loaded when it's clicked). */
+const loadPdfExport = () => import("@astlide/core/runtime/pdf-export");
 
 /** A slide page: `<DeckPage>` with Next's router, the presenter window from the URL. */
 export function NextDeckPage({
@@ -48,6 +50,7 @@ export function NextDeckPage({
 			navigate={navigate}
 			presenter={presenter}
 			loadMermaid={hasMermaid() ? loadMermaid : null}
+			loadPdfExport={loadPdfExport}
 		/>
 	);
 }

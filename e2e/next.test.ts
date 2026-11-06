@@ -127,6 +127,31 @@ describe("@astlide/next", () => {
 		await page.close();
 	});
 
+	it("downloads the deck as a PDF from the toolbar's print view", async () => {
+		const page = await open("/example-deck/1/");
+		await page.route(/fonts\.(googleapis|gstatic)\.com/, (route) => route.abort());
+		await page.waitForFunction(() => "__astlide_download_pdf" in window);
+		const result = await page.evaluate(async () => {
+			const frames: string[] = [];
+			new MutationObserver((records) => {
+				for (const r of records)
+					for (const n of r.addedNodes)
+						if (n instanceof HTMLIFrameElement) frames.push(new URL(n.src).pathname);
+			}).observe(document.body, { childList: true });
+			const download = (
+				window as unknown as {
+					__astlide_download_pdf?: (o: { deck: string }) => Promise<{ blob: Blob }>;
+				}
+			).__astlide_download_pdf;
+			if (!download) throw new Error("no PDF download");
+			const { blob } = await download({ deck: "example-deck" });
+			return { frames, type: blob.type };
+		});
+		expect(result.type).toBe("application/pdf");
+		expect(result.frames).toEqual(["/example-deck/all/"]);
+		await page.close();
+	}, 120_000);
+
 	it("keeps speaker notes out of production pages", async () => {
 		// Frontmatter notes (example-deck 4) and <SpeakerNotes> (example-deck 2).
 		const notes = ["adds a filename header and a copy button", "Key points to mention"];

@@ -51,6 +51,7 @@ export default defineNuxtConfig({
 |---|---|---|
 | `dir` | `"decks"` | デッキのフォルダを並べた場所。プロジェクトのルートからのパスです。 |
 | `basePath` | `""` | デッキのページを置く URL のパス。 |
+| `trailingSlash` | `false` | ページの URL の末尾に `/` を付けます（`/my-talk/3/`）。静的ビルドのページをその形の URL でしか返さないホストで使います。 |
 | `toolbar` | 前へ・番号・次へ | ツールバーのボタン。Astro の [`toolbar`](/ja/reference/configuration/) オプションと同じ書き方です。 |
 | `shikiTheme` | `"github-dark"` | コードブロックの Shiki テーマ。 |
 | `showHidden` | 開発時のみ | `hidden: true` のスライドも表示します。 |

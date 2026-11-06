@@ -19,7 +19,13 @@ export interface DecksPluginOptions {
 	dir: string;
 	shikiTheme?: string;
 	/** Settings the pages read (`options` of the decks module). */
-	runtime: { basePath: string; toolbar?: string[]; showHidden: boolean; notes: boolean };
+	runtime: {
+		basePath: string;
+		trailingSlash: boolean;
+		toolbar?: string[];
+		showHidden: boolean;
+		notes: boolean;
+	};
 }
 
 const DECKS = "virtual:astlide-nuxt/decks";

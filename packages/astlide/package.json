@@ -21,6 +21,7 @@
 		"./runtime/diagrams": "./src/runtime/diagrams.ts",
 		"./runtime/media": "./src/runtime/media.ts",
 		"./runtime/pdf-export": "./src/runtime/pdf-export.ts",
+		"./runtime/pdfjs-stub": "./src/runtime/pdfjs-stub.ts",
 		"./templates": "./src/templates/index.ts",
 		"./mcp": "./src/mcp/index.ts",
 		"./embed": "./src/embed/index.ts",

@@ -9,6 +9,7 @@
 
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolveFavicon } from "@astlide/astro/internal/favicon";
@@ -561,7 +562,9 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 									find: /^pdfjs-dist(?:\/.*)?$/,
 									// Absolute path so Vite dedupes the module instead of warning
 									// about an unresolved bare specifier.
-									replacement: fileURLToPath(new URL("./internal/pdfjs-stub.ts", import.meta.url)),
+									replacement: createRequire(import.meta.url).resolve(
+										"@astlide/core/runtime/pdfjs-stub",
+									),
 								},
 							],
 						},
