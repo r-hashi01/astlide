@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { ShapeSpec, SlideElement, StrokeSpec, TextBoxSpec } from "./ooxml-writer";
+import type { ShapeSpec, SlideElement, StrokeSpec, TextBoxSpec } from "./ooxml/spec";
 
 /** Minimal DOM shape (domhandler) of the parsed markup. */
 export interface SvgNode {
