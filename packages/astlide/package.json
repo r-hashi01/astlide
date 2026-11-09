@@ -44,7 +44,8 @@
 		"./utils/safe-url": "./src/utils/safe-url.ts",
 		"./utils/sanitize": "./src/utils/sanitize.ts",
 		"./utils/slide-scripts": "./src/utils/slide-scripts.ts",
-		"./utils/slide-title": "./src/utils/slide-title.ts"
+		"./utils/slide-title": "./src/utils/slide-title.ts",
+		"./utils/zip": "./src/pptx/ooxml/zip-writer.ts"
 	},
 	"bin": {
 		"astlide": "./src/cli/astlide.ts"
