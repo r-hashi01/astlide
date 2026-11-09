@@ -67,8 +67,8 @@ The export build always includes speaker notes, whatever the [`notes` option](/g
 |---|---|
 | `--pdf` `--pptx` `--png` | Formats to export. Combine them as you like. Default: `--pdf` |
 | `-a, --all` | Export every deck |
-| `--out-dir <dir>` | Folder for the exports. Default: `exports/` |
-| `-o, --output <path>` | Exact output path. Only for one deck in one format. For PNG this is a folder |
+| `--out-dir <dir>` | Folder for the exports, relative to where you run the command. Default: `exports/` in the project |
+| `-o, --output <path>` | Exact output path, relative to where you run the command. Only for one deck in one format. For PNG this is a folder |
 | `--no-build` | Skip the build and reuse the last export build. Without one, `dist/` is used, which has speaker notes only if it was built with `notes: "public"` |
 | `--base-url <url>` | PDF / PNG: render from a dev or preview server you already run. Include the `base`, for example `http://localhost:4321/my-repo` |
 | `--width` / `--height` | PDF / PNG: slide size in pixels. Default: 1920×1080 |
