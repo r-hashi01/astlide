@@ -7,7 +7,7 @@
 
 import { readFileSync } from "node:fs";
 import { parseFragment, serialize } from "parse5";
-import { createElement } from "react";
+import { type ComponentType, createElement } from "react";
 import * as runtime from "react/jsx-runtime";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -67,7 +67,7 @@ describe("MDX slides in React", () => {
 					"utf-8",
 				);
 				const { default: Content } = (await evaluateSlideMdx(slide.body, runtime as never)) as {
-					default: Parameters<typeof createElement>[0];
+					default: ComponentType<{ components: typeof mdxComponents }>;
 				};
 				const react = renderToStaticMarkup(createElement(Content, { components: mdxComponents }));
 				expect(canon(react), `${deck.name}/${slide.number}`).toBe(canon(builtContent(page)));
