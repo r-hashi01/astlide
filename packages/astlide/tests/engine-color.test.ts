@@ -42,6 +42,8 @@ describe("CSS colours", () => {
 	it("leaves what it can't read", () => {
 		expect(parseColor("var(--x)")).toBeNull();
 		expect(parseColor("")).toBeNull();
+		expect(parseColor("constructor")).toBeNull();
+		expect(parseColor("__proto__")).toBeNull();
 		// Hex colors have 3, 4, 6 or 8 digits.
 		expect(parseColor("#12345")).toBeNull();
 		expect(parseColor("#1234567")).toBeNull();
