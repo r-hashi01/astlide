@@ -356,7 +356,8 @@ main()
 	.catch((err) => {
 		if (err instanceof CliUsageError) fail(err.message);
 		// The message only: Bun would print the Error with a source excerpt.
-		const what = process.argv[2] === "template" ? "Error" : "Export failed";
+		const what =
+			{ template: "Error", import: "Import failed" }[process.argv[2] ?? ""] ?? "Export failed";
 		console.error(`${what}: ${err instanceof Error ? err.message : String(err)}`);
 		process.exit(1);
 	});

@@ -16,6 +16,7 @@ import { pptxToSlides } from "../pptx/index";
 import { slugify } from "../pptx/slug";
 import { assetExtension } from "../utils/pptx-assets";
 import { realPath } from "../utils/real-path";
+import { GOOGLE_SLIDES } from "./args";
 
 export { slugify };
 
@@ -30,7 +31,6 @@ export interface ImportOptions {
 	force?: boolean;
 }
 
-const GOOGLE_SLIDES = /^https:\/\/docs\.google\.com\/presentation\/d\/([\w-]+)/;
 /** Largest Google Slides download, in bytes, and how long it may take. */
 const DOWNLOAD_LIMIT = 512 * 1024 * 1024;
 const DOWNLOAD_TIMEOUT = 5 * 60_000;
