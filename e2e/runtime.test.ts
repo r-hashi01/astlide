@@ -181,6 +181,21 @@ describe("keys", () => {
 		await page.keyboard.press("Shift+,");
 		expect(await size()).toBe("1.10");
 		expect(await page.evaluate(() => localStorage.getItem("astlide:notes-font-size"))).toBe("1.1");
+		// > typed with AltGr (reported as Ctrl + Alt) on some keyboard layouts.
+		await page.evaluate(() =>
+			document.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					key: ">",
+					shiftKey: true,
+					ctrlKey: true,
+					altKey: true,
+					modifierAltGraph: true,
+					bubbles: true,
+				}),
+			),
+		);
+		expect(await size()).toBe("1.20");
+		await page.keyboard.press("Shift+,");
 		await page.locator('[data-notes-font="inc"]').click();
 		expect(await size()).toBe("1.20");
 		await page.locator('[data-notes-font="reset"]').click();

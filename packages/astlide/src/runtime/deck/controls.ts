@@ -172,7 +172,9 @@ export function setUpControls(mount: Mount, controls: Controls): void {
 
 	function handleKeydown(e: KeyboardEvent): void {
 		// Ctrl / ⌘ / Alt + a key is the browser's (print, find, back …), not the deck's.
-		if (e.ctrlKey || e.metaKey || e.altKey || isEditing(e.target)) return;
+		// AltGr (reported as Ctrl + Alt) types characters like < and > on some layouts.
+		const modified = (e.ctrlKey || e.metaKey || e.altKey) && !e.getModifierState("AltGraph");
+		if (modified || isEditing(e.target)) return;
 		if (dialogs.overviewOpen) {
 			if (e.key === "Escape" || e.key === "o") dialogs.closeOverview();
 			return;
