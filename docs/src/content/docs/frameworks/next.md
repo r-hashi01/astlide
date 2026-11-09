@@ -61,6 +61,8 @@ export default decks.PrintPage;
 
 `basePath` must match the folder the pages are in, here `app/decks/`. To serve the decks at the root of the app, leave `basePath` out and put the pages in `app/`.
 
+`slideMetadata` also gives the deck's [`ogImage`](/reference/configuration/#deck-_configjson) to the share tags. When it's a path from the site root, set `metadataBase` in your root layout's metadata, so Next.js can make the URL absolute.
+
 Finally, load the styles in the root layout:
 
 ```tsx

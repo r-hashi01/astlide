@@ -43,6 +43,17 @@ export const deckConfigSchema = z.object({
 	 * Unknown names are warned at runtime in dev mode.
 	 */
 	theme: z.string().default("default"),
+	/**
+	 * The picture shown when a link to the deck is shared (`og:image`,
+	 * `twitter:image`): an absolute URL, or a path from the site root such as
+	 * `/og/my-talk.png` (a file in `public/`).
+	 */
+	ogImage: z
+		.string()
+		.refine((v) => /^https?:\/\//i.test(v) || (v.startsWith("/") && !v.startsWith("//")), {
+			message: "must be an absolute URL (https://…) or a path from the site root (/…)",
+		})
+		.optional(),
 });
 
 export type DeckConfig = z.infer<typeof deckConfigSchema>;

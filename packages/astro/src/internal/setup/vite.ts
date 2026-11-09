@@ -135,6 +135,8 @@ export function astlideConfig({
 				__ASTLIDE_TOOLBAR__: JSON.stringify(options.toolbar ?? ["prev", "counter", "next"]),
 				__ASTLIDE_FONT__: JSON.stringify(resolveFontOption(options.font)),
 				__ASTLIDE_PPTX_ASSETS__: JSON.stringify(pptxAssetDir(root)),
+				// Where the pages find the decks' `_config.json` from their slides' paths.
+				__ASTLIDE_ROOT__: JSON.stringify(fileURLToPath(root)),
 				__ASTLIDE_FAVICON__: JSON.stringify(favicon),
 				// Page URLs end in "/" when that's how the site is served (see utils/base-path).
 				__ASTLIDE_TRAILING_SLASH__: JSON.stringify(
