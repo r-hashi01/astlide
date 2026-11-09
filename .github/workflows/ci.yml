@@ -191,7 +191,7 @@ jobs:
           file out.pptx | grep -q -i "PowerPoint\|Zip"
           file out.pdf | grep -q PDF
           # PNGs come as a zip of one picture per slide (the unit tests skip it: no Chromium there).
-          unzip -l out.png | grep -c '\.png$' | grep -qx 2
+          unzip -Z1 out.png | grep -c '\.png$' | grep -qx 2
       - name: Without the profile, PDF fails instead of running unsandboxed
         run: |
           docker run -d --name astlide-nosandbox -p 8788:8787 -e ASTLIDE_API_KEY=ci-key astlide-server
