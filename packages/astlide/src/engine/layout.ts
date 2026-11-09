@@ -80,6 +80,8 @@ export interface SlideLayout {
 	height: number;
 	/** The slide element's own computed style (background …). */
 	style: Computed;
+	/** The slide's padding, in px. */
+	padding: Sides;
 	boxes: Box[];
 	inlineBoxes: InlineBox[];
 	lines: TextLine[];
@@ -245,6 +247,7 @@ function layoutTree(
 		width: 0,
 		height: 0,
 		style: slideStyle,
+		padding: { top: 0, right: 0, bottom: 0, left: 0 },
 		boxes: [],
 		inlineBoxes: [],
 		lines: [],
@@ -456,6 +459,8 @@ function layoutTree(
 		width: root.w,
 		height: root.h,
 		style: slideStyle,
+		// Percentages are of the viewport, the slide's containing block.
+		padding: edgesOf(ctx, slideStyle, vp.width).padding,
 		boxes,
 		inlineBoxes,
 		lines,

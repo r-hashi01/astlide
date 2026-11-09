@@ -393,6 +393,18 @@ describe("check_deck", () => {
 		});
 		expect(issues[0]?.overflow.bottom).toBeGreaterThan(0);
 	});
+
+	it("reports a box running into the slide's padding, also when it's in rem", () => {
+		for (const padding of ["64px", "4rem"]) {
+			const issues = check(
+				'<img src="data:,">',
+				`.slide{padding:${padding};box-sizing:border-box}.slide-content{flex:none}img{display:block;width:100px;height:1000px}`,
+			);
+			expect(issues).toHaveLength(1);
+			expect(issues[0]).toMatchObject({ kind: "box-overflow", element: "div.slide-content" });
+			expect(issues[0]?.overflow.bottom).toBe(48);
+		}
+	});
 });
 
 describe("siteView", () => {
