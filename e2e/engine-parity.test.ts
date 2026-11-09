@@ -148,17 +148,29 @@ describe("layout engine vs Chromium", () => {
 		).toEqual([]);
 	});
 
-	// The badge is stretched in its row, so its height is definite once the line's
-	// is known: the icon's percentage height resolves, and the badge's width from
-	// its content counts the icon at that height (#409). No bold: the test font has
-	// none, and Chromium's synthetic bold is a little wider on Linux than on macOS.
-	it("a percentage height with aspect-ratio inside a box sized to its content", async () => {
+	// A percentage height with aspect-ratio gives the width once the height is
+	// definite (#409): set on the badge, or the badge's stretched height in its
+	// row (its width from its content counts the icon at that height). The text
+	// stays on one line: Chromium measures text a little differently on Linux.
+	it("a percentage height with aspect-ratio in a box of set height", async () => {
 		expect(
 			await differences(
-				"cyclic-height",
+				"aspect-height-set",
 				`.row{display:flex;justify-content:center}
-.badge{display:flex;align-items:center;gap:10.5px;padding:10.5px 21px;font-size:21px}
-.icon{display:inline-flex;width:60%;height:60%;aspect-ratio:1/1}.icon svg{width:100%;height:100%}`,
+.badge{display:flex;align-items:center;gap:10px;padding:10px 20px;height:80px}
+.icon{display:inline-flex;height:60%;aspect-ratio:1/1}.icon svg{width:100%;height:100%}`,
+				`<div class="row"><div class="badge" data-c="badge"><span class="icon" data-c="icon"><svg width="24" height="24" viewBox="0 0 24 24"></svg></span>LLM Generate</div></div>`,
+			),
+		).toEqual([]);
+	});
+
+	it("a percentage height with aspect-ratio in a box stretched in its row", async () => {
+		expect(
+			await differences(
+				"aspect-height-stretched",
+				`.row{display:flex;justify-content:center}
+.badge{display:flex;align-items:center;gap:10px;padding:10px 20px}
+.icon{display:inline-flex;height:60%;aspect-ratio:1/1}.icon svg{width:100%;height:100%}`,
 				`<div class="row"><div class="badge" data-c="badge"><span class="icon" data-c="icon"><svg width="24" height="24" viewBox="0 0 24 24"></svg></span>LLM Generate</div></div>`,
 			),
 		).toEqual([]);
