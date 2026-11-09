@@ -148,16 +148,35 @@ export function slidesField(value: unknown): unknown {
 	return value;
 }
 
-/** File name for the download: the deck title as a slug, else "slides". */
+/**
+ * File name for the download: the deck title with words joined by hyphens
+ * (any script; Latin letters lose their accents), else "slides".
+ */
 export function downloadName(title: string | undefined, ext: string): string {
-	const base =
-		(title ?? "")
-			.slice(0, 200)
-			.normalize("NFKD")
-			.replace(/[^\w.-]+/g, "-")
-			.replace(/^-+|-+$/g, "")
-			.slice(0, 60) || "slides";
+	const words = (title ?? "")
+		.slice(0, 200)
+		.normalize("NFKD")
+		.replace(/(\p{Script=Latin})\p{Mark}+/gu, "$1")
+		.normalize("NFKC")
+		.replace(/[^\p{Letter}\p{Number}._-]+/gu, "-")
+		.replace(/^-+|-+$/g, "");
+	// At most 60 characters, not cutting one in half.
+	const base = [...words].slice(0, 60).join("").replace(/-+$/, "") || "slides";
 	return `${base}.${ext}`;
+}
+
+/**
+ * A `Content-Disposition` for a download (RFC 6266): the name as `filename*`
+ * (UTF-8, RFC 5987), and an ASCII `filename` for clients that don't read it.
+ */
+export function attachment(filename: string): string {
+	const dot = filename.lastIndexOf(".");
+	const ascii = filename
+		.slice(0, dot)
+		.replace(/[^\w.-]+/g, "-")
+		.replace(/^-+|-+$/g, "");
+	const fallback = `${/[A-Za-z0-9]/.test(ascii) ? ascii : "slides"}${filename.slice(dot)}`;
+	return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
 
 /** A version number from a query or a field, or undefined when not given. */
