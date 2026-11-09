@@ -32,6 +32,19 @@ function getFlag(args: string[], name: string): string | undefined {
 	return undefined;
 }
 
+/** Options of `create-astlide deck` that take a value. */
+const DECK_VALUE_FLAGS = new Set(["theme", "format", "dir"]);
+
+/** The first argument that is neither an option nor an option's value. */
+function firstPositional(args: string[], valueFlags: Set<string>): string | undefined {
+	for (let i = 0; i < args.length; i++) {
+		const a = args[i] as string;
+		if (!a.startsWith("--")) return a;
+		if (!a.includes("=") && valueFlags.has(a.slice(2))) i++;
+	}
+	return undefined;
+}
+
 function showHelp() {
 	console.log();
 	console.log(bold("  🎴 create-astlide"));
@@ -298,7 +311,7 @@ async function scaffoldDeck(args: string[]): Promise<void> {
 	console.log(bold("  🎴 create-astlide — new deck"));
 	console.log();
 
-	const positional = args.find((a) => !a.startsWith("--"));
+	const positional = firstPositional(args, DECK_VALUE_FLAGS);
 	const rawName = positional ?? (await ask("Deck name", "my-deck"));
 	const deckName = path.basename(rawName.replace(/[\\/]+$/, ""));
 	// The same rule as `astlide import`: a plain folder name. Its title goes into the
@@ -312,16 +325,23 @@ async function scaffoldDeck(args: string[]): Promise<void> {
 		process.exit(1);
 	}
 
-	const theme = ((): Theme => {
-		const flag = getFlag(args, "theme") as Theme | undefined;
-		return flag && THEMES.includes(flag) ? flag : "default";
-	})();
+	const themeFlag = getFlag(args, "theme");
+	if (themeFlag !== undefined && !THEMES.includes(themeFlag as Theme)) {
+		console.log(red(`\n  Error: Unknown theme "${themeFlag}" — use one of ${THEMES.join(", ")}.`));
+		process.exit(1);
+	}
+	const theme = (themeFlag as Theme | undefined) ?? "default";
 
-	const format = await (async (): Promise<DeckFormat> => {
-		const flag = getFlag(args, "format") as DeckFormat | undefined;
-		if (flag && DECK_FORMATS.includes(flag)) return flag;
-		return askChoice<DeckFormat>("Slide format:", DECK_FORMATS, 0);
-	})();
+	const formatFlag = getFlag(args, "format");
+	if (formatFlag !== undefined && !DECK_FORMATS.includes(formatFlag as DeckFormat)) {
+		console.log(
+			red(`\n  Error: Unknown format "${formatFlag}" — use one of ${DECK_FORMATS.join(", ")}.`),
+		);
+		process.exit(1);
+	}
+	const format =
+		(formatFlag as DeckFormat | undefined) ??
+		(await askChoice<DeckFormat>("Slide format:", DECK_FORMATS, 0));
 
 	const baseDir = path.resolve(process.cwd(), getFlag(args, "dir") ?? "src/content/decks");
 	const deckDir = path.join(baseDir, deckName);

@@ -17,6 +17,13 @@ const usage = (message: string): never => {
 	throw new CliUsageError(message);
 };
 
+/** An option's value: there, and not the next option (`--base-url --pdf`). */
+const optionValue = (value: string | undefined, message: string): string =>
+	value === undefined || value.startsWith("-") ? usage(message) : value;
+
+/** A Google Slides deck's URL (its id in group 1): the only URLs `astlide import` reads. */
+export const GOOGLE_SLIDES = /^https:\/\/docs\.google\.com\/presentation\/d\/([\w-]+)/;
+
 export interface ExportOptions {
 	decks: string[];
 	all: boolean;
@@ -35,7 +42,8 @@ export interface ExportOptions {
 }
 
 function positiveInt(value: string | undefined, flag: string): number {
-	const n = Number.parseInt(value ?? "", 10);
+	// Digits only: `1e3` or `720px` aren't sizes.
+	const n = /^\d+$/.test(value ?? "") ? Number(value) : Number.NaN;
 	if (Number.isNaN(n) || n <= 0) usage(`${flag} must be a positive integer`);
 	return n;
 }
@@ -73,13 +81,13 @@ export function parseExportArgs(args: string[], cwd: string): ExportOptions {
 			case "-o":
 			case "--output":
 				// Relative to where the command runs, not the project root found later.
-				options.output = resolve(cwd, args[++i] ?? usage("--output needs a path"));
+				options.output = resolve(cwd, optionValue(args[++i], "--output needs a path"));
 				break;
 			case "--out-dir":
-				options.outDir = resolve(cwd, args[++i] ?? usage("--out-dir needs a directory"));
+				options.outDir = resolve(cwd, optionValue(args[++i], "--out-dir needs a directory"));
 				break;
 			case "--base-url":
-				options.baseUrl = (args[++i] ?? usage("--base-url needs a URL")).replace(/\/+$/, "");
+				options.baseUrl = optionValue(args[++i], "--base-url needs a URL").replace(/\/+$/, "");
 				break;
 			case "--no-build":
 				options.build = false;
@@ -91,7 +99,7 @@ export function parseExportArgs(args: string[], cwd: string): ExportOptions {
 				options.height = positiveInt(args[++i], "--height");
 				break;
 			case "--cwd":
-				options.cwd = resolve(cwd, args[++i] ?? usage("--cwd needs a directory"));
+				options.cwd = resolve(cwd, optionValue(args[++i], "--cwd needs a directory"));
 				options.cwdSet = true;
 				break;
 			default:
@@ -120,15 +128,19 @@ export function parseImportArgs(args: string[], cwd: string): ImportOptions {
 	let force = false;
 	for (let i = 0; i < args.length; i++) {
 		const arg = args[i] as string;
-		if (arg === "--deck") deck = args[++i] ?? usage("--deck needs a name");
+		if (arg === "--deck") deck = optionValue(args[++i], "--deck needs a name");
 		else if (arg === "--cwd")
-			projectDir = resolve(cwd, args[++i] ?? usage("--cwd needs a directory"));
+			projectDir = resolve(cwd, optionValue(args[++i], "--cwd needs a directory"));
 		else if (arg === "--force") force = true;
 		else if (arg.startsWith("-")) usage(`unknown option ${arg}`);
 		else if (source) usage("import takes one file or URL");
 		else source = arg;
 	}
 	if (!source) return usage("name a .pptx file or a Google Slides URL");
+	if (/^https?:/i.test(source) && !GOOGLE_SLIDES.test(source))
+		usage(
+			"only Google Slides URLs (https://docs.google.com/presentation/d/…) can be imported — download other decks as .pptx and import the file",
+		);
 	return {
 		source: /^https?:/.test(source) ? source : resolve(cwd, source),
 		...(deck === undefined ? {} : { deck }),

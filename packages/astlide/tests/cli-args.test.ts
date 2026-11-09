@@ -73,6 +73,15 @@ describe("astlide export arguments", () => {
 		expect(() => parseExportArgs(["--width", "-3"], cwd)).toThrow(
 			"--width must be a positive integer",
 		);
+		// Not numbers with something after them, nor the next option as a value.
+		for (const args of [
+			["--width", "1e3"],
+			["--height", "720px"],
+			["--base-url", "--pdf"],
+			["-o", "--pptx"],
+			["--out-dir", "-a"],
+		])
+			expect(() => parseExportArgs(args, cwd), args.join(" ")).toThrow(CliUsageError);
 	});
 });
 
@@ -103,5 +112,15 @@ describe("astlide import arguments", () => {
 		);
 		expect(() => parseImportArgs(["a.pptx", "--deck"], cwd)).toThrow(CliUsageError);
 		expect(() => parseImportArgs(["a.pptx", "--x"], cwd)).toThrow("unknown option --x");
+		expect(() => parseImportArgs(["a.pptx", "--deck", "--force"], cwd)).toThrow(CliUsageError);
+	});
+
+	it("takes Google Slides URLs only", () => {
+		for (const url of [
+			"https://example.com/deck.pptx",
+			"http://docs.google.com/presentation/d/x",
+			"https://docs.google.com/document/d/x",
+		])
+			expect(() => parseImportArgs([url], cwd), url).toThrow("only Google Slides URLs");
 	});
 });
