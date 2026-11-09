@@ -2,7 +2,7 @@
  * Flex layout (css-flexbox-1 §9).
  */
 
-import { alongAxes, boxModel, lengthOf, setSize } from "../box-model";
+import { alongAxes, boxModel, clampWidth, lengthOf, setSize } from "../box-model";
 import type { ElementBox, TextRun } from "../box-tree";
 import { clipsOverflow, isAuto, keyword, value } from "../properties";
 
@@ -92,6 +92,42 @@ export function layoutFlex(
 	const lineCross = lines.map((line) =>
 		Math.max(0, ...line.map((it) => (it.cross ?? 0) + it.crossMargins)),
 	);
+	// A stretched item's height is definite once its line's is known (§9.8): its
+	// children's percentage heights resolve against it, and so its width from its
+	// content (an aspect-ratio child) can change. Size the line's main axis again
+	// with those widths, keeping the line's cross size (as Chromium does).
+	if (!column)
+		lines.forEach((line, li) => {
+			let changed = false;
+			for (const it of line) {
+				if (!it.stretch || !it.contentBase || it.box.type === "text") continue;
+				const bm = boxModel(flow.ctx, it.box.style, { width: cw, height: ch });
+				const stretched = Math.max(
+					it.crossMin,
+					Math.min(it.crossMax, (lineCross[li] ?? 0) - it.crossMargins),
+				);
+				const inner = Math.max(0, stretched - bm.inset.y);
+				const base = Math.max(
+					bm.inset.x,
+					clampWidth(bm, flow.contentSizes(it.box, inner).max + bm.inset.x),
+				);
+				if (Math.abs(base - it.base) < 0.01) continue;
+				it.base = base;
+				it.hypo = Math.max(it.min, Math.min(it.max, base));
+				changed = true;
+			}
+			if (!changed) return;
+			const gaps = mainGap * Math.max(0, line.length - 1);
+			const avail = mainSize ?? sum(line.map((it) => it.hypo + it.mainMargins)) + gaps;
+			resolveFlexibleLengths(line, avail, gaps);
+			contentMain = Math.max(
+				0,
+				...lines.map(
+					(l) =>
+						sum(l.map((it) => it.target + it.mainMargins)) + mainGap * Math.max(0, l.length - 1),
+				),
+			);
+		});
 	// A single line in a definite cross size takes all of it; otherwise it stays
 	// within the container's min / max cross size (§9.4 step 8).
 	if (lines.length === 1 && crossSize !== undefined) lineCross[0] = crossSize;
@@ -296,7 +332,7 @@ export function flexItem(
 	const mainSpec = main.size;
 	/** The item's size in the main axis from its content. */
 	const contentMain = (): number => {
-		if (!column) return flow.contribution(item).max - it.mainMargins;
+		if (!column) return flow.contribution(item, ch).max - it.mainMargins;
 		// Column: the height at the width the item will have.
 		const w =
 			definiteCross ??
@@ -310,6 +346,8 @@ export function flexItem(
 			: setSize(flow.ctx, style, bm, "flex-basis", column ? ch : cw, column ? "y" : "x");
 	it.base = basisLength ?? (basis === "content" ? undefined : mainSpec) ?? contentMain();
 	if (it.base === undefined || Number.isNaN(it.base)) it.base = contentMain();
+	it.contentBase =
+		!column && basisLength === undefined && (basis === "content" || mainSpec === undefined);
 	const scroll = clipsOverflow(style, column ? "y" : "x");
 	const minSpec = setSize(
 		flow.ctx,
@@ -409,6 +447,8 @@ export interface FlexItem {
 	stretch: boolean;
 	/** Its cross size is set (width / height), not from its content. */
 	definiteCross: boolean;
+	/** In a row, its flex base size is its max-content width (no flex-basis or width). */
+	contentBase?: boolean;
 	cross?: number;
 	f?: Fragment;
 }
@@ -469,9 +509,9 @@ export function resolveFlexibleLengths(line: FlexItem[], avail: number, gaps: nu
  * A flex container's content sizes: a row's items side by side (a wrapping
  * row's min-content is its widest item), a column's widest item.
  */
-export function flexSizes(flow: Flow, box: ElementBox): Sizes {
+export function flexSizes(flow: Flow, box: ElementBox, height?: number): Sizes {
 	const kids = box.children.filter((c) => !flow.absolute(c));
-	const each = kids.map((k) => flow.contribution(k));
+	const each = kids.map((k) => flow.contribution(k, height));
 	const largest = (key: "min" | "max") => Math.max(0, ...each.map((c) => c[key]));
 	const row = !keyword(box.style, "flex-direction").startsWith("column");
 	if (!row) return { min: largest("min"), max: largest("max") };
