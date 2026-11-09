@@ -24,13 +24,7 @@
 
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import {
-	type DeckConfig,
-	deckConfigSchema,
-	deprecatedClassWarning,
-	type SlideData,
-	slideSchema,
-} from "../schema";
+import { type DeckConfig, deprecatedClassWarning, type SlideData, slideSchema } from "../schema";
 import { extractCommentNotes, withoutNotesComment } from "../utils/comment-notes";
 import { consoleReporter, type Reporter } from "../utils/reporter";
 import { stripSlideScripts } from "../utils/slide-scripts";
@@ -41,6 +35,7 @@ import {
 	htmlWithoutNotes,
 	PPTX_EXTENSION,
 	pptxSlideId,
+	readDeckConfig,
 	SLIDE_EXTENSION,
 	splitFrontmatter,
 	toEntryId,
@@ -111,29 +106,6 @@ export interface ReadDeckOptions {
 const warned = new Set<string>();
 
 const missing = (e: unknown) => (e as NodeJS.ErrnoException).code === "ENOENT";
-
-async function readConfig(dir: string): Promise<Pick<Deck, "config" | "configIssue">> {
-	const defaults = deckConfigSchema.parse({});
-	let raw: string;
-	try {
-		raw = await readFile(join(dir, "_config.json"), "utf-8");
-	} catch (e) {
-		if (missing(e)) return { config: defaults };
-		throw e;
-	}
-	let json: unknown;
-	try {
-		json = JSON.parse(raw);
-	} catch (e) {
-		return { config: defaults, configIssue: `Malformed _config.json: ${(e as Error).message}` };
-	}
-	const result = deckConfigSchema.safeParse(json);
-	if (result.success) return { config: result.data };
-	const issues = result.error.issues
-		.map((i) => `${i.path.join(".") || "<root>"} — ${i.message}`)
-		.join("; ");
-	return { config: defaults, configIssue: `Invalid _config.json: ${issues}` };
-}
 
 function parseSlideData(data: Record<string, unknown>, file: string): SlideData {
 	const result = slideSchema.safeParse(data);
@@ -225,7 +197,7 @@ export async function readDeck(dir: string, options: ReadDeckOptions = {}): Prom
 	slides.sort((a, b) => a.id.localeCompare(b.id));
 	return {
 		name: basename(dir),
-		...(await readConfig(dir)),
+		...(await readDeckConfig(dir)),
 		slides: slides.map((s, i) => ({ ...s, number: i + 1 })),
 	};
 }

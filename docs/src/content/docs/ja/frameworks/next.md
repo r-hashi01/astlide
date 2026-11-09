@@ -61,6 +61,8 @@ export default decks.PrintPage;
 
 `basePath` は、ページを置いたフォルダ（ここでは `app/decks/`）に合わせます。アプリのルートに置くなら、`basePath` を省いてページを `app/` 直下に置いてください。
 
+`slideMetadata` は、デッキの [`ogImage`](/ja/reference/configuration/#デッキの-_configjson) も共有用のタグに入れます。`ogImage` をサイトのルートからのパスで指定する場合は、ルートレイアウトの metadata に `metadataBase` を設定してください。Next.js がそのパスを絶対 URL にします。
+
 最後に、ルートレイアウトでスタイルを読み込みます。
 
 ```tsx

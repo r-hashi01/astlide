@@ -100,6 +100,7 @@ Put `_config.json` in the deck's folder, next to its slides. Every field is opti
 | `author` | `string` | none | Shown on the deck index. |
 | `date` | `string` | none | A date such as `"2025-06-01"`, shown on the deck index. A value that isn't a valid date isn't shown. |
 | `theme` | `string` | `"default"` | The theme for every slide in the deck: a built-in theme, a plugin theme, or a name from `templates`. |
+| `ogImage` | `string` | none | The picture shown when a link to the deck is shared (`og:image`, and a large Twitter / X card). An absolute URL, or a path from the site root such as `"/og/my-talk.png"` for a file in `public/`. Set Astro's [`site`](https://docs.astro.build/en/reference/configuration-reference/#site) so the path becomes the absolute URL that sites reading the tags need. |
 
 If `_config.json` isn't valid JSON, or a field has the wrong type, the deck uses the defaults. The dev server shows the error on the slide.
 
