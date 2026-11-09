@@ -60,6 +60,8 @@ export interface PptxTemplate {
 	height: number;
 	/** Theme colors (`rrggbb` by scheme name) and heading / body fonts. */
 	colors: Record<string, string>;
+	/** The master's color map: background / text names (`bg1`, `tx1` …) → theme color names. */
+	colorMap?: Record<string, string>;
 	fonts: { heading?: string; body?: string };
 	/** The layouts, in the template's order. */
 	layouts: TemplateLayout[];
@@ -179,6 +181,7 @@ export function pptxToTemplate(data: Uint8Array, options: PptxImportOptions = {}
 		width: p.width,
 		height: p.height,
 		colors: first?.colors.theme ?? {},
+		colorMap: first?.colors.map,
 		fonts: { heading: first?.fonts.major, body: first?.fonts.minor },
 		layouts,
 		master,
@@ -283,16 +286,19 @@ export function templateCss(template: PptxTemplate, theme: string): string {
 	const t = `[data-theme="${theme.replace(/["\\]/g, "")}"]`;
 	const c = template.colors;
 	const color = (name: string, fallback: string) => (c[name] ? `#${c[name]}` : fallback);
+	// Background and text through the master's color map: a dark template maps
+	// bg1 to dk1 and tx1 to lt1, as its own artwork does.
+	const mapped = (slot: string, theme: string) => template.colorMap?.[slot] ?? theme;
 	const fallback = template.layouts.find((l) => l.id === template.aliases.default);
 	const bodySize = fallback?.body[0]?.css.match(/font-size:([\d.]+px)/)?.[1];
 	const titleSize = fallback?.title?.css.match(/font-size:([\d.]+px)/)?.[1];
 	const vars = [
-		`--color-background:${color("lt1", "#ffffff")}`,
-		`--color-foreground:${color("dk1", "#000000")}`,
+		`--color-background:${color(mapped("bg1", "lt1"), "#ffffff")}`,
+		`--color-foreground:${color(mapped("tx1", "dk1"), "#000000")}`,
 		`--color-primary:${color("accent1", "#3b82f6")}`,
-		`--color-secondary:${color("dk2", "#64748b")}`,
+		`--color-secondary:${color(mapped("tx2", "dk2"), "#64748b")}`,
 		`--color-accent:${color("accent2", "#f59e0b")}`,
-		`--color-muted:${color("lt2", "#f1f5f9")}`,
+		`--color-muted:${color(mapped("bg2", "lt2"), "#f1f5f9")}`,
 		template.fonts.heading ? `--font-heading:${fontFamily(template.fonts.heading)}` : "",
 		template.fonts.body ? `--font-body:${fontFamily(template.fonts.body)}` : "",
 		bodySize ? `--font-size-base:${bodySize}` : "",

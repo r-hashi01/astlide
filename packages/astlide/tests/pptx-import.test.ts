@@ -425,6 +425,28 @@ describe("readZip limits", () => {
 	});
 });
 
+describe("template colors", () => {
+	it("takes the theme's background and text colors through the master's color map", async () => {
+		// A dark template: background is dk1 and text lt1, as its artwork draws them.
+		const dark = patched(await fixture(), (name, text) =>
+			name === "ppt/slideMasters/slideMaster1.xml"
+				? text.replace(/<p:clrMap [^>]*\/>/, '<p:clrMap bg1="dk1" tx1="lt1" bg2="dk2" tx2="lt2"/>')
+				: text,
+		);
+		const template = pptxToTemplate(dark);
+		const { lt1, dk1, lt2, dk2 } = template.colors;
+		const css = templateCss(template, "brand");
+		expect(css).toContain(`--color-background:#${dk1}`);
+		expect(css).toContain(`--color-foreground:#${lt1}`);
+		expect(css).toContain(`--color-secondary:#${lt2}`);
+		expect(css).toContain(`--color-muted:#${dk2}`);
+		// The default map: background lt1, text dk1.
+		const light = templateCss(pptxToTemplate(await fixture()), "brand");
+		expect(light).toContain(`--color-background:#${lt1}`);
+		expect(light).toContain(`--color-foreground:#${dk1}`);
+	});
+});
+
 describe("colors", () => {
 	const ctx = {
 		theme: { accent1: "4472c4", lt1: "ffffff", dk1: "000000" },
