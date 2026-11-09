@@ -16,6 +16,7 @@ import postcss, {
 	type Declaration as PostcssDeclaration,
 	type Rule,
 } from "postcss";
+import { lookup } from "./lookup";
 import {
 	blockified,
 	value as computedValue,
@@ -295,7 +296,7 @@ function mediaFeature(text: string, vp: Viewport): boolean {
 	const own = value(name);
 	if (own !== undefined) return v === undefined ? own > 0 : own === parse(name, v);
 	// A plain desktop browser: light, motion allowed, a mouse.
-	const features: Record<string, string[]> = {
+	const features: Record<string, string[]> = lookup({
 		orientation: [vp.width >= vp.height ? "landscape" : "portrait"],
 		"prefers-color-scheme": ["light"],
 		"prefers-reduced-motion": ["no-preference"],
@@ -308,7 +309,7 @@ function mediaFeature(text: string, vp: Viewport): boolean {
 		"any-pointer": ["fine"],
 		color: [],
 		scripting: ["enabled"],
-	};
+	});
 	const known = features[name];
 	if (!known) return false;
 	if (v === undefined)
@@ -991,13 +992,15 @@ function evalCalc(expr: string, fs: number, rfs: number, vp: Viewport, basis: nu
 	return Number.isNaN(basis) ? Number.NaN : v.px + (v.pct / 100) * basis;
 }
 
-const FONT_WEIGHTS: Record<string, string> = {
+/** Border width keywords, in px. */
+const BORDER_WIDTHS: Readonly<Record<string, number>> = lookup({ thin: 1, medium: 3, thick: 5 });
+const FONT_WEIGHTS: Record<string, string> = lookup({
 	normal: "400",
 	bold: "700",
 	lighter: "300",
 	bolder: "700",
-};
-const FONT_SIZES: Record<string, number> = {
+});
+const FONT_SIZES: Record<string, number> = lookup({
 	"xx-small": 9,
 	"x-small": 10,
 	small: 13,
@@ -1008,7 +1011,7 @@ const FONT_SIZES: Record<string, number> = {
 	"xxx-large": 48,
 	smaller: 0.83,
 	larger: 1.2,
-};
+});
 
 /** A `zoom` value as a factor: a number or percentage; `normal` (and anything else) is 1. */
 function zoomFactor(v: string): number {
@@ -1115,7 +1118,7 @@ export function computeStyle(declared: Map<string, string>, ctx: Context): Compu
 			continue;
 		}
 		const raw = (width ?? "medium").trim();
-		const keyword = { thin: 1, medium: 3, thick: 5 }[raw];
+		const keyword = BORDER_WIDTHS[raw];
 		const unzoomed = keyword ?? toPx(raw, fs / zoom, ctx.rootFontSize, ctx.vp, Number.NaN);
 		if (Number.isNaN(unzoomed)) continue;
 		const used = unzoomed * zoom;

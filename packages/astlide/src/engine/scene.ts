@@ -10,6 +10,7 @@ import type { Element } from "domhandler";
 import type { Computed } from "./cascade";
 import { type Color, parseColor } from "./color";
 import type { Rect, SlideLayout, TextBlock, TextLine } from "./layout";
+import { lookup } from "./lookup";
 import { keyword, value } from "./properties";
 
 export type SceneItem = (
@@ -165,7 +166,7 @@ function topLevel(value: string): string[] {
 	return out.filter(Boolean);
 }
 
-const SIDES: Record<string, number> = {
+const SIDES: Record<string, number> = lookup({
 	"to top": 0,
 	"to right": 90,
 	"to bottom": 180,
@@ -178,7 +179,7 @@ const SIDES: Record<string, number> = {
 	"to left bottom": 225,
 	"to top left": 315,
 	"to left top": 315,
-};
+});
 
 /** Parse `linear-gradient(...)` (unknown colors → null). */
 export function parseLinearGradient(value: string): Gradient | null {

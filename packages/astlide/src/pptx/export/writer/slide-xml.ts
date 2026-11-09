@@ -18,6 +18,10 @@ import type {
 	TextRunOptions,
 } from "./spec";
 
+/** An entry of a table by a CSS value: own entries only (`constructor` finds nothing). */
+const pick = (table: Record<string, string>, key: string): string | undefined =>
+	Object.hasOwn(table, key) ? table[key] : undefined;
+
 const ALIGN_MAP: Record<string, string> = {
 	left: "l",
 	center: "ctr",
@@ -255,7 +259,7 @@ function buildTableXml(
 					const marg = m
 						? ` marL="${emu(m.left)}" marR="${emu(m.right)}" marT="${emu(m.top)}" marB="${emu(m.bottom)}"`
 						: "";
-					const anchor = VALIGN_MAP[c.valign ?? "middle"] ?? "ctr";
+					const anchor = pick(VALIGN_MAP, c.valign ?? "middle") ?? "ctr";
 					const fill = c.fill
 						? `<a:solidFill><a:srgbClr val="${c.fill}">${
 								c.fillTransparency
@@ -285,7 +289,7 @@ function buildTextBoxXml(
 	nextRId: () => string,
 	hyperlinks: HyperlinkEntry[],
 ): string {
-	const anchor = VALIGN_MAP[tb.valign ?? "top"] ?? "t";
+	const anchor = pick(VALIGN_MAP, tb.valign ?? "top") ?? "t";
 	const autoFit = tb.shrinkText ? "<a:normAutofit/>" : "<a:noAutofit/>";
 	const wrapAttr = tb.wrap !== false ? 'wrap="square"' : 'wrap="none"';
 	const insetAttr =
@@ -295,7 +299,7 @@ function buildTextBoxXml(
 
 	// Split flat TextRun[] into paragraphs (on breakLine boundaries)
 	const paragraphs = splitIntoParagraphs(tb.runs);
-	const defaultAlign = ALIGN_MAP[tb.align ?? "left"] ?? "l";
+	const defaultAlign = pick(ALIGN_MAP, tb.align ?? "left") ?? "l";
 
 	const paraXmls: string[] = [];
 	for (const para of paragraphs) {
@@ -370,7 +374,7 @@ function buildParagraphXml(
 	nextRId: () => string,
 	hyperlinks: HyperlinkEntry[],
 ): string {
-	const align = ALIGN_MAP[para.align ?? ""] ?? defaultAlign;
+	const align = pick(ALIGN_MAP, para.align ?? "") ?? defaultAlign;
 
 	// Build <a:pPr> attributes
 	const pPrParts: string[] = [`algn="${align}"`];
