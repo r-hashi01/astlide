@@ -148,10 +148,10 @@ describe("layout engine vs Chromium", () => {
 		).toEqual([]);
 	});
 
-	// Known difference (#351): here Chromium sizes the badge with the icon as
-	// wide as its final height (41px) and the engine with the picture's own
-	// width (24px); on the 101a-ja deck's badge both give Chromium's size.
-	it.fails("a percentage height with aspect-ratio inside a box sized to its content", async () => {
+	// The badge is stretched in its row, so its height is definite once the line's
+	// is known: the icon's percentage height resolves, and the badge's width from
+	// its content counts the icon at that height (#409).
+	it("a percentage height with aspect-ratio inside a box sized to its content", async () => {
 		expect(
 			await differences(
 				"cyclic-height",
