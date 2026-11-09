@@ -24,7 +24,7 @@ export interface Mount {
 	scaler: HTMLElement | null;
 	/** A slide's URL, with the site's base path and trailing-slash convention. */
 	slideUrl(n: number, query?: string): string;
-	/** A slide's URL in this window's mode (`?presenter` in the presenter window). */
+	/** A slide's URL in this window's mode (`?presenter` in the presenter window, `?share` in share mode). */
 	modeUrl(n: number): string;
 	/** Add a listener, removed when the mount is disposed. */
 	listen<E extends Event>(
@@ -51,7 +51,11 @@ export function createMount(config: DeckRuntimeConfig): { mount: Mount; dispose(
 		isEmbedded: root.hasAttribute("data-embed"),
 		scaler: document.getElementById("slide-scaler"),
 		slideUrl,
-		modeUrl: (n) => slideUrl(n, isPresenter ? "?presenter" : ""),
+		modeUrl: (n) => {
+			const flags = [isPresenter && "presenter", root.hasAttribute("data-share") && "share"];
+			const query = flags.filter(Boolean).join("&");
+			return slideUrl(n, query ? `?${query}` : "");
+		},
 		listen(target, type, handler, options) {
 			const fn = handler as EventListener;
 			target.addEventListener(type, fn, options);

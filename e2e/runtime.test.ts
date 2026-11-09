@@ -1,7 +1,7 @@
 /**
  * The deck runtime's tools in a real browser: pen and laser (mirrored to the
  * other window), the toolbar's buttons, the presenter timer, the notes font
- * size, Home / End, Escape and swipes, and what a cleanup leaves behind.
+ * size, Home / End, Escape, share mode and swipes, and what a cleanup leaves behind.
  */
 
 import type { BrowserContext, Page } from "playwright";
@@ -133,6 +133,27 @@ describe("keys", () => {
 		await page.waitForSelector(".slide");
 		await page.keyboard.press("Home");
 		await expect.poll(() => slideOf(page)).toBe(1);
+		await page.close();
+	});
+
+	it("share mode stays on while moving between slides, and s turns it off", async () => {
+		const page = await open(browser(), "/example-deck/3/");
+		await page.waitForSelector(".slide");
+		const share = () => page.evaluate(() => document.documentElement.hasAttribute("data-share"));
+		await page.keyboard.press("s");
+		await expect.poll(share).toBe(true);
+		await page.waitForSelector(".slide");
+		await page.keyboard.press("ArrowRight");
+		await expect.poll(() => slideOf(page)).toBe(4);
+		expect(new URL(page.url()).searchParams.has("share")).toBe(true);
+		expect(await share()).toBe(true);
+		await page.waitForSelector(".slide");
+		await page.keyboard.press("s");
+		await expect.poll(share).toBe(false);
+		await page.waitForSelector(".slide");
+		await page.keyboard.press("ArrowRight");
+		await expect.poll(() => slideOf(page)).toBe(5);
+		expect(new URL(page.url()).searchParams.has("share")).toBe(false);
 		await page.close();
 	});
 
