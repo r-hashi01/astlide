@@ -157,7 +157,7 @@ jobs:
     steps:
       - run: test "${{ needs.astro-compat.result }}" = "success"
 
-  # The render service's image builds, starts and renders PPTX and PDF
+  # The render service's image builds, starts and renders PPTX, PDF and PNG
   # (built only — nothing is pushed).
   server-docker:
     name: Server Docker
@@ -181,7 +181,7 @@ jobs:
           for i in $(seq 1 30); do curl -sf localhost:8787/health && break; sleep 1; done
           curl -sf localhost:8787/openapi.json > /dev/null
           test "$(curl -s -o /dev/null -w '%{http_code}' -d '{}' localhost:8787/render)" = 401
-          for format in pptx pdf; do
+          for format in pptx pdf png; do
             curl -sS --fail-with-body -o "out.$format" -H 'content-type: application/json' \
               -H 'authorization: Bearer ci-key' \
               -d "{\"markdown\":\"# こんにちは\\n---\\n# Two\",\"format\":\"$format\"}" \
@@ -190,6 +190,8 @@ jobs:
           done
           file out.pptx | grep -q -i "PowerPoint\|Zip"
           file out.pdf | grep -q PDF
+          # PNGs come as a zip of one picture per slide (the unit tests skip it: no Chromium there).
+          unzip -l out.png | grep -c '\.png$' | grep -qx 2
       - name: Without the profile, PDF fails instead of running unsandboxed
         run: |
           docker run -d --name astlide-nosandbox -p 8788:8787 -e ASTLIDE_API_KEY=ci-key astlide-server
