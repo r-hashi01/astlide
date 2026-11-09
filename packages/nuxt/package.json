@@ -46,11 +46,11 @@
 	"dependencies": {
 		"@astlide/core": "workspace:*",
 		"@astlide/vue": "workspace:*",
-		"@nuxt/kit": "^4.6.3",
+		"@nuxt/kit": "^4.6.4",
 		"katex": "^0.19.1"
 	},
 	"devDependencies": {
-		"nuxt": "^4.6.3",
-		"vue": "^3.5.44"
+		"nuxt": "^4.6.4",
+		"vue": "^3.5.45"
 	}
 }
