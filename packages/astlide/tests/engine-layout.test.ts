@@ -109,6 +109,67 @@ describe("engine layout", () => {
 		expect(frac.b).toMatchObject({ y: 0 });
 	});
 
+	// Each checked against Chromium.
+	it("sizes grid rows by their tracks: fixed, auto, fr (css-grid-1 §11.7)", () => {
+		const two = '<div class="g"><div class="a"></div><div class="b"></div></div>';
+		const autoFr = boxes(
+			".g{display:grid;height:400px;grid-template-rows:auto 1fr}.a{height:50px}",
+			two,
+		);
+		expect(autoFr.b).toMatchObject({ y: 50, h: 350 });
+		const fixedFr = boxes(".g{display:grid;height:400px;grid-template-rows:100px 1fr}", two);
+		expect(fixedFr.a).toMatchObject({ h: 100 });
+		expect(fixedFr.b).toMatchObject({ y: 100, h: 300 });
+		const ratio = boxes(".g{display:grid;height:400px;grid-template-rows:1fr 3fr}", two);
+		expect(ratio.a?.h).toBe(100);
+		expect(ratio.b?.h).toBe(300);
+		// No definite height: fr rows as tall as the largest content per fr.
+		const content = boxes(".g{display:grid;grid-template-rows:1fr 2fr}.a,.b{height:30px}", two);
+		expect(content.g?.h).toBe(90);
+	});
+
+	it("places grid items by line numbers, grid-area and rows", () => {
+		const two = '<div class="g"><div class="a"></div><div class="b"></div></div>';
+		const g = ".g{display:grid;grid-template-columns:repeat(3,100px)}.a,.b{height:10px}";
+		expect(boxes(`${g}.a{grid-column:1 / 3}`, two).a).toMatchObject({ x: 0, w: 200 });
+		expect(boxes(`${g}.a{grid-column:2 / -1}`, two).a).toMatchObject({ x: 100, w: 200 });
+		expect(boxes(`${g}.a{grid-column-start:2}`, two).a).toMatchObject({ x: 100, w: 100 });
+		expect(boxes(`${g}.a{grid-area:2 / 2 / 3 / 4}`, two).a).toMatchObject({
+			x: 100,
+			y: 10,
+			w: 200,
+		});
+		// An item with a row goes first; the others flow around it.
+		const placed = boxes(
+			".g{display:grid;grid-template-columns:repeat(2,100px)}.a,.b{height:10px}.b{grid-row:1;grid-column:1}",
+			two,
+		);
+		expect(placed.b).toMatchObject({ x: 0, y: 0 });
+		expect(placed.a).toMatchObject({ x: 100, y: 0 });
+	});
+
+	it("keeps a minmax() minimum when sharing grid space among fr tracks", () => {
+		const b = boxes(
+			".g{display:grid;width:1000px;grid-template-columns:minmax(600px,1fr) 1fr}.a,.b{height:10px}",
+			'<div class="g"><div class="a"></div><div class="b"></div></div>',
+		);
+		expect(b.a?.w).toBe(600);
+		expect(b.b).toMatchObject({ x: 600, w: 400 });
+	});
+
+	it("centers a grid item with place-self, place-content or auto margins", () => {
+		const one = '<div class="g"><div class="a"></div></div>';
+		const g = ".g{display:grid;width:400px;height:400px}.a{width:100px;height:100px}";
+		expect(boxes(`${g}.a{place-self:center}`, one).a).toMatchObject({ x: 150, y: 150 });
+		expect(boxes(`${g}.a{margin:auto}`, one).a).toMatchObject({ x: 150, y: 150 });
+		expect(boxes(`${g}.a{margin-left:auto}`, one).a).toMatchObject({ x: 300, y: 0 });
+		const content = boxes(
+			".g{display:grid;width:400px;height:400px;grid-template-columns:100px;grid-template-rows:100px;place-content:center}.a{height:100px}",
+			one,
+		);
+		expect(content.a).toMatchObject({ x: 150, y: 150 });
+	});
+
 	it("expands shorthands with var() after substituting it", () => {
 		const b = boxes(
 			":root{--p:20px 40px;--m:5px}.s{display:flex;flex-direction:column;width:500px;height:100px;padding:var(--p, 4px);margin:var(--m) 0 0}.in{height:10px}",

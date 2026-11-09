@@ -327,6 +327,30 @@ function expand(prop: string, value: string): Declaration[] {
 			const [a, j = a] = tokens(value);
 			return [d("align-items", a ?? "normal"), d("justify-items", j ?? "normal")];
 		}
+		case "place-self": {
+			const [a, j = a] = tokens(value);
+			return [d("align-self", a ?? "auto"), d("justify-self", j ?? "auto")];
+		}
+		case "place-content": {
+			const [a, j = a] = tokens(value);
+			return [d("align-content", a ?? "normal"), d("justify-content", j ?? "normal")];
+		}
+		case "grid-column":
+		case "grid-row": {
+			const [start = "auto", end = "auto"] = value.split("/").map((v) => v.trim());
+			return [d(`${prop}-start`, start), d(`${prop}-end`, end)];
+		}
+		case "grid-area": {
+			const [rs = "auto", cs = "auto", re = "auto", ce = "auto"] = value
+				.split("/")
+				.map((v) => v.trim());
+			return [
+				d("grid-row-start", rs),
+				d("grid-column-start", cs),
+				d("grid-row-end", re),
+				d("grid-column-end", ce),
+			];
+		}
 		default:
 			return [d(prop, value)];
 	}
