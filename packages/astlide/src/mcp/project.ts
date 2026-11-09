@@ -17,6 +17,7 @@ import { homedir, tmpdir } from "node:os";
 import { delimiter, dirname, extname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deckFolderName } from "../cli/import";
+import { decksDir } from "../deck/files";
 import { isWithin, realPath } from "../utils/real-path";
 
 export interface RunResult {
@@ -77,7 +78,7 @@ export function run(command: string, args: string[], cwd: string): Promise<RunRe
 /** The project root, checked: it must hold `src/content/decks`. */
 export function projectRoot(dir: string): string {
 	const root = resolve(dir);
-	if (!existsSync(join(root, "src", "content", "decks")))
+	if (!existsSync(decksDir(root)))
 		throw new Error(`${root} is not an Astlide project (no src/content/decks)`);
 	return root;
 }
@@ -217,9 +218,8 @@ export function inputFileWithin(
 /** The deck's folder, checked. */
 export function deckDir(root: string, deck: string): string {
 	deckFolderName(deck);
-	const dir = join(root, "src", "content", "decks", deck);
-	if (!existsSync(dir))
-		throw new Error(`no deck "${deck}" in ${join(root, "src", "content", "decks")}`);
+	const dir = join(decksDir(root), deck);
+	if (!existsSync(dir)) throw new Error(`no deck "${deck}" in ${decksDir(root)}`);
 	return dir;
 }
 

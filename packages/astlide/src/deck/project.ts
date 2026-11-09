@@ -7,11 +7,9 @@
 
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { decksDir } from "./files";
 
-/** The decks folder of a project at `root`. */
-export function decksDir(root: string): string {
-	return join(root, "src", "content", "decks");
-}
+export { decksDir } from "./files";
 
 /** The deck names in a project: the folders in its decks folder. */
 export async function listDecks(root: string): Promise<string[]> {

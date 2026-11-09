@@ -1,125 +1,93 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { getTheme, hexColor, parseSolidColor, THEMES } from "../src/pptx/export/theme-map";
+import { DEFAULT_THEME, type ThemeColors, themeColors } from "../src/pptx/export/theme-map";
 
-// ── THEMES constant ──
+/** A theme stylesheet's custom properties, as a computed style holds them. */
+const variablesOf = (css: string) =>
+	new Map(
+		[...css.matchAll(/(--color-[a-z]+)\s*:\s*([^;]+);/g)].map((m) => [
+			m[1] ?? "",
+			(m[2] ?? "").trim(),
+		]),
+	);
 
-describe("THEMES constant", () => {
-	const themeNames = ["default", "dark", "minimal", "corporate", "gradient", "rose", "forest"];
-	const colorFields = ["bg", "fg", "primary", "secondary", "accent", "muted", "codeBg", "codeFg"];
-
-	it("contains all 7 themes", () => {
-		expect(Object.keys(THEMES).sort()).toEqual(themeNames.sort());
-	});
-
-	for (const name of themeNames) {
-		it(`"${name}" has all 8 color fields`, () => {
-			const theme = THEMES[name];
-			for (const field of colorFields) {
-				expect(theme).toHaveProperty(field);
-			}
+describe("theme colours from the theme's CSS variables", () => {
+	// What PowerPoint's theme got for the built-in themes before it read their CSS.
+	const builtIn: Record<string, ThemeColors> = {
+		default: DEFAULT_THEME,
+		dark: {
+			bg: "0F172A",
+			fg: "F8FAFC",
+			primary: "60A5FA",
+			secondary: "94A3B8",
+			accent: "FBBF24",
+			muted: "1E293B",
+		},
+		minimal: {
+			bg: "FAFAFA",
+			fg: "18181B",
+			primary: "18181B",
+			secondary: "71717A",
+			accent: "18181B",
+			muted: "F4F4F5",
+		},
+		corporate: {
+			bg: "FFFFFF",
+			fg: "1E3A5F",
+			primary: "0066CC",
+			secondary: "5A7A9A",
+			accent: "FF6B35",
+			muted: "E8F0F8",
+		},
+		gradient: {
+			bg: "0A0A0F",
+			fg: "F0F0FF",
+			primary: "818CF8",
+			secondary: "94A3B8",
+			accent: "F472B6",
+			muted: "1E1E2E",
+		},
+		rose: {
+			bg: "FFF1F2",
+			fg: "881337",
+			primary: "E11D48",
+			secondary: "9F1239",
+			accent: "FB7185",
+			muted: "FFE4E6",
+		},
+		forest: {
+			bg: "F0FDF4",
+			fg: "14532D",
+			primary: "16A34A",
+			secondary: "166534",
+			accent: "4ADE80",
+			muted: "DCFCE7",
+		},
+	};
+	for (const [name, expected] of Object.entries(builtIn))
+		it(`reads the built-in "${name}" theme as before`, () => {
+			const css = readFileSync(
+				join(__dirname, "..", "src", "styles", "themes", `${name}.css`),
+				"utf-8",
+			);
+			expect(themeColors(variablesOf(css))).toEqual(expected);
 		});
-	}
 
-	it("all color values are 6-character uppercase hex without #", () => {
-		for (const [name, theme] of Object.entries(THEMES)) {
-			for (const field of colorFields) {
-				const val = theme[field as keyof typeof theme];
-				expect(val, `${name}.${field} = "${val}"`).toMatch(/^[0-9A-F]{6}$/);
-			}
-		}
-	});
-});
-
-// ── getTheme ──
-
-describe("getTheme", () => {
-	const themeNames = ["default", "dark", "minimal", "corporate", "gradient", "rose", "forest"];
-
-	for (const name of themeNames) {
-		it(`returns correct theme for "${name}"`, () => {
-			expect(getTheme(name)).toBe(THEMES[name]);
-		});
-	}
-
-	it("returns default theme when name is undefined", () => {
-		expect(getTheme(undefined)).toBe(THEMES.default);
+	it("reads a template or plugin theme's own colours, in any colour syntax (#312)", () => {
+		const colors = themeColors(
+			new Map([
+				["--color-background", "#0d1117"],
+				["--color-primary", "oklch(0.623 0.214 259.815)"],
+				["--color-accent", "rgb(255 0 0)"],
+			]),
+		);
+		expect(colors).toMatchObject({ bg: "0D1117", primary: "2B7FFF", accent: "FF0000" });
+		// Variables it doesn't set: the default theme's.
+		expect(colors.fg).toBe(DEFAULT_THEME.fg);
 	});
 
-	it("returns default theme when name is empty string", () => {
-		expect(getTheme("")).toBe(THEMES.default);
-	});
-
-	it("returns default theme for unknown name", () => {
-		expect(getTheme("nonexistent")).toBe(THEMES.default);
-	});
-
-	it("is case-insensitive", () => {
-		expect(getTheme("Dark")).toBe(THEMES.dark);
-		expect(getTheme("FOREST")).toBe(THEMES.forest);
-		expect(getTheme("Minimal")).toBe(THEMES.minimal);
-	});
-});
-
-// ── hexColor ──
-
-describe("hexColor", () => {
-	it('normalizes "#1e293b" to "1E293B"', () => {
-		expect(hexColor("#1e293b")).toBe("1E293B");
-	});
-
-	it('normalizes "1e293b" (no #) to "1E293B"', () => {
-		expect(hexColor("1e293b")).toBe("1E293B");
-	});
-
-	it('returns "ABCDEF" unchanged for uppercase input', () => {
-		expect(hexColor("ABCDEF")).toBe("ABCDEF");
-	});
-
-	it("returns null for 3-char hex", () => {
-		expect(hexColor("#FFF")).toBeNull();
-	});
-
-	it("returns null for invalid string", () => {
-		expect(hexColor("not-a-color")).toBeNull();
-	});
-
-	it("returns null for empty string", () => {
-		expect(hexColor("")).toBeNull();
-	});
-
-	it("trims whitespace", () => {
-		expect(hexColor("  #1e293b  ")).toBe("1E293B");
-	});
-});
-
-// ── parseSolidColor ──
-
-describe("parseSolidColor", () => {
-	it('parses "#1e293b" to "1E293B"', () => {
-		expect(parseSolidColor("#1e293b")).toBe("1E293B");
-	});
-
-	it('parses "rgb(255,0,0)" to "FF0000"', () => {
-		expect(parseSolidColor("rgb(255,0,0)")).toBe("FF0000");
-	});
-
-	it('parses "rgb(0, 128, 255)" (with spaces) to "0080FF"', () => {
-		expect(parseSolidColor("rgb(0, 128, 255)")).toBe("0080FF");
-	});
-
-	it("returns null for linear-gradient", () => {
-		expect(parseSolidColor("linear-gradient(to right, #1e293b, #0f172a)")).toBeNull();
-	});
-
-	it("returns null for url()", () => {
-		expect(parseSolidColor("url(/images/bg.jpg)")).toBeNull();
-	});
-
-	it("returns null for empty string", () => {
-		expect(parseSolidColor("")).toBeNull();
-	});
-
-	it("returns null for named CSS color", () => {
-		expect(parseSolidColor("red")).toBeNull();
+	it("falls back to the default theme without a style", () => {
+		expect(themeColors(undefined)).toEqual(DEFAULT_THEME);
 	});
 });

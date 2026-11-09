@@ -13,7 +13,7 @@ import {
 	satteriHeadingIdsPlugin,
 	satteriHighlightPlugin,
 } from "@astrojs/markdown-satteri";
-import { evaluate, mdxToJs } from "satteri";
+import { defineMdastPlugin, evaluate, mdxToJs } from "satteri";
 import { astlideCodeHighlight } from "../utils/code-highlight";
 import { stripTrailingComment } from "../utils/comment-notes";
 import { astlideMermaid } from "../utils/mermaid";
@@ -54,56 +54,22 @@ export function withoutNotesComment(source: string): string {
 	return stripTrailingComment(source) ?? source;
 }
 
-const FENCE = /^ {0,3}(`{3,}|~{3,})/;
-const NOTES_OPEN = /^\s*<(SpeakerNotes|Notes)(?=[\s>/])/;
-
-/**
- * The source without its `<SpeakerNotes>` / `<Notes>` blocks: each from a line
- * starting with the opening tag to the line holding its closing tag (or a
- * self-closing tag). Lines inside code fences are kept, so a slide can show
- * the syntax.
- */
-export function withoutSpeakerNotes(source: string): string {
-	const out: string[] = [];
-	let fence: string | undefined;
-	let closing: string | undefined;
-	for (const line of source.split("\n")) {
-		if (closing) {
-			if (line.includes(closing)) closing = undefined;
-			continue;
-		}
-		const marker = FENCE.exec(line)?.[1];
-		if (fence) {
-			if (marker?.[0] === fence[0] && marker.length >= fence.length) fence = undefined;
-			out.push(line);
-			continue;
-		}
-		if (marker) {
-			fence = marker;
-			out.push(line);
-			continue;
-		}
-		const open = NOTES_OPEN.exec(line);
-		if (open) {
-			const end = `</${open[1]}>`;
-			const rest = line.slice(open.index + open[0].length);
-			if (!/^[^>]*\/>/.test(rest) && !rest.includes(end)) closing = end;
-			continue;
-		}
-		out.push(line);
-	}
-	return out.join("\n");
-}
-
-/** The source as compiled: without the trailing notes comment, and without notes blocks when asked. */
-function slideSource(source: string, options: SlideMdxOptions): string {
-	const content = withoutNotesComment(source);
-	return options.notes === false ? withoutSpeakerNotes(content) : content;
-}
+/** `<SpeakerNotes>` / `<Notes>` elements, wherever they are (not in code). */
+const NOTES = new Set(["SpeakerNotes", "Notes"]);
+const removeNotes = (node: { name?: string | null }, ctx: { removeNode(node: never): void }) => {
+	if (node.name && NOTES.has(node.name)) ctx.removeNode(node as never);
+};
+/** Leaves the notes elements out of the parsed slide, so the compiled code doesn't carry their text. */
+const withoutSpeakerNotes = defineMdastPlugin({
+	name: "astlide-without-speaker-notes",
+	mdxJsxFlowElement: removeNotes,
+	mdxJsxTextElement: removeNotes,
+});
 
 async function compileOptions(options: SlideMdxOptions) {
 	const highlight = await highlighter(options.shikiTheme ?? "github-dark");
 	return {
+		mdastPlugins: options.notes === false ? [withoutSpeakerNotes] : [],
 		hastPlugins: [
 			...(highlight ? [satteriHighlightPlugin(highlight, undefined)] : []),
 			satteriHeadingIdsPlugin(),
@@ -121,7 +87,7 @@ export async function compileSlideMdx(
 	source: string,
 	options: SlideMdxOptions = {},
 ): Promise<string> {
-	const result = await mdxToJs(slideSource(source, options), await compileOptions(options));
+	const result = await mdxToJs(withoutNotesComment(source), await compileOptions(options));
 	return result.code;
 }
 
@@ -142,7 +108,7 @@ export async function evaluateSlideMdx(
 	options: SlideMdxOptions = {},
 ): Promise<{ default: unknown }> {
 	const { jsxImportSource: _, ...rest } = await compileOptions(options);
-	return (await evaluate(slideSource(source, options), { ...rest, ...runtime } as never)) as {
+	return (await evaluate(withoutNotesComment(source), { ...rest, ...runtime } as never)) as {
 		default: unknown;
 	};
 }

@@ -13,7 +13,7 @@ import { join, resolve } from "node:path";
 import { pptxToTemplate, templateCss } from "@astlide/core/pptx";
 import type { TemplateStore } from "@astlide/core/templates";
 import { pptxAssetDir, referencedAssets, storePptxAsset } from "@astlide/core/utils/pptx-assets";
-import { slideScriptsKept, stripSlideScripts } from "@astlide/core/utils/slide-scripts";
+import { stripSlideScripts } from "@astlide/core/utils/slide-scripts";
 import type { Plugin, ViteDevServer } from "vite";
 
 /** What a slide needs at render time: artwork per layout, aliases, the master's art. */
@@ -38,6 +38,8 @@ export function loadTemplate(
 	source: string,
 	root: string,
 	base: string,
+	/** The integration's `slideScripts` option: keep scripts in the artwork. */
+	keepScripts = false,
 ): LoadedTemplate {
 	const file = resolve(root, source);
 	const assets = pptxAssetDir(root);
@@ -49,7 +51,7 @@ export function loadTemplate(
 	const cssPath = join(dir, `${theme.replace(/[^\w-]/g, "_")}.css`);
 	writeFileSync(cssPath, `${templateCss(template, theme)}\n`);
 	// A template can come from someone else, like a slide: no scripts in its artwork.
-	const art = (html: string) => (slideScriptsKept() ? html : stripSlideScripts(html));
+	const art = (html: string) => (keepScripts ? html : stripSlideScripts(html));
 	return {
 		theme,
 		source: file,

@@ -28,19 +28,6 @@ type Node = DefaultTreeAdapterMap["childNode"];
 type Element = DefaultTreeAdapterMap["element"];
 type ParentNode = DefaultTreeAdapterMap["parentNode"];
 
-/** Set by the integration from its `slideScripts` option; read by the deck loader. */
-const FLAG = Symbol.for("astlide:slideScripts");
-
-/** Record whether slide scripts are kept (the integration calls this). */
-export function setSlideScripts(keep: boolean): void {
-	(globalThis as Record<symbol, unknown>)[FLAG] = keep;
-}
-
-/** Whether slide scripts are kept (`slideScripts: true`). */
-export function slideScriptsKept(): boolean {
-	return (globalThis as Record<symbol, unknown>)[FLAG] === true;
-}
-
 /**
  * Changes whenever what {@link stripSlideScripts} removes changes, so slides
  * cached by an older version (or with `slideScripts` set differently) are

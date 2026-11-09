@@ -19,26 +19,15 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { exportBuildDir } from "@astlide/core/utils/export-build";
+import { decksDir } from "../deck/files";
 import { listDecks } from "../deck/project";
-
-type Format = "pdf" | "png" | "pptx";
-
-interface Options {
-	decks: string[];
-	all: boolean;
-	formats: Set<Format>;
-	output?: string;
-	outDir: string;
-	baseUrl?: string;
-	build: boolean;
-	width: number;
-	height: number;
-	cwd: string;
-	/** --cwd was given: don't infer the project from deck paths. */
-	cwdSet: boolean;
-	/** No Astro project: the decks come from the site at --base-url. */
-	fromSite?: boolean;
-}
+import {
+	CliUsageError,
+	type ExportOptions,
+	type Format,
+	parseExportArgs,
+	parseImportArgs,
+} from "./args";
 
 const HELP = `
 astlide — slides that live in your Astro site
@@ -99,75 +88,8 @@ function fail(message: string): never {
 	process.exit(1);
 }
 
-function positiveInt(value: string | undefined, flag: string): number {
-	const n = Number.parseInt(value ?? "", 10);
-	if (Number.isNaN(n) || n <= 0) fail(`${flag} must be a positive integer`);
-	return n;
-}
-
-function parseExportArgs(args: string[]): Options {
-	const options: Options = {
-		decks: [],
-		all: false,
-		formats: new Set(),
-		outDir: "exports",
-		build: true,
-		width: 1920,
-		height: 1080,
-		cwd: process.cwd(),
-		cwdSet: false,
-	};
-	for (let i = 0; i < args.length; i++) {
-		const arg = args[i] as string;
-		// After `--`, everything is a deck name (even one starting with "-").
-		if (arg === "--") {
-			options.decks.push(...args.slice(i + 1));
-			break;
-		}
-		switch (arg) {
-			case "--pdf":
-			case "--png":
-			case "--pptx":
-				options.formats.add(arg.slice(2) as Format);
-				break;
-			case "-a":
-			case "--all":
-				options.all = true;
-				break;
-			case "-o":
-			case "--output":
-				options.output = args[++i] ?? fail("--output needs a path");
-				break;
-			case "--out-dir":
-				options.outDir = args[++i] ?? fail("--out-dir needs a directory");
-				break;
-			case "--base-url":
-				options.baseUrl = (args[++i] ?? fail("--base-url needs a URL")).replace(/\/+$/, "");
-				break;
-			case "--no-build":
-				options.build = false;
-				break;
-			case "--width":
-				options.width = positiveInt(args[++i], "--width");
-				break;
-			case "--height":
-				options.height = positiveInt(args[++i], "--height");
-				break;
-			case "--cwd":
-				options.cwd = resolve(args[++i] ?? fail("--cwd needs a directory"));
-				options.cwdSet = true;
-				break;
-			default:
-				if (arg.startsWith("-")) fail(`unknown option ${arg}`);
-				options.decks.push(arg);
-		}
-	}
-	if (options.formats.size === 0) options.formats.add("pdf");
-	return options;
-}
-
 /** Where one deck's export in one format goes. */
-function outputFor(options: Options, deck: string, format: Format): string {
+function outputFor(options: ExportOptions, deck: string, format: Format): string {
 	if (options.output) return resolve(options.cwd, options.output);
 	const dir = resolve(options.cwd, options.outDir);
 	if (format === "png") return join(dir, `${deck}-slides`);
@@ -178,7 +100,7 @@ function outputFor(options: Options, deck: string, format: Format): string {
 function findProjectRoot(from: string): string | null {
 	let dir = resolve(from);
 	for (;;) {
-		if (existsSync(join(dir, "src", "content", "decks"))) return dir;
+		if (existsSync(decksDir(dir))) return dir;
 		const parent = dirname(dir);
 		if (parent === dir) return null;
 		dir = parent;
@@ -190,7 +112,7 @@ function nearbyProjects(dir: string): string[] {
 	try {
 		return readdirSync(dir, { withFileTypes: true })
 			.filter((e) => e.isDirectory() && !e.name.startsWith(".") && e.name !== "node_modules")
-			.filter((e) => existsSync(join(dir, e.name, "src", "content", "decks")))
+			.filter((e) => existsSync(decksDir(join(dir, e.name))))
 			.map((e) => e.name);
 	} catch {
 		return [];
@@ -202,7 +124,7 @@ function nearbyProjects(dir: string): string[] {
  * segment and, unless --cwd was given, locates the project. Without paths,
  * the project is the nearest one at or above the working directory.
  */
-function resolveProject(options: Options): void {
+function resolveProject(options: ExportOptions): void {
 	options.decks = options.decks.map((arg) => {
 		if (!/[\\/]/.test(arg)) return arg;
 		const target = resolve(options.cwd, arg);
@@ -212,7 +134,7 @@ function resolveProject(options: Options): void {
 	});
 	// The same deck named twice (e.g. by name and by path) is exported once.
 	options.decks = [...new Set(options.decks)];
-	if (existsSync(join(options.cwd, "src", "content", "decks"))) return;
+	if (existsSync(decksDir(options.cwd))) return;
 	const root = options.cwdSet ? null : findProjectRoot(options.cwd);
 	if (root) {
 		options.cwd = root;
@@ -239,13 +161,13 @@ function resolveProject(options: Options): void {
  * --base-url), or, outside one, the running site at --base-url (any
  * framework; every format from the site).
  */
-async function runExport(options: Options): Promise<void> {
+async function runExport(options: ExportOptions): Promise<void> {
 	resolveProject(options);
 	if (options.fromSite) return exportFromSite(options, options.baseUrl as string);
 	return exportFromProject(options);
 }
 
-async function exportFromProject(options: Options): Promise<void> {
+async function exportFromProject(options: ExportOptions): Promise<void> {
 	if (options.cwd !== process.cwd())
 		console.log(`Project: ${relative(process.cwd(), options.cwd) || "."}`);
 	const known = await listDecks(options.cwd).catch(() => [] as string[]);
@@ -292,7 +214,7 @@ async function exportFromProject(options: Options): Promise<void> {
 	}
 }
 
-async function exportFromSite(options: Options, baseUrl: string): Promise<void> {
+async function exportFromSite(options: ExportOptions, baseUrl: string): Promise<void> {
 	const decks = options.decks;
 	if (decks.length === 0) fail("name a deck (--all needs an Astro project)");
 	checkOutput(options, decks);
@@ -329,14 +251,18 @@ async function exportFromSite(options: Options, baseUrl: string): Promise<void> 
 	await renderFromSite(options, decks, baseUrl);
 }
 
-function checkOutput(options: Options, decks: string[]): void {
+function checkOutput(options: ExportOptions, decks: string[]): void {
 	if (options.output && (decks.length > 1 || options.formats.size > 1)) {
 		fail("--output works with one deck and one format; use --out-dir otherwise");
 	}
 }
 
 /** PDF / PNG of `decks`, rendered by a browser from the site at `baseUrl`. */
-async function renderFromSite(options: Options, decks: string[], baseUrl: string): Promise<void> {
+async function renderFromSite(
+	options: ExportOptions,
+	decks: string[],
+	baseUrl: string,
+): Promise<void> {
 	const formats = (["pdf", "png"] as const).filter((f) => options.formats.has(f));
 	if (formats.length === 0) return;
 	// Imported only now so PPTX-only exports work without Playwright installed.
@@ -355,33 +281,14 @@ async function renderFromSite(options: Options, decks: string[], baseUrl: string
 }
 
 async function runImport(args: string[]): Promise<void> {
-	let source: string | undefined;
-	let deck: string | undefined;
-	let cwd = process.cwd();
-	let force = false;
-	for (let i = 0; i < args.length; i++) {
-		const arg = args[i] as string;
-		if (arg === "--deck") deck = args[++i] ?? fail("--deck needs a name");
-		else if (arg === "--cwd") cwd = resolve(args[++i] ?? fail("--cwd needs a directory"));
-		else if (arg === "--force") force = true;
-		else if (arg.startsWith("-")) fail(`unknown option ${arg}`);
-		else if (source) fail("import takes one file or URL");
-		else source = arg;
-	}
-	if (!source) fail("name a .pptx file or a Google Slides URL");
+	const { source, deck, cwd, force } = parseImportArgs(args, process.cwd());
 	const root = findProjectRoot(cwd);
 	if (!root)
 		fail(
 			`no Astlide project here (no src/content/decks in ${cwd} or above) — run it in your project, or pass --cwd`,
 		);
 	const { importDeck } = await import("./import");
-	const isUrl = /^https?:/.test(source);
-	const result = await importDeck({
-		source: isUrl ? source : resolve(process.cwd(), source),
-		root,
-		deck,
-		force,
-	});
+	const result = await importDeck({ source, root, deck, force });
 	console.log(`✓ Imported ${result.slides} slides → ${result.dir}`);
 }
 
@@ -440,13 +347,14 @@ async function main(): Promise<void> {
 		await runImport(rest);
 		return;
 	}
-	await runExport(parseExportArgs(rest));
+	await runExport(parseExportArgs(rest, process.cwd()));
 	console.log("\n✓ Export complete");
 }
 
 main()
 	.then(() => process.exit(0))
 	.catch((err) => {
+		if (err instanceof CliUsageError) fail(err.message);
 		// The message only: Bun would print the Error with a source excerpt.
 		const what = process.argv[2] === "template" ? "Error" : "Export failed";
 		console.error(`${what}: ${err instanceof Error ? err.message : String(err)}`);

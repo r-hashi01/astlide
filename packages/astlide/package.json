@@ -21,6 +21,7 @@
 		"./runtime/diagrams": "./src/runtime/diagrams.ts",
 		"./runtime/media": "./src/runtime/media.ts",
 		"./runtime/pdf-export": "./src/runtime/pdf-export.ts",
+		"./runtime/pdfjs-stub": "./src/runtime/pdfjs-stub.ts",
 		"./templates": "./src/templates/index.ts",
 		"./mcp": "./src/mcp/index.ts",
 		"./embed": "./src/embed/index.ts",
@@ -43,7 +44,8 @@
 		"./utils/safe-url": "./src/utils/safe-url.ts",
 		"./utils/sanitize": "./src/utils/sanitize.ts",
 		"./utils/slide-scripts": "./src/utils/slide-scripts.ts",
-		"./utils/slide-title": "./src/utils/slide-title.ts"
+		"./utils/slide-title": "./src/utils/slide-title.ts",
+		"./utils/zip": "./src/pptx/ooxml/zip-writer.ts"
 	},
 	"bin": {
 		"astlide": "./src/cli/astlide.ts"
@@ -123,12 +125,11 @@
 		"satteri": "^0.10.5",
 		"svgdom": "^0.1.29",
 		"unified": "^11.0.0",
-		"yoga-layout": "^3.2.1",
 		"zod": "^4.6.7"
 	},
 	"optionalDependencies": {
 		"playwright": "^1.64.1",
-		"@astlide/crispdf": "^0.0.1"
+		"@astlide/crispdf": "^0.0.3"
 	},
 	"keywords": [
 		"tooling",

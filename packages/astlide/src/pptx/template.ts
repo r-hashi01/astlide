@@ -8,29 +8,26 @@
  */
 
 import { cssColor } from "./color";
+import type { PptxImportOptions } from "./import";
+import { resolveFont, safeFontName } from "./import/fonts";
+import { r2 } from "./import/html";
+import { type Placeholder, placeholderOf, sources, titleTypes } from "./import/placeholders";
 import {
 	artwork,
 	canvasOpen,
 	contextFor,
-	levelStyle,
 	openPresentation,
-	type Placeholder,
-	type PptxImportOptions,
 	type Presentation,
-	placeholderOf,
-	r2,
-	resolveFont,
 	type SlideContext,
 	STYLE,
-	safeFontName,
 	schemeEl,
-	sources,
 	spTree,
-	titleTypes,
 	xfrmOf,
-} from "./import";
+} from "./import/presentation";
+import { levelStyle } from "./import/text";
+import { EMU_PER_POINT } from "./ooxml/units";
+import { type Element, kid, kids, path } from "./ooxml/xml";
 import { slugify } from "./slug";
-import { type Element, kid, kids, path } from "./xml";
 
 /** A placeholder's box on the canvas (px) and the CSS for its text. */
 export interface TemplateRegion {
@@ -233,7 +230,7 @@ function regionOf(
 	const body: Record<string, string> = {};
 	for (const c of chain) Object.assign(body, path(c, "p:txBody", "a:bodyPr")?.attribs ?? {});
 	const ins = (k: string, d: number) => r2(Number(body[k] ?? d) * s);
-	const ptPx = 12700 * s;
+	const ptPx = EMU_PER_POINT * s;
 	const isTitle = titleTypes.has(ph.type);
 	const face =
 		resolveFont(props.font, ctx.fonts) ?? (isTitle ? ctx.fonts.major : ctx.fonts.minor) ?? "";

@@ -11,6 +11,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, extname, join, relative, resolve, sep } from "node:path";
+import { DECKS_DIR, decksDir } from "../deck/files";
 import { pptxToSlides } from "../pptx/index";
 import { slugify } from "../pptx/slug";
 import { assetExtension } from "../utils/pptx-assets";
@@ -109,7 +110,7 @@ export async function importDeck(options: ImportOptions): Promise<{ dir: string;
 	const deckName = deckFolderName(
 		options.deck ?? slugify(basename(name, extname(name)), "imported"),
 	);
-	const decks = resolve(options.root, "src", "content", "decks");
+	const decks = decksDir(resolve(options.root));
 	const deckDir = join(decks, deckName);
 	const assetDir = join(resolve(options.root, "public", "pptx"), deckName);
 	// Belt and braces: both stay one level below their folder.
@@ -122,11 +123,8 @@ export async function importDeck(options: ImportOptions): Promise<{ dir: string;
 	// …and the folders themselves are where they seem: a symlinked `src/content/decks` or
 	// `public/pptx` (or a parent) would make --force delete outside the project.
 	const realRoot = realPath(options.root);
-	for (const parts of [
-		["src", "content", "decks"],
-		["public", "pptx"],
-	]) {
-		const where = join(...parts);
+	for (const folder of [DECKS_DIR, "public/pptx"]) {
+		const where = join(folder);
 		if (realPath(join(options.root, where, deckName)) !== join(realRoot, where, deckName))
 			throw new Error(
 				`${join(where, deckName)} or a folder above it is a symlink — refusing to write there`,

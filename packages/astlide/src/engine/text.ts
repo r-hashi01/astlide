@@ -6,6 +6,7 @@
 
 import { readFileSync } from "node:fs";
 import * as fontkit from "fontkit";
+import type { Keyword } from "./properties";
 
 export interface FontFace {
 	family: string;
@@ -14,6 +15,23 @@ export interface FontFace {
 	font: fontkit.Font;
 	/** The font file (absent on fallback fonts, which are system fonts). */
 	file?: string;
+	/**
+	 * The other families of the `font-family` list it was chosen from, in
+	 * order: characters this face lacks are looked up in them first (CSS
+	 * Fonts §5.4), then in the registered fallbacks.
+	 */
+	chain?: FontFace[];
+	/**
+	 * The `unicode-range` the page serves this family with: characters
+	 * outside it come from the next font even when the file has them.
+	 */
+	ranges?: [number, number][];
+	/**
+	 * The list ends in `monospace`: a character none of its fonts serve is
+	 * drawn by the system's monospace font, which the faces' own files
+	 * stand in for (a monospace font has the same advance for it).
+	 */
+	monospace?: boolean;
 }
 
 /** Common fonts standing for CSS generic families, best first. */
@@ -50,6 +68,14 @@ const GENERIC_FAMILIES: Record<string, string[]> = {
 	"ui-monospace": MONO,
 };
 
+/** Whether a face draws a character: the font has it and the page serves it (`unicode-range`). */
+function covers(face: FontFace, cp: number): boolean {
+	return (
+		face.font.hasGlyphForCodePoint(cp) &&
+		(!face.ranges || face.ranges.some(([from, to]) => cp >= from && cp <= to))
+	);
+}
+
 export class FontRegistry {
 	private faces: FontFace[] = [];
 	private fallbacks: FontFace[] = [];
@@ -76,8 +102,14 @@ export class FontRegistry {
 		for (const ch of text) {
 			const cp = ch.codePointAt(0) ?? 0;
 			let f = face;
-			if (cp > 0x20 && !face.font.hasGlyphForCodePoint(cp)) {
-				f = this.fallbacks.find((fb) => fb.font.hasGlyphForCodePoint(cp)) ?? face;
+			if (cp > 0x20 && !covers(face, cp)) {
+				f =
+					face.chain?.find((c) => covers(c, cp)) ??
+					(face.monospace
+						? [face, ...(face.chain ?? [])].find((c) => c.font.hasGlyphForCodePoint(cp))
+						: undefined) ??
+					this.fallbacks.find((fb) => covers(fb, cp)) ??
+					face;
 			}
 			const last = out[out.length - 1];
 			if (last && last.face === f) last.text += ch;
@@ -87,9 +119,15 @@ export class FontRegistry {
 	}
 
 	/** Register a TTF / OTF file for a family name. */
-	add(family: string, weight: number, italic: boolean, path: string): void {
+	add(
+		family: string,
+		weight: number,
+		italic: boolean,
+		path: string,
+		ranges?: [number, number][],
+	): void {
 		const font = fontkit.create(readFileSync(path)) as fontkit.Font;
-		this.faces.push({ family: family.toLowerCase(), weight, italic, font, file: path });
+		this.faces.push({ family: family.toLowerCase(), weight, italic, font, file: path, ranges });
 	}
 
 	/** Files of the registered faces (fallbacks excluded). */
@@ -130,33 +168,62 @@ export class FontRegistry {
 		};
 		// A named family we have is the font; a generic one stands in for the first named.
 		let requested: string | undefined;
+		const found: FontFace[] = [];
+		/** The first face found is a family the list names (not a generic's stand-in). */
+		let named = false;
 		for (const name of names) {
 			const fam = name.toLowerCase();
 			const generic = GENERIC_FAMILIES[fam];
-			if (!generic) {
-				const face = nearest(fam);
-				if (face) return { face };
-				requested ??= name;
-				continue;
-			}
-			const face = generic.map(nearest).find(Boolean);
-			if (face) return { face, requested };
+			const face = generic ? generic.map(nearest).find(Boolean) : nearest(fam);
+			if (face) {
+				if (found.length === 0) named = !generic;
+				// Generic families stand for system fonts we don't have: only the
+				// families the list names back up the first one.
+				if (!found.includes(face) && (found.length === 0 || !generic)) found.push(face);
+			} else if (!generic && found.length === 0) requested ??= name;
 		}
-		const face = SANS.map(nearest).find(Boolean) ?? this.faces[0];
-		if (!face) throw new Error("no fonts registered");
-		return { face, requested };
+		if (named) requested = undefined;
+		const primary = found[0] ?? SANS.map(nearest).find(Boolean) ?? this.faces[0];
+		if (!primary) throw new Error("no fonts registered");
+		// The rest of the list backs up characters the first face lacks.
+		const chain = found.slice(1);
+		const monospace = names.some((n) => n.toLowerCase() === "monospace");
+		if (chain.length === 0 && !monospace)
+			return { face: primary, ...(requested ? { requested } : {}) };
+		const key = `${primary.family}|${primary.weight}|${primary.italic}|${chain.map((c) => `${c.family}:${c.weight}`).join(">")}|${monospace}`;
+		let face = this.chained.get(key);
+		if (!face) {
+			face = { ...primary, chain, ...(monospace ? { monospace } : {}) };
+			this.chained.set(key, face);
+		}
+		return { face, ...(requested ? { requested } : {}) };
 	}
 
-	/** Advance width of `text` in px (kerning applied), plus letter spacing per character. */
-	width(face: FontFace, size: number, text: string, letterSpacing = 0): number {
-		const key = `${face.family}|${face.weight}|${face.italic}|${size}|${letterSpacing}|${text}`;
+	/** Faces with a fallback chain, by list (so a list keeps one face object). */
+	private readonly chained = new Map<string, FontFace>();
+
+	/**
+	 * Advance width of `text` in px (kerning applied, and OpenType `features`
+	 * such as tabular numbers), plus letter spacing per character.
+	 */
+	width(
+		face: FontFace,
+		size: number,
+		text: string,
+		letterSpacing = 0,
+		features?: readonly string[],
+	): number {
+		const chain = `${face.chain?.map((c) => `${c.family}:${c.weight}`).join(">") ?? ""}${face.monospace ? "|mono" : ""}`;
+		const key = `${face.family}|${face.weight}|${face.italic}|${chain}|${size}|${letterSpacing}|${features?.join(",") ?? ""}|${text}`;
 		const hit = this.widthCache.get(key);
 		if (hit !== undefined) return hit;
 		let w = letterSpacing * [...text].length;
 		for (const seg of this.segments(face, text)) {
 			let units: number;
 			try {
-				const run = seg.face.font.layout(seg.text);
+				const run = features?.length
+					? seg.face.font.layout(seg.text, [...features])
+					: seg.face.font.layout(seg.text);
 				units = run.positions.reduce((sum, p) => sum + p.xAdvance, 0);
 			} catch {
 				// fontkit can fail decoding some glyph outlines; advances alone come
@@ -219,294 +286,15 @@ export interface InlineStyle {
 	/** Used line height in px. */
 	lineHeight: number;
 	letterSpacing: number;
-	whiteSpace: string;
+	whiteSpace: Keyword<"white-space">;
 	color: string;
 	/** Effective opacity (element and ancestors). */
 	alpha: number;
 	/** Words too long for a line may break anywhere (overflow-wrap: break-word / anywhere, word-break: break-all). */
 	breakWord?: boolean;
+	/** OpenType features to apply (from `font-variant-numeric`, `font-feature-settings`). */
+	features?: string[];
 	/** Text decorations in effect (the element's or an ancestor's). */
 	underline?: boolean;
 	strike?: boolean;
-}
-
-/** A piece of inline content: text from one text node, or spacing from an inline box edge. */
-export type InlineItem =
-	| { kind: "text"; text: string; style: InlineStyle; nodeIndex: number }
-	| { kind: "space"; width: number }
-	/** Start / end of an inline element's box (background, border, padding). */
-	| { kind: "open" | "close"; id: number };
-
-/** The part of an inline element's box on one line, relative to the block's content box. */
-export interface PlacedInlineBox {
-	id: number;
-	x: number;
-	w: number;
-	/** Baseline of the line, from the top of the content box. */
-	baseline: number;
-}
-
-export interface PlacedFragment {
-	nodeIndex: number;
-	text: string;
-	x: number;
-	/** Top of the glyph content area (ascent + descent), relative to the block's content box. */
-	y: number;
-	w: number;
-	h: number;
-	/** Index of the line box in the block. */
-	line: number;
-	/** Top and height of that line box (relative to the block's content box). */
-	lineTop: number;
-	lineHeight: number;
-	style: InlineStyle;
-}
-
-export interface LineBreakResult {
-	width: number;
-	height: number;
-	fragments: PlacedFragment[];
-	inlineBoxes: PlacedInlineBox[];
-}
-
-interface Word {
-	text: string;
-	style: InlineStyle | null;
-	nodeIndex: number;
-	width: number;
-	/** Whitespace after which a line may break (and which hangs at line end). */
-	space: boolean;
-	/** Preserved white space (pre*): kept at line starts. */
-	pre?: boolean;
-	/** A break opportunity right before this word (e.g. after a hyphen). */
-	breakBefore?: boolean;
-	forcedBreak?: boolean;
-	/** Zero-width marker for an inline box edge. */
-	edge?: { kind: "open" | "close"; id: number };
-}
-
-/**
- * Lay out inline items into lines of at most `maxWidth` px. `strut` is the
- * block container's own inline style (it sets the minimum line height).
- */
-export function layoutLines(
-	items: InlineItem[],
-	maxWidth: number,
-	strut: InlineStyle,
-	textAlign: string,
-	fonts: FontRegistry,
-): LineBreakResult {
-	// 1. Collapse white space (white-space: normal) and split into words.
-	const words: Word[] = [];
-	let prevSpace = true; // leading white space at the start of the block collapses away
-	for (const item of items) {
-		if (item.kind === "space") {
-			words.push({ text: "", style: null, nodeIndex: -1, width: item.width, space: false });
-			continue;
-		}
-		if (item.kind !== "text") {
-			words.push({
-				text: "",
-				style: null,
-				nodeIndex: -1,
-				width: 0,
-				space: false,
-				edge: { kind: item.kind, id: item.id },
-			});
-			continue;
-		}
-		const pre = /^(pre|pre-wrap|break-spaces)$/.test(item.style.whiteSpace);
-		const preLine = item.style.whiteSpace === "pre-line";
-		const text = pre ? item.text : item.text.replace(preLine ? /[ \t]+/g : /\s+/g, " ");
-		const parts = text.split(pre || preLine ? /(\n|[ \t]+)/ : /( )/);
-		for (const part of parts) {
-			if (part === "") continue;
-			if (part === "\n") {
-				words.push({
-					text: "",
-					style: item.style,
-					nodeIndex: item.nodeIndex,
-					width: 0,
-					space: false,
-					forcedBreak: true,
-				});
-				prevSpace = true;
-				continue;
-			}
-			const isSpace = /^[ \t]+$/.test(part);
-			if (isSpace && !pre && prevSpace) continue;
-			// UAX #14: a line may break after a hyphen that follows a letter, before a letter.
-			const wraps = !/^(pre|nowrap)$/.test(item.style.whiteSpace);
-			const pieces = isSpace || !wraps ? [part] : part.split(/(?<=[^\s-]-)(?=[A-Za-z])/);
-			pieces.forEach((piece, k) => {
-				const w = fonts.width(item.style.face, item.style.size, piece, item.style.letterSpacing);
-				words.push({
-					text: piece,
-					style: item.style,
-					nodeIndex: item.nodeIndex,
-					width: w,
-					space: isSpace,
-					pre,
-					breakBefore: k > 0,
-				});
-			});
-			prevSpace = isSpace;
-		}
-	}
-
-	// 2. Greedy line breaking at spaces.
-	type Line = { words: Word[]; width: number };
-	const lines: Line[] = [];
-	let line: Line = { words: [], width: 0 };
-	const contentWidth = (l: Line) => {
-		let w = l.width;
-		for (let i = l.words.length - 1; i >= 0 && l.words[i]?.space; i--) w -= l.words[i]?.width ?? 0;
-		return w;
-	};
-	for (const word of words) {
-		if (word.forcedBreak) {
-			lines.push(line);
-			line = { words: [], width: 0 };
-			continue;
-		}
-		if (!word.space && line.words.length > 0 && line.width + word.width > maxWidth + 0.01) {
-			const prev = line.words[line.words.length - 1];
-			// Break after white space, or at a break opportunity inside a word.
-			if (prev?.space || word.breakBefore) {
-				lines.push(line);
-				line = { words: [], width: 0 };
-			}
-		}
-		if (word.space && !word.pre && line.words.length === 0) continue; // collapsible spaces at line start
-		// overflow-wrap: break-word — a word that still doesn't fit breaks between characters.
-		let rest = word;
-		while (
-			!rest.space &&
-			rest.style?.breakWord &&
-			line.width + rest.width > maxWidth + 0.01 &&
-			[...rest.text].length > 1
-		) {
-			const style = rest.style;
-			const chars = [...rest.text];
-			let n = 0;
-			while (
-				n < chars.length &&
-				line.width +
-					fonts.width(
-						style.face,
-						style.size,
-						chars.slice(0, n + 1).join(""),
-						style.letterSpacing,
-					) <=
-					maxWidth + 0.01
-			)
-				n++;
-			if (n === 0 && line.words.length > 0) {
-				lines.push(line);
-				line = { words: [], width: 0 };
-				continue;
-			}
-			n = Math.max(1, n);
-			const head = chars.slice(0, n).join("");
-			const tail = chars.slice(n).join("");
-			const hw = fonts.width(style.face, style.size, head, style.letterSpacing);
-			line.words.push({ ...rest, text: head, width: hw });
-			line.width += hw;
-			lines.push(line);
-			line = { words: [], width: 0 };
-			rest = {
-				...rest,
-				text: tail,
-				width: fonts.width(style.face, style.size, tail, style.letterSpacing),
-				breakBefore: true,
-			};
-		}
-		line.words.push(rest);
-		line.width += rest.width;
-	}
-	if (line.words.length) lines.push(line);
-
-	// 3. Vertical layout per line: baseline alignment with half-leading.
-	const fragments: PlacedFragment[] = [];
-	const inlineBoxes: PlacedInlineBox[] = [];
-	/** Inline boxes still open at the end of the previous line (continue on the next). */
-	let carried: number[] = [];
-	let y = 0;
-	let maxW = 0;
-	for (const [li, l] of lines.entries()) {
-		const inlineStyles = [strut, ...l.words.flatMap((w) => (w.style ? [w.style] : []))];
-		let above = 0;
-		let below = 0;
-		for (const s of inlineStyles) {
-			const m = verticalMetrics(s.face, s.size);
-			// Chromium floors the ascent-side half-leading (the rest goes below).
-			const leading = s.lineHeight - (m.ascent + m.descent);
-			const half = Math.floor(leading / 2);
-			above = Math.max(above, m.ascent + half);
-			below = Math.max(below, m.descent + leading - half);
-		}
-		const lineHeight = above + below;
-		const baseline = y + above;
-		const lw = contentWidth(l);
-		maxW = Math.max(maxW, lw);
-		const offset =
-			textAlign === "center"
-				? (maxWidth - lw) / 2
-				: textAlign === "right" || textAlign === "end"
-					? maxWidth - lw
-					: 0;
-		// Merge consecutive words of the same text node into fragments.
-		let x = offset;
-		let frag: PlacedFragment | null = null;
-		const trailing = l.words.length - [...l.words].reverse().findIndex((w) => !w.space);
-		const openAt = new Map<number, number>(carried.map((id) => [id, offset]));
-		l.words.forEach((w, i) => {
-			const hanging = i >= trailing;
-			if (w.edge) {
-				if (w.edge.kind === "open") openAt.set(w.edge.id, x);
-				else {
-					const start = openAt.get(w.edge.id) ?? offset;
-					openAt.delete(w.edge.id);
-					inlineBoxes.push({ id: w.edge.id, x: start, w: x - start, baseline });
-				}
-				frag = null;
-				return;
-			}
-			if (!w.style || w.nodeIndex < 0) {
-				frag = null;
-				x += w.width;
-				return;
-			}
-			if (frag && frag.nodeIndex === w.nodeIndex) {
-				if (!hanging) {
-					frag.text += w.text;
-					// Like a Range's box: up to the last non-space character.
-					if (!w.space) frag.w = x + w.width - frag.x;
-				}
-			} else if (!w.space) {
-				const m = verticalMetrics(w.style.face, w.style.size);
-				frag = {
-					nodeIndex: w.nodeIndex,
-					text: w.text,
-					x,
-					y: baseline - m.ascent,
-					w: w.width,
-					h: m.ascent + m.descent,
-					line: li,
-					lineTop: y,
-					lineHeight,
-					style: w.style,
-				};
-				fragments.push(frag);
-			}
-			x += w.width;
-		});
-		// Boxes that continue onto the next line end at this line's content end.
-		carried = [...openAt.keys()];
-		for (const [id, start] of openAt)
-			inlineBoxes.push({ id, x: start, w: offset + lw - start, baseline });
-		y += lineHeight;
-	}
-	for (const f of fragments) f.text = f.text.trimEnd();
-	return { width: maxW, height: y, fragments, inlineBoxes };
 }

@@ -48,10 +48,12 @@ export interface DeckPageToolsOptions {
 	deck: string;
 	/** Loads the PDF exporter; without it the download button says it isn't available. */
 	loadPdfExport?: () => Promise<typeof import("./pdf-export")>;
+	/** The deck's print view, which the PDF download captures (`printUrl` in `@astlide/core/runtime/page`). */
+	printUrl?: string;
 }
 
 /** Set up the camera, recording and the toolbar's PDF download, once per page. */
-export function setUpDeckPageTools({ deck, loadPdfExport }: DeckPageToolsOptions): void {
+export function setUpDeckPageTools({ deck, loadPdfExport, printUrl }: DeckPageToolsOptions): void {
 	void import("./media").then(({ toggleCamera, toggleRecording }) => {
 		window.__astlide_media = {
 			toggleCamera,
@@ -61,7 +63,7 @@ export function setUpDeckPageTools({ deck, loadPdfExport }: DeckPageToolsOptions
 	window.__astlide_download_pdf = loadPdfExport
 		? async (options) => {
 				const mod = await loadPdfExport();
-				const result = await mod.exportDeckToPdf(options);
+				const result = await mod.exportDeckToPdf({ url: printUrl, ...options });
 				mod.downloadBlob(result.blob, `${options.deck}.pdf`);
 				return result;
 			}

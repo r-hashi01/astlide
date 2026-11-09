@@ -11,6 +11,15 @@ import { compile } from "css-select";
 import { parse as parseSelector, type Selector } from "css-what";
 import type { Element } from "domhandler";
 import postcss, { type AtRule, type ChildNode, type Rule } from "postcss";
+import {
+	blockified,
+	value as computedValue,
+	initialValue,
+	isAbsolute,
+	isFloat,
+	isInherited,
+	PROPERTIES,
+} from "./properties";
 
 export interface Viewport {
 	width: number;
@@ -54,77 +63,17 @@ table{display:table}
 thead{display:table-header-group}
 tbody{display:table-row-group}
 tfoot{display:table-footer-group}
+colgroup{display:table-column-group}
+col{display:table-column}
 tr{display:table-row}
-td,th{display:table-cell;padding:1px}
+thead,tbody,tfoot,tr{vertical-align:middle}
+td,th{display:table-cell;padding:1px;vertical-align:inherit}
 th{text-align:center}
 caption{display:table-caption;text-align:center}
 button,input,select,textarea{display:inline-block;font-size:13.333px;font-family:system-ui,sans-serif}
 button,select{padding:1px 6px;border:2px solid #767676;border-radius:3px;background-color:#efefef;color:#000;text-align:center}
 input,textarea{padding:1px 2px;border:2px solid #767676;background-color:#fff;color:#000}
 `;
-
-/** Properties inherited by default (the subset we compute). */
-const INHERITED = new Set([
-	"color",
-	"font-family",
-	"font-size",
-	"font-weight",
-	"font-style",
-	"line-height",
-	"letter-spacing",
-	"text-align",
-	"white-space",
-	"visibility",
-	"list-style-type",
-	"text-transform",
-	"overflow-wrap",
-	"word-wrap",
-	"word-break",
-]);
-
-const INITIAL: Record<string, string> = {
-	display: "inline",
-	position: "static",
-	color: "#000",
-	"font-family": "serif",
-	"font-size": "16px",
-	"font-weight": "400",
-	"font-style": "normal",
-	"line-height": "normal",
-	"letter-spacing": "normal",
-	"text-align": "start",
-	"white-space": "normal",
-	visibility: "visible",
-	opacity: "1",
-	"box-sizing": "content-box",
-	"flex-direction": "row",
-	"flex-wrap": "nowrap",
-	"flex-grow": "0",
-	"flex-shrink": "1",
-	"flex-basis": "auto",
-	"justify-content": "flex-start",
-	"align-items": "stretch",
-	"align-self": "auto",
-	"align-content": "normal",
-	"row-gap": "normal",
-	"column-gap": "normal",
-	width: "auto",
-	height: "auto",
-	"min-width": "auto",
-	"min-height": "auto",
-	"max-width": "none",
-	"max-height": "none",
-	"background-color": "transparent",
-	"grid-template-columns": "none",
-	"list-style-type": "disc",
-	"text-transform": "none",
-};
-for (const side of ["top", "right", "bottom", "left"]) {
-	INITIAL[`margin-${side}`] = "0";
-	INITIAL[`padding-${side}`] = "0";
-	INITIAL[`border-${side}-width`] = "0";
-	INITIAL[side] = "auto";
-}
 
 // ── Specificity ──────────────────────────────────────────────────────────
 
@@ -246,6 +195,15 @@ const BORDER_STYLES = new Set([
 	"outset",
 ]);
 
+const FONT_LONGHANDS = [
+	"font-style",
+	"font-weight",
+	"font-size",
+	"line-height",
+	"font-family",
+	"font-variant-numeric",
+];
+
 function expand(prop: string, value: string): Declaration[] {
 	const d = (p: string, v: string): Declaration => ({ prop: p, value: v, important: false });
 	switch (prop) {
@@ -256,6 +214,18 @@ function expand(prop: string, value: string): Declaration[] {
 			return boxSides("", "", value).map((x) => ({ ...x, prop: x.prop.slice(1) }));
 		case "border-width":
 			return boxSides("border", "-width", value);
+		case "border-style":
+			return boxSides("border", "-style", value);
+		case "border-radius": {
+			// Each corner's horizontal radius (elliptical corners draw as circular).
+			const [r1 = "0", r2 = r1, r3 = r1, r4 = r2] = tokens(value.split("/")[0] ?? "");
+			return [
+				d("border-top-left-radius", r1),
+				d("border-top-right-radius", r2),
+				d("border-bottom-right-radius", r3),
+				d("border-bottom-left-radius", r4),
+			];
+		}
 		case "border":
 		case "border-top":
 		case "border-right":
@@ -272,8 +242,35 @@ function expand(prop: string, value: string): Declaration[] {
 			}
 			return sides.flatMap((s) => [
 				d(`border-${s}-width`, style === "none" || style === "hidden" ? "0" : width),
+				d(`border-${s}-style`, style),
 				d(`border-${s}-color`, color),
 			]);
+		}
+		case "font": {
+			// [style || variant || weight || stretch]? size[/line-height]? family (css-fonts-4 §2.8);
+			// a system font keyword (caption, menu …) is left as is.
+			const m = value
+				.trim()
+				.match(
+					/^((?:(?:normal|italic|oblique|small-caps|bold|bolder|lighter|\d{3}|(?:ultra-|extra-|semi-)?(?:condensed|expanded))\s+)*)([\d.]+[a-z%]*|(?:xx?-|xxx-)?(?:small|large)|medium|larger|smaller)(?:\s*\/\s*(\S+))?\s+(\S.*)$/i,
+				);
+			// With var(): every longhand waits for the substitution (see declare).
+			if (/var\(/i.test(value)) return FONT_LONGHANDS.map((p) => d(p, value));
+			if (!m) return [d(prop, value)];
+			let style = "normal";
+			let weight = "normal";
+			for (const t of (m[1] ?? "").trim().split(/\s+/)) {
+				if (/^(italic|oblique)$/i.test(t)) style = t;
+				else if (/^(bold|bolder|lighter|\d{3})$/i.test(t)) weight = t;
+			}
+			return [
+				d("font-style", style),
+				d("font-weight", weight),
+				d("font-size", m[2] ?? "medium"),
+				d("line-height", m[3] ?? "normal"),
+				d("font-family", m[4] ?? ""),
+				d("font-variant-numeric", "normal"),
+			];
 		}
 		case "gap": {
 			const [r, c = r] = tokens(value);
@@ -358,7 +355,7 @@ export class StyleSheets {
 			const value = decl.value;
 			for (const x of prop.startsWith("--")
 				? [{ prop: decl.prop, value, important: false }]
-				: expand(prop, value)) {
+				: declare(prop, value)) {
 				declarations.push({ ...x, important: decl.important });
 			}
 		});
@@ -435,13 +432,32 @@ function parseInline(style: string): Declaration[] {
 		const important = /!important$/i.test(value);
 		value = value.replace(/!important$/i, "").trim();
 		if (!prop || !value) continue;
-		for (const x of prop.startsWith("--")
-			? [{ prop, value, important: false }]
-			: expand(prop, value)) {
+		for (const x of declare(prop, value)) {
 			out.push({ ...x, important });
 		}
 	}
 	return out;
+}
+
+/** Marks a longhand whose shorthand has `var()`: expanded per element, after substitution. */
+const PENDING = "\u0000";
+
+/**
+ * Expand a declaration into longhands. A shorthand with `var()` can't be
+ * split yet (`padding: var(--p)` may be `2rem 4rem`): each longhand keeps
+ * the shorthand and is resolved by {@link computeStyle}.
+ */
+function declare(prop: string, value: string): Declaration[] {
+	if (prop.startsWith("--")) return [{ prop, value, important: false }];
+	const longhands = expand(prop, value);
+	if (!value.includes("var(") || longhands.every((d) => d.prop === prop)) return longhands;
+	return longhands.map((d) => ({ ...d, value: `${PENDING}${prop}${PENDING}${value}` }));
+}
+
+/** A declared value as written, or undefined while it waits on var() substitution ({@link declare}). */
+export function declaredValue(declared: Map<string, string>, prop: string): string | undefined {
+	const v = declared.get(prop);
+	return v?.startsWith(PENDING) ? undefined : v;
 }
 
 // ── Computed values ──────────────────────────────────────────────────────
@@ -496,7 +512,9 @@ export function toPx(
 ): number {
 	const v = value.trim();
 	if (v === "0") return 0;
-	const m = v.match(/^(-?[\d.]+)(px|em|rem|%|vw|vh|pt)?$/);
+	const m = v.match(
+		/^([+-]?[\d.]+(?:e[+-]?\d+)?)(px|em|rem|%|vw|vh|vmin|vmax|pt|pc|in|cm|mm|q|ch|ex)?$/i,
+	);
 	if (!m) {
 		const calc = v.match(/^calc\((.+)\)$/);
 		if (calc) return evalCalc(calc[1] ?? "", fontSize, rootFontSize, vp, basis);
@@ -515,7 +533,7 @@ export function toPx(
 		return Number.NaN;
 	}
 	const n = Number(m[1]);
-	switch (m[2]) {
+	switch (m[2]?.toLowerCase()) {
 		case "em":
 			return n * fontSize;
 		case "rem":
@@ -526,8 +544,26 @@ export function toPx(
 			return (n / 100) * vp.width;
 		case "vh":
 			return (n / 100) * vp.height;
+		case "vmin":
+			return (n / 100) * Math.min(vp.width, vp.height);
+		case "vmax":
+			return (n / 100) * Math.max(vp.width, vp.height);
 		case "pt":
 			return (n * 96) / 72;
+		case "pc":
+			return n * 16;
+		case "in":
+			return n * 96;
+		case "cm":
+			return (n * 96) / 2.54;
+		case "mm":
+			return (n * 96) / 25.4;
+		case "q":
+			return (n * 96) / 101.6;
+		// Without the font's metrics: half an em, as browsers fall back to.
+		case "ch":
+		case "ex":
+			return n * fontSize * 0.5;
 		default:
 			return n;
 	}
@@ -550,15 +586,105 @@ function splitArgs(s: string): string[] {
 	return out;
 }
 
+/** A calc() value: a number, or a length as px plus a percentage (resolved at the end). */
+interface CalcValue {
+	number: boolean;
+	px: number;
+	pct: number;
+}
+
+/**
+ * A calc() expression (css-values-4 §10): `+ - * /`, parentheses, nested
+ * calc() / min() / max() / clamp(), numbers and lengths. NaN when it
+ * can't be resolved (a percentage without its basis, a length times a
+ * length …).
+ */
 function evalCalc(expr: string, fs: number, rfs: number, vp: Viewport, basis: number): number {
-	// a ± b chains of lengths (enough for theme math)
-	const parts = expr.split(/\s+([+-])\s+/);
-	let acc = toPx(parts[0] ?? "", fs, rfs, vp, basis);
-	for (let i = 1; i < parts.length; i += 2) {
-		const n = toPx(parts[i + 1] ?? "", fs, rfs, vp, basis);
-		acc = parts[i] === "+" ? acc + n : acc - n;
-	}
-	return acc;
+	let i = 0;
+	const fail: CalcValue = { number: false, px: Number.NaN, pct: 0 };
+	const space = () => {
+		while (i < expr.length && /\s/.test(expr[i] ?? "")) i++;
+	};
+	const group = (): string => {
+		// expr[i] is just past "(": up to the matching ")".
+		let depth = 1;
+		const from = i;
+		while (i < expr.length && depth > 0) {
+			if (expr[i] === "(") depth++;
+			else if (expr[i] === ")") depth--;
+			i++;
+		}
+		return expr.slice(from, i - 1);
+	};
+	const term = (): CalcValue => {
+		space();
+		const rest = expr.slice(i);
+		const fn = rest.match(/^(calc|min|max|clamp)?\(/i);
+		if (fn) {
+			i += fn[0].length;
+			const inner = group();
+			const name = (fn[1] ?? "calc").toLowerCase();
+			if (name === "calc") return sub(inner);
+			const px = toPx(`${name}(${inner})`, fs, rfs, vp, basis);
+			return { number: false, px, pct: 0 };
+		}
+		const m = rest.match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)([a-z%]*)/i);
+		if (!m) return fail;
+		i += m[0].length;
+		if (!m[2]) return { number: true, px: Number(m[1]), pct: 0 };
+		if (m[2] === "%") return { number: false, px: 0, pct: Number(m[1]) };
+		return { number: false, px: toPx(m[0], fs, rfs, vp, basis), pct: 0 };
+	};
+	const product = (): CalcValue => {
+		let a = term();
+		for (;;) {
+			space();
+			const op = expr[i];
+			if (op !== "*" && op !== "/") return a;
+			i++;
+			const b = term();
+			if (op === "*") {
+				if (a.number) a = { number: b.number, px: b.px * a.px, pct: b.pct * a.px };
+				else if (b.number) a = { number: false, px: a.px * b.px, pct: a.pct * b.px };
+				else return fail;
+			} else {
+				if (!b.number || b.px === 0) return fail;
+				a = { number: a.number, px: a.px / b.px, pct: a.pct / b.px };
+			}
+		}
+	};
+	const sum = (): CalcValue => {
+		let a = product();
+		for (;;) {
+			space();
+			const op = expr[i];
+			if (op !== "+" && op !== "-") return a;
+			i++;
+			const b = product();
+			const sign = op === "+" ? 1 : -1;
+			// A bare 0 adds to a length (lenient, like the old parser).
+			if (a.number !== b.number && !(a.number && a.px === 0) && !(b.number && b.px === 0))
+				return fail;
+			a = {
+				number: a.number && b.number,
+				px: a.px + sign * b.px,
+				pct: a.pct + sign * b.pct,
+			};
+		}
+	};
+	const sub = (text: string): CalcValue => {
+		const saved = [expr, i] as const;
+		expr = text;
+		i = 0;
+		const v = sum();
+		space();
+		const done = i >= expr.length;
+		[expr, i] = saved;
+		return done ? v : fail;
+	};
+	const v = sub(expr);
+	if (v.pct === 0) return v.px;
+	return Number.isNaN(basis) ? Number.NaN : v.px + (v.pct / 100) * basis;
 }
 
 const FONT_WEIGHTS: Record<string, string> = {
@@ -577,6 +703,14 @@ const FONT_SIZES: Record<string, number> = {
 	larger: 1.2,
 };
 
+/** A `zoom` value as a factor: a number or percentage; `normal` (and anything else) is 1. */
+function zoomFactor(v: string): number {
+	const t = v.trim();
+	const pct = t.match(/^([\d.]+)%$/);
+	const n = pct ? Number(pct[1]) / 100 : /^[\d.]+$/.test(t) ? Number(t) : 1;
+	return n > 0 ? n : 1;
+}
+
 /**
  * Computed style of an element: cascade → inheritance → var() → absolute
  * font-size; other lengths stay as specified strings (resolved at layout).
@@ -593,42 +727,93 @@ export function computeStyle(declared: Map<string, string>, ctx: Context): Compu
 
 	const value = (prop: string): string => {
 		let v = declared.get(prop);
-		if (v !== undefined) v = resolveVars(v, custom).trim();
-		if (v === undefined || v === "" || v === "inherit" || (v === "unset" && INHERITED.has(prop))) {
-			if (v === undefined && !INHERITED.has(prop)) return INITIAL[prop] ?? "";
-			return parent?.get(prop) ?? INITIAL[prop] ?? "";
+		if (v?.startsWith(PENDING)) {
+			// A longhand of a shorthand with var(): substitute, then expand.
+			const [, shorthand = "", raw = ""] = v.split(PENDING);
+			const resolved = resolveVars(raw, custom).trim();
+			v = expand(shorthand, resolved).find((d) => d.prop === prop)?.value;
 		}
-		if (v === "initial" || v === "unset") return INITIAL[prop] ?? "";
+		if (v !== undefined) v = resolveVars(v, custom).trim();
+		if (v === undefined || v === "" || v === "inherit" || (v === "unset" && isInherited(prop))) {
+			if (v === undefined && !isInherited(prop)) return initialValue(prop);
+			return parent?.get(prop) ?? initialValue(prop);
+		}
+		if (v === "initial" || v === "unset") return initialValue(prop);
 		return v;
 	};
 
 	const parentFs = Number.parseFloat(parent?.get("font-size") ?? "16");
+	// zoom (css-viewport): every length inside is multiplied by the product
+	// of the zooms down the tree. Lengths are resolved unzoomed, then scaled;
+	// inherited px values already carry the parent's zoom.
+	const parentZoom = Number(parent?.get("__zoom") ?? 1) || 1;
+	const ownZoom = zoomFactor(declared.has("zoom") ? value("zoom") : "");
+	const zoom = parentZoom * ownZoom;
+	if (zoom !== 1 || parent?.has("__zoom")) out.set("__zoom", String(zoom));
+	const own = (prop: string) =>
+		declared.has(prop) && !/^(inherit|unset)$/.test(declared.get(prop) ?? "");
 	let fsRaw = value("font-size");
 	let fs: number;
-	if (fsRaw in FONT_SIZES) {
+	if (!own("font-size")) fs = parentFs * ownZoom;
+	else if (fsRaw in FONT_SIZES) {
 		const k = FONT_SIZES[fsRaw] ?? 16;
-		fs = fsRaw === "smaller" || fsRaw === "larger" ? parentFs * k : k;
+		fs = fsRaw === "smaller" || fsRaw === "larger" ? parentFs * k * ownZoom : k * zoom;
 	} else {
-		fs = toPx(fsRaw, parentFs, ctx.rootFontSize, ctx.vp, parentFs);
-		if (Number.isNaN(fs)) fs = parentFs;
+		const base = parentFs / parentZoom;
+		fs = toPx(fsRaw, base, ctx.rootFontSize, ctx.vp, base) * zoom;
+		if (Number.isNaN(fs)) fs = parentFs * ownZoom;
 	}
 	fsRaw = `${fs}px`;
 	out.set("font-size", fsRaw);
+	/** A length property in px: declared ones resolved unzoomed and scaled; inherited ones scaled by this element's zoom. */
+	const zoomed = (prop: string, v: string) =>
+		own(prop)
+			? `${toPx(v, fs / zoom, ctx.rootFontSize, ctx.vp, fs / zoom) * zoom}px`
+			: `${Number.parseFloat(v) * ownZoom}px`;
 
 	const props = new Set<string>([
-		...Object.keys(INITIAL),
+		...Object.keys(PROPERTIES),
 		...[...declared.keys()].filter((k) => !k.startsWith("--")),
 	]);
 	for (const prop of props) {
 		if (prop === "font-size") continue;
 		let v = value(prop);
 		if (prop === "font-weight") v = FONT_WEIGHTS[v] ?? v;
-		if (prop === "line-height" && /(em|rem|%)$/.test(v))
-			v = `${toPx(v, fs, ctx.rootFontSize, ctx.vp, fs)}px`;
-		if (prop === "letter-spacing" && v !== "normal")
-			v = `${toPx(v, fs, ctx.rootFontSize, ctx.vp, fs)}px`;
+		if (prop === "line-height" && /(px|em|rem|%|vw|vh|pt)$/.test(v)) v = zoomed(prop, v);
+		if (prop === "letter-spacing" && v !== "normal") v = zoomed(prop, v);
+		// Corner radii in px here (rem / vw need the page; layout doesn't read them),
+		// a percentage kept: it's of the box.
+		if (/^border-[a-z]+-[a-z]+-radius$/.test(prop) && !v.includes("%")) {
+			const r = zoomed(prop, (v.split(/\s+/)[0] ?? "0").trim());
+			if (!Number.isNaN(Number.parseFloat(r))) v = r;
+		}
 		if (prop === "color" && v.toLowerCase() === "currentcolor") v = parent?.get("color") ?? "#000";
 		out.set(prop, v);
+	}
+	// Absolutely positioned and floated boxes, and flex / grid items, are
+	// block-level (CSS 2 §9.7, CSS Display 3 §2.7); an absolute box doesn't float.
+	const parentDisplay = parent?.get("display") ?? "";
+	const flexOrGridItem = /^(inline-)?(flex|grid)$/.test(parentDisplay);
+	if (isAbsolute(out)) out.set("float", "none");
+	if (isAbsolute(out) || isFloat(out) || flexOrGridItem)
+		out.set("display", blockified(computedValue(out, "display")));
+	// Border widths (CSS backgrounds-3 §3.3): 0 without a border style; a style
+	// without a width is medium. Zoomed widths snap to whole pixels as in
+	// Chromium (at least 1px), kept unzoomed like the other lengths.
+	for (const side of ["top", "right", "bottom", "left"]) {
+		const style = (out.get(`border-${side}-style`) ?? "none").trim();
+		const width = out.get(`border-${side}-width`);
+		if (style === "none" || style === "hidden") {
+			if (width !== undefined) out.set(`border-${side}-width`, "0");
+			continue;
+		}
+		const raw = (width ?? "medium").trim();
+		const keyword = { thin: 1, medium: 3, thick: 5 }[raw];
+		const unzoomed = keyword ?? toPx(raw, fs / zoom, ctx.rootFontSize, ctx.vp, Number.NaN);
+		if (Number.isNaN(unzoomed)) continue;
+		const used = unzoomed * zoom;
+		const snapped = used <= 0 ? 0 : used < 1 ? 1 : zoom === 1 ? used : Math.floor(used);
+		out.set(`border-${side}-width`, `${snapped / zoom}px`);
 	}
 	// currentColor elsewhere (border / background / outline / fill …) is this element's color.
 	const color = out.get("color") ?? "#000";

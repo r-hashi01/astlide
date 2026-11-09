@@ -100,6 +100,7 @@ GitHub Pages では、レスポンスヘッダーを設定できません。
 | `author` | `string` | なし | デッキ一覧に表示します。 |
 | `date` | `string` | なし | `"2025-06-01"` のような日付です。デッキ一覧に表示します。日付として解釈できない値は表示しません。 |
 | `theme` | `string` | `"default"` | デッキ全体のテーマです。組み込みのテーマ、プラグインのテーマ、`templates` で付けた名前のどれかを指定します。 |
+| `ogImage` | `string` | なし | デッキへのリンクを共有したときに表示する画像です（`og:image` と、大きい画像の Twitter / X カード）。絶対 URL か、`"/og/my-talk.png"` のようにサイトのルートからのパス（`public/` に置いたファイル）で指定します。パスで指定する場合は、Astro の [`site`](https://docs.astro.build/ja/reference/configuration-reference/#site) も設定してください。タグを読み取るサービスには絶対 URL が必要で、`site` があればパスを絶対 URL にして出力します。 |
 
 `_config.json` が JSON として正しくない場合や、項目の型が違う場合は、デフォルト値でデッキを表示します。開発サーバーでは、スライド上にエラーが出ます。
 

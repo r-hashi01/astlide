@@ -56,6 +56,14 @@ describe("resolveSlideSource", () => {
 		expect(resolveSlideSource(root, "C:/Users/x/notes.md")).toBeNull();
 	});
 
+	it("takes the folder files must be in", () => {
+		const decks = join(root, "app/content/decks");
+		expect(resolveSlideSource(root, "app/content/decks/talk/01.md", decks)).toBe(
+			join(decks, "talk/01.md"),
+		);
+		expect(resolveSlideSource(root, "src/content/decks/talk/01.md", decks)).toBeNull();
+	});
+
 	it("rejects non-strings and NUL bytes", () => {
 		expect(resolveSlideSource(root, undefined)).toBeNull();
 		expect(resolveSlideSource(root, 42)).toBeNull();
@@ -337,9 +345,10 @@ describe("editor endpoint", () => {
 		projectRoot: string,
 		path = EDITOR_ENDPOINT,
 		codes = createUnlockCodes(),
+		decksDir?: string,
 	): Handler {
 		const handlers = new Map<string, Handler>();
-		const plugin = astlideEditorPlugin(projectRoot, TOKEN, SECRET, "/slides/", codes);
+		const plugin = astlideEditorPlugin(projectRoot, TOKEN, SECRET, "/slides/", codes, decksDir);
 		const server = {
 			ws: { send() {} },
 			environments: {},
@@ -418,6 +427,19 @@ describe("editor endpoint", () => {
 		});
 		expect(write.status).toBe(200);
 		expect(readFileSync(join(dir, "src/content/decks/talk/01.md"), "utf-8")).toBe("# Bye");
+	});
+
+	it("edits the slides of a custom srcDir", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "astlide-editor-"));
+		const decks = join(dir, "app", "content", "decks");
+		mkdirSync(join(decks, "talk"), { recursive: true });
+		writeFileSync(join(decks, "talk", "01.md"), "# Hi");
+		const handler = endpoint(dir, EDITOR_ENDPOINT, createUnlockCodes(), decks);
+		const write = await call(handler, "POST", post, {
+			body: { path: "app/content/decks/talk/01.md", content: "# Bye" },
+		});
+		expect(write.status).toBe(200);
+		expect(readFileSync(join(decks, "talk", "01.md"), "utf-8")).toBe("# Bye");
 	});
 
 	it("refuses requests without the token or from another machine", async () => {

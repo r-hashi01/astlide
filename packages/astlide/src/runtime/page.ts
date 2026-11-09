@@ -31,6 +31,21 @@ export function slideUrl(
 	return `${basePath}/${encodeURIComponent(deck)}/${n}${trailingSlash ? "/" : ""}${query}`;
 }
 
+/**
+ * A deck's print view (`<basePath>/<deck>/all`): every slide on one page, what
+ * the PDF download and exporters capture.
+ *
+ * @example
+ * printUrl("q3 review", { basePath: "/decks", trailingSlash: true });
+ * // → "/decks/q3%20review/all/"
+ */
+export function printUrl(
+	deck: string,
+	{ basePath = "", trailingSlash = false }: SlideUrlOptions = {},
+): string {
+	return `${basePath}/${encodeURIComponent(deck)}/all${trailingSlash ? "/" : ""}`;
+}
+
 /** The slides to navigate to from a slide. */
 export interface SlideNeighbours {
 	prevSlide: number | null;

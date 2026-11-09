@@ -7,7 +7,7 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { familiesIn, loadFontFaces, loadGoogleFonts } from "./fonts";
+import { familiesIn, loadFontFaces, loadGoogleFonts, weightsIn } from "./fonts";
 import { FontRegistry } from "./text";
 
 /** Japanese / Chinese / Korean text. */
@@ -56,6 +56,7 @@ export async function loadPageFonts(
 		fonts,
 		familiesIn(css).filter((f) => !local.has(f)),
 		cacheDir,
+		weightsIn(css),
 	);
 	if (existsSync(EMOJI_FONT)) fonts.addFallback(EMOJI_FONT);
 	const eaFont = familiesIn(css).find((f) => CJK_FAMILY.test(f)) ?? DEFAULT_EA_FONT;

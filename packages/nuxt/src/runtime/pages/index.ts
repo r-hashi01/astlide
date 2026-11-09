@@ -16,11 +16,7 @@ export default defineComponent({
 					"ul",
 					decks.map((d) =>
 						h("li", { key: d.name }, [
-							h(
-								"a",
-								{ href: slideUrl(d.name, 1, { basePath: options.basePath }) },
-								d.config.title ?? d.name,
-							),
+							h("a", { href: slideUrl(d.name, 1, options) }, d.config.title ?? d.name),
 							d.config.author ? ` — ${d.config.author}` : "",
 						]),
 					),

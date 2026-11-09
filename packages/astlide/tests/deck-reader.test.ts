@@ -157,8 +157,8 @@ describe("deck problems", () => {
 });
 
 describe("MDX without speaker notes", () => {
-	it("leaves <SpeakerNotes> and <Notes> blocks out, but not code showing them", async () => {
-		const { withoutSpeakerNotes } = await import("../src/deck/mdx");
+	it("leaves <SpeakerNotes> and <Notes> out wherever they are, but not code showing them", async () => {
+		const { compileSlideMdx } = await import("../src/deck");
 		const source = [
 			"# Title",
 			"",
@@ -169,20 +169,32 @@ describe("MDX without speaker notes", () => {
 			"<Notes>Secret two</Notes>",
 			"<Notes />",
 			"",
+			"<div><SpeakerNotes>Secret three</SpeakerNotes></div>",
+			"",
+			"Inline <Notes>Secret four</Notes> text.",
+			"",
 			"```mdx",
 			"<SpeakerNotes>",
 			"Shown as code",
 			"</SpeakerNotes>",
 			"```",
 			"",
-			"Text with <Notes> inline stays.",
+			"Text with `<Notes>` in code stays.",
+			"",
+			"After the code.",
 		].join("\n");
-		const out = withoutSpeakerNotes(source);
+		const out = await compileSlideMdx(source, { notes: false });
 		expect(out).not.toContain("Secret");
-		expect(out).not.toMatch(/^<Notes \/>$/m);
-		expect(out).toContain("Shown as code");
-		expect(out).toContain("Text with <Notes> inline stays.");
-		expect(out).toContain("# Title");
+		expect(out).not.toMatch(/_components\.(SpeakerNotes|Notes)\b/);
+		for (const kept of [
+			"Title",
+			"Shown as code",
+			"in code stays.",
+			"After the code.",
+			"Inline",
+			"text.",
+		])
+			expect(out).toContain(kept);
 	});
 
 	it("compiles a slide without its notes when notes is false", async () => {

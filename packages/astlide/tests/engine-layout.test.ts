@@ -77,6 +77,47 @@ describe("engine layout", () => {
 		expect(b.y).toMatchObject({ y: 200, h: 200 });
 	});
 
+	it("lays out grid columns: auto beside fr, fixed widths, spans", () => {
+		const icon = boxes(
+			".g{display:grid;grid-template-columns:auto 1fr;column-gap:20px;width:600px}.ic{width:64px;height:64px}.t{height:30px}",
+			'<div class="g"><div class="i"><div class="ic"></div></div><div class="t"></div></div>',
+		);
+		expect(icon.i).toMatchObject({ x: 0, y: 0, w: 64 });
+		expect(icon.t).toMatchObject({ x: 84, y: 0, w: 516 });
+		const footer = boxes(
+			".g{display:grid;grid-template-columns:1fr auto 1fr;width:900px}.m{width:100px;height:10px}",
+			'<div class="g"><div class="l"></div><div class="c"><div class="m"></div></div><div class="r"></div></div>',
+		);
+		expect([footer.l?.x, footer.c?.x, footer.r?.x]).toEqual([0, 400, 500]);
+		expect(footer.c?.w).toBe(100);
+		const fixed = boxes(
+			".g{display:grid;grid-template-columns:100px 100px;width:900px}.g>div{height:20px}",
+			'<div class="g"><div class="a"></div><div class="b"></div><div class="c"></div><div class="h"></div></div>',
+		);
+		expect(fixed.c).toMatchObject({ x: 0, y: 20, w: 100 });
+		const span = boxes(
+			".g{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:320px}.g>div{height:20px}.h{grid-column:1 / -1}",
+			'<div class="g"><div class="h"></div><div class="a"></div><div class="b"></div></div>',
+		);
+		expect(span.h).toMatchObject({ x: 0, y: 0, w: 320 });
+		expect(span.a).toMatchObject({ x: 0, y: 30, w: 100 });
+		expect(span.b).toMatchObject({ x: 110, y: 30, w: 100 }); // Fractional sizes: the two columns still share a row.
+		const frac = boxes(
+			".g{display:grid;grid-template-columns:1fr 1fr;column-gap:0.8px;width:999.9px}.g>div{height:20px}",
+			'<div class="g"><div class="a"></div><div class="b"></div></div>',
+		);
+		expect(frac.b).toMatchObject({ y: 0 });
+	});
+
+	it("expands shorthands with var() after substituting it", () => {
+		const b = boxes(
+			":root{--p:20px 40px;--m:5px}.s{display:flex;flex-direction:column;width:500px;height:100px;padding:var(--p, 4px);margin:var(--m) 0 0}.in{height:10px}",
+			'<div class="s"><div class="in"></div></div>',
+		);
+		expect(b.s).toMatchObject({ x: 0, y: 5, w: 580 });
+		expect(b.in).toMatchObject({ x: 40, y: 25, w: 500 });
+	});
+
 	it("resolves min() with what it knows", () => {
 		const b = boxes(".m{width:min(480px, 100%);height:10px}", '<div class="m"></div>');
 		expect(b.m?.w).toBe(480);
@@ -95,6 +136,38 @@ describe("engine layout", () => {
 		expect(long.lines.length).toBeGreaterThan(1);
 		expect(long.lines.map((l) => l.text).join("")).toBe("abcdefghijklmnopqrstuvwxyz");
 		for (const l of long.lines) expect(l.w).toBeLessThanOrEqual(100.5);
+	});
+
+	it("breaks Japanese text between characters, with kinsoku", () => {
+		const text = "日本語の文章は空白なしで続きます。「括弧」の前後でも、句読点は行頭に来ません。";
+		// The test font has no CJK glyphs: each character measures ~5px.
+		const p = page(".p{width:60px}", `<div class="p">${text}</div>`);
+		const lines = p.lines.map((l) => l.text);
+		expect(lines.length).toBeGreaterThan(2);
+		expect(lines.join("")).toBe(text);
+		for (const l of p.lines) expect(l.w).toBeLessThanOrEqual(60.5);
+		for (const l of lines) {
+			expect(l).not.toMatch(/^[、。」]/);
+			expect(l).not.toMatch(/「$/);
+		}
+	});
+
+	it("keeps text on one line in a box a rounding step narrower than it", () => {
+		const text = "Dify 製品価値と導入";
+		const [wide] = page(".p{width:900px}", `<div class="p">${text}</div>`).lines;
+		// A width on Yoga's 1/64px grid, 0.01–1/32px narrower than the text.
+		const text64 = (wide?.w ?? 0) * 64;
+		let w = Math.floor(text64) / 64;
+		if (text64 / 64 - w <= 0.01) w -= 1 / 64;
+		const tight = page(`.p{width:${w}px}`, `<div class="p">${text}</div>`);
+		expect(tight.lines.map((l) => l.text)).toEqual([text]);
+	});
+
+	it("keeps Latin words whole next to CJK, and doesn't break nowrap text", () => {
+		const mixed = page(".p{width:60px}", '<div class="p">漢字漢字漢字abcdefgh漢字漢字</div>');
+		expect(mixed.lines.map((l) => l.text).some((l) => l.includes("abcdefgh"))).toBe(true);
+		const nowrap = page(".p{width:20px;white-space:nowrap}", '<div class="p">日本語の文章</div>');
+		expect(nowrap.lines.map((l) => l.text)).toEqual(["日本語の文章"]);
 	});
 
 	it("applies text-transform to the text it lays out", () => {
@@ -188,6 +261,15 @@ describe("engine layout", () => {
 		]);
 	});
 
+	it("paints no box gradient behind gradient text (-webkit-background-clip: text)", () => {
+		const s = page(
+			".g{background-image:linear-gradient(red,blue);width:50px;height:20px}.t{-webkit-background-clip:text;color:transparent}",
+			'<div class="g">box</div><div class="g t">text</div>',
+		);
+		const fills = toScene(s).items.filter((i) => i.kind !== "text");
+		expect(fills).toHaveLength(1);
+	});
+
 	it("reads font families from CSS quickly, even from pathological input", () => {
 		expect(familiesIn('body{font-family: "Inter", "Noto Sans JP", sans-serif}')).toEqual([
 			"Inter",
@@ -205,6 +287,22 @@ describe("engine layout", () => {
 			),
 		).toEqual(["inherit"]);
 		expect(familiesIn("p{font-family:Inter, ui-rounded, fangsong}")).toEqual(["Inter"]);
+		// First choices come before fallbacks named earlier in the CSS.
+		expect(
+			familiesIn(
+				':root{--font-mono:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas}body{font-family:system-ui, "Segoe UI", Roboto, Arial}.deck{font-family:"Geist", "Noto Sans JP", sans-serif}',
+			),
+		).toEqual([
+			"Geist",
+			"SFMono-Regular",
+			"Segoe UI",
+			"Noto Sans JP",
+			"Menlo",
+			"Roboto",
+			"Monaco",
+			"Arial",
+			"Consolas",
+		]);
 		expect(performance.now() - start).toBeLessThan(500);
 	});
 
@@ -297,6 +395,29 @@ describe("engine layout", () => {
 		fonts.add("T", 400, false, FONT);
 		const [slide] = layoutPage(file, dist, fonts, { width: 1000, height: 500, media: "screen" });
 		expect(slide?.lines.map((l) => l.text) ?? []).not.toContain("secret");
+	});
+
+	it("resolves corner radii in rem and vw against the page, in any colour syntax (#317)", () => {
+		const s = page(
+			"html{font-size:20px}.a{width:50px;height:20px;border-radius:1rem;background:oklch(0.623 0.214 259.815)}.b{width:50px;height:20px;border-radius:1vw 0 0 0;background:hsl(120 100% 25%)}",
+			'<div class="a"></div><div class="b"></div>',
+		);
+		const rects = toScene(s).items.flatMap((i) =>
+			i.kind === "rect" ? [{ radius: i.radius, fill: i.fill?.hex }] : [],
+		);
+		expect(rects).toEqual([
+			{ radius: 20, fill: "2b7fff" },
+			{ radius: 10, fill: "008000" },
+		]);
+	});
+
+	it("shows an iframe's document inside its padding, in any unit (#317)", () => {
+		const s = page(
+			"html{font-size:20px}iframe{border:0;width:300px;height:100px;padding:1rem}",
+			'<iframe srcdoc="&lt;body style=&quot;margin:0&quot;&gt;inside&lt;/body&gt;"></iframe>',
+		);
+		const inside = s.lines.find((l) => l.text === "inside");
+		expect(inside).toMatchObject({ x: 20, y: 20 });
 	});
 
 	it("lays out a srcdoc iframe into the slide, clipped to the frame", () => {

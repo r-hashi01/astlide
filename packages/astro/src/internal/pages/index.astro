@@ -1,8 +1,7 @@
 ---
 import { getCollection } from 'astro:content';
-import fs from 'node:fs';
-import path from 'node:path';
 import { deckConfigSchema } from '@astlide/core/schema';
+import { deckConfigs } from '@astlide/astro/internal/deck-configs';
 import { pageUrl } from '@astlide/core/utils/base-path';
 import Favicon from '@astlide/astro/internal/Favicon.astro';
 import FontLinks from '@astlide/astro/internal/FontLinks.astro';
@@ -15,36 +14,20 @@ const cspOption: boolean | string =
 // Dev only: let Vite's client run its reconnect worker (see utils/csp).
 const cspContent = cspFor(cspOption, DEFAULT_INDEX_CSP, import.meta.env.DEV);
 
-// Get all deck directories
-const decksDir = path.join(process.cwd(), 'src', 'content', 'decks');
-const deckNames = fs.readdirSync(decksDir).filter((name) => {
-  const stat = fs.statSync(path.join(decksDir, name));
-  return stat.isDirectory();
-});
+// The decks: the content collection's, with their configs read from where their slides are.
+const entries = await getCollection('decks');
+const configs = await deckConfigs(entries);
+const deckNames = [...new Set(entries.map((entry) => entry.id.split('/')[0] ?? ''))]
+  .filter(Boolean)
+  .sort((a, b) => a.localeCompare(b));
 
 // Load deck configs
 const decks = await Promise.all(
   deckNames.map(async (name) => {
-    const configPath = path.join(decksDir, name, '_config.json');
-    let config = deckConfigSchema.parse({});  // schema defaults
-
-    if (fs.existsSync(configPath)) {
-      try {
-        const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-        const result = deckConfigSchema.safeParse(raw);
-        if (result.success) {
-          config = result.data;
-        }
-        // Invalid _config.json values — schema defaults remain in effect
-      } catch {
-        // Malformed JSON — schema defaults remain in effect
-      }
-    }
+    const config = configs.get(name)?.config ?? deckConfigSchema.parse({});  // schema defaults
 
     // Count slides
-    const slides = await getCollection('decks', (entry) =>
-      entry.id.startsWith(`${name}/`)
-    );
+    const slides = entries.filter((entry) => entry.id.startsWith(`${name}/`));
 
     // Parse date safely — skip if the value is not a valid date
     const rawDate = config.date ?? null;

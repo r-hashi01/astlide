@@ -10,9 +10,8 @@
 import { printSlides } from '@astlide/core/deck/pages';
 import { printViewAttributes, printViewMeta } from '@astlide/core/deck/print-view';
 import { getCollection, render } from 'astro:content';
-import fs from 'node:fs';
-import path from 'node:path';
 import { deckConfigSchema } from '@astlide/core/schema';
+import { deckConfigs } from '@astlide/astro/internal/deck-configs';
 import type { DeckConfig } from '@astlide/core/schema';
 import '@astlide/core/styles/base.css';
 import '@astlide/core/styles/print.css';
@@ -53,20 +52,12 @@ export async function getStaticPaths() {
 
   const paths: Array<{ params: { deck: string }; props: { deckName: string; slides: typeof allSlides; deckConfig: DeckConfig } }> = [];
 
+  const configs = await deckConfigs(allSlides);
   for (const [deckName, slides] of deckMap) {
     const sortedSlides = printSlides(slides.sort((a, b) => a.id.localeCompare(b.id)));
 
-    const configPath = path.join(process.cwd(), 'src', 'content', 'decks', deckName, '_config.json');
-    let deckConfig: DeckConfig = deckConfigSchema.parse({});
-    if (fs.existsSync(configPath)) {
-      try {
-        const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-        const result = deckConfigSchema.safeParse(raw);
-        if (result.success) deckConfig = result.data;
-      } catch {
-        /* ignore — diagnostics already surface in the regular slide route */
-      }
-    }
+    // An unusable _config.json gives the defaults; the slide route reports why.
+    const deckConfig: DeckConfig = configs.get(deckName)?.config ?? deckConfigSchema.parse({});
 
     paths.push({ params: { deck: deckName }, props: { deckName, slides: sortedSlides, deckConfig } });
   }
