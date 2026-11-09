@@ -67,6 +67,7 @@ import {
 	readBody,
 	resolveSlideSource,
 } from "@astlide/astro/internal/editor/sources";
+import { decksDirIn } from "@astlide/core/deck/files";
 import type { Plugin } from "vite";
 
 // What this module exported before the editor's parts moved to `editor/`.
@@ -137,7 +138,7 @@ export function astlideEditorPlugin(
 	secret: string,
 	base = "/",
 	unlock: UnlockCodes = createUnlockCodes(),
-	decksDir = join(root, "src", "content", "decks"),
+	decksDir = decksDirIn(join(root, "src")),
 ): Plugin {
 	// The last editor write or slide file add/remove, while its reload echo can
 	// still arrive.

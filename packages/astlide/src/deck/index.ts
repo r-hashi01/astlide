@@ -23,7 +23,7 @@
  */
 
 import { readdir, readFile } from "node:fs/promises";
-import { basename, join, relative } from "node:path";
+import { basename, join } from "node:path";
 import {
 	type DeckConfig,
 	deckConfigSchema,
@@ -36,9 +36,11 @@ import { consoleReporter, type Reporter } from "../utils/reporter";
 import { stripSlideScripts } from "../utils/slide-scripts";
 import { slideTitle } from "../utils/slide-title";
 import {
+	filesIn,
 	HTML_EXTENSION,
 	htmlWithoutNotes,
 	PPTX_EXTENSION,
+	pptxSlideId,
 	SLIDE_EXTENSION,
 	splitFrontmatter,
 	toEntryId,
@@ -133,19 +135,6 @@ async function readConfig(dir: string): Promise<Pick<Deck, "config" | "configIss
 	return { config: defaults, configIssue: `Invalid _config.json: ${issues}` };
 }
 
-/** Slide files in the deck folder (and below it), relative, with `/`. */
-async function slideFiles(dir: string): Promise<string[]> {
-	const entries = await readdir(dir, { recursive: true, withFileTypes: true });
-	return entries
-		.filter(
-			(e) =>
-				e.isFile() &&
-				!e.name.startsWith("~$") &&
-				(SLIDE_EXTENSION.test(e.name) || PPTX_EXTENSION.test(e.name)),
-		)
-		.map((e) => relative(dir, join(e.parentPath, e.name)).replace(/\\/g, "/"));
-}
-
 function parseSlideData(data: Record<string, unknown>, file: string): SlideData {
 	const result = slideSchema.safeParse(data);
 	if (result.success) return result.data;
@@ -169,7 +158,10 @@ export async function readDeck(dir: string, options: ReadDeckOptions = {}): Prom
 	};
 
 	const slides: Omit<DeckSlide, "number">[] = [];
-	for (const file of await slideFiles(dir)) {
+	for (const file of await filesIn(
+		dir,
+		(name) => SLIDE_EXTENSION.test(name) || PPTX_EXTENSION.test(name),
+	)) {
 		if (PPTX_EXTENSION.test(file)) {
 			const { pptxToSlides } = await import("../pptx/index");
 			const pages = pptxToSlides(await readFile(join(dir, file)), {
@@ -182,7 +174,7 @@ export async function readDeck(dir: string, options: ReadDeckOptions = {}): Prom
 				);
 				const html = clean(page.html);
 				slides.push({
-					id: `${file.replace(PPTX_EXTENSION, "")}--${String(page.index).padStart(3, "0")}`,
+					id: pptxSlideId(file, page.index),
 					file,
 					format: "pptx",
 					data,
