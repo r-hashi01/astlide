@@ -45,6 +45,8 @@ declare global {
 		__astlide_drawings?: Record<string, Stroke[]>;
 		/** Storage keys whose saved drawings were loaded in this window. */
 		__astlide_drawings_loaded?: Record<string, boolean>;
+		/** The presenter timer, kept across navigations: seconds counted before `startedAt`, and when it started (null when paused). */
+		__astlide_timer?: { elapsed: number; startedAt: number | null };
 		/** The active tool, kept across navigations. */
 		__astlide_tool?: "draw" | "laser" | null;
 		/** Where the presenter is: slide and step. */

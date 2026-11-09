@@ -218,6 +218,25 @@ describe("presenter timer", () => {
 		expect(await start.getAttribute("aria-label")).toBe("Start timer");
 		await page.close();
 	});
+
+	it("keeps counting across slides", async () => {
+		const page = await open(browser(), "/example-deck/1/?presenter");
+		await page.waitForSelector(".slide");
+		await page.locator("#timer-btn").click();
+		await expect
+			.poll(() => page.locator("#presenter-timer").textContent(), { timeout: 5000 })
+			.not.toBe("00:00");
+		await page.keyboard.press("ArrowRight");
+		await expect.poll(() => slideOf(page)).toBe(2);
+		await page.waitForSelector(".slide");
+		expect(await page.locator("#presenter-timer").textContent()).not.toBe("00:00");
+		expect(await page.locator("#timer-btn").getAttribute("aria-label")).toBe("Pause timer");
+		const before = await page.locator("#presenter-timer").textContent();
+		await expect
+			.poll(() => page.locator("#presenter-timer").textContent(), { timeout: 5000 })
+			.not.toBe(before);
+		await page.close();
+	});
 });
 
 describe("touch", () => {

@@ -1,19 +1,20 @@
 /**
- * The presenter window's timer: start / pause and reset by hand.
+ * The presenter window's timer: start / pause and reset by hand. It keeps
+ * counting across slides (its state is on `window`).
  *
  * @module
  */
 
+import "../globals";
 import type { Mount } from "./mount";
 
 export function setUpTimer(mount: Mount): void {
 	const timerEl = document.getElementById("presenter-timer");
 	const timerBtn = document.getElementById("timer-btn");
 	const timerResetBtn = document.getElementById("timer-reset");
+	if (!timerEl && !timerBtn) return;
+	const state = (window.__astlide_timer ??= { elapsed: 0, startedAt: null });
 	let timerInterval: ReturnType<typeof setInterval> | null = null;
-	let timerRunning = false;
-	let timerElapsed = 0;
-	let timerStartTime = 0;
 
 	function formatTimer(secs: number): string {
 		const m = String(Math.floor(secs / 60)).padStart(2, "0");
@@ -21,46 +22,56 @@ export function setUpTimer(mount: Mount): void {
 		return `${m}:${s}`;
 	}
 
+	function seconds(): number {
+		const running = state.startedAt === null ? 0 : Date.now() - state.startedAt;
+		return state.elapsed + Math.floor(running / 1000);
+	}
+
+	/** Show the state: the time, the button, and the interval while it runs. */
+	function render(): void {
+		if (timerEl) timerEl.textContent = formatTimer(seconds());
+		if (timerBtn) {
+			const label =
+				state.startedAt !== null
+					? "Pause timer"
+					: state.elapsed > 0
+						? "Resume timer"
+						: "Start timer";
+			timerBtn.textContent = state.startedAt !== null ? "⏸" : "▶";
+			timerBtn.title = label;
+			timerBtn.setAttribute("aria-label", label);
+		}
+		if (state.startedAt !== null && !timerInterval) {
+			timerInterval = setInterval(() => {
+				if (timerEl) timerEl.textContent = formatTimer(seconds());
+			}, 1000);
+		} else if (state.startedAt === null && timerInterval) {
+			clearInterval(timerInterval);
+			timerInterval = null;
+		}
+	}
+
 	if (timerBtn) {
 		mount.listen(timerBtn, "click", () => {
-			if (timerRunning) {
-				timerElapsed += Math.floor((Date.now() - timerStartTime) / 1000);
-				if (timerInterval) clearInterval(timerInterval);
-				timerInterval = null;
-				timerRunning = false;
-				timerBtn.textContent = "▶";
-				timerBtn.title = "Resume timer";
-				timerBtn.setAttribute("aria-label", "Resume timer");
+			if (state.startedAt !== null) {
+				state.elapsed = seconds();
+				state.startedAt = null;
 			} else {
-				timerStartTime = Date.now();
-				timerRunning = true;
-				timerInterval = setInterval(() => {
-					const elapsed = timerElapsed + Math.floor((Date.now() - timerStartTime) / 1000);
-					if (timerEl) timerEl.textContent = formatTimer(elapsed);
-				}, 1000);
-				timerBtn.textContent = "⏸";
-				timerBtn.title = "Pause timer";
-				timerBtn.setAttribute("aria-label", "Pause timer");
+				state.startedAt = Date.now();
 			}
+			render();
 		});
 	}
 
 	if (timerResetBtn) {
 		mount.listen(timerResetBtn, "click", () => {
-			if (timerInterval) clearInterval(timerInterval);
-			timerInterval = null;
-			timerRunning = false;
-			timerElapsed = 0;
-			timerStartTime = 0;
-			if (timerEl) timerEl.textContent = "00:00";
-			if (timerBtn) {
-				timerBtn.textContent = "▶";
-				timerBtn.title = "Start timer";
-				timerBtn.setAttribute("aria-label", "Start timer");
-			}
+			state.elapsed = 0;
+			state.startedAt = null;
+			render();
 		});
 	}
 
+	render();
 	mount.onDispose(() => {
 		if (timerInterval) clearInterval(timerInterval);
 	});
