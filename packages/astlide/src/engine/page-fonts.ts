@@ -19,8 +19,13 @@ export const CJK_FAMILY =
 export const DEFAULT_EA_FONT = "Yu Gothic";
 /** An element the browser styles with its form-control font. */
 const FORM_CONTROL = /<(button|input|select|textarea)[\s>]/i;
-/** Measures emoji where the system has it (macOS). */
-const EMOJI_FONT = "/System/Library/Fonts/Apple Color Emoji.ttc";
+/** The system's emoji font, which measures emoji as the browser draws them: macOS, then Linux distributions' Noto Color Emoji. */
+const EMOJI_FONTS = [
+	"/System/Library/Fonts/Apple Color Emoji.ttc",
+	"/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+	"/usr/share/fonts/google-noto-color-emoji/NotoColorEmoji.ttf",
+	"/usr/share/fonts/noto/NotoColorEmoji.ttf",
+];
 
 /** A page's fonts, ready for {@link layoutPage}. */
 export interface PageFonts {
@@ -77,7 +82,8 @@ export async function loadPageFonts(
 		const clone = METRIC_COMPATIBLE[f.toLowerCase()];
 		return !clone || !fonts.has(clone);
 	});
-	if (existsSync(EMOJI_FONT)) fonts.addFallback(EMOJI_FONT);
+	const emoji = EMOJI_FONTS.find((f) => existsSync(f));
+	if (emoji) fonts.addFallback(emoji);
 	const eaFont = familiesIn(css).find((f) => CJK_FAMILY.test(f)) ?? DEFAULT_EA_FONT;
 	let noCjkFont = false;
 	if (CJK_TEXT.test(source)) {
