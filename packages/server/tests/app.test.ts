@@ -42,6 +42,18 @@ describe("routes", () => {
 		);
 	});
 
+	it("lists the errors a request with a body can get in the spec", async () => {
+		const spec = await (await handle(new Request("http://test/openapi.json"))).json();
+		for (const [path, ops] of Object.entries(spec.paths as Record<string, Record<string, unknown>>))
+			for (const [method, op] of Object.entries(
+				ops as Record<string, { requestBody?: unknown; responses: object }>,
+			))
+				if (op.requestBody)
+					expect(Object.keys(op.responses), `${method} ${path}`).toEqual(
+						expect.arrayContaining(["400", "408", "413", "415"]),
+					);
+	});
+
 	it("answers unknown paths, wrong methods and content types with errors", async () => {
 		expect((await handle(new Request("http://test/nope"))).status).toBe(404);
 		expect((await handle(new Request("http://test/render"))).status).toBe(405);
