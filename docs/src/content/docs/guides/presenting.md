@@ -9,8 +9,8 @@ Everything on this page works the same in `astro dev` and on a deployed deck, ex
 
 | Key | Action |
 |---|---|
-| `→` / `Space` | Next step or slide |
-| `←` | Previous step or slide |
+| `→` / `Space` / `PageDown` | Next step or slide (presentation clickers send `PageDown` / `PageUp`) |
+| `←` / `PageUp` | Previous step or slide |
 | `Home` / `↑` | First slide |
 | `End` / `↓` | Last slide |
 | `o` | Overview: all slides in a grid |
@@ -26,7 +26,7 @@ Everything on this page works the same in `astro dev` and on a deployed deck, ex
 | `Esc` | Turn off the pen or laser, leave fullscreen, close an overlay |
 | `e` | Edit the slide's source in the browser (`astro dev` only, see [Creating a Deck](/guides/decks/#editing-in-the-browser)) |
 
-`o`, `p`, `n`, `s`, `f` and `e` work in the audience window only. The other keys work in both windows.
+`o`, `p`, `n`, `s`, `f` and `e` work in the audience window only. The other keys work in both windows. Keys pressed with `Ctrl`, `⌘` or `Alt`, or while you type in a text field, are left to the browser.
 
 On a touch device, swipe left or right to change slides.
 

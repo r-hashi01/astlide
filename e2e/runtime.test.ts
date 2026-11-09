@@ -136,6 +136,34 @@ describe("keys", () => {
 		await page.close();
 	});
 
+	it("PageDown / PageUp move like → / ←; keys with Ctrl / ⌘ / Alt or in a form control don't", async () => {
+		const page = await open(browser(), "/example-deck/3/");
+		await page.waitForSelector(".slide");
+		await page.keyboard.press("PageDown");
+		await expect.poll(() => slideOf(page)).toBe(4);
+		await page.waitForSelector(".slide");
+		await page.keyboard.press("PageUp");
+		await expect.poll(() => slideOf(page)).toBe(3);
+		await page.waitForSelector(".slide");
+		for (const key of ["Alt+ArrowRight", "Control+s", "Meta+f"]) await page.keyboard.press(key);
+		await page.evaluate(() => {
+			const slide = document.querySelector(".slide");
+			slide?.insertAdjacentHTML(
+				"beforeend",
+				'<div id="edit" contenteditable>x</div><select id="pick"><option>a</option><option>b</option></select>',
+			);
+		});
+		await page.focus("#edit");
+		await page.keyboard.press("ArrowRight");
+		await page.focus("#pick");
+		await page.keyboard.press("ArrowDown");
+		await page.waitForTimeout(300);
+		expect(slideOf(page)).toBe(3);
+		expect(new URL(page.url()).search).toBe("");
+		expect(await page.evaluate(() => document.fullscreenElement)).toBeNull();
+		await page.close();
+	});
+
 	it("Shift+. / Shift+, change the notes font size, and the size is kept", async () => {
 		const page = await open(browser(), "/example-deck/1/?presenter");
 		await page.waitForSelector(".slide");

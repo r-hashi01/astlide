@@ -9,6 +9,7 @@
 import { TOOLBAR_ACTIONS } from "../chrome";
 import type { Dialogs } from "./dialogs";
 import type { Drawing } from "./drawing";
+import { isEditing } from "./editable";
 import type { Mount } from "./mount";
 import type { Moves } from "./moves";
 import type { Navigation } from "./navigation";
@@ -64,7 +65,9 @@ interface KeyBinding {
 const KEYS: Readonly<Record<string, KeyBinding>> = {
 	ArrowRight: { action: "next", preventDefault: true },
 	" ": { action: "next", preventDefault: true },
+	PageDown: { action: "next", preventDefault: true },
 	ArrowLeft: { action: "prev", preventDefault: true },
+	PageUp: { action: "prev", preventDefault: true },
 	ArrowUp: { action: "first", preventDefault: true },
 	Home: { action: "first", preventDefault: true },
 	ArrowDown: { action: "last", preventDefault: true },
@@ -168,7 +171,8 @@ export function setUpControls(mount: Mount, controls: Controls): void {
 	});
 
 	function handleKeydown(e: KeyboardEvent): void {
-		if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+		// Ctrl / ⌘ / Alt + a key is the browser's (print, find, back …), not the deck's.
+		if (e.ctrlKey || e.metaKey || e.altKey || isEditing(e.target)) return;
 		if (dialogs.overviewOpen) {
 			if (e.key === "Escape" || e.key === "o") dialogs.closeOverview();
 			return;

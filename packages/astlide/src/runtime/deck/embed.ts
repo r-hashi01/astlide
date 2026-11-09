@@ -8,6 +8,7 @@
  * @module
  */
 
+import { isEditing } from "./editable";
 import type { Mount } from "./mount";
 import type { Navigation } from "./navigation";
 import type { Steps } from "./steps";
@@ -86,7 +87,7 @@ export function setUpEmbedBridge(
 	// Keys pressed inside the embedded deck (once a host page has said hello).
 	function handleEmbedKeydown(e: KeyboardEvent): void {
 		if (!window.__astlide_embed_host || e.altKey || e.ctrlKey || e.metaKey) return;
-		if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+		if (isEditing(e.target)) return;
 		const type = (
 			{
 				ArrowRight: "next",
