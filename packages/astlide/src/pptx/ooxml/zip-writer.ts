@@ -1,6 +1,7 @@
 /**
  * A minimal ZIP writer (deflate, no ZIP64), with fixed entry times for
- * reproducible files.
+ * reproducible files: the .pptx export's, and `@astlide/core/utils/zip` for
+ * other archives (the server's PNG bundles).
  *
  * @module
  */
