@@ -60,7 +60,9 @@ function v4Public(ip: string): boolean {
 /** The 8 groups of an IPv6 address (with an embedded IPv4 tail expanded). */
 function v6Groups(ip: string): number[] | null {
 	let s = ip.toLowerCase().split("%")[0] ?? "";
-	const tail = s.match(/(\d+\.\d+\.\d+\.\d+)$/)?.[1];
+	// isIP accepted it: a dotted last part is an IPv4 address.
+	const last = s.slice(s.lastIndexOf(":") + 1);
+	const tail = last.includes(".") ? last : undefined;
 	if (tail) {
 		const n = v4(tail);
 		s = `${s.slice(0, -tail.length)}${((n >>> 16) & 0xffff).toString(16)}:${(n & 0xffff).toString(16)}`;
