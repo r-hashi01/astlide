@@ -37,13 +37,10 @@
 		"playwright": "^1.64.1",
 		"pptxgenjs": "^4.0.1",
 		"typescript": "^7.0.2",
-		"vitest": "^5.0.5",
+		"vitest": "^5.1.0",
 		"zod": "^4.6.7"
 	},
 	"dependencies": {
 		"astro": "^7.4.2"
-	},
-	"patchedDependencies": {
-		"vitest@5.0.5": "patches/vitest@5.0.5.patch"
 	}
 }
