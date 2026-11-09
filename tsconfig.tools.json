@@ -1,4 +1,4 @@
 {
 	"extends": "astro/tsconfigs/strict",
-	"include": ["e2e/**/*.ts", "scripts/**/*.ts"]
+	"include": ["e2e/**/*.ts", "scripts/**/*.ts", "vitest.config*.ts"]
 }
