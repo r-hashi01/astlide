@@ -10,7 +10,12 @@
 import { compile } from "css-select";
 import { parse as parseSelector, type Selector } from "css-what";
 import type { Element } from "domhandler";
-import postcss, { type AtRule, type ChildNode, type Rule } from "postcss";
+import postcss, {
+	type AtRule,
+	type ChildNode,
+	type Declaration as PostcssDeclaration,
+	type Rule,
+} from "postcss";
 import {
 	blockified,
 	value as computedValue,
@@ -38,6 +43,8 @@ interface StyleRule {
 	specificity: number;
 	order: number;
 	origin: 0 | 1; // 0 = user agent, 1 = author
+	/** Cascade layer rank, in order of first mention; {@link UNLAYERED} outside any layer. */
+	layer: number;
 	declarations: Declaration[];
 	pseudo: string | null;
 }
@@ -84,7 +91,8 @@ function specificityOf(selector: Selector[]): number {
 	let c = 0;
 	for (const t of selector) {
 		if (t.type === "attribute") {
-			if (t.name === "id" && t.action === "equals") a++;
+			// `#x` (css-what marks it "quirks"); `[id=x]` is an attribute selector.
+			if (t.name === "id" && t.action === "equals" && t.ignoreCase === "quirks") a++;
 			else b++;
 		} else if (t.type === "tag") c++;
 		else if (t.type === "pseudo-element") c++;
@@ -326,32 +334,95 @@ function expand(prop: string, value: string): Declaration[] {
 
 // ── Style sheets ─────────────────────────────────────────────────────────
 
+/** The layer rank of rules outside any `@layer`: they win over layered ones. */
+const UNLAYERED = Number.MAX_SAFE_INTEGER;
+
+/** A nested selector in its parent's context (CSS Nesting): `&` is the parent, else a descendant. */
+function nest(selector: string, parent: string): string {
+	const is = `:is(${parent})`;
+	return selector.includes("&") ? selector.replaceAll("&", is) : `${is} ${selector}`;
+}
+
 export class StyleSheets {
 	private rules: StyleRule[] = [];
 	private order = 0;
+	/** Layer names (`a`, `a.b`) by rank. */
+	private layers = new Map<string, number>();
+	private anonymousLayers = 0;
 
 	constructor(private readonly vp: Viewport) {}
 
 	add(css: string, origin: 0 | 1 = 1): void {
 		const root = postcss.parse(css);
-		this.walk(root.nodes, origin);
+		this.walk(root.nodes, origin, null, null);
 	}
 
-	private walk(nodes: ChildNode[], origin: 0 | 1): void {
+	/** A layer's rank: layers rank in the order they're first mentioned. */
+	private layerRank(name: string | null): number {
+		if (name === null) return UNLAYERED;
+		let rank = this.layers.get(name);
+		if (rank === undefined) {
+			rank = this.layers.size;
+			this.layers.set(name, rank);
+		}
+		return rank;
+	}
+
+	/**
+	 * Rules and at-rules, in `layer`; inside a style rule, `parent` is its
+	 * selector list (nested rules and the declarations of nested at-rules
+	 * apply in its context).
+	 */
+	private walk(
+		nodes: ChildNode[],
+		origin: 0 | 1,
+		parent: string | null,
+		layer: string | null,
+	): void {
+		const own = nodes.filter((n): n is PostcssDeclaration => n.type === "decl");
+		if (parent !== null && own.length > 0) this.addRule([parent], own, origin, layer);
 		for (const node of nodes) {
-			if (node.type === "rule") this.addRule(node as Rule, origin);
-			else if (node.type === "atrule") {
+			if (node.type === "rule") {
+				const rule = node as Rule;
+				const selectors =
+					parent === null ? rule.selectors : rule.selectors.map((sel) => nest(sel, parent));
+				const decls = rule.nodes.filter((n): n is PostcssDeclaration => n.type === "decl");
+				this.addRule(selectors, decls, origin, layer);
+				const nested = rule.nodes.filter((n) => n.type === "rule" || n.type === "atrule");
+				if (nested.length > 0) this.walk(nested, origin, selectors.join(", "), layer);
+			} else if (node.type === "atrule") {
 				const at = node as AtRule;
-				if (at.name === "media" && !mediaMatches(at.params, this.vp)) continue;
-				if (["media", "supports", "layer", "container"].includes(at.name) && at.nodes)
-					this.walk(at.nodes, origin);
+				const name = at.name.toLowerCase();
+				if (name === "media" && !mediaMatches(at.params, this.vp)) continue;
+				if (name === "layer") {
+					const inLayer = (n: string) => (layer === null ? n : `${layer}.${n}`);
+					const names = at.params
+						.split(",")
+						.map((n) => n.trim())
+						.filter(Boolean);
+					// `@layer a, b;` only sets the order.
+					if (!at.nodes) {
+						for (const n of names) this.layerRank(inLayer(n));
+						continue;
+					}
+					const inner = inLayer(names[0] ?? `\0anonymous${this.anonymousLayers++}`);
+					this.layerRank(inner);
+					this.walk(at.nodes, origin, parent, inner);
+				} else if (["media", "supports", "container"].includes(name) && at.nodes) {
+					this.walk(at.nodes, origin, parent, layer);
+				}
 			}
 		}
 	}
 
-	private addRule(rule: Rule, origin: 0 | 1): void {
+	private addRule(
+		selectors: string[],
+		decls: PostcssDeclaration[],
+		origin: 0 | 1,
+		layer: string | null,
+	): void {
 		const declarations: Declaration[] = [];
-		rule.walkDecls((decl) => {
+		for (const decl of decls) {
 			const prop = decl.prop.toLowerCase();
 			const value = decl.value;
 			for (const x of prop.startsWith("--")
@@ -359,9 +430,11 @@ export class StyleSheets {
 				: declare(prop, value)) {
 				declarations.push({ ...x, important: decl.important });
 			}
-		});
+		}
+		if (declarations.length === 0) return;
 		const order = this.order++;
-		for (const text of rule.selectors) {
+		const rank = this.layerRank(layer);
+		for (const text of selectors) {
 			let parsed: Selector[][];
 			try {
 				parsed = parseSelector(text);
@@ -388,6 +461,7 @@ export class StyleSheets {
 					specificity: specificityOf(sel),
 					order,
 					origin,
+					layer: rank,
 					declarations,
 					pseudo: pseudoEl && pseudoEl.type === "pseudo-element" ? pseudoEl.name : null,
 				});
@@ -403,13 +477,15 @@ export class StyleSheets {
 		const entries: Entry[] = [];
 		for (const r of hits) {
 			for (const d of r.declarations) {
-				// [important, origin (UA important wins), inline, specificity, order]
+				// [important, origin (UA important wins), inline, layer (unlayered wins;
+				// reversed for !important), specificity, order]
 				const imp = d.important ? 1 : 0;
 				const originRank = d.important ? 1 - r.origin : r.origin;
-				entries.push({ d, weight: [imp, originRank, 0, r.specificity, r.order] });
+				const layer = d.important ? -r.layer : r.layer;
+				entries.push({ d, weight: [imp, originRank, 0, layer, r.specificity, r.order] });
 			}
 		}
-		for (const d of inline) entries.push({ d, weight: [d.important ? 1 : 0, 1, 1, 0, 0] });
+		for (const d of inline) entries.push({ d, weight: [d.important ? 1 : 0, 1, 1, 0, 0, 0] });
 		entries.sort((x, y) => {
 			for (let i = 0; i < x.weight.length; i++) {
 				const diff = (x.weight[i] ?? 0) - (y.weight[i] ?? 0);
@@ -425,23 +501,56 @@ export class StyleSheets {
 
 function parseInline(style: string): Declaration[] {
 	const out: Declaration[] = [];
-	for (const part of style.split(";")) {
-		const i = part.indexOf(":");
-		if (i < 0) continue;
-		const prop = part.slice(0, i).trim().toLowerCase();
-		let value = part.slice(i + 1).trim();
-		const important = /!important$/i.test(value);
-		value = value.replace(/!important$/i, "").trim();
-		if (!prop || !value) continue;
-		for (const x of declare(prop, value)) {
-			out.push({ ...x, important });
-		}
+	let root: ReturnType<typeof postcss.parse>;
+	try {
+		// As a rule's body: `;` inside url(), strings and `! important` are handled.
+		root = postcss.parse(`x{${style}}`);
+	} catch {
+		return out;
 	}
+	root.walkDecls((decl) => {
+		// Custom properties are case-sensitive.
+		const name = decl.prop.trim();
+		const prop = name.startsWith("--") ? name : name.toLowerCase();
+		const value = decl.value.trim();
+		if (!prop || !value) return;
+		for (const x of declare(prop, value)) out.push({ ...x, important: !!decl.important });
+	});
 	return out;
 }
 
 /** Marks a longhand whose shorthand has `var()`: expanded per element, after substitution. */
 const PENDING = "\u0000";
+
+/** Properties whose values are only CSS keywords. */
+const KEYWORD_PROPS = new Set([
+	"display",
+	"position",
+	"float",
+	"clear",
+	"visibility",
+	"box-sizing",
+	"overflow",
+	"overflow-x",
+	"overflow-y",
+	"flex-direction",
+	"flex-wrap",
+	"justify-content",
+	"justify-items",
+	"justify-self",
+	"align-items",
+	"align-content",
+	"align-self",
+	"text-align",
+	"text-transform",
+	"white-space",
+	"font-style",
+	"font-weight",
+	"vertical-align",
+	"object-fit",
+	"word-break",
+	"overflow-wrap",
+]);
 
 /**
  * Expand a declaration into longhands. A shorthand with `var()` can't be
@@ -450,6 +559,8 @@ const PENDING = "\u0000";
  */
 function declare(prop: string, value: string): Declaration[] {
 	if (prop.startsWith("--")) return [{ prop, value, important: false }];
+	// Keywords are case-insensitive (`display: FLEX`); names (fonts …) are not.
+	if (KEYWORD_PROPS.has(prop) && /^[a-z-]+(\s+[a-z-]+)*$/i.test(value)) value = value.toLowerCase();
 	const longhands = expand(prop, value);
 	if (!value.includes("var(") || longhands.every((d) => d.prop === prop)) return longhands;
 	return longhands.map((d) => ({ ...d, value: `${PENDING}${prop}${PENDING}${value}` }));
