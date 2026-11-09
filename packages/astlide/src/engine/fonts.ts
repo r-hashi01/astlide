@@ -202,6 +202,8 @@ export async function loadGoogleFonts(
 	families: string[],
 	cacheDir: string,
 	weights = [400, 500, 600, 700],
+	/** Whether to load a family's italic faces (a browser slants the upright one without them). */
+	italics: (family: string) => boolean = () => true,
 ): Promise<string[]> {
 	mkdirSync(cacheDir, { recursive: true });
 	pruneCache(cacheDir, GOOGLE_FONT_LIMITS.cacheBytes);
@@ -210,7 +212,7 @@ export async function loadGoogleFonts(
 		const ranges = await googleRanges(family, cacheDir);
 		let found = false;
 		for (const w of weights) {
-			for (const italic of [false, true]) {
+			for (const italic of italics(family) ? [false, true] : [false]) {
 				// Which file this face is: a small reference, so faces sharing a file share it.
 				const ref = join(cacheDir, `${sha256(`${family}\n${w}\n${italic}`)}.ref`);
 				let file = existsSync(ref) ? join(cacheDir, readFileSync(ref, "utf-8").trim()) : undefined;
@@ -239,6 +241,30 @@ export async function loadGoogleFonts(
 		if (!found) missing.push(family);
 	}
 	return missing;
+}
+
+/**
+ * The families a page loads from Google Fonts with `<link>` (css2 URLs), by
+ * lower-cased name, and whether it asks for their italics (an `ital` axis).
+ * A browser has only those faces: italic text in a family loaded without
+ * them is the upright face, slanted.
+ */
+export function googleFontLinks(html: string): Map<string, { italic: boolean }> {
+	const out = new Map<string, { italic: boolean }>();
+	for (const m of html.matchAll(/https:\/\/fonts\.googleapis\.com\/css2\?([^"'\s>]+)/g)) {
+		const query = (m[1] ?? "").replace(/&amp;/g, "&");
+		for (const param of query.split("&")) {
+			if (!param.startsWith("family=")) continue;
+			const [name = "", axes = ""] = decodeURIComponent(param.slice(7).replace(/\+/g, " ")).split(
+				":",
+			);
+			const key = name.trim().toLowerCase();
+			if (!key) continue;
+			const italic = /\bital\b/.test(axes) || (out.get(key)?.italic ?? false);
+			out.set(key, { italic });
+		}
+	}
+	return out;
 }
 
 /** A browser's User-Agent: Google then answers with its subsets and their `unicode-range`s. */

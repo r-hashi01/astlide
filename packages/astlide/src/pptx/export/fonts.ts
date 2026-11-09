@@ -39,7 +39,9 @@ export function embeddedFonts(items: TextItem[], warn: Warn): EmbeddedFont[] {
 	const byFace = new Map<string, EmbeddedFont>();
 	const skipped = new Set<string>();
 	for (const item of items) {
-		const { file, italic } = item.font;
+		// By the file's own style: an upright file goes in the upright slot, and
+		// PowerPoint slants it for italic text, as a browser does.
+		const { file, fileItalic: italic } = item.font;
 		if (!file) continue;
 		const f = fontFor(item.font.family, item.font.weight);
 		const slot = f.bold ? (italic ? "boldItalic" : "bold") : italic ? "italic" : "regular";

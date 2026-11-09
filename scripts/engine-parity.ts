@@ -6,6 +6,12 @@
  * and size. Elements are matched by their index in the slide
  * (`querySelectorAll("*")` order, which is the engine's element id).
  *
+ * Boxes are compared before transforms (they don't change layout; Chromium's
+ * `getBoundingClientRect()` would give a rotated box's bounds). Mermaid
+ * diagrams aren't compared: the engine draws them as pictures with its own
+ * renderer (as `check_deck` skips them), and Chromium's SVG inside the
+ * `<pre>` isn't counted, so the elements after it still line up.
+ *
  * Usage (after a build):
  *   bun scripts/engine-parity.ts [--dist playground/dist] [--deck tour] [--deck …]
  *     [--tolerance 2] [--top 10] [--json report.json]
@@ -180,11 +186,21 @@ export async function compareDeck(
 		}
 		await page.reload({ waitUntil: "networkidle" });
 	}
+	// Layout boxes, not their transformed bounds.
+	await page.addStyleTag({
+		content:
+			"*,*::before,*::after{transform:none!important;rotate:none!important;scale:none!important;translate:none!important}",
+	});
 	// Per slide, per element index: its box relative to the slide, or null without one.
 	const chromiumBoxes = await page.evaluate(() =>
 		[...document.querySelectorAll("body > .slide")].map((slide) => {
 			const s = slide.getBoundingClientRect();
-			return [...slide.querySelectorAll("*")].map((el) => {
+			// A rendered diagram's SVG has no counterpart in the engine's page.
+			const elements = [...slide.querySelectorAll("*")].filter(
+				(el) => !el.parentElement?.closest(".astlide-mermaid"),
+			);
+			return elements.map((el) => {
+				if (el.classList.contains("astlide-mermaid")) return null;
 				const cs = getComputedStyle(el);
 				if (cs.display === "none" || cs.display === "contents" || /^inline$/.test(cs.display))
 					return null;

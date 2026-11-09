@@ -400,6 +400,7 @@ describe("text-spacing-trim", () => {
 	fonts.add("T", 400, false, FONT);
 	const style = {
 		face: fonts.pick("T", 400, false),
+		italic: false,
 		size: 20,
 		lineHeight: 20,
 		letterSpacing: 0,
@@ -432,6 +433,7 @@ describe("line breaking", () => {
 	fonts.add("T", 400, false, FONT);
 	const style = {
 		face: fonts.pick("T", 400, false),
+		italic: false,
 		size: 20,
 		lineHeight: 20,
 		letterSpacing: 0,
