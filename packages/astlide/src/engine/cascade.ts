@@ -81,6 +81,7 @@ caption{display:table-caption;text-align:center}
 button,input,select,textarea{display:inline-block;font-style:normal;font-weight:400;font-size:13.333px;line-height:normal;font-family:Arial}
 button,select{padding:1px 6px;border:2px solid #767676;border-radius:3px;background-color:#efefef;color:#000;text-align:center}
 input,textarea{padding:1px 2px;border:2px solid #767676;background-color:#fff;color:#000}
+iframe{border:2px inset}
 `;
 
 // ── Specificity ──────────────────────────────────────────────────────────
@@ -671,6 +672,8 @@ export class StyleSheets {
 			}
 		}
 		for (const d of inline) entries.push({ d, weight: [d.important ? 1 : 0, 1, 1, 0, 0, 0] });
+		// Presentational hints (HTML §15.4.3): author-level, below every author rule.
+		if (!pseudo) for (const d of sizeHints(el)) entries.push({ d, weight: [0, 1, 0, -1, -1, -1] });
 		entries.sort((x, y) => {
 			for (let i = 0; i < x.weight.length; i++) {
 				const diff = (x.weight[i] ?? 0) - (y.weight[i] ?? 0);
@@ -682,6 +685,20 @@ export class StyleSheets {
 		for (const { d } of entries) out.set(d.prop, d.value);
 		return out;
 	}
+}
+
+/** Elements whose width / height attributes size them (HTML §15.4.3, "maps to the dimension property"). */
+const SIZED_BY_ATTRIBUTES = new Set(["img", "video", "canvas", "iframe", "embed", "object", "svg"]);
+
+/** `width` / `height` from an element's attributes: `<img width="100">` is `width: 100px`. */
+function sizeHints(el: Element): Declaration[] {
+	if (!SIZED_BY_ATTRIBUTES.has(el.name)) return [];
+	const out: Declaration[] = [];
+	for (const prop of ["width", "height"]) {
+		const m = el.attribs[prop]?.match(/^\s*(\d+(?:\.\d+)?)(px|%)?\s*$/);
+		if (m) out.push({ prop, value: `${m[1]}${m[2] === "%" ? "%" : "px"}`, important: false });
+	}
+	return out;
 }
 
 function parseInline(style: string): Declaration[] {

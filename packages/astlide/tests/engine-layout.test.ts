@@ -179,6 +179,32 @@ describe("engine layout", () => {
 		expect(b.in).toMatchObject({ x: 40, y: 25, w: 500 });
 	});
 
+	it("sizes a picture by its width / height attributes, as CSS that any rule overrides", () => {
+		// Checked against Chromium: the attributes are a size, so a column flexbox doesn't stretch it.
+		const column = boxes(
+			".w{display:flex;flex-direction:column;width:800px}",
+			'<div class="w"><img class="a" src="data:," width="100" height="1000"><svg class="s" width="100" height="200" viewBox="0 0 1 2"></svg></div>',
+		);
+		expect(column.a).toMatchObject({ w: 100, h: 1000 });
+		expect(column.s).toMatchObject({ w: 100, h: 200 });
+		const row = boxes(
+			".w{display:flex;width:800px;height:300px}",
+			'<div class="w"><img class="a" src="data:," width="100" height="50"></div>',
+		);
+		expect(row.a).toMatchObject({ w: 100, h: 50 });
+		const pct = boxes(
+			".w{width:400px}",
+			'<div class="w"><img class="a" src="data:," width="50%" height="100"></div>',
+		);
+		expect(pct.a?.w).toBe(200);
+		// A rule wins over the attribute.
+		const ruled = boxes(
+			".w{width:500px}img{width:200px}",
+			'<div class="w"><img class="a" src="data:," width="100" height="50"></div>',
+		);
+		expect(ruled.a).toMatchObject({ w: 200, h: 50 });
+	});
+
 	it("resolves min() with what it knows", () => {
 		const b = boxes(".m{width:min(480px, 100%);height:10px}", '<div class="m"></div>');
 		expect(b.m?.w).toBe(480);
