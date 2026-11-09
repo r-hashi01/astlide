@@ -136,6 +136,34 @@ describe("keys", () => {
 		await page.close();
 	});
 
+	it("PageDown / PageUp move like → / ←; keys with Ctrl / ⌘ / Alt or in a form control don't", async () => {
+		const page = await open(browser(), "/example-deck/3/");
+		await page.waitForSelector(".slide");
+		await page.keyboard.press("PageDown");
+		await expect.poll(() => slideOf(page)).toBe(4);
+		await page.waitForSelector(".slide");
+		await page.keyboard.press("PageUp");
+		await expect.poll(() => slideOf(page)).toBe(3);
+		await page.waitForSelector(".slide");
+		for (const key of ["Alt+ArrowRight", "Control+s", "Meta+f"]) await page.keyboard.press(key);
+		await page.evaluate(() => {
+			const slide = document.querySelector(".slide");
+			slide?.insertAdjacentHTML(
+				"beforeend",
+				'<div id="edit" contenteditable>x</div><select id="pick"><option>a</option><option>b</option></select>',
+			);
+		});
+		await page.focus("#edit");
+		await page.keyboard.press("ArrowRight");
+		await page.focus("#pick");
+		await page.keyboard.press("ArrowDown");
+		await page.waitForTimeout(300);
+		expect(slideOf(page)).toBe(3);
+		expect(new URL(page.url()).search).toBe("");
+		expect(await page.evaluate(() => document.fullscreenElement)).toBeNull();
+		await page.close();
+	});
+
 	it("share mode stays on while moving between slides, and s turns it off", async () => {
 		const page = await open(browser(), "/example-deck/3/");
 		await page.waitForSelector(".slide");
@@ -174,6 +202,21 @@ describe("keys", () => {
 		await page.keyboard.press("Shift+,");
 		expect(await size()).toBe("1.10");
 		expect(await page.evaluate(() => localStorage.getItem("astlide:notes-font-size"))).toBe("1.1");
+		// > typed with AltGr (reported as Ctrl + Alt) on some keyboard layouts.
+		await page.evaluate(() =>
+			document.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					key: ">",
+					shiftKey: true,
+					ctrlKey: true,
+					altKey: true,
+					modifierAltGraph: true,
+					bubbles: true,
+				}),
+			),
+		);
+		expect(await size()).toBe("1.20");
+		await page.keyboard.press("Shift+,");
 		await page.locator('[data-notes-font="inc"]').click();
 		expect(await size()).toBe("1.20");
 		await page.locator('[data-notes-font="reset"]').click();
