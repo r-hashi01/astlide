@@ -4,8 +4,9 @@ export function slugify(text: string, fallback = "slide"): string {
 		.normalize("NFKD")
 		.toLowerCase()
 		.replace(/[^\p{Letter}\p{Number}]+/gu, "-")
-		.replace(/^-+|-+$/g, "")
+		// Hyphens come one at a time now.
+		.replace(/^-|-$/g, "")
 		.slice(0, 48)
-		.replace(/-+$/, "");
+		.replace(/-$/, "");
 	return slug || fallback;
 }
