@@ -10,6 +10,7 @@ import { type ElementBox, isElement, StyleContext, type TextRun } from "./box-tr
 import { type Computed, computeStyle, type StyleSheets, type Viewport } from "./cascade";
 import { Flow, type Fragment } from "./flow";
 import type { NaturalSize } from "./images";
+import { lookup } from "./lookup";
 import { clipsOverflow, keyword } from "./properties";
 import { type FontRegistry, type InlineStyle, verticalMetrics } from "./text";
 import { type Affine, boxTransform, compose, IDENTITY, mapRect } from "./transform";
@@ -176,7 +177,7 @@ export function layoutSlide(
 	return layoutTree(ctx, ctx.box(slide, slideStyle), slideStyle, sheets, fonts, vp);
 }
 
-const MARKERS: Record<string, string> = { disc: "•", circle: "◦", square: "▪" };
+const MARKERS: Record<string, string> = lookup({ disc: "•", circle: "◦", square: "▪" });
 
 /** Outside list markers: text ends at the item's border-box start, on its first baseline. */
 function listMarkers(

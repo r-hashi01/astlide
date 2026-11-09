@@ -4,6 +4,8 @@
  * Colours outside sRGB are clipped to it, as PowerPoint can't show them.
  */
 
+import { lookup } from "./lookup";
+
 /** An sRGB colour: six hex digits and an alpha from 0 to 1. */
 export interface Color {
 	hex: string;
@@ -14,7 +16,7 @@ export interface Color {
 type Rgba = [number, number, number, number];
 
 // biome-ignore format: a table
-const NAMED: Record<string, string> = {
+const NAMED: Record<string, string> = lookup({
 	aliceblue: "f0f8ff", antiquewhite: "faebd7", aqua: "00ffff", aquamarine: "7fffd4", azure: "f0ffff",
 	beige: "f5f5dc", bisque: "ffe4c4", black: "000000", blanchedalmond: "ffebcd", blue: "0000ff",
 	blueviolet: "8a2be2", brown: "a52a2a", burlywood: "deb887", cadetblue: "5f9ea0", chartreuse: "7fff00",
@@ -49,7 +51,7 @@ const NAMED: Record<string, string> = {
 	tan: "d2b48c", teal: "008080", thistle: "d8bfd8", tomato: "ff6347", turquoise: "40e0d0",
 	violet: "ee82ee", wheat: "f5deb3", white: "ffffff", whitesmoke: "f5f5f5", yellow: "ffff00",
 	yellowgreen: "9acd32",
-};
+});
 
 /** A computed CSS colour as sRGB, or null for one it can't read (a var() left over …). */
 export function parseColor(value: string | undefined): Color | null {

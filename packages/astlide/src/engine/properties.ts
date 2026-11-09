@@ -4,6 +4,8 @@
  * value for each of them, so layout code never supplies its own default.
  */
 
+import { lookup } from "./lookup";
+
 interface Property {
 	initial: string;
 	inherited?: true;
@@ -15,7 +17,7 @@ const CORNERS = ["top-left", "top-right", "bottom-right", "bottom-left"] as cons
 const inherited = (initial: string): Property => ({ initial, inherited: true });
 const own = (initial: string): Property => ({ initial });
 
-export const PROPERTIES: Record<string, Property> = {
+export const PROPERTIES: Record<string, Property> = lookup({
 	// Display and positioning
 	display: own("inline"),
 	position: own("static"),
@@ -105,7 +107,7 @@ export const PROPERTIES: Record<string, Property> = {
 	"background-clip": own("border-box"),
 	"object-fit": own("fill"),
 	"object-position": own("50% 50%"),
-};
+});
 
 /** Whether a property is inherited by default (unknown ones aren't). */
 export function isInherited(prop: string): boolean {

@@ -96,7 +96,8 @@ function paint(value: string, current: string): { hex: string; alpha: number } |
 	if (v === "none" || v === "transparent") return null;
 	if (v === "currentcolor") return { hex: current, alpha: 1 };
 	if (v.startsWith("url(")) throw new Unsupported("paint server");
-	const named = NAMED[v];
+	// Own names only: `constructor` is not a color.
+	const named = Object.hasOwn(NAMED, v) ? NAMED[v] : undefined;
 	if (named) return { hex: named, alpha: 1 };
 	const hex = v.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/);
 	if (hex) {

@@ -47,7 +47,7 @@ const decodeEntities = (s: string) =>
 	s.replace(/&(#x[\da-f]+|#\d+|\w+);/gi, (m, e: string) =>
 		e[0] === "#"
 			? String.fromCodePoint(Number.parseInt(e.slice(e[1] === "x" ? 2 : 1), e[1] === "x" ? 16 : 10))
-			: (ENTITIES[e] ?? m),
+			: ((Object.hasOwn(ENTITIES, e) ? ENTITIES[e] : undefined) ?? m),
 	);
 
 /**

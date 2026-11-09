@@ -6,6 +6,7 @@
 
 import { readFileSync } from "node:fs";
 import * as fontkit from "fontkit";
+import { lookup } from "./lookup";
 import type { Keyword } from "./properties";
 
 export interface FontFace {
@@ -56,7 +57,7 @@ const MONO = [
 	"liberation mono",
 	"dejavu sans mono",
 ];
-const GENERIC_FAMILIES: Record<string, string[]> = {
+const GENERIC_FAMILIES: Record<string, string[]> = lookup({
 	"sans-serif": SANS,
 	"system-ui": SANS,
 	"ui-sans-serif": SANS,
@@ -66,14 +67,14 @@ const GENERIC_FAMILIES: Record<string, string[]> = {
 	"ui-serif": SERIF,
 	monospace: MONO,
 	"ui-monospace": MONO,
-};
+});
 
 /**
  * Open fonts with the same advance widths as common proprietary ones (the
  * substitutes Linux Chromium gets through fontconfig): text in a family we
  * can't load is measured with its clone, so it breaks into the same lines.
  */
-export const METRIC_COMPATIBLE: Record<string, string> = {
+export const METRIC_COMPATIBLE: Readonly<Record<string, string>> = lookup({
 	arial: "Arimo",
 	helvetica: "Arimo",
 	"times new roman": "Tinos",
@@ -82,7 +83,7 @@ export const METRIC_COMPATIBLE: Record<string, string> = {
 	courier: "Cousine",
 	calibri: "Carlito",
 	cambria: "Caladea",
-};
+});
 
 /** Whether a face draws a character: the font has it and the page serves it (`unicode-range`). */
 function covers(face: FontFace, cp: number): boolean {

@@ -214,6 +214,31 @@ describe("engine layout", () => {
 		expect(b.b).toMatchObject({ w: 100, h: 50 });
 	});
 
+	it("lays out values named like object properties (constructor, __proto__) without throwing", () => {
+		for (const name of ["constructor", "__proto__", "toString", "hasOwnProperty"]) {
+			const css = [
+				"font-family",
+				"font-size",
+				"font-weight",
+				"list-style-type",
+				"color",
+				"background",
+				"border-width",
+				"text-align",
+				"display",
+				name,
+			]
+				.map((prop) => `${prop}:${name}`)
+				.join(";");
+			expect(() =>
+				page(
+					`.a{${css}}@media (${name}){.a{color:red}}`,
+					'<p class="a">Hi</p><ul class="a"><li>x</li></ul>',
+				),
+			).not.toThrow();
+		}
+	});
+
 	it("resolves min() with what it knows", () => {
 		const b = boxes(".m{width:min(480px, 100%);height:10px}", '<div class="m"></div>');
 		expect(b.m?.w).toBe(480);
