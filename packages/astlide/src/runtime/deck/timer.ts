@@ -13,7 +13,8 @@ export function setUpTimer(mount: Mount): void {
 	const timerBtn = document.getElementById("timer-btn");
 	const timerResetBtn = document.getElementById("timer-reset");
 	if (!timerEl && !timerBtn) return;
-	const state = (window.__astlide_timer ??= { elapsed: 0, startedAt: null });
+	window.__astlide_timer ??= { elapsed: 0, startedAt: null };
+	const state = window.__astlide_timer;
 	let timerInterval: ReturnType<typeof setInterval> | null = null;
 
 	function formatTimer(secs: number): string {
