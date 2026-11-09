@@ -27,7 +27,7 @@ import {
 import { levelStyle } from "./import/text";
 import { EMU_PER_POINT } from "./ooxml/units";
 import { type Element, kid, kids, path } from "./ooxml/xml";
-import { slugify } from "./slug";
+import { layoutSlug } from "./slug";
 
 /** A placeholder's box on the canvas (px) and the CSS for its text. */
 export interface TemplateRegion {
@@ -142,7 +142,7 @@ export function pptxToTemplate(data: Uint8Array, options: PptxImportOptions = {}
 				master = canvas(p, { ...ctx, layout: undefined, layoutPart: undefined });
 			}
 			const name = path(ctx.layout, "p:cSld")?.attribs.name ?? ctx.layout?.attribs.type ?? "layout";
-			const base = slugify(name, "layout");
+			const base = layoutSlug(name);
 			let id = base;
 			if (ids.has(id)) {
 				let n = nextSuffix.get(base) ?? 2;
