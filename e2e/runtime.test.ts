@@ -1,7 +1,7 @@
 /**
  * The deck runtime's tools in a real browser: pen and laser (mirrored to the
  * other window), the toolbar's buttons, the presenter timer, the notes font
- * size, Home / End, Escape and swipes, and what a cleanup leaves behind.
+ * size, Home / End, Escape, share mode and swipes, and what a cleanup leaves behind.
  */
 
 import type { BrowserContext, Page } from "playwright";
@@ -164,6 +164,27 @@ describe("keys", () => {
 		await page.close();
 	});
 
+	it("share mode stays on while moving between slides, and s turns it off", async () => {
+		const page = await open(browser(), "/example-deck/3/");
+		await page.waitForSelector(".slide");
+		const share = () => page.evaluate(() => document.documentElement.hasAttribute("data-share"));
+		await page.keyboard.press("s");
+		await expect.poll(share).toBe(true);
+		await page.waitForSelector(".slide");
+		await page.keyboard.press("ArrowRight");
+		await expect.poll(() => slideOf(page)).toBe(4);
+		expect(new URL(page.url()).searchParams.has("share")).toBe(true);
+		expect(await share()).toBe(true);
+		await page.waitForSelector(".slide");
+		await page.keyboard.press("s");
+		await expect.poll(share).toBe(false);
+		await page.waitForSelector(".slide");
+		await page.keyboard.press("ArrowRight");
+		await expect.poll(() => slideOf(page)).toBe(5);
+		expect(new URL(page.url()).searchParams.has("share")).toBe(false);
+		await page.close();
+	});
+
 	it("Shift+. / Shift+, change the notes font size, and the size is kept", async () => {
 		const page = await open(browser(), "/example-deck/1/?presenter");
 		await page.waitForSelector(".slide");
@@ -259,6 +280,25 @@ describe("presenter timer", () => {
 		await page.locator("#timer-reset").click();
 		expect(await timer.textContent()).toBe("00:00");
 		expect(await start.getAttribute("aria-label")).toBe("Start timer");
+		await page.close();
+	});
+
+	it("keeps counting across slides", async () => {
+		const page = await open(browser(), "/example-deck/1/?presenter");
+		await page.waitForSelector(".slide");
+		await page.locator("#timer-btn").click();
+		await expect
+			.poll(() => page.locator("#presenter-timer").textContent(), { timeout: 5000 })
+			.not.toBe("00:00");
+		await page.keyboard.press("ArrowRight");
+		await expect.poll(() => slideOf(page)).toBe(2);
+		await page.waitForSelector(".slide");
+		expect(await page.locator("#presenter-timer").textContent()).not.toBe("00:00");
+		expect(await page.locator("#timer-btn").getAttribute("aria-label")).toBe("Pause timer");
+		const before = await page.locator("#presenter-timer").textContent();
+		await expect
+			.poll(() => page.locator("#presenter-timer").textContent(), { timeout: 5000 })
+			.not.toBe(before);
 		await page.close();
 	});
 });

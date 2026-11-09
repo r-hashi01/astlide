@@ -174,12 +174,12 @@ export function checkSlide(
 	 * The slide's content area: the slide minus its padding — where a layout
 	 * means content to stay (children of the slide are checked against it).
 	 */
-	const pad = (side: string) => Number.parseFloat(layout.style.get(`padding-${side}`) ?? "0") || 0;
+	const pad = layout.padding;
 	const contentArea: Rect = {
-		x: pad("left"),
-		y: pad("top"),
-		w: layout.width - pad("left") - pad("right"),
-		h: layout.height - pad("top") - pad("bottom"),
+		x: pad.left,
+		y: pad.top,
+		w: layout.width - pad.left - pad.right,
+		h: layout.height - pad.top - pad.bottom,
 	};
 
 	interface Found {
