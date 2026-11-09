@@ -3,18 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { inflateRawSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { speakerNotes } from "../src/pptx/export/export";
-import {
-	crc32,
-	dosDateTime,
-	emu,
-	esc,
-	hpt,
-	langOf,
-	PptxFile,
-	type SlideSpec,
-	ZipWriter,
-} from "../src/pptx/export/ooxml-writer";
+import { speakerNotes } from "../src/pptx/export/notes";
+import { PptxFile } from "../src/pptx/export/ooxml-writer";
+import { langOf } from "../src/pptx/export/writer/slide-xml";
+import type { SlideSpec } from "../src/pptx/export/writer/spec";
+import { emu, esc, hpt } from "../src/pptx/ooxml/units";
+import { crc32, dosDateTime, ZipWriter } from "../src/pptx/ooxml/zip-writer";
 
 /**
  * Extract a file from a ZIP buffer by path name.
@@ -195,8 +189,8 @@ describe("ZipWriter", () => {
 });
 
 describe("dosDateTime", () => {
-	it("encodes 1-based months and days", () => {
-		const { date, time } = dosDateTime(new Date(2026, 9, 9, 21, 22, 24));
+	it("encodes 1-based months and days, in UTC", () => {
+		const { date, time } = dosDateTime(new Date(Date.UTC(2026, 9, 9, 21, 22, 24)));
 		expect(date >> 9).toBe(2026 - 1980);
 		expect((date >> 5) & 0x0f).toBe(10);
 		expect(date & 0x1f).toBe(9);
@@ -296,8 +290,6 @@ describe("PptxFile", () => {
 						secondary: "64748B",
 						accent: "F59E0B",
 						muted: "F1F5F9",
-						codeBg: "1E1E1E",
-						codeFg: "D4D4D4",
 					},
 				}),
 		).not.toThrow();

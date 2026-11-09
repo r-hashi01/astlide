@@ -16,7 +16,7 @@
 		"export": "bun packages/astlide/src/cli/astlide.ts export --cwd playground",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"typecheck": "cd playground && bunx astro sync && node --import ../scripts/use-typescript6.mjs ../scripts/typecheck.mjs && tsc -p ../packages/astlide && tsc -p ../packages/astro && tsc -p ../packages/server && tsc -p ../packages/react && tsc -p ../packages/next && tsc -p ../packages/vue && tsc -p ../packages/nuxt",
+		"typecheck": "cd playground && bunx astro sync && node --import ../scripts/use-typescript6.mjs ../scripts/typecheck.mjs && tsc -p ../packages/astlide && tsc -p ../packages/astro && tsc -p ../packages/server && tsc -p ../packages/react && tsc -p ../packages/next && tsc -p ../packages/vue && tsc -p ../packages/nuxt && tsc -p ../tsconfig.tools.json",
 		"test:e2e": "vitest run --config vitest.config.e2e.ts",
 		"lint": "biome check .",
 		"lint:fix": "biome check --fix .",
@@ -37,13 +37,10 @@
 		"playwright": "^1.64.1",
 		"pptxgenjs": "^4.0.1",
 		"typescript": "^7.0.2",
-		"vitest": "^5.0.5",
+		"vitest": "^5.1.0",
 		"zod": "^4.6.7"
 	},
 	"dependencies": {
 		"astro": "^7.4.2"
-	},
-	"patchedDependencies": {
-		"vitest@5.0.5": "patches/vitest@5.0.5.patch"
 	}
 }

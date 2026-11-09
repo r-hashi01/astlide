@@ -183,8 +183,8 @@ describe("Office theme files", () => {
 
 describe("untrusted templates", () => {
 	it("reads each master and layout once, however often the file lists them", async () => {
-		const { readZip } = await import("../src/pptx/zip");
-		const { ZipWriter } = await import("../src/pptx/export/ooxml-writer");
+		const { readZip } = await import("../src/pptx/ooxml/zip");
+		const { ZipWriter } = await import("../src/pptx/ooxml/zip-writer");
 		const original = pptxToTemplate(await fixture());
 		const files = readZip(await fixture());
 		const zip = new ZipWriter();

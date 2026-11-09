@@ -23,22 +23,19 @@
  */
 
 import { readdir, readFile } from "node:fs/promises";
-import { basename, join, relative } from "node:path";
-import {
-	type DeckConfig,
-	deckConfigSchema,
-	deprecatedClassWarning,
-	type SlideData,
-	slideSchema,
-} from "../schema";
+import { basename, join } from "node:path";
+import { type DeckConfig, deprecatedClassWarning, type SlideData, slideSchema } from "../schema";
 import { extractCommentNotes, withoutNotesComment } from "../utils/comment-notes";
 import { consoleReporter, type Reporter } from "../utils/reporter";
-import { slideScriptsKept, stripSlideScripts } from "../utils/slide-scripts";
+import { stripSlideScripts } from "../utils/slide-scripts";
 import { slideTitle } from "../utils/slide-title";
 import {
+	filesIn,
 	HTML_EXTENSION,
 	htmlWithoutNotes,
 	PPTX_EXTENSION,
+	pptxSlideId,
+	readDeckConfig,
 	SLIDE_EXTENSION,
 	splitFrontmatter,
 	toEntryId,
@@ -110,42 +107,6 @@ const warned = new Set<string>();
 
 const missing = (e: unknown) => (e as NodeJS.ErrnoException).code === "ENOENT";
 
-async function readConfig(dir: string): Promise<Pick<Deck, "config" | "configIssue">> {
-	const defaults = deckConfigSchema.parse({});
-	let raw: string;
-	try {
-		raw = await readFile(join(dir, "_config.json"), "utf-8");
-	} catch (e) {
-		if (missing(e)) return { config: defaults };
-		throw e;
-	}
-	let json: unknown;
-	try {
-		json = JSON.parse(raw);
-	} catch (e) {
-		return { config: defaults, configIssue: `Malformed _config.json: ${(e as Error).message}` };
-	}
-	const result = deckConfigSchema.safeParse(json);
-	if (result.success) return { config: result.data };
-	const issues = result.error.issues
-		.map((i) => `${i.path.join(".") || "<root>"} — ${i.message}`)
-		.join("; ");
-	return { config: defaults, configIssue: `Invalid _config.json: ${issues}` };
-}
-
-/** Slide files in the deck folder (and below it), relative, with `/`. */
-async function slideFiles(dir: string): Promise<string[]> {
-	const entries = await readdir(dir, { recursive: true, withFileTypes: true });
-	return entries
-		.filter(
-			(e) =>
-				e.isFile() &&
-				!e.name.startsWith("~$") &&
-				(SLIDE_EXTENSION.test(e.name) || PPTX_EXTENSION.test(e.name)),
-		)
-		.map((e) => relative(dir, join(e.parentPath, e.name)).replace(/\\/g, "/"));
-}
-
 function parseSlideData(data: Record<string, unknown>, file: string): SlideData {
 	const result = slideSchema.safeParse(data);
 	if (result.success) return result.data;
@@ -157,7 +118,7 @@ function parseSlideData(data: Record<string, unknown>, file: string): SlideData 
 
 /** Read one deck folder. */
 export async function readDeck(dir: string, options: ReadDeckOptions = {}): Promise<Deck> {
-	const keepScripts = options.slideScripts ?? slideScriptsKept();
+	const keepScripts = options.slideScripts ?? false;
 	const clean = (html: string) => (keepScripts ? html : stripSlideScripts(html));
 	let render: SlideMarkdownRenderer | undefined =
 		typeof options.markdown === "function" ? options.markdown : undefined;
@@ -169,7 +130,10 @@ export async function readDeck(dir: string, options: ReadDeckOptions = {}): Prom
 	};
 
 	const slides: Omit<DeckSlide, "number">[] = [];
-	for (const file of await slideFiles(dir)) {
+	for (const file of await filesIn(
+		dir,
+		(name) => SLIDE_EXTENSION.test(name) || PPTX_EXTENSION.test(name),
+	)) {
 		if (PPTX_EXTENSION.test(file)) {
 			const { pptxToSlides } = await import("../pptx/index");
 			const pages = pptxToSlides(await readFile(join(dir, file)), {
@@ -182,7 +146,7 @@ export async function readDeck(dir: string, options: ReadDeckOptions = {}): Prom
 				);
 				const html = clean(page.html);
 				slides.push({
-					id: `${file.replace(PPTX_EXTENSION, "")}--${String(page.index).padStart(3, "0")}`,
+					id: pptxSlideId(file, page.index),
 					file,
 					format: "pptx",
 					data,
@@ -233,7 +197,7 @@ export async function readDeck(dir: string, options: ReadDeckOptions = {}): Prom
 	slides.sort((a, b) => a.id.localeCompare(b.id));
 	return {
 		name: basename(dir),
-		...(await readConfig(dir)),
+		...(await readDeckConfig(dir)),
 		slides: slides.map((s, i) => ({ ...s, number: i + 1 })),
 	};
 }

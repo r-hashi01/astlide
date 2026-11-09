@@ -297,6 +297,25 @@ describe("deckConfigSchema", () => {
 	});
 });
 
+describe("deckConfigSchema ogImage", () => {
+	it("takes an absolute URL or a path from the site root", () => {
+		for (const ogImage of ["https://example.com/og.png", "http://x.dev/a.jpg", "/og/talk.png"])
+			expect(deckConfigSchema.parse({ ogImage }).ogImage).toBe(ogImage);
+		expect(deckConfigSchema.parse({}).ogImage).toBeUndefined();
+	});
+
+	it("refuses relative paths, protocol-relative URLs and other schemes", () => {
+		for (const ogImage of [
+			"og.png",
+			"./og.png",
+			"//cdn.example.com/og.png",
+			"javascript:alert(1)",
+			"",
+		])
+			expect(deckConfigSchema.safeParse({ ogImage }).success, ogImage).toBe(false);
+	});
+});
+
 describe("deprecatedClassWarning", () => {
 	it("names the deprecated classes a slide uses", () => {
 		expect(deprecatedClassWarning("demo/01.mdx", "text-light mt-2  text-center")).toBe(

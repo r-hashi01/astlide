@@ -12,7 +12,7 @@ import type { DeckRuntimeConfig, OutlineEntry } from "@astlide/core/runtime";
 import { TOOLBAR_ACTIONS } from "@astlide/core/runtime/chrome";
 import { mountDeckPage, setUpDeckPageTools } from "@astlide/core/runtime/deck-page";
 import type { MermaidLoader } from "@astlide/core/runtime/diagrams";
-import { noNotesText, slideNeighbours, slideUrl } from "@astlide/core/runtime/page";
+import { noNotesText, printUrl, slideNeighbours, slideUrl } from "@astlide/core/runtime/page";
 import {
 	computed,
 	defineComponent,
@@ -92,7 +92,14 @@ export const DeckPage = defineComponent({
 		};
 		onMounted(() => {
 			// Camera, recording and the toolbar's PDF download, set up once per page.
-			setUpDeckPageTools({ deck: props.deck, loadPdfExport: props.loadPdfExport });
+			setUpDeckPageTools({
+				deck: props.deck,
+				loadPdfExport: props.loadPdfExport,
+				printUrl: printUrl(props.deck, {
+					basePath: props.basePath,
+					trailingSlash: props.trailingSlash,
+				}),
+			});
 			mount();
 		});
 		// Again for each slide, when the slide moves to / from the presenter panel (a new

@@ -26,6 +26,8 @@ declare module "virtual:astlide-nuxt/decks" {
 	}
 	export const options: {
 		basePath: string;
+		/** Page URLs end in `/` (the module's `trailingSlash` option). */
+		trailingSlash: boolean;
 		toolbar?: string[];
 		showHidden: boolean;
 		/** Whether pages carry speaker notes (the module's `notes` option). */

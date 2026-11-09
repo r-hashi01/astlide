@@ -33,6 +33,11 @@ export interface ModuleOptions {
 	dir: string;
 	/** The URL path the deck pages are under, e.g. `/decks` (default: the root). */
 	basePath: string;
+	/**
+	 * Page URLs end in `/` (`/<deck>/3/`), for hosts that serve the static
+	 * build's `<page>/index.html` only there. Default `false`.
+	 */
+	trailingSlash?: boolean;
 	/** Toolbar buttons, in order (see Astlide's `toolbar` option). */
 	toolbar?: string[];
 	/** Shiki theme for code blocks (default `github-dark`). */
@@ -89,12 +94,30 @@ export default defineNuxtModule<ModuleOptions>({
 		const require = createRequire(import.meta.url);
 		nuxt.options.css.unshift(...STYLES.map((style) => require.resolve(style)));
 
+		// @astlide/crispdf (the toolbar's PDF download) imports `pdfjs-dist`, an
+		// optional peer for a feature Astlide doesn't use: a stub, so the build
+		// doesn't fail without it.
+		addVitePlugin({
+			name: "astlide:pdfjs-stub",
+			config: () => ({
+				resolve: {
+					alias: [
+						{
+							find: /^pdfjs-dist(?:\/.*)?$/,
+							replacement: require.resolve("@astlide/core/runtime/pdfjs-stub"),
+						},
+					],
+				},
+				optimizeDeps: { exclude: ["pdfjs-dist"] },
+			}),
+		});
 		addVitePlugin(
 			astlideDecksPlugin({
 				dir: resolve(nuxt.options.rootDir, options.dir),
 				shikiTheme: options.shikiTheme,
 				runtime: {
 					basePath,
+					trailingSlash: options.trailingSlash ?? false,
 					toolbar: options.toolbar,
 					showHidden: options.showHidden ?? nuxt.options.dev,
 					notes: options.notes === "public" || nuxt.options.dev,

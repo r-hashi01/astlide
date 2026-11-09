@@ -43,6 +43,7 @@ import { createMdxComponents, mdxComponents, Slide } from "@astlide/react";
 import type { ComponentType, ReactNode } from "react";
 import * as runtime from "react/jsx-runtime";
 import { NextDeckPage, PrintViewSetup } from "./client";
+import { deckByParam } from "./params";
 
 export interface DeckRoutesOptions {
 	/** The folder holding the deck folders (default `decks`, from the project root). */
@@ -87,8 +88,9 @@ export function createDeckRoutes(options: DeckRoutesOptions = {}) {
 	};
 	const slideHref = (deck: string, n: number) =>
 		slideUrl(deck, n, { basePath, trailingSlash: options.trailingSlash });
+	const deckNamed = async (param: string) => deckByParam(await decks(), param);
 	const findDeck = async (name: string) => {
-		const deck = (await decks()).find((d) => d.name === decodeURIComponent(name));
+		const deck = await deckNamed(name);
 		if (!deck) {
 			const { notFound } = await import("next/navigation");
 			notFound();
@@ -236,8 +238,7 @@ export function createDeckRoutes(options: DeckRoutesOptions = {}) {
 		deckParams: async (): Promise<DeckParams[]> => (await decks()).map((d) => ({ deck: d.name })),
 		/** `generateMetadata` for `[deck]/all`: its title, and the deck's `astlide:*` meta tags (`astlide export --pptx --base-url` reads them). */
 		printMetadata: async ({ params }: { params: Promise<DeckParams> }) => {
-			const name = decodeURIComponent((await params).deck);
-			const deck = (await decks()).find((d) => d.name === name);
+			const deck = await deckNamed((await params).deck);
 			return {
 				title: deck ? (deck.config.title ?? deck.name) : "Deck",
 				// What exporters read without running the page (`@astlide/core/deck/print-view`).
@@ -250,13 +251,21 @@ export function createDeckRoutes(options: DeckRoutesOptions = {}) {
 		/** `generateMetadata` for `[deck]/[slide]`. */
 		slideMetadata: async ({ params }: { params: Promise<SlideParams> }) => {
 			const { deck: name, slide: n } = await params;
-			const deck = (await decks()).find((d) => d.name === decodeURIComponent(name));
+			const deck = await deckNamed(name);
 			const slide = deck?.slides[Number(n) - 1];
 			const title = deck ? `${deck.config.title ?? deck.name} - Slide ${n}` : "Slide";
+			// The share picture (`ogImage`); a site path resolves against your `metadataBase`.
+			const image = deck?.config.ogImage;
 			return {
 				title,
 				description: slide ? (slideTitle({ data: slide.data, body: slide.body }) ?? title) : title,
 				robots: { index: false, follow: false },
+				...(image
+					? {
+							openGraph: { images: [image] },
+							twitter: { card: "summary_large_image" as const, images: [image] },
+						}
+					: { twitter: { card: "summary" as const } }),
 			};
 		},
 		SlidePage,

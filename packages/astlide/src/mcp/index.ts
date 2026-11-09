@@ -9,16 +9,14 @@
  */
 
 export {
-	type CheckDeckOptions,
-	type CheckDeckResult,
 	type CheckOptions,
-	checkDeck,
 	checkLayouts,
 	checkSlide,
 	type IssueKind,
 	type LayoutIssue,
 	type Overflow,
-} from "./check";
+} from "../check/layout";
+export { type CheckDeckOptions, type CheckDeckResult, checkDeck } from "./check";
 export {
 	type ImportedSlideText,
 	type ImportOptions,

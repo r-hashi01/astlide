@@ -34,13 +34,17 @@
  */
 
 import { createHash } from "node:crypto";
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { slideScriptsKept } from "@astlide/astro/internal/slide-scripts-option";
 import {
+	DECKS_DIR,
+	filesIn,
 	HTML_EXTENSION,
 	htmlWithoutNotes,
 	PPTX_EXTENSION,
+	pptxSlideId,
 	splitFrontmatter,
 	toEntryId,
 } from "@astlide/core/deck/files";
@@ -51,11 +55,7 @@ import {
 	withoutNotesComment,
 } from "@astlide/core/utils/comment-notes";
 import { pptxAssetDir, storePptxAsset } from "@astlide/core/utils/pptx-assets";
-import {
-	SLIDE_SCRIPTS_VERSION,
-	slideScriptsKept,
-	stripSlideScripts,
-} from "@astlide/core/utils/slide-scripts";
+import { SLIDE_SCRIPTS_VERSION, stripSlideScripts } from "@astlide/core/utils/slide-scripts";
 import type { Loader, LoaderContext } from "astro/loaders";
 import { glob } from "astro/loaders";
 
@@ -122,7 +122,7 @@ const wiredWatchers = new WeakSet<object>();
  * @returns An Astro content-collection {@link Loader}.
  */
 export function astlideDeckLoader(options: AstlideDeckLoaderOptions = {}): Loader {
-	const base = options.base ?? "src/content/decks";
+	const base = options.base ?? DECKS_DIR;
 
 	// MDX/Markdown go through Astro's own loader (compiler + HMR). We pin the id
 	// generator so HTML entries can share the exact same scheme.
@@ -138,7 +138,9 @@ export function astlideDeckLoader(options: AstlideDeckLoaderOptions = {}): Loade
 			// Trailing-comment notes never reach the rendered body; scripts in Markdown /
 			// HTML / PowerPoint slides only run with `slideScripts: true`.
 			const withoutNotes = withoutMarkdownNotes(loaderContext);
-			const context = slideScriptsKept() ? withoutNotes : withoutSlideScripts(withoutNotes);
+			const context = slideScriptsKept(loaderContext.config)
+				? withoutNotes
+				: withoutSlideScripts(withoutNotes);
 			await markdownLoader.load(context);
 			const baseUrl = new URL(`${base.replace(/\/?$/, "/")}`, context.config.root);
 			await syncHtmlSlides(context, baseUrl);
@@ -231,10 +233,7 @@ async function syncPptxSlides(context: LoaderContext, baseUrl: URL): Promise<voi
 	const baseDir = fileURLToPath(baseUrl);
 	let files: string[];
 	try {
-		const entries = await readdir(baseDir, { recursive: true, withFileTypes: true });
-		files = entries
-			.filter((e) => e.isFile() && PPTX_EXTENSION.test(e.name) && !e.name.startsWith("~$"))
-			.map((e) => relative(baseDir, `${e.parentPath}/${e.name}`).replace(/\\/g, "/"));
+		files = await filesIn(baseDir, (name) => PPTX_EXTENSION.test(name));
 	} catch {
 		files = [];
 	}
@@ -261,7 +260,7 @@ async function syncPptxSlides(context: LoaderContext, baseUrl: URL): Promise<voi
 			}
 			const digest = createHash("sha256").update(raw).digest("hex");
 			for (const slide of deck.slides) {
-				const id = `${relPath.replace(PPTX_EXTENSION, "")}--${String(slide.index).padStart(3, "0")}`;
+				const id = pptxSlideId(relPath, slide.index);
 				seen.add(id);
 				const data = await parseData({
 					id,
@@ -304,10 +303,7 @@ async function syncHtmlSlides(context: LoaderContext, baseUrl: URL): Promise<voi
 
 	let files: string[];
 	try {
-		const entries = await readdir(baseDir, { recursive: true, withFileTypes: true });
-		files = entries
-			.filter((e) => e.isFile() && HTML_EXTENSION.test(e.name))
-			.map((e) => relative(baseDir, `${e.parentPath}/${e.name}`).replace(/\\/g, "/"));
+		files = await filesIn(baseDir, (name) => HTML_EXTENSION.test(name));
 	} catch {
 		// Base directory missing — the integration already warns about this.
 		files = [];

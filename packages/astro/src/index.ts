@@ -8,31 +8,7 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { resolveFavicon } from "@astlide/astro/internal/favicon";
-import {
-	astlideTemplatesPlugin,
-	type LoadedTemplate,
-	loadTemplate,
-	storedTemplateFiles,
-} from "@astlide/astro/internal/pptx-templates";
-import {
-	astlideCommentNotesPlugin,
-	astlideSlideScriptsPlugin,
-} from "@astlide/astro/internal/vite-plugins";
-import { type AstlidePlugin, BUILT_IN_PLUGIN, resolvePlugins } from "@astlide/core/plugin";
-import type { TemplateStore } from "@astlide/core/templates";
-import { openTemplateStore } from "@astlide/core/templates";
-import { astlideCodeHighlight } from "@astlide/core/utils/code-highlight";
-import { EXPORT_BUILD_ENV, requestedExportBuild } from "@astlide/core/utils/export-build";
-import { astlideMermaid } from "@astlide/core/utils/mermaid";
-import { PPTX_ASSET_ROUTE, pptxAssetDir } from "@astlide/core/utils/pptx-assets";
-import { setSlideScripts, stripBuiltPages } from "@astlide/core/utils/slide-scripts";
-import mdx from "@astrojs/mdx";
-import type { AstroIntegration } from "astro";
-import { hashBuiltPages } from "./csp-hashes";
+import { fileURLToPath } from "node:url";
 import {
 	astlideEditorPlugin,
 	createEditorToken,
@@ -41,8 +17,20 @@ import {
 	EDITOR_UNLOCK_ENDPOINT,
 	loadEditorSecret,
 	UNLOCK_CODE_TTL_MS,
-} from "./internal/editor-server";
-import { astlideVirtualPlugin } from "./internal/virtual-plugins";
+} from "@astlide/astro/internal/editor-server";
+import { resolveFavicon } from "@astlide/astro/internal/favicon";
+import { checkProject, warnDroppedPlugins } from "@astlide/astro/internal/setup/diagnostics";
+import { resolveEntrypoints } from "@astlide/astro/internal/setup/entrypoints";
+import { injectRoutes } from "@astlide/astro/internal/setup/routes";
+import { loadTemplates } from "@astlide/astro/internal/setup/templates";
+import { astlideConfig } from "@astlide/astro/internal/setup/vite";
+import { decksDirIn } from "@astlide/core/deck/files";
+import { type AstlidePlugin, BUILT_IN_PLUGIN, resolvePlugins } from "@astlide/core/plugin";
+import type { TemplateStore } from "@astlide/core/templates";
+import { EXPORT_BUILD_ENV, requestedExportBuild } from "@astlide/core/utils/export-build";
+import { stripBuiltPages } from "@astlide/core/utils/slide-scripts";
+import type { AstroIntegration } from "astro";
+import { hashBuiltPages } from "./csp-hashes";
 
 // Re-export the typed deck/slide metadata API
 export type { DeckContext } from "@astlide/core/context";
@@ -290,80 +278,6 @@ export type ToolbarItem =
 	| "download"
 	| "spacer";
 
-/** Resolved font config that DeckLayout consumes — `null` means "inject nothing". */
-interface ResolvedFont {
-	href: string;
-	preconnect: string[];
-}
-
-const DEFAULT_FONT: ResolvedFont = {
-	href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap",
-	preconnect: ["https://fonts.googleapis.com", "https://fonts.gstatic.com"],
-};
-
-function resolveFontOption(font: FontOption | undefined): ResolvedFont | null {
-	if (font === false) return null;
-	if (font === undefined) return DEFAULT_FONT;
-	if (typeof font === "string") {
-		return { href: font, preconnect: inferPreconnects(font) };
-	}
-	const href = font.href ?? DEFAULT_FONT.href;
-	return { href, preconnect: font.preconnect ?? inferPreconnects(href) };
-}
-
-function inferPreconnects(href: string): string[] {
-	try {
-		const { origin } = new URL(href);
-		// Google Fonts also serves font files from fonts.gstatic.com — preconnect to both.
-		if (origin === "https://fonts.googleapis.com") return [origin, "https://fonts.gstatic.com"];
-		return [origin];
-	} catch {
-		return [];
-	}
-}
-
-const CONTENT_CONFIG_EXAMPLE = `
-import { defineCollection } from 'astro:content';
-import { astlideDeckLoader, slideSchema } from '@astlide/astro';
-
-const decks = defineCollection({
-  // Renders .mdx, .md, and .html slides from src/content/decks/<deck>/
-  loader: astlideDeckLoader(),
-  schema: slideSchema,
-});
-
-export const collections = { decks };
-`.trim();
-
-const isStore = (value: unknown): value is TemplateStore =>
-	typeof (value as TemplateStore | undefined)?.list === "function" &&
-	typeof (value as TemplateStore).get === "function";
-
-/** The template store the `templates` option names, if it names one. */
-function templateStoreOf(
-	option: AstlideOptions["templates"],
-	root: string,
-): { store: TemplateStore; storeDir?: string; label: string } | undefined {
-	if (isStore(option)) return { store: option, label: "template store" };
-	if (typeof option !== "string") return undefined;
-	if (/^[a-z][a-z0-9+.-]*:\/\//i.test(option))
-		return { store: openTemplateStore(option), label: `template store ${option}` };
-	const storeDir = resolve(root, option);
-	return { store: openTemplateStore(storeDir), storeDir, label: `template store ${option}` };
-}
-
-/** Every stored template downloaded into the cache: theme name → file. */
-async function storedSources(
-	stored: { store: TemplateStore; label: string },
-	root: string,
-): Promise<[string, string][]> {
-	try {
-		return await storedTemplateFiles(stored.store, root);
-	} catch (e) {
-		throw new Error(`[astlide] ${stored.label}: ${(e as Error).message}`);
-	}
-}
-
 /**
  * The Astlide Astro integration: slides that live in your Astro site.
  *
@@ -401,8 +315,6 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 	let editorSecret: string | undefined;
 	const unlockCodes = createUnlockCodes();
 	let devProtocol = "http";
-	// Read by the deck loader, which runs in this process.
-	setSlideScripts(options.slideScripts === true);
 	// Marks where slide content starts and ends in a page, for the CSP pass
 	// after the build: random per build, so content can't fake the end mark.
 	const slideMark = randomBytes(16).toString("hex");
@@ -418,57 +330,14 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 				updateConfig,
 				logger,
 			}) => {
-				for (const { kind, name, plugin } of resolved.dropped) {
-					logger.warn(
-						`Plugin "${plugin}" registers the ${kind} "${name}", which is already registered; it is ignored.`,
-					);
-				}
-
-				// Auto-add MDX support if not already present
-				const hasMdx = config.integrations.some((i) => i.name === "@astrojs/mdx");
-
-				// Theme, layout and decorator entrypoints may be given as project-relative
-				// paths (e.g. "./src/components/Footer.astro"). Virtual modules can't
-				// resolve those, so rewrite them to absolute paths against the project
-				// root. Package specifiers and "/" paths (Vite resolves those from the
-				// root, or as absolute files) pass through.
-				const resolveEntry = (spec: string) =>
-					spec.startsWith("./") || spec.startsWith("../")
-						? fileURLToPath(new URL(spec, config.root))
-						: spec;
-				for (const t of resolved.themes) {
-					t.cssEntrypoint = resolveEntry(t.cssEntrypoint);
-				}
-				for (const d of resolved.decorators) {
-					d.componentEntrypoint = resolveEntry(d.componentEntrypoint);
-				}
-				for (const l of resolved.layouts) {
-					if (l.componentEntrypoint) l.componentEntrypoint = resolveEntry(l.componentEntrypoint);
-				}
-
-				// PowerPoint templates → themes (CSS from the cache) and their layout names.
+				// A file path (`URL.pathname` is percent-encoded, and wrong on Windows).
+				const srcDir = fileURLToPath(config.srcDir ?? new URL("src/", config.root));
 				const root = fileURLToPath(config.root);
-				// A store is read now (awaited only then: without one, setup stays synchronous).
-				const stored = templateStoreOf(options.templates, root);
-				const sources = stored
-					? await storedSources(stored, root)
-					: Object.entries((options.templates ?? {}) as Record<string, string>);
-				const storeDir = stored?.storeDir;
-				const templates: LoadedTemplate[] = [];
-				for (const [theme, source] of sources) {
-					let t: LoadedTemplate;
-					try {
-						t = loadTemplate(theme, source, root, config.base);
-					} catch (e) {
-						throw new Error(`[astlide] template "${theme}" (${source}): ${(e as Error).message}`);
-					}
-					templates.push(t);
-					if (!resolved.themeNames.has(theme)) {
-						resolved.themeNames.add(theme);
-						resolved.themes.push({ name: theme, cssEntrypoint: t.cssPath });
-					}
-					for (const id of Object.keys(t.data.layouts)) resolved.layoutNames.add(id);
-				}
+				warnDroppedPlugins(resolved, logger);
+				resolveEntrypoints(resolved, config.root);
+				// Awaited only with a template store: without one, setup stays synchronous.
+				const loading = loadTemplates(options, { root, base: config.base }, resolved);
+				const templates = loading instanceof Promise ? await loading : loading;
 
 				// Dev: pages that don't live-update reload on the editor's HMR events.
 				// The editor endpoint only answers requests carrying this server's token,
@@ -478,12 +347,9 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 				const editorToken = createEditorToken();
 				if (command === "dev") {
 					injectScript("page", DEV_RELOAD_SCRIPT);
-					editorSecret = loadEditorSecret(fileURLToPath(config.root));
+					editorSecret = loadEditorSecret(root);
 					if (config.vite?.server?.https) devProtocol = "https";
 				}
-
-				// Optional `mermaid` (```mermaid diagrams): exposed via virtual:astlide/mermaid.
-				const hasMermaid = isPackageInstalled("mermaid", fileURLToPath(config.root));
 
 				const favicon = resolveFavicon(
 					options.favicon,
@@ -491,173 +357,37 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 				);
 
 				// `astlide export` builds into (and previews from) its own folder — see utils/export-build.
-				const { dir: exportBuild, ignored } = requestedExportBuild(fileURLToPath(config.root));
+				const { dir: exportBuild, ignored } = requestedExportBuild(root);
 				if (ignored)
 					logger.warn(
 						`${EXPORT_BUILD_ENV}=${ignored} ignored: only astlide export sets it (to this project's export folder)`,
 					);
 
-				// Merge all config updates into a single call
-				updateConfig({
-					...(hasMdx ? {} : { integrations: [mdx()] }),
-					...(exportBuild ? { outDir: pathToFileURL(`${exportBuild}/`) } : {}),
-					markdown: {
-						shikiConfig: {
-							theme: options.shikiTheme ?? "github-dark",
-							wrap: true,
-							// `{2,4-6}` / `{2|3-5|all}` line highlighting on code fences, and
-							// ```mermaid fences handed to the client-side diagram renderer.
-							transformers: [astlideCodeHighlight(), astlideMermaid()],
-							// biome-ignore lint/suspicious/noExplicitAny: Shiki types live behind dynamic loading
-							langs: resolved.shiki.langs as any,
-							themes: Object.fromEntries(
-								resolved.shiki.themes
-									.filter(
-										(t): t is { name: string } =>
-											typeof t === "object" && t !== null && "name" in t,
-									)
-									.map((t) => [t.name, t as never]),
-							),
-						},
-					},
-					vite: {
-						// `as never`: astlide and Astro can resolve different copies of vite's
-						// types, so our `Plugin` isn't structurally identical to Astro's
-						// `PluginOption`. The value is correct at runtime (build passes).
-						plugins: [
-							astlideVirtualPlugin(resolved, { hasMermaid }) as never,
-							astlideTemplatesPlugin(
-								templates,
-								(t) => loadTemplate(t.theme, t.source, root, config.base),
-								command === "dev" ? storeDir : undefined,
-							) as never,
-							// Dev only: slide scripts also leave the final HTML responses.
-							...(options.slideScripts ? [] : [astlideSlideScriptsPlugin(slideMark) as never]),
-							// Dev-only (apply: "serve"): read/write endpoint for the `e` slide editor.
-							astlideEditorPlugin(
-								fileURLToPath(config.root),
-								editorToken,
-								editorSecret ?? "",
-								config.base,
-								unlockCodes,
-								join(
-									config.srcDir instanceof URL
-										? fileURLToPath(config.srcDir)
-										: join(fileURLToPath(config.root), "src"),
-									"content",
-									"decks",
-								),
-							) as never,
-							// Speaker notes as a trailing `<!-- … -->`: MDX would reject the comment.
-							astlideCommentNotesPlugin() as never,
-						],
-						// @astlide/crispdf declares `pdfjs-dist` as an optional peer for its
-						// opt-in self-check feature. We never enable selfCheck from this
-						// integration, so stub it out so Rollup doesn't fail when the peer
-						// is absent.
-						resolve: {
-							alias: [
-								{
-									find: /^pdfjs-dist(?:\/.*)?$/,
-									// Absolute path so Vite dedupes the module instead of warning
-									// about an unresolved bare specifier.
-									replacement: fileURLToPath(new URL("./internal/pdfjs-stub.ts", import.meta.url)),
-								},
-							],
-						},
-						// pdfjs-dist is excluded so neither the dev optimizer nor the prod
-						// bundler tries to materialize the optional peer; the alias above
-						// redirects any actual import to the no-op stub.
-						optimizeDeps: {
-							exclude: ["pdfjs-dist"],
-							// Pre-bundle mermaid so the first diagram in dev doesn't trigger a
-							// mid-session re-optimization (504 "Outdated Optimize Dep" + reload).
-							...(hasMermaid ? { include: ["mermaid"] } : {}),
-						},
-						define: {
-							// Expose options to injected pages via Vite define
-							__ASTLIDE_CSP__: JSON.stringify(options.csp ?? true),
-							__ASTLIDE_SLIDE_MARK__: JSON.stringify(slideMark),
-							__ASTLIDE_INDEXABLE__: JSON.stringify(options.indexable ?? false),
-							__ASTLIDE_THEME_NAMES__: JSON.stringify([...resolved.themeNames]),
-							__ASTLIDE_LAYOUT_NAMES__: JSON.stringify([...resolved.layoutNames]),
-							__ASTLIDE_TRANSITION_NAMES__: JSON.stringify([...resolved.transitionNames]),
-							__ASTLIDE_TOOLBAR__: JSON.stringify(options.toolbar ?? ["prev", "counter", "next"]),
-							__ASTLIDE_FONT__: JSON.stringify(resolveFontOption(options.font)),
-							__ASTLIDE_PPTX_ASSETS__: JSON.stringify(pptxAssetDir(config.root)),
-							__ASTLIDE_FAVICON__: JSON.stringify(favicon),
-							// Page URLs end in "/" when that's how the site is served (see utils/base-path).
-							__ASTLIDE_TRAILING_SLASH__: JSON.stringify(
-								config.trailingSlash === "always" ||
-									(config.trailingSlash !== "never" &&
-										(config.build?.format ?? "directory") === "directory"),
-							),
-							__ASTLIDE_DRAWINGS_PERSIST__: JSON.stringify(options.drawings?.persist ?? false),
-							__ASTLIDE_NOTES__: JSON.stringify(
-								options.notes === "public" || command === "dev" || Boolean(exportBuild),
-							),
-						},
-					},
-				});
-
-				// Inject the page routes. `/[deck]/all` must come before `/[deck]/[...slide]`
-				// so Astro's router matches it ahead of the generic slide pattern.
-				// Pictures and fonts of .pptx slides (written by the deck loader).
-				injectRoute({
-					pattern: `${PPTX_ASSET_ROUTE}/[file]`,
-					entrypoint: "@astlide/astro/internal/pages/pptx-asset.ts",
-				});
-				injectRoute({
-					pattern: "/[deck]/all",
-					entrypoint: "@astlide/astro/internal/pages/all.astro",
-				});
-				injectRoute({
-					pattern: "/[deck]/[...slide]",
-					entrypoint: "@astlide/astro/internal/pages/slide.astro",
-				});
-				const srcDir = config.srcDir?.pathname ?? join(process.cwd(), "src");
-
-				// Index route at `/`. Skipped when the user supplies their own
-				// src/pages/index.* so the two don't collide (a route collision is a
-				// hard error in future Astro). `injectIndexRoute` overrides detection:
-				// `false` never injects, `true` always injects.
-				const userIndexExists = ["astro", "md", "mdx", "html"].some((ext) =>
-					existsSync(join(srcDir, "pages", `index.${ext}`)),
+				updateConfig(
+					astlideConfig({
+						options,
+						resolved,
+						command,
+						config,
+						templates,
+						slideMark,
+						editor: astlideEditorPlugin(
+							root,
+							editorToken,
+							editorSecret ?? "",
+							config.base,
+							unlockCodes,
+							decksDirIn(srcDir),
+						),
+						exportBuild,
+						favicon,
+					}),
 				);
-				if (options.injectIndexRoute ?? !userIndexExists) {
-					injectRoute({
-						pattern: "/",
-						entrypoint: "@astlide/astro/internal/pages/index.astro",
-					});
-				} else if (options.injectIndexRoute === undefined) {
-					logger.info(
-						"Detected src/pages/index — skipping Astlide's deck index route at `/`. " +
-							"Set injectIndexRoute: true to force it.",
-					);
-				}
-
-				// Check for content collection config and warn if missing
-				const hasContentConfig = ["ts", "js", "mts", "mjs"].some((ext) =>
-					existsSync(join(srcDir, `content.config.${ext}`)),
+				injectRoutes(
+					{ injectRoute, logger },
+					{ srcDir, injectIndexRoute: options.injectIndexRoute },
 				);
-
-				if (!hasContentConfig) {
-					logger.warn(
-						"No content collection config found. Create src/content.config.ts:\n\n" +
-							CONTENT_CONFIG_EXAMPLE +
-							"\n",
-					);
-				}
-
-				// Check for decks directory
-				const decksDir = join(srcDir, "content", "decks");
-				if (!existsSync(decksDir)) {
-					logger.warn(
-						"No decks directory found at src/content/decks/. " +
-							"Create a deck folder with MDX slides:\n" +
-							"  src/content/decks/my-deck/01-intro.mdx\n",
-					);
-				}
+				checkProject(srcDir, logger);
 			},
 			"astro:server:start": ({ address, logger }) => {
 				if (!editorSecret) return;
@@ -692,19 +422,4 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 			},
 		},
 	};
-}
-
-/**
- * Whether `name` is installed for the project at `fromDir`, looking up the
- * `node_modules` chain the way Node resolution does. Used for optional
- * dependencies (e.g. `mermaid`) whose `exports` may not allow `require.resolve`.
- */
-function isPackageInstalled(name: string, fromDir: string): boolean {
-	let dir = fromDir;
-	while (true) {
-		if (existsSync(join(dir, "node_modules", name, "package.json"))) return true;
-		const parent = dirname(dir);
-		if (parent === dir) return false;
-		dir = parent;
-	}
 }

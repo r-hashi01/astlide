@@ -1,8 +1,6 @@
-import { inflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { BadRequest, deckFiles, parseSlides, slidesFromArray, splitMarkdown } from "../src/deck";
 import { Queue, QueueFull } from "../src/queue";
-import { zip } from "../src/zip";
 
 describe("splitMarkdown", () => {
 	it("splits slides on --- lines", () => {
@@ -107,20 +105,6 @@ describe("deckFiles", () => {
 		);
 		expect(Object.keys(files)[0]).toBe("001-slide.md");
 		expect(Object.keys(files)).toContain("120-slide.md");
-	});
-});
-
-describe("zip", () => {
-	it("writes entries a reader can inflate", () => {
-		const data = Buffer.from("hello hello hello");
-		const archive = zip([{ name: "a.txt", data }]);
-		expect(archive.readUInt32LE(0)).toBe(0x04034b50);
-		const nameLength = archive.readUInt16LE(26);
-		const size = archive.readUInt32LE(18);
-		const start = 30 + nameLength;
-		expect(archive.subarray(30, start).toString()).toBe("a.txt");
-		expect(inflateRawSync(archive.subarray(start, start + size)).toString()).toBe(data.toString());
-		expect(archive.readUInt32LE(archive.length - 22)).toBe(0x06054b50);
 	});
 });
 

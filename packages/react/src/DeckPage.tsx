@@ -18,7 +18,7 @@ import type { DeckRuntimeConfig, OutlineEntry } from "@astlide/core/runtime";
 import { TOOLBAR_ACTIONS } from "@astlide/core/runtime/chrome";
 import { mountDeckPage, setUpDeckPageTools } from "@astlide/core/runtime/deck-page";
 import type { MermaidLoader } from "@astlide/core/runtime/diagrams";
-import { noNotesText, slideNeighbours, slideUrl } from "@astlide/core/runtime/page";
+import { noNotesText, printUrl, slideNeighbours, slideUrl } from "@astlide/core/runtime/page";
 import { Fragment, type ReactNode, useEffect, useMemo } from "react";
 
 export interface DeckPageProps {
@@ -126,7 +126,11 @@ export function DeckPage(props: DeckPageProps) {
 		[config, navigate, loadMermaid, presenter],
 	);
 	// Camera, recording and the toolbar's PDF download, set up once per page.
-	useEffect(() => setUpDeckPageTools({ deck, loadPdfExport }), [deck, loadPdfExport]);
+	const print = printUrl(deck, { basePath, trailingSlash });
+	useEffect(
+		() => setUpDeckPageTools({ deck, loadPdfExport, printUrl: print }),
+		[deck, loadPdfExport, print],
+	);
 
 	const notes = (className: string) =>
 		notesHtml ? (

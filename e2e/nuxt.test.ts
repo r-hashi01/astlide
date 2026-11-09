@@ -83,10 +83,22 @@ describe("@astlide/nuxt", () => {
 			1,
 		);
 		await page.keyboard.press("ArrowRight");
-		await expect.poll(() => slideOf(page)).toBe(3);
+		// The router changes the URL before the next slide's page is in: wait for the page.
+		await expect.poll(() => page.locator(".nav-indicator").textContent()).toBe("3 / 29");
 		await page.keyboard.press("ArrowLeft");
 		await expect.poll(() => slideOf(page)).toBe(2);
 		expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe("default");
+		await page.close();
+	});
+
+	it("doesn't move from the old slide on a key pressed while the next one loads (#370)", async () => {
+		const page = await open("/tour/2");
+		await page.keyboard.press("ArrowRight");
+		// The URL says 3 while slide 2's page is still up: a key now must not go to 1.
+		await page.waitForURL(/\/tour\/3\/?$/, { waitUntil: "commit" });
+		await page.keyboard.press("ArrowLeft");
+		await page.waitForTimeout(1500);
+		expect([2, 3]).toContain(slideOf(page));
 		await page.close();
 	});
 
@@ -136,6 +148,31 @@ describe("@astlide/nuxt", () => {
 		expect(await page.locator("section.slide").count()).toBe(29);
 		await page.close();
 	});
+
+	it("downloads the deck as a PDF from the toolbar's print view", async () => {
+		const page = await open("/example-deck/1");
+		await page.route(/fonts\.(googleapis|gstatic)\.com/, (route) => route.abort());
+		await page.waitForFunction(() => "__astlide_download_pdf" in window);
+		const result = await page.evaluate(async () => {
+			const frames: string[] = [];
+			new MutationObserver((records) => {
+				for (const r of records)
+					for (const n of r.addedNodes)
+						if (n instanceof HTMLIFrameElement) frames.push(new URL(n.src).pathname);
+			}).observe(document.body, { childList: true });
+			const download = (
+				window as unknown as {
+					__astlide_download_pdf?: (o: { deck: string }) => Promise<{ blob: Blob }>;
+				}
+			).__astlide_download_pdf;
+			if (!download) throw new Error("no PDF download");
+			const { blob } = await download({ deck: "example-deck" });
+			return { frames, type: blob.type };
+		});
+		expect(result.type).toBe("application/pdf");
+		expect(result.frames).toEqual(["/example-deck/all"]);
+		await page.close();
+	}, 120_000);
 
 	it("keeps speaker notes out of production pages and bundles", async () => {
 		// Frontmatter notes (example-deck 4) and <SpeakerNotes> (example-deck 2).

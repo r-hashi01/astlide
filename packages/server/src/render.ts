@@ -11,8 +11,8 @@ import { writeFileSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { ZipWriter } from "@astlide/core/utils/zip";
 import { DECK } from "./project";
-import { zip } from "./zip";
 
 export type Format = "pptx" | "pdf" | "png";
 
@@ -165,7 +165,9 @@ export async function renderProject(
 		const files = await Promise.all(
 			names.map(async (name) => ({ name, data: await readFile(join(dir, name)) })),
 		);
-		return { data: zip(files), contentType: CONTENT_TYPES.png, ext: "zip" };
+		const archive = new ZipWriter();
+		for (const { name, data } of files) archive.add(name, data);
+		return { data: archive.toBuffer(), contentType: CONTENT_TYPES.png, ext: "zip" };
 	}
 	const file = join(out, `${DECK}.${format}`);
 	if ((await stat(file)).size > limit) throw tooLarge();

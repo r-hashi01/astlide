@@ -2,17 +2,19 @@
  * The layout engine — lay out HTML + CSS slides without a browser (PPTX
  * export and `check_deck`; exported as `@astlide/core/engine`).
  *
- * Pipeline: HTML (htmlparser2) → cascade (cascade.ts) → Yoga box layout +
- * font-metric line breaking (layout.ts, text.ts) → boxes and text lines in
- * slide coordinates.
+ * Pipeline: HTML (htmlparser2) → cascade (cascade.ts, properties.ts) → box
+ * tree (box-tree.ts) → layout as a function of constraints (flow/, with the
+ * box model in box-model.ts and lines in lines/) → boxes and text lines in
+ * slide coordinates (layout.ts).
  */
 
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { Element } from "domhandler";
 import { parseDocument } from "htmlparser2";
-import { StyleSheets, UA_CSS, type Viewport } from "./cascade";
+import { declaredValue, StyleSheets, UA_CSS, type Viewport } from "./cascade";
 import { distFile, isInside } from "./dist";
+import { imageSizes } from "./images";
 import {
 	type Box,
 	intersect,
@@ -24,6 +26,8 @@ import {
 } from "./layout";
 import type { FontRegistry } from "./text";
 
+export { transformText } from "./box-tree";
+export { type Color, parseColor } from "./color";
 export {
 	type MermaidOptions,
 	type RenderedDiagram,
@@ -33,13 +37,12 @@ export {
 } from "./diagrams";
 export { distFile, isInside } from "./dist";
 export { familiesIn, GOOGLE_FONT_LIMITS, loadFontFaces, loadGoogleFonts } from "./fonts";
+export { bitmapSize, imageSizes, type NaturalSize } from "./images";
 export type { Box, Rect, SlideLayout, TableBox, TableCellBox, TextLine } from "./layout";
-export { intersect, transformText } from "./layout";
+export { intersect } from "./layout";
 export { CJK_FAMILY, CJK_TEXT, DEFAULT_EA_FONT, loadPageFonts, type PageFonts } from "./page-fonts";
 export {
-	type Color,
 	type Gradient,
-	parseColor,
 	parseLinearGradient,
 	parseStripes,
 	type Scene,
@@ -105,9 +108,10 @@ export function layoutPage(
 	const slides = body.children.filter(
 		(c): c is Element => c.type === "tag" && (c.attribs.class ?? "").split(/\s+/).includes("slide"),
 	);
+	const images = imageSizes(distDir);
 	return slides.map((s) =>
 		withFrames(
-			layoutSlide(s, [html, body], sheets, fonts, vp),
+			layoutSlide(s, [html, body], sheets, fonts, vp, images),
 			dirname(htmlPath),
 			distDir,
 			fonts,
@@ -211,11 +215,8 @@ function withFrames(
 		const html = all.find((e) => e.name === "html");
 		const body = all.find((e) => e.name === "body");
 		if (!body) continue;
-		const px = (prop: string) => Number.parseFloat(frame.style.get(prop) ?? "0") || 0;
-		const x0 = frame.x + px("border-left-width") + px("padding-left");
-		const y0 = frame.y + px("border-top-width") + px("padding-top");
-		const w = frame.w - (x0 - frame.x) - px("border-right-width") - px("padding-right");
-		const h = frame.h - (y0 - frame.y) - px("border-bottom-width") - px("padding-bottom");
+		// The content box, as laid out (padding and border in any unit).
+		const { x: x0, y: y0, w, h } = frame.content ?? frame;
 		if (w <= 0 || h <= 0) continue;
 		const fvp: Viewport = { width: w, height: h, media: vp.media };
 		const sheets = documentSheets(doc, found.dir, distDir, fvp);
@@ -260,7 +261,7 @@ function withFrames(
 			bodyBg && bodyBg !== "transparent"
 				? bodyBg
 				: html
-					? sheets.declared(html).get("background-color")
+					? declaredValue(sheets.declared(html), "background-color")
 					: undefined;
 		const canvas: Box = {
 			eid: -1,

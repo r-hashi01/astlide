@@ -27,24 +27,27 @@
  * don't include it.
  */
 
+import {
+	DECK_CHANGED_EVENT,
+	EDITOR_ENDPOINT,
+	EDITOR_TOKEN_ENDPOINT,
+	EDITOR_TOKEN_HEADER,
+	SOURCE_SAVED_EVENT,
+} from "@astlide/astro/internal/editor/protocol";
 import { trailingSlash } from "@astlide/core/utils/base-path";
 
-const ENDPOINT = "/__astlide/source";
-const TOKEN_ENDPOINT = "/__astlide/editor-token";
 /** The dev server's editor token: fetched once, from the dev server's own origin. */
 let token: Promise<string> | null = null;
 async function authHeaders(): Promise<Record<string, string>> {
-	token ??= fetch(TOKEN_ENDPOINT, { cache: "no-store" })
+	token ??= fetch(EDITOR_TOKEN_ENDPOINT, { cache: "no-store" })
 		.then((res) => (res.ok ? (res.json() as Promise<{ token?: string }>) : { token: "" }))
 		.then((data) => data.token ?? "")
 		.catch(() => "");
 	const value = await token;
 	// Not handed out (another machine, a tunnel): try again next time.
 	if (!value) token = null;
-	return { "x-astlide-editor-token": value };
+	return { [EDITOR_TOKEN_HEADER]: value };
 }
-const SOURCE_SAVED_EVENT = "astlide:source-saved";
-const DECK_CHANGED_EVENT = "astlide:deck-changed";
 /** Coalesce the burst of events after the content store committed a change… */
 const DECK_SETTLE_MS = 100;
 /** …or, if no event says so, give it this long. */
@@ -233,7 +236,7 @@ async function loadSource(): Promise<void> {
 	const target = state;
 	setStatus("Loading…");
 	try {
-		const res = await fetch(`${ENDPOINT}?path=${encodeURIComponent(target.path)}`, {
+		const res = await fetch(`${EDITOR_ENDPOINT}?path=${encodeURIComponent(target.path)}`, {
 			cache: "no-store",
 			headers: await authHeaders(),
 		});
@@ -267,7 +270,7 @@ async function saveSource(): Promise<void> {
 	setStatus("Saving…");
 	saving = (async () => {
 		try {
-			const res = await fetch(ENDPOINT, {
+			const res = await fetch(EDITOR_ENDPOINT, {
 				method: "POST",
 				headers: { "Content-Type": "application/json", ...(await authHeaders()) },
 				body: JSON.stringify({ path, content }),

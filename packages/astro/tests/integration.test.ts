@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { slideScriptsKept } from "@astlide/astro/internal/slide-scripts-option";
 import { exportBuildDir } from "@astlide/core/utils/export-build";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import astlide from "../src/index";
@@ -33,7 +34,7 @@ function createMockHookArgs(
 		root: pathToFileURL(`${process.cwd()}/`),
 		publicDir: pathToFileURL(`${process.cwd()}/public/`),
 		integrations: overrides.integrations ?? [],
-		srcDir: overrides.srcDir ? { pathname: overrides.srcDir } : undefined,
+		srcDir: overrides.srcDir ? pathToFileURL(`${overrides.srcDir}/`) : undefined,
 		trailingSlash: overrides.trailingSlash ?? "ignore",
 		build: { format: overrides.build?.format ?? "directory" },
 	};
@@ -114,7 +115,8 @@ describe("astlide integration", () => {
 		});
 
 		it("auto-skips the index route when the user has their own src/pages/index", () => {
-			const dir = mkdtempSync(join(tmpdir(), "astlide-idx-"));
+			// A space in the path: percent-encoded in the srcDir URL.
+			const dir = mkdtempSync(join(tmpdir(), "astlide idx-"));
 			mkdirSync(join(dir, "pages"), { recursive: true });
 			writeFileSync(join(dir, "pages", "index.astro"), "<h1>home</h1>");
 			try {
@@ -176,6 +178,21 @@ describe("astlide integration", () => {
 			const configCall = args.updateConfig.mock.calls[0][0];
 			expect(configCall.vite.define.__ASTLIDE_DRAWINGS_PERSIST__).toBe("true");
 		});
+	});
+
+	// ── Slide scripts ──
+
+	it("gives each config its own slideScripts, for the deck loader", () => {
+		const viteOf = (options?: Parameters<typeof astlide>[0]) => {
+			const { args } = runSetup(options);
+			return { vite: args.updateConfig.mock.calls[0][0].vite };
+		};
+		// Two configs in one process: neither takes the other's.
+		const kept = viteOf({ slideScripts: true });
+		const removed = viteOf();
+		expect(slideScriptsKept(kept)).toBe(true);
+		expect(slideScriptsKept(removed)).toBe(false);
+		expect(slideScriptsKept({})).toBe(false);
 	});
 
 	// ── Speaker notes ──

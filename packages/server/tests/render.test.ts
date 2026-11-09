@@ -136,6 +136,32 @@ describe("POST /render (end to end)", () => {
 		expect(body.subarray(0, 5).toString()).toBe("%PDF-");
 	}, 180_000);
 
+	it("renders PNGs as a zip when Chromium is installed", async (ctx) => {
+		if (!(await hasChromium())) ctx.skip();
+		const res = await fetch(`${server.url}/render`, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ slides: ["# One", "# Two"], format: "png" }),
+		});
+		const body = Buffer.from(await res.arrayBuffer());
+		expect(res.status, body.toString()).toBe(200);
+		expect(res.headers.get("content-type")).toBe("application/zip");
+		const archive = await JSZip.loadAsync(body);
+		const names = Object.keys(archive.files).sort();
+		expect(names).toHaveLength(2);
+		for (const name of names) {
+			expect(name).toMatch(/\.png$/);
+			const png = await archive.file(name)?.async("uint8array");
+			expect(
+				Buffer.from(png ?? [])
+					.subarray(1, 4)
+					.toString(),
+			).toBe("PNG");
+			// A real date (the year, at least), not the zero DOS date.
+			expect(archive.files[name]?.date.getUTCFullYear()).toBeGreaterThanOrEqual(2026);
+		}
+	}, 180_000);
+
 	it("refuses a rendered file over MAX_OUTPUT_MB", async () => {
 		const small = createHandler({ ...options, maxOutputBytes: 1000 });
 		const res = await small(
