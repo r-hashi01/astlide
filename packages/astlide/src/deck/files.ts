@@ -6,9 +6,10 @@
  * @module
  */
 
-import { readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { load as parseYaml } from "js-yaml";
+import { type DeckConfig, deckConfigSchema } from "../schema";
 import { extractCommentNotes, withoutNotesComment } from "../utils/comment-notes";
 
 /** Where a project keeps its decks, from its root: one folder per deck. */
@@ -67,4 +68,36 @@ export function splitFrontmatter(raw: string): { data: Record<string, unknown>; 
 export function htmlWithoutNotes(body: string): string {
 	const notes = extractCommentNotes(body);
 	return (notes === undefined ? null : withoutNotesComment(body, notes)) ?? body;
+}
+
+const missing = (e: unknown) => (e as NodeJS.ErrnoException).code === "ENOENT";
+
+/**
+ * A deck folder's `_config.json`, checked: the config with defaults, and why
+ * it couldn't be used when it couldn't (the defaults are used then). No file
+ * means the defaults.
+ */
+export async function readDeckConfig(
+	dir: string,
+): Promise<{ config: DeckConfig; configIssue?: string }> {
+	const defaults = deckConfigSchema.parse({});
+	let raw: string;
+	try {
+		raw = await readFile(join(dir, "_config.json"), "utf-8");
+	} catch (e) {
+		if (missing(e)) return { config: defaults };
+		throw e;
+	}
+	let json: unknown;
+	try {
+		json = JSON.parse(raw);
+	} catch (e) {
+		return { config: defaults, configIssue: `Malformed _config.json: ${(e as Error).message}` };
+	}
+	const result = deckConfigSchema.safeParse(json);
+	if (result.success) return { config: result.data };
+	const issues = result.error.issues
+		.map((i) => `${i.path.join(".") || "<root>"} — ${i.message}`)
+		.join("; ");
+	return { config: defaults, configIssue: `Invalid _config.json: ${issues}` };
 }
