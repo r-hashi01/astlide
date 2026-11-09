@@ -18,7 +18,8 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ListRootsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import PptxGenJS from "pptxgenjs";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { checkSlide, siteView } from "../src/mcp/check";
+import { checkSlide } from "../src/check/layout";
+import { siteView } from "../src/mcp/check";
 import { importPptx, readPptx } from "../src/mcp/import";
 import {
 	astlideArgs,
