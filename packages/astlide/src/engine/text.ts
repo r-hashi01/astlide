@@ -68,6 +68,22 @@ const GENERIC_FAMILIES: Record<string, string[]> = {
 	"ui-monospace": MONO,
 };
 
+/**
+ * Open fonts with the same advance widths as common proprietary ones (the
+ * substitutes Linux Chromium gets through fontconfig): text in a family we
+ * can't load is measured with its clone, so it breaks into the same lines.
+ */
+export const METRIC_COMPATIBLE: Record<string, string> = {
+	arial: "Arimo",
+	helvetica: "Arimo",
+	"times new roman": "Tinos",
+	times: "Tinos",
+	"courier new": "Cousine",
+	courier: "Cousine",
+	calibri: "Carlito",
+	cambria: "Caladea",
+};
+
 /** Whether a face draws a character: the font has it and the page serves it (`unicode-range`). */
 function covers(face: FontFace, cp: number): boolean {
 	return (
@@ -130,6 +146,12 @@ export class FontRegistry {
 		this.faces.push({ family: family.toLowerCase(), weight, italic, font, file: path, ranges });
 	}
 
+	/** Whether a family has a registered face. */
+	has(family: string): boolean {
+		const fam = family.toLowerCase();
+		return this.faces.some((f) => f.family === fam);
+	}
+
 	/** Files of the registered faces (fallbacks excluded). */
 	files(): string[] {
 		return this.faces.flatMap((f) => (f.file ? [f.file] : []));
@@ -174,9 +196,15 @@ export class FontRegistry {
 		for (const name of names) {
 			const fam = name.toLowerCase();
 			const generic = GENERIC_FAMILIES[fam];
-			const face = generic ? generic.map(nearest).find(Boolean) : nearest(fam);
+			const own = generic ? undefined : nearest(fam);
+			const clone = METRIC_COMPATIBLE[fam];
+			const face = generic
+				? generic.map(nearest).find(Boolean)
+				: (own ?? (clone ? nearest(clone.toLowerCase()) : undefined));
 			if (face) {
-				if (found.length === 0) named = !generic;
+				// A clone measures the family; the document still names the family.
+				if (found.length === 0) named = !generic && !!own;
+				if (!own && !generic && found.length === 0) requested ??= name;
 				// Generic families stand for system fonts we don't have: only the
 				// families the list names back up the first one.
 				if (!found.includes(face) && (found.length === 0 || !generic)) found.push(face);

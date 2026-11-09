@@ -117,7 +117,7 @@ From this, the agent can shorten the text, split the slide or switch layouts, an
 
 The check reads the built deck, which leaves out [hidden slides](/guides/decks/#hidden-slides). Slide numbers in the report count only the slides that are shown.
 
-Text is measured with the fonts the deck loads (its `@font-face` rules and Google Fonts). If a font can't be found, the result says so and the widths are approximate. Two things are not checked: Mermaid diagrams, which the browser lays out, and pages of a `.pptx` file shown as they are.
+Text is measured with the fonts the deck loads (its `@font-face` rules and Google Fonts). Arial, Helvetica, Times New Roman, Courier New, Calibri and Cambria are measured with open fonts of the same widths (Arimo, Tinos, Cousine, Carlito, Caladea). If any other font can't be found, the result says so and the widths are approximate. Two things are not checked: Mermaid diagrams, which the browser lays out, and pages of a `.pptx` file shown as they are.
 
 ## Agent skill
 
