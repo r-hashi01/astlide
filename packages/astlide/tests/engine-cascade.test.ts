@@ -2,7 +2,7 @@ import { selectOne } from "css-select";
 import type { Element } from "domhandler";
 import { parseDocument } from "htmlparser2";
 import { describe, expect, it } from "vitest";
-import { StyleSheets } from "../src/engine/cascade";
+import { mediaMatches, StyleSheets } from "../src/engine/cascade";
 
 /** The declared value of `prop` on `.t`, with `css` on a page of `width` px. */
 function declared(css: string, html: string, prop: string, width = 1920): string | undefined {
@@ -65,5 +65,65 @@ describe("cascade", () => {
 		expect(declared('.t{font-family:"Open Sans"}', '<div class="t"></div>', "font-family")).toBe(
 			'"Open Sans"',
 		);
+	});
+});
+
+describe("media queries", () => {
+	// Checked against Chromium's matchMedia at 1920×1080 (screen).
+	const vp = { width: 1920, height: 1080, media: "screen" as const };
+	it.each([
+		"all",
+		"screen",
+		"not print",
+		"only screen and (min-width: 768px)",
+		"(width >= 768px)",
+		"(400px <= width <= 2000px)",
+		"(min-width: 48em)",
+		"(orientation: landscape)",
+		"(min-aspect-ratio: 16/9)",
+		"(prefers-color-scheme: light)",
+		"(hover: hover)",
+		"not (orientation: portrait)",
+		"(max-width: 600px), (min-width: 1500px)",
+		"(max-width: 600px) or (min-width: 1500px)",
+		"not all and (monochrome)",
+		"(color)",
+		"(min-device-width: 1024px)",
+		"(width)",
+		"(1000px < width)",
+	])("%s matches", (q) => {
+		expect(mediaMatches(q, vp)).toBe(true);
+	});
+	it.each([
+		"print",
+		"(width < 768px)",
+		"(max-width: 48em)",
+		"(orientation: portrait)",
+		"(max-aspect-ratio: 4/3)",
+		"(prefers-color-scheme: dark)",
+		"(prefers-reduced-motion: reduce)",
+		"(prefers-reduced-motion)",
+		"(hover: none)",
+		"(pointer: coarse)",
+		"(min-resolution: 2dppx)",
+		"(-webkit-min-device-pixel-ratio: 2)",
+		"(display-mode: standalone)",
+		"(min-width: 600px) and (max-width: 1000px)",
+		"screen and (max-width: 767px)",
+		"tv",
+		"(height > 2000px)",
+	])("%s doesn't match", (q) => {
+		expect(mediaMatches(q, vp)).toBe(false);
+	});
+});
+
+describe("@supports", () => {
+	it("applies supported conditions and not their negation", () => {
+		const div = '<div class="t"></div>';
+		expect(declared("@supports (display:grid){.t{color:blue}}", div, "color")).toBe("blue");
+		expect(
+			declared(".t{color:red} @supports not (display:grid){.t{color:blue}}", div, "color"),
+		).toBe("red");
+		expect(declared("@supports selector(:has(a)){.t{color:blue}}", div, "color")).toBe("blue");
 	});
 });

@@ -129,31 +129,191 @@ function hasDynamicPseudo(selector: Selector[]): boolean {
 
 // ── Media queries (the subset slides use) ────────────────────────────────
 
-function mediaMatches(query: string, vp: Viewport): boolean {
-	return query.split(",").some((q) => {
-		const s = q.trim().toLowerCase();
-		if (s === "" || s === "all") return true;
-		if (/^not\s/.test(s)) return !mediaMatches(s.slice(4), vp);
-		if (/\bprint\b/.test(s) && vp.media !== "print") return false;
-		if (/\bscreen\b/.test(s) && vp.media !== "screen") return false;
-		if (
-			/prefers-reduced-motion:\s*reduce|prefers-color-scheme:\s*dark|hover:\s*none|pointer:\s*coarse/.test(
-				s,
-			)
-		)
-			return false;
-		for (const [, kind, val] of s.matchAll(/(min|max)-width:\s*([\d.]+)px/g)) {
-			const n = Number(val);
-			if (kind === "min" && vp.width < n) return false;
-			if (kind === "max" && vp.width > n) return false;
+/**
+ * Whether a media query list matches the page (Media Queries 4): media types,
+ * `not` / `only`, conditions with `and` / `or` / `not`, and features —
+ * width / height (also as ranges: `(width < 768px)`), orientation,
+ * aspect-ratio, and the user preferences of a plain desktop browser. A
+ * feature it doesn't know makes its query false, as in browsers.
+ */
+export function mediaMatches(query: string, vp: Viewport): boolean {
+	return splitTop(query, ",").some((q) => {
+		let s = q.trim().toLowerCase();
+		if (s === "") return true;
+		let negate = false;
+		const head = s.match(/^(not\s+|only\s+)?([a-z-]+)(?:\s+and\s+|\s*$)/);
+		if (head && head[2] !== "not" && !s.startsWith("(")) {
+			negate = head[1]?.trim() === "not";
+			const type = head[2];
+			const typeOk = type === "all" || type === vp.media;
+			s = s.slice(head[0].length).trim();
+			const ok = typeOk && (s === "" || condition(s, (f) => mediaFeature(f, vp)));
+			return negate ? !ok : ok;
 		}
-		for (const [, kind, val] of s.matchAll(/(min|max)-height:\s*([\d.]+)px/g)) {
-			const n = Number(val);
-			if (kind === "min" && vp.height < n) return false;
-			if (kind === "max" && vp.height > n) return false;
-		}
-		return true;
+		return condition(s, (f) => mediaFeature(f, vp));
 	});
+}
+
+/** Whether an `@supports` condition holds: the engine's browser supports any declaration it names. */
+function supportsMatches(params: string): boolean {
+	return condition(params.trim().toLowerCase(), () => true);
+}
+
+/** Split on `sep` outside parentheses. */
+function splitTop(text: string, sep: string): string[] {
+	const out: string[] = [];
+	let depth = 0;
+	let cur = "";
+	for (const ch of text) {
+		if (ch === "(") depth++;
+		else if (ch === ")") depth--;
+		if (ch === sep && depth === 0) {
+			out.push(cur);
+			cur = "";
+		} else cur += ch;
+	}
+	out.push(cur);
+	return out;
+}
+
+/**
+ * A condition: `not (…)`, `(…) and (…)`, `(…) or (…)`; each `(…)` is a
+ * nested condition or a leaf for `leaf` (its text without the parentheses).
+ */
+function condition(text: string, leaf: (inner: string) => boolean): boolean {
+	const s = text.trim();
+	if (/^not\b/.test(s)) return !condition(s.slice(3), leaf);
+	// A function (`selector(…)`, `font-tech(…)`).
+	if (/^[a-z-]+\(/.test(s)) return leaf(s);
+	// Top-level parts and the words between them.
+	const parts: string[] = [];
+	const words: string[] = [];
+	let depth = 0;
+	let cur = "";
+	for (const ch of s) {
+		if (ch === "(") {
+			if (depth === 0) {
+				if (cur.trim()) words.push(cur.trim());
+				cur = "";
+			}
+			depth++;
+			if (depth === 1) continue;
+		} else if (ch === ")") {
+			depth--;
+			if (depth === 0) {
+				parts.push(cur);
+				cur = "";
+				continue;
+			}
+		}
+		cur += ch;
+	}
+	// Something it can't read.
+	if (cur.trim() || parts.length === 0) return false;
+	const evaluate = (inner: string) => {
+		const t = inner.trim();
+		return t.startsWith("(") || /^not\b/.test(t) ? condition(t, leaf) : leaf(t);
+	};
+	if (words.length > 0 && words.every((w) => w === "or")) return parts.some(evaluate);
+	if (words.length > 0 && !words.every((w) => w === "and")) return false;
+	return parts.every(evaluate);
+}
+
+/** A length in a media query, in px (`em` / `rem` are 16px there). */
+function mqLength(text: string): number {
+	const m = text.trim().match(/^([\d.]+)(px|em|rem)?$/);
+	if (!m) return Number.NaN;
+	return Number(m[1]) * (m[2] === "em" || m[2] === "rem" ? 16 : 1);
+}
+
+/** A resolution, in dppx (`2x`, `192dpi`). */
+function mqResolution(text: string): number {
+	const m = text.trim().match(/^([\d.]+)(dppx|x|dpi|dpcm)$/);
+	if (!m) return Number.NaN;
+	const n = Number(m[1]);
+	return m[2] === "dpi" ? n / 96 : m[2] === "dpcm" ? (n * 2.54) / 96 : n;
+}
+
+/** A ratio (`16/9`, `1.5`). */
+function mqRatio(text: string): number {
+	const [a = "", b = "1"] = text.split("/");
+	return Number(a.trim()) / Number(b.trim());
+}
+
+/** A media feature: `name`, `name: value` or a range (`width < 768px`, `400px <= width <= 800px`). */
+function mediaFeature(text: string, vp: Viewport): boolean {
+	// The device is the page (a 1920×1080 slide), at 1 dppx.
+	const value = (name: string): number | undefined => {
+		if (name === "width" || name === "device-width") return vp.width;
+		if (name === "height" || name === "device-height") return vp.height;
+		if (name === "aspect-ratio" || name === "device-aspect-ratio") return vp.width / vp.height;
+		if (name === "resolution") return 1;
+		return undefined;
+	};
+	const parse = (name: string, v: string) =>
+		name.endsWith("aspect-ratio")
+			? mqRatio(v)
+			: name === "resolution"
+				? mqResolution(v)
+				: mqLength(v);
+	const range = text.match(/^(.+?)\s*(<=|>=|<|>|=)\s*(.+?)(?:\s*(<=|>=|<|>|=)\s*(.+))?$/);
+	if (range && !text.includes(":")) {
+		const [, a = "", op1 = "", b = "", op2, c] = range;
+		const compare = (x: number, op: string, y: number) =>
+			op === "<"
+				? x < y
+				: op === "<="
+					? x <= y
+					: op === ">"
+						? x > y
+						: op === ">="
+							? x >= y
+							: x === y;
+		if (op2 && c !== undefined) {
+			const v = value(b.trim());
+			if (v === undefined) return false;
+			const name = b.trim();
+			return compare(parse(name, a), op1, v) && compare(v, op2, parse(name, c));
+		}
+		const left = value(a.trim());
+		if (left !== undefined) return compare(left, op1, parse(a.trim(), b));
+		const right = value(b.trim());
+		if (right !== undefined) return compare(parse(b.trim(), a), op1, right);
+		return false;
+	}
+	const [rawName = "", rawValue] = text.split(":");
+	const name = rawName.trim();
+	const v = rawValue?.trim();
+	const bounded = name.match(
+		/^(min|max)-(width|height|aspect-ratio|device-width|device-height|device-aspect-ratio|resolution)$/,
+	);
+	if (bounded && v !== undefined) {
+		const actual = value(bounded[2] ?? "") ?? Number.NaN;
+		const limit = parse(bounded[2] ?? "", v);
+		return bounded[1] === "min" ? actual >= limit : actual <= limit;
+	}
+	const own = value(name);
+	if (own !== undefined) return v === undefined ? own > 0 : own === parse(name, v);
+	// A plain desktop browser: light, motion allowed, a mouse.
+	const features: Record<string, string[]> = {
+		orientation: [vp.width >= vp.height ? "landscape" : "portrait"],
+		"prefers-color-scheme": ["light"],
+		"prefers-reduced-motion": ["no-preference"],
+		"prefers-contrast": ["no-preference"],
+		"prefers-reduced-transparency": ["no-preference"],
+		"forced-colors": ["none"],
+		hover: ["hover"],
+		"any-hover": ["hover"],
+		pointer: ["fine"],
+		"any-pointer": ["fine"],
+		color: [],
+		scripting: ["enabled"],
+	};
+	const known = features[name];
+	if (!known) return false;
+	if (v === undefined)
+		return name === "color" || !["none", "no-preference"].includes(known[0] ?? "");
+	return known.includes(v);
 }
 
 // ── Shorthands ───────────────────────────────────────────────────────────
@@ -394,6 +554,7 @@ export class StyleSheets {
 				const at = node as AtRule;
 				const name = at.name.toLowerCase();
 				if (name === "media" && !mediaMatches(at.params, this.vp)) continue;
+				if (name === "supports" && !supportsMatches(at.params)) continue;
 				if (name === "layer") {
 					const inLayer = (n: string) => (layer === null ? n : `${layer}.${n}`);
 					const names = at.params
