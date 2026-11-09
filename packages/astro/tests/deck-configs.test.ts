@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { deckConfigs, deckFolders } from "../src/internal/deck-configs";
+import { deckConfigs, deckDate, deckFolders } from "../src/internal/deck-configs";
 
 // The pages resolve slide paths against the project root (here the working directory).
 const root = process.cwd();
@@ -42,5 +42,23 @@ describe("deck configs", () => {
 		});
 		expect(configs.get("b")?.config.theme).toBe("default");
 		expect(configs.get("b")?.configIssue).toMatch(/^Malformed _config.json/);
+	});
+});
+
+describe("deckDate", () => {
+	it("shows a YYYY-MM-DD date as written, also west of UTC", () => {
+		const tz = process.env.TZ;
+		process.env.TZ = "America/Los_Angeles";
+		try {
+			expect(deckDate("2024-01-15")).toBe("Jan 15, 2024");
+			expect(deckDate("2026-10-09T09:00:00+09:00")).toBe("Oct 9, 2026");
+		} finally {
+			process.env.TZ = tz;
+		}
+	});
+
+	it("is null without a date", () => {
+		expect(deckDate(undefined)).toBeNull();
+		expect(deckDate("soon")).toBeNull();
 	});
 });

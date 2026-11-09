@@ -1,7 +1,7 @@
 ---
 import { getCollection } from 'astro:content';
 import { deckConfigSchema } from '@astlide/core/schema';
-import { deckConfigs } from '@astlide/astro/internal/deck-configs';
+import { deckConfigs, deckDate } from '@astlide/astro/internal/deck-configs';
 import { pageUrl } from '@astlide/core/utils/base-path';
 import Favicon from '@astlide/astro/internal/Favicon.astro';
 import FontLinks from '@astlide/astro/internal/FontLinks.astro';
@@ -29,12 +29,7 @@ const decks = await Promise.all(
     // Count slides
     const slides = entries.filter((entry) => entry.id.startsWith(`${name}/`));
 
-    // Parse date safely — skip if the value is not a valid date
-    const rawDate = config.date ?? null;
-    const parsedDate = rawDate
-      ? (() => { const d = new Date(rawDate); return Number.isNaN(d.getTime()) ? null : d; })()
-      : null;
-    const formattedDate = parsedDate ? parsedDate.toLocaleDateString() : null;
+    const formattedDate = deckDate(config.date);
 
     return {
       name,
