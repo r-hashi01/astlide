@@ -127,3 +127,21 @@ describe("@supports", () => {
 		expect(declared("@supports selector(:has(a)){.t{color:blue}}", div, "color")).toBe("blue");
 	});
 });
+
+describe("shorthands and keywords", () => {
+	const div = '<div class="t"></div>';
+	it("expands flex: initial as 0 1 auto", () => {
+		expect(declared(".t{flex:initial}", div, "flex-grow")).toBe("0");
+		expect(declared(".t{flex:initial}", div, "flex-shrink")).toBe("1");
+		expect(declared(".t{flex:initial}", div, "flex-basis")).toBe("auto");
+	});
+
+	it("doesn't take background position or repeat keywords for the color", () => {
+		expect(declared(".t{background:url(x.png) top left no-repeat}", div, "background-color")).toBe(
+			"transparent",
+		);
+		expect(declared(".t{background:url(x.png) center / cover red}", div, "background-color")).toBe(
+			"red",
+		);
+	});
+});
