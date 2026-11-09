@@ -30,11 +30,14 @@ describe("layout engine vs Chromium, playground decks", () => {
 			const starts = report.differences.filter((d) => d.own);
 			const worst = starts
 				.sort((a, b) => b.amount - a.amount)
-				.slice(0, 5)
 				.map((d) => `slide ${d.slide} ${d.element}: engine ${d.engine}, Chromium ${d.chromium}`);
+			// Every run: the differences on CI's platform can't be reproduced elsewhere.
 			console.log(
-				`${deck}: ${report.own} boxes where the difference starts (baseline ${baseline[deck]})`,
+				[
+					`${deck}: ${report.own} boxes where the difference starts (baseline ${baseline[deck]})`,
+					...worst.map((w) => `  ${w}`),
+				].join("\n"),
 			);
-			expect(report.own, worst.join("\n")).toBeLessThanOrEqual(baseline[deck] ?? 0);
+			expect(report.own, worst.slice(0, 5).join("\n")).toBeLessThanOrEqual(baseline[deck] ?? 0);
 		}, 120_000);
 });
