@@ -69,8 +69,10 @@ export const PROPERTIES: Record<string, Property> = {
 	"grid-auto-flow": own("row"),
 	"grid-auto-columns": own("auto"),
 	"grid-auto-rows": own("auto"),
-	"grid-column": own("auto"),
-	"grid-row": own("auto"),
+	"grid-column-start": own("auto"),
+	"grid-column-end": own("auto"),
+	"grid-row-start": own("auto"),
+	"grid-row-end": own("auto"),
 
 	// Tables
 	"border-collapse": inherited("separate"),

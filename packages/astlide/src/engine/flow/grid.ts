@@ -7,14 +7,14 @@ import { aspectRatio, lengthOf, marginsOf } from "../box-model";
 import type { ElementBox, TextRun } from "../box-tree";
 import type { Computed } from "../cascade";
 import {
-	columnSpan,
-	columnStart,
 	columnTracks,
+	frSizes,
 	type GridArea,
+	linePlacement,
 	parseTracks,
 	placeGrid,
-	rowSpan,
 	sizeTracks,
+	type Track,
 } from "../grid";
 import { isAuto, value } from "../properties";
 
@@ -68,8 +68,11 @@ export function layoutGrid(
 	const colGap = lengthOf(flow.ctx, style, "column-gap", cw) ?? 0;
 	const rowGap = lengthOf(flow.ctx, style, "row-gap", ch) ?? 0;
 	const tracks = gridTracks(flow, style, cw, cw, colGap, items.length);
+	const template = value(style, "grid-template-rows");
+	const rowTracks =
+		template === "none" ? [] : parseTracks(template, flow.lengthIn(style, ch), ch ?? 0, rowGap);
 	const placed = placeGrid(
-		items.map((k) => areaOf(k, tracks.length)),
+		items.map((k) => areaOf(k, tracks.length, rowTracks.length)),
 		tracks.length,
 	);
 	const content = tracks.map(() => 0);
@@ -94,9 +97,6 @@ export function layoutGrid(
 	// Rows whose height is known before their items are sized: a fixed
 	// track, or a lone row filling a definite height. Item percentages
 	// (max-height: 100%) resolve against it.
-	const template = value(style, "grid-template-rows");
-	const rowTracks =
-		template === "none" ? [] : parseTracks(template, flow.lengthIn(style, ch), ch ?? 0, rowGap);
 	const knownH = (r: number): number | undefined => {
 		const t = rowTracks[r];
 		if (t?.kind === "fixed") return t.px;
@@ -135,30 +135,55 @@ export function layoutGrid(
 			for (let r = p.row; r < p.row + p.rowSpan; r++)
 				rowH[r] = (rowH[r] ?? 0) + (h - have) / p.rowSpan;
 	}
-	// Explicit row sizes (lengths only; others size to content).
-	for (const [i, t] of rowTracks.entries()) if (t.kind === "fixed" && i < nRows) rowH[i] = t.px;
-	// Implicit rows by grid-auto-rows: lengths, or fr rows sharing a definite height
-	// (minmax(0, 1fr): even when the content is taller).
-	const autoRows = value(style, "grid-auto-rows") || "auto";
-	if (rowTracks.length === 0 && autoRows !== "auto") {
-		const t = parseTracks(autoRows, flow.lengthIn(style, ch), ch ?? 0, rowGap)[0];
-		const share =
-			ch !== undefined && nRows > 0 ? (ch - rowGap * Math.max(0, nRows - 1)) / nRows : undefined;
-		for (let r = 0; r < nRows; r++) {
-			if (t?.kind === "fixed") rowH[r] = t.px;
-			else if (t?.kind === "fr" && share !== undefined)
-				rowH[r] = /^minmax\(\s*0/.test(autoRows) ? share : Math.max(rowH[r] ?? 0, share);
-		}
+	// Each row's track: the template's, then grid-auto-rows' pattern for implicit rows.
+	const autoPattern = parseTracks(
+		value(style, "grid-auto-rows") || "auto",
+		flow.lengthIn(style, ch),
+		ch ?? 0,
+		rowGap,
+	);
+	const trackOf = (r: number): Track =>
+		rowTracks[r] ??
+		autoPattern[(r - rowTracks.length) % Math.max(1, autoPattern.length)] ?? {
+			kind: "auto",
+			min: 0,
+		};
+	const rowTrack = Array.from({ length: nRows }, (_, r) => trackOf(r));
+	// Fixed rows as given, auto rows to their content (at least their minimum);
+	// fr rows from their minimum: their content for a plain `1fr`.
+	for (const [r, t] of rowTrack.entries()) {
+		const content = rowH[r] ?? 0;
+		rowH[r] =
+			t.kind === "fixed"
+				? t.px
+				: t.kind === "auto"
+					? Math.max(t.min, content)
+					: t.minAuto
+						? content
+						: t.min;
 	}
-	// A definite height: auto rows stretch to fill it (§11.8).
-	const total = sum(rowH) + rowGap * Math.max(0, nRows - 1);
-	if (
-		ch !== undefined &&
-		total < ch &&
-		nRows > 0 &&
-		/^(normal|stretch)$/.test(value(style, "align-content"))
-	)
-		for (let r = 0; r < nRows; r++) rowH[r] = (rowH[r] ?? 0) + (ch - total) / nRows;
+	const gaps = rowGap * Math.max(0, nRows - 1);
+	if (rowTrack.some((t) => t.kind === "fr")) {
+		if (ch !== undefined) {
+			// A definite height: fr rows share what the other rows leave (§11.7).
+			const sized = frSizes(rowTrack, rowH, ch - gaps);
+			for (let r = 0; r < nRows; r++) rowH[r] = sized[r] ?? 0;
+		} else {
+			// Sized by content: each fr row as tall as the largest content per fr (§11.7.1).
+			let unit = 0;
+			for (const [r, t] of rowTrack.entries())
+				if (t.kind === "fr" && t.fr > 0) unit = Math.max(unit, (rowH[r] ?? 0) / t.fr);
+			for (const [r, t] of rowTrack.entries())
+				if (t.kind === "fr") rowH[r] = Math.max(rowH[r] ?? 0, t.fr * unit);
+		}
+	} else if (ch !== undefined && /^(normal|stretch)$/.test(value(style, "align-content"))) {
+		// A definite height: auto rows stretch to fill it (§11.8).
+		const free = ch - sum(rowH) - gaps;
+		const autos = rowTrack.filter((t) => t.kind === "auto").length;
+		if (free > 0 && autos > 0)
+			for (const [r, t] of rowTrack.entries())
+				if (t.kind === "auto") rowH[r] = (rowH[r] ?? 0) + free / autos;
+	}
 	// Tracks aligned in the container (css-align-3 §5.3: align-content / justify-content).
 	const rowSpace = distribute(
 		ch === undefined ? 0 : ch - sum(rowH) - rowGap * Math.max(0, nRows - 1),
@@ -192,14 +217,14 @@ export function layoutGrid(
 		let x = (colX[p.col] ?? 0) + m.left;
 		let y = (rowY[r] ?? 0) + m.top;
 		if (!stretchH && item.type === "element") {
-			const a = selfAlign(flow, item, "align", style);
 			const free = ah - m.top - m.bottom - f.h;
+			const a = autoMarginAlign(item, "top", "bottom") ?? selfAlign(flow, item, "align", style);
 			if (a === "center") y += free / 2;
 			else if (a === "end" || a === "flex-end") y += free;
 		}
 		if (!stretchW && item.type === "element") {
-			const a = selfAlign(flow, item, "justify", style);
 			const free = aw - m.left - m.right - f.w;
+			const a = autoMarginAlign(item, "left", "right") ?? selfAlign(flow, item, "justify", style);
 			if (a === "center") x += free / 2;
 			else if (a === "end" || a === "flex-end") x += free;
 		}
@@ -209,18 +234,39 @@ export function layoutGrid(
 	return { kids, height: sum(rowH) + rowGap * Math.max(0, nRows - 1), pending };
 }
 
-/** An item's spans and start column, from its grid-column / grid-row. */
+/** An item's place: start column and row (when given) and spans, from its grid-column / grid-row. */
 function areaOf(
 	item: ElementBox | TextRun,
 	columns: number,
-): { span: number; rowSpan: number; col?: number } {
+	rows: number,
+): { span: number; rowSpan: number; col?: number; row?: number } {
 	if (item.type !== "element") return { span: 1, rowSpan: 1 };
-	const gc = value(item.style, "grid-column");
+	const c = linePlacement(
+		value(item.style, "grid-column-start"),
+		value(item.style, "grid-column-end"),
+		columns,
+	);
+	const r = linePlacement(
+		value(item.style, "grid-row-start"),
+		value(item.style, "grid-row-end"),
+		rows,
+	);
 	return {
-		span: columnSpan(gc, columns),
-		rowSpan: rowSpan(value(item.style, "grid-row")),
-		col: columnStart(gc, columns),
+		span: c.span,
+		rowSpan: r.span,
+		...(c.start !== undefined && c.start < columns ? { col: c.start } : {}),
+		...(r.start !== undefined ? { row: r.start } : {}),
 	};
+}
+
+/** Auto margins take the free space before alignment does (css-grid-1 §11.2): where they put the item. */
+function autoMarginAlign(item: ElementBox, start: string, end: string): string | undefined {
+	const a = isAuto(item.style, `margin-${start}`);
+	const b = isAuto(item.style, `margin-${end}`);
+	if (a && b) return "center";
+	if (a) return "end";
+	if (b) return "start";
+	return undefined;
 }
 
 /** An item's `align-self` / `justify-self`, `auto` taken from the container's `*-items`. */
@@ -294,7 +340,7 @@ export function gridSizes(flow: Flow, box: ElementBox): Sizes {
 	const tracks = gridTracks(flow, box.style, undefined, 0, gap, kids.length);
 	const n = Math.max(1, tracks.length);
 	const placed = placeGrid(
-		kids.map((k) => areaOf(k, n)),
+		kids.map((k) => areaOf(k, n, 0)),
 		n,
 	);
 	const per = (key: "min" | "max") => {

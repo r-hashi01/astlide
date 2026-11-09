@@ -1,15 +1,16 @@
 /**
- * CSS grid columns, the cases slides use: `grid-template-columns` with fixed
- * lengths, `fr`, `auto`, `minmax()` and `repeat()` (a count, `auto-fill`,
- * `auto-fit`), and items placed in order, spanning columns with
- * `grid-column: span N` or `1 / -1`. Rows are the flex lines the layout wraps
- * the items into.
+ * CSS grid tracks, the cases slides use: track lists with fixed lengths,
+ * `fr`, `auto`, `minmax()` and `repeat()` (a count, `auto-fill`,
+ * `auto-fit`), and items placed by line numbers (`grid-column: 2 / -1`,
+ * `span N`) or in order (auto-placement). Named lines and areas aren't
+ * supported (such items are auto-placed).
  */
 
 /** A column track. */
 export type Track =
 	| { kind: "fixed"; px: number }
-	| { kind: "fr"; fr: number; min: number }
+	/** `minAuto`: the minimum is `auto` (a plain `1fr`): at least the content. */
+	| { kind: "fr"; fr: number; min: number; minAuto?: boolean }
 	| { kind: "auto"; min: number };
 
 /** Top-level tokens of a track list: `minmax(…)`, `repeat(…)` stay whole; `[names]` are dropped. */
@@ -48,13 +49,16 @@ function args(inner: string): string[] {
 
 function track(token: string, length: (v: string) => number): Track {
 	const fr = token.match(/^([\d.]+)fr$/);
-	if (fr) return { kind: "fr", fr: Number(fr[1]), min: 0 };
+	if (fr) return { kind: "fr", fr: Number(fr[1]), min: 0, minAuto: true };
 	const mm = token.match(/^minmax\((.*)\)$/);
 	if (mm) {
 		const [lo = "auto", hi = "auto"] = args(mm[1] ?? "");
 		const min = length(lo);
 		const hiFr = hi.match(/^([\d.]+)fr$/);
-		if (hiFr) return { kind: "fr", fr: Number(hiFr[1]), min: Number.isNaN(min) ? 0 : min };
+		if (hiFr)
+			return Number.isNaN(min)
+				? { kind: "fr", fr: Number(hiFr[1]), min: 0, minAuto: true }
+				: { kind: "fr", fr: Number(hiFr[1]), min };
 		const max = length(hi);
 		if (!Number.isNaN(max))
 			return { kind: "fixed", px: Math.max(max, Number.isNaN(min) ? 0 : min) };
@@ -144,37 +148,91 @@ export function sizeTracks(
 	);
 	const fixedSum = base.reduce((s, w) => s + w, 0);
 	const frSum = tracks.reduce((s, t) => s + (t.kind === "fr" ? t.fr : 0), 0);
-	if (frSum > 0) {
-		const unit = Math.max(0, avail - fixedSum) / frSum;
-		return tracks.map((t, i) => (t.kind === "fr" ? Math.max(t.min, t.fr * unit) : (base[i] ?? 0)));
-	}
+	// fr tracks start from their minimum (`minmax(600px, 1fr)`).
+	if (frSum > 0)
+		return frSizes(
+			tracks,
+			tracks.map((t, i) => (t.kind === "fr" ? t.min : (base[i] ?? 0))),
+			avail,
+		);
 	const autos = tracks.filter((t) => t.kind === "auto").length;
 	const free = avail - fixedSum;
 	if (autos === 0 || free <= 0) return base;
 	return tracks.map((t, i) => (base[i] ?? 0) + (t.kind === "auto" ? free / autos : 0));
 }
 
-/** An item's column span from its `grid-column`: `span N`, or every column for `1 / -1`. */
-export function columnSpan(gridColumn: string, columns: number): number {
-	const v = gridColumn.trim();
-	const span = v.match(/span\s+(\d+)/);
-	if (span) return Math.min(columns, Number(span[1]));
-	if (/^1\s*\/\s*-1$/.test(v)) return columns;
-	return 1;
+/**
+ * Flexible track sizes (css-grid-1 §11.7.1, "find the size of an fr"): the
+ * space left after the other tracks (`base`) is shared by `fr`; a track
+ * whose share is below its minimum keeps its minimum and the rest is shared
+ * again. Other tracks keep `base`.
+ */
+export function frSizes(
+	tracks: readonly Track[],
+	base: readonly number[],
+	avail: number,
+): number[] {
+	const out = [...base];
+	const flexible = new Set(tracks.flatMap((t, i) => (t.kind === "fr" ? [i] : [])));
+	for (;;) {
+		let left = avail;
+		let frSum = 0;
+		for (const [i, t] of tracks.entries()) {
+			if (flexible.has(i) && t.kind === "fr") frSum += t.fr;
+			else left -= out[i] ?? 0;
+		}
+		const unit = frSum > 0 ? Math.max(0, left) / frSum : 0;
+		let fixedOne = false;
+		for (const i of flexible) {
+			const t = tracks[i];
+			if (t?.kind !== "fr") continue;
+			const min = base[i] ?? t.min;
+			if (t.fr * unit < min) {
+				out[i] = min;
+				flexible.delete(i);
+				fixedOne = true;
+			} else out[i] = t.fr * unit;
+		}
+		if (!fixedOne) return out;
+	}
 }
 
-/** An item's row span from its `grid-row`: `span N`, else 1. */
-export function rowSpan(gridRow: string): number {
-	const span = gridRow.trim().match(/span\s+(\d+)/);
-	return span ? Math.max(1, Number(span[1])) : 1;
+/** Where an item goes along one axis: its 0-based start line, if fixed, and its span. */
+export interface LinePlacement {
+	start?: number;
+	span: number;
 }
 
-/** An item's explicit start column (0-based) from `grid-column: N` / `N / …`, if it has one. */
-export function columnStart(gridColumn: string, columns: number): number | undefined {
-	const n = gridColumn.trim().match(/^(\d+)(\s*\/.*)?$/);
-	if (!n || /^1\s*\/\s*-1$/.test(gridColumn.trim())) return undefined;
-	const start = Number(n[1]) - 1;
-	return start >= 0 && start < columns ? start : undefined;
+/**
+ * An item's placement along an axis from its `grid-*-start` / `grid-*-end`
+ * (css-grid-1 §8.3): line numbers (negative ones count from the end of the
+ * `explicit` tracks), `span N` and `auto`. Named lines count as `auto`.
+ */
+export function linePlacement(start: string, end: string, explicit: number): LinePlacement {
+	const line = (v: string): number | undefined => {
+		const n = v.trim().match(/^(-?\d+)$/);
+		if (!n) return undefined;
+		const k = Number(n[1]);
+		if (k === 0) return undefined;
+		// 0-based line index: 1 → 0; -1 → the last explicit line.
+		return k > 0 ? k - 1 : Math.max(0, explicit + 1 + k);
+	};
+	const span = (v: string): number | undefined => {
+		const m = v.trim().match(/^span\s+(\d+)$/);
+		return m ? Math.max(1, Number(m[1])) : undefined;
+	};
+	const s = line(start);
+	const e = line(end);
+	if (s !== undefined && e !== undefined) {
+		if (s === e) return { start: s, span: 1 };
+		return { start: Math.min(s, e), span: Math.abs(e - s) };
+	}
+	if (s !== undefined) return { start: s, span: span(end) ?? 1 };
+	if (e !== undefined) {
+		const n = span(start) ?? 1;
+		return { start: Math.max(0, e - n), span: Math.min(n, Math.max(1, e)) };
+	}
+	return { span: span(start) ?? span(end) ?? 1 };
 }
 
 /** Where an item went: its first column and row, and how many of each it spans. */
@@ -186,12 +244,13 @@ export interface GridArea {
 }
 
 /**
- * Auto-placement (css-grid-1 §8.5, row flow, sparse): each item goes in
- * the first area from the cursor that's free for its spans; an item with a
- * start column goes in that column, on the cursor's row or a later one.
+ * Placement (css-grid-1 §8.5, row flow, sparse): items with a row go there
+ * first (in the column they name, else the first free one); then the others
+ * go in the first area from the cursor that's free for their spans — an
+ * item with a column in that column, on the cursor's row or a later one.
  */
 export function placeGrid(
-	items: readonly { span: number; rowSpan: number; col?: number }[],
+	items: readonly { span: number; rowSpan: number; col?: number; row?: number }[],
 	columns: number,
 ): GridArea[] {
 	const taken = new Set<string>();
@@ -200,10 +259,27 @@ export function placeGrid(
 			for (let c = col; c < col + span; c++) if (taken.has(`${r},${c}`)) return false;
 		return true;
 	};
-	const out: GridArea[] = [];
+	const take = (a: GridArea) => {
+		for (let r = a.row; r < a.row + a.rowSpan; r++)
+			for (let c = a.col; c < a.col + a.span; c++) taken.add(`${r},${c}`);
+	};
+	const out: (GridArea | undefined)[] = items.map(() => undefined);
+	for (const [i, item] of items.entries()) {
+		if (item.row === undefined) continue;
+		const span = Math.max(1, Math.min(item.span, columns));
+		const rows = Math.max(1, item.rowSpan);
+		let col = item.col !== undefined ? Math.min(item.col, columns - span) : 0;
+		if (item.col === undefined)
+			while (col + span <= columns && !free(item.row, col, span, rows)) col++;
+		if (col + span > columns) col = 0;
+		const area = { col, span, row: item.row, rowSpan: rows };
+		take(area);
+		out[i] = area;
+	}
 	let row = 0;
 	let col = 0;
-	for (const item of items) {
+	for (const [i, item] of items.entries()) {
+		if (item.row !== undefined) continue;
 		const span = Math.max(1, Math.min(item.span, columns));
 		const rows = Math.max(1, item.rowSpan);
 		if (item.col !== undefined) {
@@ -221,10 +297,10 @@ export function placeGrid(
 				if (free(row, col, span, rows)) break;
 				col++;
 			}
-		for (let r = row; r < row + rows; r++)
-			for (let c = col; c < col + span; c++) taken.add(`${r},${c}`);
-		out.push({ col, span, row, rowSpan: rows });
+		const area = { col, span, row, rowSpan: rows };
+		take(area);
+		out[i] = area;
 		col += span;
 	}
-	return out;
+	return out as GridArea[];
 }
