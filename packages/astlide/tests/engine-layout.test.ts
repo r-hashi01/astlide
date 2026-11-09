@@ -202,6 +202,24 @@ describe("engine layout", () => {
 		expect(fonts.resolve('"Inter", sans-serif', 400, false).requested).toBeUndefined();
 	});
 
+	it("measures a proprietary family with its metric-compatible clone, still naming the family", () => {
+		const fonts = new FontRegistry();
+		fonts.add("Inter", 400, false, FONT);
+		fonts.add("Arimo", 400, false, FONT);
+		fonts.add("Carlito", 400, false, FONT);
+		const helvetica = fonts.resolve("Helvetica, sans-serif", 400, false);
+		expect(helvetica.face.family).toBe("arimo");
+		expect(helvetica.requested).toBe("Helvetica");
+		expect(fonts.resolve('"Calibri"', 400, false)).toMatchObject({
+			face: { family: "carlito" },
+			requested: "Calibri",
+		});
+		// Without the clone: a stand-in, as before.
+		expect(fonts.resolve('"Times New Roman", serif', 400, false).face.family).toBe("inter");
+		// A clone the page names itself is just a family.
+		expect(fonts.resolve("Arimo", 400, false).requested).toBeUndefined();
+	});
+
 	it("puts a list marker on the item's first line, also with a tight line-height", () => {
 		const s = page(
 			"ul{margin:0 0 0 40px;padding:0;line-height:0.8}li{width:150px}",

@@ -3,13 +3,13 @@
 	"darwin": {
 		"example-deck": 2,
 		"from-powerpoint": 0,
-		"from-template": 1,
-		"tour": 1
+		"from-template": 0,
+		"tour": 0
 	},
 	"linux": {
 		"example-deck": 6,
 		"from-powerpoint": 0,
-		"from-template": 1,
+		"from-template": 0,
 		"tour": 9
 	}
 }
