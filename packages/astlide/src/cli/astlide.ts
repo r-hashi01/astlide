@@ -19,6 +19,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { exportBuildDir } from "@astlide/core/utils/export-build";
+import { decksDir } from "../deck/files";
 import { listDecks } from "../deck/project";
 
 type Format = "pdf" | "png" | "pptx";
@@ -178,7 +179,7 @@ function outputFor(options: Options, deck: string, format: Format): string {
 function findProjectRoot(from: string): string | null {
 	let dir = resolve(from);
 	for (;;) {
-		if (existsSync(join(dir, "src", "content", "decks"))) return dir;
+		if (existsSync(decksDir(dir))) return dir;
 		const parent = dirname(dir);
 		if (parent === dir) return null;
 		dir = parent;
@@ -190,7 +191,7 @@ function nearbyProjects(dir: string): string[] {
 	try {
 		return readdirSync(dir, { withFileTypes: true })
 			.filter((e) => e.isDirectory() && !e.name.startsWith(".") && e.name !== "node_modules")
-			.filter((e) => existsSync(join(dir, e.name, "src", "content", "decks")))
+			.filter((e) => existsSync(decksDir(join(dir, e.name))))
 			.map((e) => e.name);
 	} catch {
 		return [];
@@ -212,7 +213,7 @@ function resolveProject(options: Options): void {
 	});
 	// The same deck named twice (e.g. by name and by path) is exported once.
 	options.decks = [...new Set(options.decks)];
-	if (existsSync(join(options.cwd, "src", "content", "decks"))) return;
+	if (existsSync(decksDir(options.cwd))) return;
 	const root = options.cwdSet ? null : findProjectRoot(options.cwd);
 	if (root) {
 		options.cwd = root;

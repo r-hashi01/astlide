@@ -7,6 +7,7 @@
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { decksDirIn } from "@astlide/core/deck/files";
 import type { ResolvedPlugins } from "@astlide/core/plugin";
 import type { AstroIntegrationLogger } from "astro";
 
@@ -51,7 +52,7 @@ export function checkProject(srcDir: string, logger: AstroIntegrationLogger): vo
 	}
 
 	// Check for decks directory
-	const decksDir = join(srcDir, "content", "decks");
+	const decksDir = decksDirIn(srcDir);
 	if (!existsSync(decksDir)) {
 		logger.warn(
 			"No decks directory found at src/content/decks/. " +

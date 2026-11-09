@@ -8,7 +8,6 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
 	astlideEditorPlugin,
@@ -25,6 +24,7 @@ import { resolveEntrypoints } from "@astlide/astro/internal/setup/entrypoints";
 import { injectRoutes } from "@astlide/astro/internal/setup/routes";
 import { loadTemplates } from "@astlide/astro/internal/setup/templates";
 import { astlideConfig } from "@astlide/astro/internal/setup/vite";
+import { decksDirIn } from "@astlide/core/deck/files";
 import { type AstlidePlugin, BUILT_IN_PLUGIN, resolvePlugins } from "@astlide/core/plugin";
 import type { TemplateStore } from "@astlide/core/templates";
 import { EXPORT_BUILD_ENV, requestedExportBuild } from "@astlide/core/utils/export-build";
@@ -377,7 +377,7 @@ export default function astlide(options: AstlideOptions = {}): AstroIntegration 
 							editorSecret ?? "",
 							config.base,
 							unlockCodes,
-							join(srcDir, "content", "decks"),
+							decksDirIn(srcDir),
 						),
 						exportBuild,
 						favicon,
