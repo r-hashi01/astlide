@@ -121,7 +121,8 @@ export function colorOf(
 		default:
 			return null;
 	}
-	if (!hex) return null;
+	// Six hex digits; anything else (`F00`, `zzzzzz`) isn't a color.
+	if (!hex || !/^[0-9a-f]{6}$/i.test(hex)) return null;
 	let rgb = toRgb(hex.toLowerCase());
 	let alpha = 1;
 	for (const m of kids(el)) {

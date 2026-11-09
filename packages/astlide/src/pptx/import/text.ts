@@ -279,6 +279,8 @@ export function textBody(
 
 		let bullet = "";
 		const hasText = runs.some((r) => r.name !== "a:br" && textOf(kid(r, "a:t")) !== "");
+		// A paragraph ends the numbering of the levels below it (1. A, a. x, 2. B, a. y).
+		if (hasText) for (const l of [...counters.keys()]) if (l > level) counters.delete(l);
 		if (hasText && props.bullet && props.bullet.kind !== "none") {
 			let mark: string;
 			if (props.bullet.kind === "num") {
@@ -326,7 +328,8 @@ export function textBody(
 			if (rp.baseline)
 				rcss.push(`vertical-align:${rp.baseline > 0 ? "super" : "sub"};font-size:70%`);
 			const highlight = kid(kid(r, "a:rPr"), "a:highlight");
-			if (highlight) rcss.push(`background:${cssColor(colorChild(highlight), ctx.colors)}`);
+			const marker = highlight ? cssColor(colorChild(highlight), ctx.colors) : null;
+			if (marker) rcss.push(`background:${marker}`);
 			let span = `<span${rcss.length ? ` style="${rcss.join(";")}"` : ""}>${esc(text).replace(/\t/g, "&emsp;")}</span>`;
 			const link = kid(kid(r, "a:rPr"), "a:hlinkClick")?.attribs["r:id"];
 			const target = link ? ctx.pkg.rels(ctx.part).get(link) : undefined;
