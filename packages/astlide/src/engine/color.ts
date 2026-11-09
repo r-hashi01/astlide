@@ -103,10 +103,15 @@ function num(v: string | undefined, full = 1): number {
 function hue(v: string | undefined): number {
 	if (!v || v === "none") return 0;
 	const n = Number.parseFloat(v);
-	if (v.endsWith("turn")) return n * 360;
-	if (v.endsWith("grad")) return n * 0.9;
-	if (v.endsWith("rad")) return (n * 180) / Math.PI;
-	return n;
+	const deg = v.endsWith("turn")
+		? n * 360
+		: v.endsWith("grad")
+			? n * 0.9
+			: v.endsWith("rad")
+				? (n * 180) / Math.PI
+				: n;
+	// Any angle, negative ones too, as 0–360.
+	return ((deg % 360) + 360) % 360;
 }
 
 const alphaOf = (v: string | undefined) => (v === undefined ? 1 : num(v, 1));
@@ -116,7 +121,7 @@ function rgba(v: string): Rgba | null {
 	if (v === "transparent" || v === "none") return [0, 0, 0, 0];
 	const named = NAMED[v];
 	if (named) return fromHex(named);
-	const hex = v.match(/^#([0-9a-f]{3,8})$/);
+	const hex = v.match(/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/);
 	if (hex) return fromHex(hex[1] ?? "");
 	const fn = v.match(/^([a-z-]+)\((.*)\)$/s);
 	if (!fn) return null;

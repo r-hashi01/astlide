@@ -3,7 +3,7 @@
 	"info": {
 		"title": "Astlide render service",
 		"version": "0.0.0",
-		"description": "Turn Markdown slides into editable PowerPoint, PDF or PNG, import PowerPoint decks as HTML slides, and read a PowerPoint template's layouts. Every request's files are deleted once its response is ready. With ASTLIDE_TEMPLATE_STORE set (a folder, or a bucket on S3, Cloud Storage or Azure), the service also keeps PowerPoint templates by name (/templates), so renders can pick one without uploading it.",
+		"description": "Turn Markdown slides into editable PowerPoint, PDF or PNG, import PowerPoint decks as HTML slides, and read a PowerPoint template's layouts. Every request's files are deleted once its response is ready. With ASTLIDE_TEMPLATE_STORE set (a folder, or a bucket on S3, Cloud Storage or Azure), the service also keeps PowerPoint templates by name (/templates), so renders can pick one without uploading it. Any path also answers 404 (no such path), 405 (a method the path doesn't take) and 414 (URL too long), with the same error body.",
 		"license": { "name": "MIT", "identifier": "MIT" }
 	},
 	"servers": [{ "url": "http://localhost:8787" }],
@@ -93,7 +93,9 @@
 					},
 					"400": { "$ref": "#/components/responses/Error" },
 					"401": { "$ref": "#/components/responses/Error" },
+					"408": { "$ref": "#/components/responses/Error" },
 					"413": { "$ref": "#/components/responses/Error" },
+					"415": { "$ref": "#/components/responses/Error" },
 					"422": { "$ref": "#/components/responses/Error" },
 					"503": { "$ref": "#/components/responses/Error" },
 					"504": { "$ref": "#/components/responses/Error" },
@@ -141,7 +143,9 @@
 					},
 					"400": { "$ref": "#/components/responses/Error" },
 					"401": { "$ref": "#/components/responses/Error" },
+					"408": { "$ref": "#/components/responses/Error" },
 					"413": { "$ref": "#/components/responses/Error" },
+					"415": { "$ref": "#/components/responses/Error" },
 					"422": { "$ref": "#/components/responses/Error" },
 					"503": { "$ref": "#/components/responses/Error" },
 					"504": { "$ref": "#/components/responses/Error" }
@@ -183,7 +187,9 @@
 					},
 					"400": { "$ref": "#/components/responses/Error" },
 					"401": { "$ref": "#/components/responses/Error" },
+					"408": { "$ref": "#/components/responses/Error" },
 					"413": { "$ref": "#/components/responses/Error" },
+					"415": { "$ref": "#/components/responses/Error" },
 					"422": { "$ref": "#/components/responses/Error" },
 					"503": { "$ref": "#/components/responses/Error" },
 					"504": { "$ref": "#/components/responses/Error" }
@@ -279,7 +285,9 @@
 					"400": { "$ref": "#/components/responses/Error" },
 					"401": { "$ref": "#/components/responses/Error" },
 					"404": { "$ref": "#/components/responses/Error" },
+					"408": { "$ref": "#/components/responses/Error" },
 					"413": { "$ref": "#/components/responses/Error" },
+					"415": { "$ref": "#/components/responses/Error" },
 					"422": { "$ref": "#/components/responses/Error" },
 					"503": { "$ref": "#/components/responses/Error" },
 					"504": { "$ref": "#/components/responses/Error" }

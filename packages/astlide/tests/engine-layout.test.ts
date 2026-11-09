@@ -205,6 +205,15 @@ describe("engine layout", () => {
 		expect(ruled.a).toMatchObject({ w: 200, h: 50 });
 	});
 
+	it("reads dynamic, small and large viewport units as the viewport", () => {
+		const b = boxes(
+			".a{height:50dvh;width:calc(100svw - 10px)}.b{height:10lvh;width:20dvmin}",
+			'<div class="a"></div><div class="b"></div>',
+		);
+		expect(b.a).toMatchObject({ w: 990, h: 250 });
+		expect(b.b).toMatchObject({ w: 100, h: 50 });
+	});
+
 	it("resolves min() with what it knows", () => {
 		const b = boxes(".m{width:min(480px, 100%);height:10px}", '<div class="m"></div>');
 		expect(b.m?.w).toBe(480);

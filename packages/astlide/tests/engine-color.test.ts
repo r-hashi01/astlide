@@ -20,6 +20,11 @@ const cases: [string, string, number][] = [
 	["hsla(200, 50%, 40%, 0.5)", "337799", 0.5],
 	["#0033ff80", "0033ff", 128 / 255],
 	["color-mix(in srgb, #2563eb 25%, transparent)", "2563eb", 0.25],
+	// Negative hues and angles past a turn.
+	["hsl(-120 100% 50%)", "0000ff", 1],
+	["hwb(-120 0% 0%)", "0000ff", 1],
+	["hsl(480 100% 50%)", "00ff00", 1],
+	["hsl(-0.25turn 100% 50%)", "8000ff", 1],
 ];
 
 describe("CSS colours", () => {
@@ -37,6 +42,9 @@ describe("CSS colours", () => {
 	it("leaves what it can't read", () => {
 		expect(parseColor("var(--x)")).toBeNull();
 		expect(parseColor("")).toBeNull();
+		// Hex colors have 3, 4, 6 or 8 digits.
+		expect(parseColor("#12345")).toBeNull();
+		expect(parseColor("#1234567")).toBeNull();
 		expect(parseColor("transparent")).toEqual({ hex: "000000", alpha: 0 });
 	});
 });

@@ -294,6 +294,45 @@ describe("untrusted files", () => {
 		expect(await html("Infinity")).toContain("I.");
 	});
 
+	it("restarts the numbering of a level after a paragraph above it", async () => {
+		const para = (lvl: number, type: string, t: string) =>
+			`<a:p><a:pPr lvl="${lvl}" marL="${(lvl + 1) * 342900}" indent="-342900"><a:buAutoNum type="${type}"/></a:pPr><a:r><a:t>${t}</a:t></a:r></a:p>`;
+		const body = [
+			para(0, "arabicPeriod", "A"),
+			para(1, "alphaLcPeriod", "x"),
+			para(1, "alphaLcPeriod", "y"),
+			para(0, "arabicPeriod", "B"),
+			para(1, "alphaLcPeriod", "z"),
+		].join("");
+		const box = `<p:sp><p:nvSpPr><p:cNvPr id="900" name="t"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="4914400" cy="4914400"/></a:xfrm></p:spPr><p:txBody><a:bodyPr/>${body}</p:txBody></p:sp>`;
+		const html = pptxToSlides(await withShapes(box)).slides[0]?.html ?? "";
+		const marks = [...html.matchAll(/>([^<]+)<\/span><span[^>]*>(\w)</g)].map(
+			(m) => `${m[1]}${m[2]}`,
+		);
+		expect(marks).toEqual(["1.A", "a.x", "b.y", "2.B", "a.z"]);
+	});
+
+	it("draws a full-circle arc", async () => {
+		const circle = `<p:sp><p:nvSpPr><p:cNvPr id="901" name="c"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="914400"/></a:xfrm><a:custGeom><a:pathLst><a:path w="100" h="100"><a:moveTo><a:pt x="100" y="50"/></a:moveTo><a:arcTo wR="50" hR="50" stAng="0" swAng="21600000"/><a:close/></a:path></a:pathLst></a:custGeom><a:solidFill><a:srgbClr val="00FF00"/></a:solidFill></p:spPr></p:sp>`;
+		const html = pptxToSlides(await withShapes(circle)).slides[0]?.html ?? "";
+		// Two half turns: an arc that ends where it starts would draw nothing.
+		expect(html).toContain('d="M144 72 A72 72 0 0 1 0 72 A72 72 0 0 1 144 72 Z"');
+	});
+
+	it("leaves out colors it can't read", async () => {
+		const html = async (rPr: string, fill = "") =>
+			pptxToSlides(
+				await withShapes(
+					`<p:sp><p:nvSpPr><p:cNvPr id="902" name="h"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="914400"/></a:xfrm>${fill}</p:spPr><p:txBody><a:bodyPr/><a:p><a:r><a:rPr>${rPr}</a:rPr><a:t>item</a:t></a:r></a:p></p:txBody></p:sp>`,
+				),
+			).slides[0]?.html ?? "";
+		const marked = await html('<a:highlight><a:schemeClr val="nope"/></a:highlight>');
+		expect(marked).not.toContain("null");
+		const odd = await html("", '<a:solidFill><a:srgbClr val="F00"/></a:solidFill>');
+		expect(odd).not.toContain("NaN");
+		expect(colorOf(parseXml('<a:srgbClr val="zzzzzz"/>'), { theme: {}, map: {} })).toBeNull();
+	});
+
 	it("reads each embedded font once, and only so many", async () => {
 		const fonts = Array.from(
 			{ length: 2000 },

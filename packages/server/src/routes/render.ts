@@ -12,6 +12,7 @@ import { createProject, removeProject, TEMPLATE_THEME } from "../project";
 import { QueueFull } from "../queue";
 import { FORMATS, type Format, renderProject } from "../render";
 import {
+	attachment,
 	downloadName,
 	HttpError,
 	json,
@@ -105,7 +106,7 @@ export function renderRoute({ options, queue, store }: RouteContext) {
 		return new Response(new Uint8Array(rendered.data), {
 			headers: {
 				"content-type": rendered.contentType,
-				"content-disposition": `attachment; filename="${filename}"`,
+				"content-disposition": attachment(filename),
 				...timing,
 			},
 		});

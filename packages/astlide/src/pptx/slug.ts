@@ -22,8 +22,12 @@ function hyphenate(text: string, fallback: string): string {
 		.toLowerCase()
 		.replace(/[^\p{Letter}\p{Number}]+/gu, "-")
 		// Hyphens come one at a time now.
-		.replace(/^-|-$/g, "")
-		.slice(0, 48)
-		.replace(/-$/, "");
-	return slug || fallback;
+		.replace(/^-|-$/g, "");
+	return cut(slug, 48).replace(/-$/, "") || fallback;
+}
+
+/** The first `n` UTF-16 units of `text`, without half a surrogate pair at the end (𠮷). */
+function cut(text: string, n: number): string {
+	const head = text.slice(0, n);
+	return /[\uD800-\uDBFF]$/.test(head) ? head.slice(0, -1) : head;
 }

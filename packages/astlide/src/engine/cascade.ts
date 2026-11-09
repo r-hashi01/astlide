@@ -452,6 +452,8 @@ function expand(prop: string, value: string): Declaration[] {
 				return [d("flex-grow", "0"), d("flex-shrink", "0"), d("flex-basis", "auto")];
 			if (value.trim() === "auto")
 				return [d("flex-grow", "1"), d("flex-shrink", "1"), d("flex-basis", "auto")];
+			if (value.trim() === "initial")
+				return [d("flex-grow", "0"), d("flex-shrink", "1"), d("flex-basis", "auto")];
 			const nums = t.filter((x) => /^[\d.]+$/.test(x));
 			const basis = t.find((x) => !/^[\d.]+$/.test(x)) ?? (nums.length ? "0%" : "auto");
 			return [
@@ -473,7 +475,11 @@ function expand(prop: string, value: string): Declaration[] {
 		case "background": {
 			// Only the color layer matters for layout / fills here.
 			const color = tokens(value).find(
-				(t) => COLOR_RE.test(t) && !/^(none|no-repeat|repeat|center|cover|contain|url\()/.test(t),
+				(t) =>
+					COLOR_RE.test(t) &&
+					!/^(none|no-repeat|repeat|repeat-x|repeat-y|space|round|center|top|bottom|left|right|cover|contain|auto|fixed|scroll|local|border-box|padding-box|content-box|text|url\()$|^url\(/.test(
+						t,
+					),
 			);
 			return [
 				d("background-color", color ?? "transparent"),
@@ -827,7 +833,7 @@ export function toPx(
 	const v = value.trim();
 	if (v === "0") return 0;
 	const m = v.match(
-		/^([+-]?[\d.]+(?:e[+-]?\d+)?)(px|em|rem|%|vw|vh|vmin|vmax|pt|pc|in|cm|mm|q|ch|ex)?$/i,
+		/^([+-]?[\d.]+(?:e[+-]?\d+)?)(px|em|rem|%|[dsl]?(?:vw|vh|vmin|vmax)|pt|pc|in|cm|mm|q|ch|ex)?$/i,
 	);
 	if (!m) {
 		const calc = v.match(/^calc\((.+)\)$/);
@@ -847,7 +853,8 @@ export function toPx(
 		return Number.NaN;
 	}
 	const n = Number(m[1]);
-	switch (m[2]?.toLowerCase()) {
+	// Dynamic, small and large viewport units are the viewport here (no browser UI).
+	switch (m[2]?.toLowerCase().replace(/^[dsl](?=v)/, "")) {
 		case "em":
 			return n * fontSize;
 		case "rem":
@@ -1008,11 +1015,14 @@ const FONT_WEIGHTS: Record<string, string> = {
 	bolder: "700",
 };
 const FONT_SIZES: Record<string, number> = {
+	"xx-small": 9,
+	"x-small": 10,
 	small: 13,
 	medium: 16,
 	large: 18,
 	"x-large": 24,
 	"xx-large": 32,
+	"xxx-large": 48,
 	smaller: 0.83,
 	larger: 1.2,
 };

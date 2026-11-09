@@ -22,6 +22,13 @@ describe("computed values", () => {
 		expect(keyword(child, "flex-wrap")).toBe("nowrap");
 	});
 
+	it("reads every absolute font-size keyword (Chromium's sizes)", () => {
+		const size = (k: string) => compute({ "font-size": k }).get("font-size");
+		expect(size("xx-small")).toBe("9px");
+		expect(size("x-small")).toBe("10px");
+		expect(size("xxx-large")).toBe("48px");
+	});
+
 	it("reads a keyword it doesn't know as the initial value", () => {
 		expect(keyword(compute({ "flex-wrap": "bogus" }), "flex-wrap")).toBe("nowrap");
 	});
