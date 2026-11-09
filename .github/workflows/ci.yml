@@ -106,19 +106,6 @@ jobs:
       # Layout properties and keyboard flows in Chromium, on the built playground.
       - run: bun run test:e2e
 
-  build-cli:
-    name: Build CLI
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version-file: package.json
-      - run: bun install --frozen-lockfile
-      - run: cd packages/create-astlide && bunx tsc
-
   astro-compat:
     name: Astro ${{ matrix.astro }}
     runs-on: ubuntu-latest
@@ -126,9 +113,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Pin both the oldest 7.x minor we support and the latest available, so we catch
-        # both regressions in old behaviour and breakages introduced upstream.
-        astro: ["7.2.10", "7.3.7"]
+        # The oldest Astro the peer range allows (`^7.2.10` in packages/astro); every
+        # other job runs the version in the lockfile, kept current by Dependabot.
+        astro: ["7.2.10"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -170,7 +157,7 @@ jobs:
     steps:
       - run: test "${{ needs.astro-compat.result }}" = "success"
 
-  # The render service's image builds, starts and renders PPTX and PDF
+  # The render service's image builds, starts and renders PPTX, PDF and PNG
   # (built only — nothing is pushed).
   server-docker:
     name: Server Docker
@@ -194,7 +181,7 @@ jobs:
           for i in $(seq 1 30); do curl -sf localhost:8787/health && break; sleep 1; done
           curl -sf localhost:8787/openapi.json > /dev/null
           test "$(curl -s -o /dev/null -w '%{http_code}' -d '{}' localhost:8787/render)" = 401
-          for format in pptx pdf; do
+          for format in pptx pdf png; do
             curl -sS --fail-with-body -o "out.$format" -H 'content-type: application/json' \
               -H 'authorization: Bearer ci-key' \
               -d "{\"markdown\":\"# こんにちは\\n---\\n# Two\",\"format\":\"$format\"}" \
@@ -203,6 +190,8 @@ jobs:
           done
           file out.pptx | grep -q -i "PowerPoint\|Zip"
           file out.pdf | grep -q PDF
+          # PNGs come as a zip of one picture per slide (the unit tests skip it: no Chromium there).
+          unzip -Z1 out.png | grep -c '\.png$' | grep -qx 2
       - name: Without the profile, PDF fails instead of running unsandboxed
         run: |
           docker run -d --name astlide-nosandbox -p 8788:8787 -e ASTLIDE_API_KEY=ci-key astlide-server
@@ -214,23 +203,6 @@ jobs:
           grep -q "sandbox" nosandbox.json
       - if: failure()
         run: docker logs astlide-server
-
-  template-smoke:
-    name: Template Smoke
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version-file: package.json
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v4
-        with:
-          node-version-file: .node-version
-      - run: bun install --frozen-lockfile
-      - run: node scripts/test-template.mjs
 
   strict-install-smoke:
     name: Strict Install Smoke
@@ -249,5 +221,6 @@ jobs:
       - run: bun install --frozen-lockfile
       # System libraries for Chromium; each test project installs its own browser.
       - run: bunx playwright install-deps chromium
-      # Astro, Next.js and Nuxt projects on the packed tarballs, installed the way pnpm does.
+      # Astro (the create-astlide template), Next.js and Nuxt projects on the packed
+      # tarballs, installed the way pnpm does.
       - run: node scripts/test-strict-install.mjs
