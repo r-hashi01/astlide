@@ -283,11 +283,15 @@ function customPath(geom: Element | undefined, w: number, h: number): string | n
 					const sw = (num(c, "swAng") / 60000) * (Math.PI / 180);
 					const cx = cur[0] - wR * Math.cos(st);
 					const cy = cur[1] - hR * Math.sin(st);
-					const end: [number, number] = [cx + wR * Math.cos(st + sw), cy + hR * Math.sin(st + sw)];
-					out.push(
-						`A${r2(wR)} ${r2(hR)} 0 ${Math.abs(sw) > Math.PI ? 1 : 0} ${sw > 0 ? 1 : 0} ${r2(end[0])} ${r2(end[1])}`,
-					);
-					cur = end;
+					// In pieces of at most half a turn: SVG drops an arc that ends where
+					// it starts (a full circle), and a half turn's end decides the side.
+					const pieces = Math.max(1, Math.ceil(Math.abs(sw) / Math.PI - 1e-9));
+					for (let k = 1; k <= pieces; k++) {
+						const a = st + (sw * k) / pieces;
+						const end: [number, number] = [cx + wR * Math.cos(a), cy + hR * Math.sin(a)];
+						out.push(`A${r2(wR)} ${r2(hR)} 0 0 ${sw > 0 ? 1 : 0} ${r2(end[0])} ${r2(end[1])}`);
+						cur = end;
+					}
 					break;
 				}
 				case "a:close":
