@@ -8,27 +8,23 @@
  */
 
 import { cssColor } from "./color";
+import type { PptxImportOptions } from "./import";
+import { resolveFont, safeFontName } from "./import/fonts";
+import { r2 } from "./import/html";
+import { type Placeholder, placeholderOf, sources, titleTypes } from "./import/placeholders";
 import {
 	artwork,
 	canvasOpen,
 	contextFor,
-	levelStyle,
 	openPresentation,
-	type Placeholder,
-	type PptxImportOptions,
 	type Presentation,
-	placeholderOf,
-	r2,
-	resolveFont,
 	type SlideContext,
 	STYLE,
-	safeFontName,
 	schemeEl,
-	sources,
 	spTree,
-	titleTypes,
 	xfrmOf,
-} from "./import";
+} from "./import/presentation";
+import { levelStyle } from "./import/text";
 import { EMU_PER_POINT } from "./ooxml/units";
 import { type Element, kid, kids, path } from "./ooxml/xml";
 import { slugify } from "./slug";
