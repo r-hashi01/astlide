@@ -22,7 +22,7 @@ import type { AddressInfo } from "node:net";
 import { extname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { type Browser, chromium, type Page } from "playwright";
-import { checkLayouts, layoutBuiltPage } from "../packages/astlide/src/mcp/check";
+import { checkLayouts, layoutBuiltPage } from "../packages/astlide/src/check/layout";
 
 /** One element whose box differs from Chromium's. */
 export interface Difference {
