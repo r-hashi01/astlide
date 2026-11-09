@@ -59,13 +59,26 @@ function renderGroup(g: Element, t: Transform, ctx: SlideContext, placeholders: 
 	if (!xf || !chOff || !chExt) return renderTree(g, t, ctx, placeholders);
 	const sx = num(chExt, "cx") ? xf.w / num(chExt, "cx") : 1;
 	const sy = num(chExt, "cy") ? xf.h / num(chExt, "cy") : 1;
+	if (!xf.rot && !xf.flipH && !xf.flipV) {
+		const inner: Transform = {
+			sx: t.sx * sx,
+			sy: t.sy * sy,
+			tx: t.tx + t.sx * (xf.x - num(chOff, "x") * sx),
+			ty: t.ty + t.sy * (xf.y - num(chOff, "y") * sy),
+		};
+		return renderTree(g, inner, ctx, placeholders);
+	}
+	// A rotated or flipped group turns as a whole, about its center: its shapes
+	// go in a box that has the group's transform, placed relative to it.
 	const inner: Transform = {
 		sx: t.sx * sx,
 		sy: t.sy * sy,
-		tx: t.tx + t.sx * (xf.x - num(chOff, "x") * sx),
-		ty: t.ty + t.sy * (xf.y - num(chOff, "y") * sy),
+		tx: -t.sx * num(chOff, "x") * sx,
+		ty: -t.sy * num(chOff, "y") * sy,
 	};
-	return renderTree(g, inner, ctx, placeholders);
+	return line(
+		`<div style="${boxCss(xf, t, ctx)}">${renderTree(g, inner, ctx, placeholders)}\n</div>`,
+	);
 }
 
 /** Box style (position, size, rotation / flips) in px. */
