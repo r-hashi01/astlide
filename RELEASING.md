@@ -9,11 +9,10 @@ bun install --frozen-lockfile
 bun run lint
 bun run test
 bun run build
-node scripts/test-template.mjs   # template smoke
 node scripts/test-strict-install.mjs   # Astro, Next.js and Nuxt with a strict install
 ```
 
-All six must pass cleanly. CI runs the same plus the astro-compat matrix and the browser tests (`bun run test:e2e`).
+All five must pass cleanly. CI runs the same plus the astro-compat matrix and the browser tests (`bun run test:e2e`).
 
 ## Publishing is CI-only
 
@@ -97,7 +96,7 @@ The release-tags ruleset deliberately does not require signatures — the publis
 Once v0.1.0 is out, set up branch protection on `main`:
 
 - Require PR review (1+ approval)
-- Require status checks: `Lint`, `Type Check`, `Test`, `Build`, `Build CLI`, `Template Smoke`, both `Astro x.y.z` matrix legs
+- Require status checks: `Lint`, `Type Check`, `Test`, `Build`, `E2E`, `Astro Compat`, `Strict Install Smoke`, `Server Docker`
 - Disallow direct pushes
 - Require linear history
 
