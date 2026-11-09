@@ -72,10 +72,11 @@ export function parseExportArgs(args: string[], cwd: string): ExportOptions {
 				break;
 			case "-o":
 			case "--output":
-				options.output = args[++i] ?? usage("--output needs a path");
+				// Relative to where the command runs, not the project root found later.
+				options.output = resolve(cwd, args[++i] ?? usage("--output needs a path"));
 				break;
 			case "--out-dir":
-				options.outDir = args[++i] ?? usage("--out-dir needs a directory");
+				options.outDir = resolve(cwd, args[++i] ?? usage("--out-dir needs a directory"));
 				break;
 			case "--base-url":
 				options.baseUrl = (args[++i] ?? usage("--base-url needs a URL")).replace(/\/+$/, "");

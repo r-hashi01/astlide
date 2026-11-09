@@ -43,7 +43,8 @@ describe("astlide export arguments", () => {
 		expect([...o.formats]).toEqual(["pptx", "png"]);
 		expect(o).toMatchObject({
 			all: true,
-			outDir: "out",
+			// Where the command runs, also with --cwd (the project root it names).
+			outDir: resolve("/work/site/out"),
 			baseUrl: "http://localhost:4321/repo",
 			build: false,
 			width: 1280,
@@ -51,7 +52,12 @@ describe("astlide export arguments", () => {
 			cwd: resolve("/work/other"),
 			cwdSet: true,
 		});
-		expect(parseExportArgs(["t", "-o", "talk.pdf"], cwd).output).toBe("talk.pdf");
+		expect(parseExportArgs(["t", "-o", "talk.pdf"], cwd).output).toBe(
+			resolve("/work/site/talk.pdf"),
+		);
+		expect(parseExportArgs(["t", "-o", "/tmp/talk.pdf"], cwd).output).toBe(
+			resolve("/tmp/talk.pdf"),
+		);
 	});
 
 	it("takes everything after -- as deck names", () => {
