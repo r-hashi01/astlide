@@ -150,13 +150,14 @@ describe("layout engine vs Chromium", () => {
 
 	// The badge is stretched in its row, so its height is definite once the line's
 	// is known: the icon's percentage height resolves, and the badge's width from
-	// its content counts the icon at that height (#409).
+	// its content counts the icon at that height (#409). No bold: the test font has
+	// none, and Chromium's synthetic bold is a little wider on Linux than on macOS.
 	it("a percentage height with aspect-ratio inside a box sized to its content", async () => {
 		expect(
 			await differences(
 				"cyclic-height",
 				`.row{display:flex;justify-content:center}
-.badge{display:flex;align-items:center;gap:10.5px;padding:10.5px 21px;font-size:21px;font-weight:700}
+.badge{display:flex;align-items:center;gap:10.5px;padding:10.5px 21px;font-size:21px}
 .icon{display:inline-flex;width:60%;height:60%;aspect-ratio:1/1}.icon svg{width:100%;height:100%}`,
 				`<div class="row"><div class="badge" data-c="badge"><span class="icon" data-c="icon"><svg width="24" height="24" viewBox="0 0 24 24"></svg></span>LLM Generate</div></div>`,
 			),
