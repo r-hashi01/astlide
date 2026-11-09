@@ -1,8 +1,7 @@
 ---
 import { getCollection, render } from 'astro:content';
-import fs from 'node:fs';
-import path from 'node:path';
 import { deckConfigSchema } from '@astlide/core/schema';
+import { deckConfigs } from '@astlide/astro/internal/deck-configs';
 import type { DeckConfig } from '@astlide/core/schema';
 import { setDeckContext } from '@astlide/core/context';
 import { slideTitle } from '@astlide/core/utils/slide-title';
@@ -51,26 +50,15 @@ export async function getStaticPaths() {
     };
   }> = [];
 
+  // From where the slides are (the loader's base, srcDir), whatever Astro's working directory.
+  const configs = await deckConfigs(allSlides);
   for (const [deckName, slides] of deckMap) {
     const sortedSlides = slides
       .sort((a, b) => a.id.localeCompare(b.id));
 
-    const configPath = path.join(process.cwd(), 'src', 'content', 'decks', deckName, '_config.json');
-    let deckConfig: DeckConfig = deckConfigSchema.parse({});  // schema defaults
-    let configIssue: string | null = null;
-    if (fs.existsSync(configPath)) {
-      try {
-        const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-        const result = deckConfigSchema.safeParse(raw);
-        if (result.success) {
-          deckConfig = result.data;
-        } else {
-          configIssue = `Invalid _config.json: ${result.error.issues.map((i) => `${i.path.join('.') || '<root>'} — ${i.message}`).join('; ')}`;
-        }
-      } catch (e) {
-        configIssue = `Malformed _config.json: ${(e as Error).message}`;
-      }
-    }
+    const read = configs.get(deckName);
+    const deckConfig: DeckConfig = read?.config ?? deckConfigSchema.parse({});  // schema defaults
+    const configIssue: string | null = read?.configIssue ?? null;
 
     // Numbering, navigation and outline as in every framework (`@astlide/core/deck/pages`):
     // hidden slides keep their number; in production their page redirects on.
