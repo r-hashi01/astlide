@@ -2,5 +2,6 @@
 	"title": "Astlide Feature Tour",
 	"author": "Astlide",
 	"date": "2026-10-09",
-	"theme": "default"
+	"theme": "default",
+	"ogImage": "/images/og.png"
 }
