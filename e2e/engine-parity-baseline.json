@@ -7,9 +7,9 @@
 		"tour": 1
 	},
 	"linux": {
-		"example-deck": 7,
-		"from-powerpoint": 2,
+		"example-deck": 6,
+		"from-powerpoint": 0,
 		"from-template": 1,
-		"tour": 17
+		"tour": 9
 	}
 }
