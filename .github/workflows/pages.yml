@@ -38,7 +38,7 @@ jobs:
       - name: Build docs + API reference
         run: bun run docs:build
       - name: Build the demo deck under /demo
-        run: ASTLIDE_BASE=/demo bun run build
+        run: ASTLIDE_SITE=https://astlide.dev ASTLIDE_BASE=/demo bun run build
       - run: node scripts/check-base-links.mjs playground/dist /demo --trailing-slash
       - name: Assemble site
         run: cp -r playground/dist docs/dist/demo

@@ -5,6 +5,8 @@ export default defineConfig({
 	// Optional sub-path (e.g. "/astlide" on GitHub Pages). CI builds with one to
 	// check that every internal link honours Astro's `base`.
 	base: process.env.ASTLIDE_BASE || undefined,
+	// Where the site is served (astlide.dev for the demo): share pictures need absolute URLs.
+	site: process.env.ASTLIDE_SITE || undefined,
 	integrations: [
 		astlide({
 			toolbar: [
