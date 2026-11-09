@@ -5,10 +5,10 @@
  * @module
  */
 
+import { esc } from "../../ooxml/units";
 import type { ThemeColors } from "../theme-map";
 import { langOf } from "./slide-xml";
 import { type EmbeddedFont, FONT_SLOTS } from "./spec";
-import { esc } from "./units";
 
 const NS_P = "http://schemas.openxmlformats.org/presentationml/2006/main";
 const NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main";

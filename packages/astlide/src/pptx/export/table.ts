@@ -6,8 +6,8 @@
 
 import type { Box, TableBox } from "@astlide/core/engine";
 import type { Engine, TextItem } from "./common";
-import type { CellBorder, TableCellSpec, TableSpec } from "./ooxml/spec";
 import { blockText } from "./text";
+import type { CellBorder, TableCellSpec, TableSpec } from "./writer/spec";
 
 /**
  * A laid-out table as a native PowerPoint table: the column grid and row

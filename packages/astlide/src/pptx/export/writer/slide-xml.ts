@@ -4,6 +4,7 @@
  * @module
  */
 
+import { EMU_PER_POINT, emu, esc, hpt } from "../../ooxml/units";
 import type {
 	CellBorder,
 	GradientSpec,
@@ -16,7 +17,6 @@ import type {
 	TextRun,
 	TextRunOptions,
 } from "./spec";
-import { emu, esc, hpt } from "./units";
 
 const ALIGN_MAP: Record<string, string> = {
 	left: "l",
@@ -157,7 +157,7 @@ function buildRectXml(r: RectSpec, id: number): string {
 
 	let lineXml = "<a:ln><a:noFill/></a:ln>";
 	if (r.line) {
-		const w = r.line.width ? ` w="${Math.round(r.line.width * 12700)}"` : "";
+		const w = r.line.width ? ` w="${Math.round(r.line.width * EMU_PER_POINT)}"` : "";
 		const a =
 			r.line.transparency && r.line.transparency > 0
 				? `<a:alpha val="${Math.round((100 - r.line.transparency) * 1000)}"/>`
@@ -210,7 +210,7 @@ function buildShapeXml(s: ShapeSpec, id: number): string {
 	const fill = s.fill ? solidFillXml(s.fill, s.fillTransparency) : "<a:noFill/>";
 	const st = s.stroke;
 	const line = st
-		? `<a:ln w="${Math.round(st.width * 12700)}" cap="rnd">${solidFillXml(st.color, st.transparency)}${
+		? `<a:ln w="${Math.round(st.width * EMU_PER_POINT)}" cap="rnd">${solidFillXml(st.color, st.transparency)}${
 				st.dashed ? '<a:prstDash val="dash"/>' : ""
 			}<a:round/>${st.head ? '<a:headEnd type="triangle" w="med" len="med"/>' : ""}${
 				st.tail ? '<a:tailEnd type="triangle" w="med" len="med"/>' : ""
@@ -384,7 +384,7 @@ function buildParagraphXml(
 		const indent =
 			typeof para.bullet === "object" && "indent" in para.bullet ? (para.bullet.indent ?? 15) : 15;
 		const indentLevel = para.indentLevel ?? 0;
-		const marL = (indent + indentLevel * 20) * 12700;
+		const marL = (indent + indentLevel * 20) * EMU_PER_POINT;
 		pPrParts.push(`marL="${marL}" indent="-228600"`);
 	}
 

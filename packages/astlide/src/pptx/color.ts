@@ -6,7 +6,7 @@
  * @module
  */
 
-import { type Element, kids, num } from "./xml";
+import { type Element, kids, num } from "./ooxml/xml";
 
 /** Theme colors by scheme name (dk1, lt1, accent1 … hlink), `rrggbb`. */
 export type ThemeColors = Record<string, string>;
