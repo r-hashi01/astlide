@@ -268,6 +268,20 @@ describe("untrusted files", () => {
 	const textBox = (pPr: string, spPr = "", text = "item") =>
 		`<p:sp><p:nvSpPr><p:cNvPr id="900" name="t"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="914400"/></a:xfrm>${spPr}</p:spPr><p:txBody><a:bodyPr/><a:p><a:pPr>${pPr}</a:pPr><a:r><a:t>${text}</a:t></a:r></a:p></p:txBody></p:sp>`;
 
+	it("turns and flips a group as a whole, about its center", async () => {
+		const group = (attrs: string) =>
+			`<p:grpSp><p:nvGrpSpPr><p:cNvPr id="950" name="g"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm ${attrs}><a:off x="914400" y="0"/><a:ext cx="1828800" cy="914400"/><a:chOff x="914400" y="0"/><a:chExt cx="1828800" cy="914400"/></a:xfrm></p:grpSpPr>${textBox("").replace('<a:off x="0" y="0"/>', '<a:off x="914400" y="0"/>')}</p:grpSp>`;
+		const html = async (attrs: string) =>
+			pptxToSlides(await withShapes(group(attrs))).slides[0]?.html ?? "";
+		// No transform: the shapes are placed on the slide, as before.
+		expect(await html("")).toContain("left:144px;top:0px;width:144px;height:144px;");
+		// Rotated and flipped: a box at the group's place with its transform, shapes inside it.
+		const turned = await html('flipH="1" rot="5400000"');
+		expect(turned).toMatch(
+			/<div style="position:absolute;left:144px;top:0px;width:288px;height:144px;transform:rotate\(90deg\) scaleX\(-1\);">\s*<div style="position:absolute;left:0px;top:0px;width:144px;height:144px;/,
+		);
+	});
+
 	it("keeps numbered lists within PowerPoint's range", async () => {
 		const html = async (startAt: string) =>
 			pptxToSlides(
