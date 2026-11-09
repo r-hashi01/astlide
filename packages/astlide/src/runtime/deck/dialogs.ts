@@ -69,7 +69,9 @@ export function createDialogs(mount: Mount, go: (n: number) => void): Dialogs {
 					: Array.from({ length: totalSlides }, (_, k) => k + 1);
 			for (const i of numbers) {
 				const item = document.createElement("a");
-				item.href = slideUrl(i);
+				// A click goes through `go` (below); the link opens a new tab in this window's mode.
+				item.href = mount.modeUrl(i);
+				item.dataset.slide = String(i);
 				item.className = `overview-item${i === currentSlide ? " current" : ""}`;
 				item.setAttribute(
 					"aria-label",
@@ -111,8 +113,19 @@ export function createDialogs(mount: Mount, go: (n: number) => void): Dialogs {
 	}
 
 	if (overview)
-		mount.listen(overview, "click", (e) => {
-			if (e.target === overview) closeOverview();
+		mount.listen(overview, "click", (e: MouseEvent) => {
+			if (e.target === overview) {
+				closeOverview();
+				return;
+			}
+			// A slide picked: moved to like the go-to dialog does, so the other window follows.
+			if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+			const item = (e.target as Element | null)?.closest?.<HTMLElement>(".overview-item");
+			const n = Number(item?.dataset.slide);
+			if (!item || !n) return;
+			e.preventDefault();
+			closeOverview();
+			go(n);
 		});
 
 	// The go-to-slide dialog (g).
