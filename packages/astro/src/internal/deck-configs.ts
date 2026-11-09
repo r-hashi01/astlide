@@ -52,3 +52,24 @@ export async function deckConfigs(
 		configs.set(deck, await readDeckConfig(folder));
 	return configs;
 }
+
+/**
+ * A deck's `date` for the index page, as a calendar date in English
+ * (`Jan 15, 2024`), the same wherever the site is built: a `YYYY-MM-DD` start
+ * is taken as written, not as UTC midnight moved into the build machine's
+ * timezone. Null when it isn't a date.
+ */
+export function deckDate(raw: string | undefined): string | null {
+	if (!raw) return null;
+	const ymd = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+	const date = ymd
+		? new Date(Date.UTC(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3])))
+		: new Date(raw);
+	if (Number.isNaN(date.getTime())) return null;
+	return date.toLocaleDateString("en", {
+		timeZone: "UTC",
+		year: "numeric",
+		month: "short",
+		day: "numeric",
+	});
+}

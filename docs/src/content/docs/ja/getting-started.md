@@ -55,7 +55,7 @@ export const collections = { decks };
 ```
 
 :::caution
-ローダーには `astlideDeckLoader()` を使ってください。`glob({ pattern: "**/*.mdx" })` では `.mdx` のファイルしか見つかりません。`astlideDeckLoader()` なら `.md`、`.html`、`.pptx` のスライドも読み込み、ファイル名の番号順に並べます。
+ローダーには `astlideDeckLoader()` を使ってください。`glob({ pattern: "**/*.mdx" })` では `.mdx` のファイルしか見つかりません。`astlideDeckLoader()` なら `.md`、`.html`、`.pptx` のスライドも読み込み、ファイル名の順に並べます。
 :::
 
 サイトにトップページ（`src/pages/index.astro` や `.md`、`.mdx`、`.html`）がすでにある場合、Astlide は `/` をそのページに任せ、デッキの一覧を追加しません。その場合も、各デッキは `/<deck>/1` で開けます。

@@ -55,7 +55,7 @@ export const collections = { decks };
 ```
 
 :::caution
-Use `astlideDeckLoader()` here. A `glob({ pattern: "**/*.mdx" })` loader finds only `.mdx` files. `astlideDeckLoader()` also reads `.md`, `.html` and `.pptx` slides and sorts all of them by the number in the file name.
+Use `astlideDeckLoader()` here. A `glob({ pattern: "**/*.mdx" })` loader finds only `.mdx` files. `astlideDeckLoader()` also reads `.md`, `.html` and `.pptx` slides and sorts all of them by file name.
 :::
 
 If your site already has a home page (`src/pages/index.astro`, `.md`, `.mdx` or `.html`), Astlide leaves `/` to it and doesn't add the deck index there. Your decks still work at `/<deck>/1`.
