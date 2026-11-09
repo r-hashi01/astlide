@@ -254,10 +254,18 @@ export function createDeckRoutes(options: DeckRoutesOptions = {}) {
 			const deck = await deckNamed(name);
 			const slide = deck?.slides[Number(n) - 1];
 			const title = deck ? `${deck.config.title ?? deck.name} - Slide ${n}` : "Slide";
+			// The share picture (`ogImage`); a site path resolves against your `metadataBase`.
+			const image = deck?.config.ogImage;
 			return {
 				title,
 				description: slide ? (slideTitle({ data: slide.data, body: slide.body }) ?? title) : title,
 				robots: { index: false, follow: false },
+				...(image
+					? {
+							openGraph: { images: [image] },
+							twitter: { card: "summary_large_image" as const, images: [image] },
+						}
+					: { twitter: { card: "summary" as const } }),
 			};
 		},
 		SlidePage,
