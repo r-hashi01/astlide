@@ -124,7 +124,8 @@ function rgba(v: string): Rgba | null {
 	if (named) return fromHex(named);
 	const hex = v.match(/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/);
 	if (hex) return fromHex(hex[1] ?? "");
-	const fn = v.match(/^([a-z-]+)\((.*)\)$/s);
+	// [\s\S], not the s flag: the file is type-checked by apps that target ES2017 (Next.js).
+	const fn = v.match(/^([a-z-]+)\(([\s\S]*)\)$/);
 	if (!fn) return null;
 	const name = fn[1] ?? "";
 	const inner = fn[2] ?? "";
