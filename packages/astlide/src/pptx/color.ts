@@ -6,6 +6,7 @@
  * @module
  */
 
+import { parseColor } from "../engine/color";
 import { type Element, kids, num } from "./ooxml/xml";
 
 /** Theme colors by scheme name (dk1, lt1, accent1 … hlink), `rrggbb`. */
@@ -34,18 +35,21 @@ function own<T>(obj: Record<string, T>, key: string | undefined): T | undefined 
 	return key !== undefined && Object.hasOwn(obj, key) ? obj[key] : undefined;
 }
 
-const PRESET: Record<string, string> = {
-	black: "000000",
-	white: "ffffff",
-	red: "ff0000",
-	green: "008000",
-	blue: "0000ff",
-	yellow: "ffff00",
-	gray: "808080",
-	grey: "808080",
-	orange: "ffa500",
-	purple: "800080",
-};
+/**
+ * A preset color (ST_PresetColorVal): the CSS named colors, also written with
+ * `dk` / `lt` / `med` for dark / light / medium (`ltGray`, `medSeaGreen`).
+ */
+function presetColor(name: string | undefined): string | undefined {
+	if (!name) return undefined;
+	const css = name
+		.replace(/^dk(?=[A-Z])/, "dark")
+		.replace(/^lt(?=[A-Z])/, "light")
+		.replace(/^med(?=[A-Z])/, "medium")
+		.toLowerCase();
+	// A name, not CSS's keywords for no color.
+	if (!/^[a-z]+$/.test(css) || css === "transparent" || css === "currentcolor") return undefined;
+	return parseColor(css)?.hex;
+}
 
 export interface ColorContext {
 	theme: ThemeColors;
@@ -101,7 +105,7 @@ export function colorOf(
 			hex = el.attribs.lastClr ?? (el.attribs.val === "window" ? "ffffff" : "000000");
 			break;
 		case "a:prstClr":
-			hex = own(PRESET, el.attribs.val);
+			hex = presetColor(el.attribs.val);
 			break;
 		case "a:schemeClr": {
 			const name = el.attribs.val ?? "";

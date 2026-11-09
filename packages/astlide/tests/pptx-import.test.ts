@@ -491,6 +491,18 @@ describe("colors", () => {
 		theme: { accent1: "4472c4", lt1: "ffffff", dk1: "000000" },
 		map: { bg1: "lt1", tx1: "dk1" },
 	};
+	it("reads every preset color, also written with dk / lt / med", () => {
+		const preset = (val: string) =>
+			colorOf(parseXml(`<a:prstClr val="${val}"/>`), ctx)?.hex ?? null;
+		expect(preset("ltGray")).toBe("d3d3d3");
+		expect(preset("dkBlue")).toBe("00008b");
+		expect(preset("medSeaGreen")).toBe("3cb371");
+		expect(preset("aliceBlue")).toBe("f0f8ff");
+		expect(preset("green")).toBe("008000");
+		expect(preset("transparent")).toBeNull();
+		expect(preset("nope")).toBeNull();
+	});
+
 	it("resolves scheme colors through the color map, with modifiers", () => {
 		expect(colorOf(parseXml('<a:schemeClr val="tx1"/>'), ctx)).toEqual({ hex: "000000", alpha: 1 });
 		expect(

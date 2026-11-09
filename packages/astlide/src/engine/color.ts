@@ -119,7 +119,8 @@ const alphaOf = (v: string | undefined) => (v === undefined ? 1 : num(v, 1));
 function rgba(v: string): Rgba | null {
 	if (!v) return null;
 	if (v === "transparent" || v === "none") return [0, 0, 0, 0];
-	const named = NAMED[v];
+	// Own names only: `constructor` is not a color.
+	const named = Object.hasOwn(NAMED, v) ? NAMED[v] : undefined;
 	if (named) return fromHex(named);
 	const hex = v.match(/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/);
 	if (hex) return fromHex(hex[1] ?? "");
