@@ -263,6 +263,24 @@ describe("toolbar", () => {
 	});
 });
 
+describe("overview", () => {
+	it("picking a slide moves the other window too, and keeps share mode", async () => {
+		const { context, a, b } = await pair("/example-deck/3/");
+		await a.keyboard.press("s");
+		await expect
+			.poll(() => a.evaluate(() => document.documentElement.hasAttribute("data-share")))
+			.toBe(true);
+		await a.waitForSelector(".slide");
+		await a.keyboard.press("o");
+		// The grid's preview frames keep loading, so the item isn't "stable" for click().
+		await a.locator('.overview-item[data-slide="7"]').dispatchEvent("click");
+		await expect.poll(() => slideOf(a)).toBe(7);
+		await expect.poll(() => slideOf(b)).toBe(7);
+		expect(new URL(a.url()).searchParams.has("share")).toBe(true);
+		await context.close();
+	});
+});
+
 describe("presenter timer", () => {
 	it("starts, pauses and resets", async () => {
 		const page = await open(browser(), "/example-deck/1/?presenter");
