@@ -70,7 +70,8 @@ thead,tbody,tfoot,tr{vertical-align:middle}
 td,th{display:table-cell;padding:1px;vertical-align:inherit}
 th{text-align:center}
 caption{display:table-caption;text-align:center}
-button,input,select,textarea{display:inline-block;font-size:13.333px;font-family:system-ui,sans-serif}
+/* Chromium sets form controls' font with the shorthand (font: -webkit-small-control): style, weight and line-height go back to normal too. */
+button,input,select,textarea{display:inline-block;font-style:normal;font-weight:400;font-size:13.333px;line-height:normal;font-family:system-ui,sans-serif}
 button,select{padding:1px 6px;border:2px solid #767676;border-radius:3px;background-color:#efefef;color:#000;text-align:center}
 input,textarea{padding:1px 2px;border:2px solid #767676;background-color:#fff;color:#000}
 `;

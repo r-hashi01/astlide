@@ -195,6 +195,7 @@ export class StyleContext {
 		const ls = value(style, "letter-spacing");
 		return {
 			face,
+			italic,
 			requested,
 			size,
 			lineHeight,

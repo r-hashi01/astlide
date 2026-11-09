@@ -36,8 +36,19 @@ export type SceneItem = (
 			w: number;
 			h: number;
 			text: string;
-			/** `file`: the font file, when it may be embedded (not a system fallback). */
-			font: { family: string; weight: number; italic: boolean; size: number; file?: string };
+			/**
+			 * `file`: the font file, when it may be embedded (not a system fallback).
+			 * `italic`: the text is italic (CSS); `fileItalic`: the file is an italic
+			 * face — without one, italic text is the upright face, slanted.
+			 */
+			font: {
+				family: string;
+				weight: number;
+				italic: boolean;
+				fileItalic: boolean;
+				size: number;
+				file?: string;
+			};
 			color: Color;
 			letterSpacing: number;
 			/** Width of a space in this font and size (CSS px), to rebuild gaps between runs. */
@@ -384,7 +395,8 @@ function textItem(l: TextLine): SceneItem | null {
 			// The family asked for, when it was measured with a stand-in (whose file isn't it).
 			family: l.style.requested ?? l.style.face.font.familyName,
 			weight: l.style.face.weight,
-			italic: l.style.face.italic,
+			italic: l.style.italic,
+			fileItalic: l.style.face.italic,
 			file: l.style.requested ? undefined : l.style.face.file,
 			size: l.style.size,
 		},

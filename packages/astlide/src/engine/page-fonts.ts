@@ -7,7 +7,7 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { familiesIn, loadFontFaces, loadGoogleFonts, weightsIn } from "./fonts";
+import { familiesIn, googleFontLinks, loadFontFaces, loadGoogleFonts, weightsIn } from "./fonts";
 import { FontRegistry } from "./text";
 
 /** Japanese / Chinese / Korean text. */
@@ -52,16 +52,20 @@ export async function loadPageFonts(
 ): Promise<PageFonts> {
 	const fonts = new FontRegistry();
 	const local = loadFontFaces(fonts, css, dist);
+	const source = readFileSync(html, "utf-8");
+	// The faces the page links from Google Fonts: no italics unless it asks for them.
+	const linked = googleFontLinks(source);
 	const missing = await loadGoogleFonts(
 		fonts,
 		familiesIn(css).filter((f) => !local.has(f)),
 		cacheDir,
 		weightsIn(css),
+		(family) => linked.get(family.toLowerCase())?.italic ?? true,
 	);
 	if (existsSync(EMOJI_FONT)) fonts.addFallback(EMOJI_FONT);
 	const eaFont = familiesIn(css).find((f) => CJK_FAMILY.test(f)) ?? DEFAULT_EA_FONT;
 	let noCjkFont = false;
-	if (CJK_TEXT.test(readFileSync(html, "utf-8"))) {
+	if (CJK_TEXT.test(source)) {
 		const loaded = fonts.pick(`"${eaFont}"`, 400, false);
 		const measure =
 			loaded.family === eaFont.toLowerCase() && loaded.file

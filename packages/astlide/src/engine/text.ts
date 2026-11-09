@@ -280,6 +280,8 @@ export function verticalMetrics(
 
 export interface InlineStyle {
 	face: FontFace;
+	/** The text is italic or oblique (`font-style`), whether or not `face` is an italic face. */
+	italic: boolean;
 	/** The family the CSS asked for, when none of its families was available (see {@link FontRegistry.resolve}). */
 	requested?: string;
 	size: number;
