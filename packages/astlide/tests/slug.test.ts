@@ -17,6 +17,13 @@ describe("slugify", () => {
 		expect(slug).toBe("a".repeat(47));
 	});
 
+	it("doesn't cut a character in half (𠮷 is two UTF-16 units)", () => {
+		for (const slug of [slugify(`x${"𠮷".repeat(30)}`), layoutSlug(`x${"𠮷".repeat(30)}`)]) {
+			expect(slug).not.toMatch(/[\uD800-\uDBFF]$/);
+			expect(slug).toBe(`x${"𠮷".repeat(23)}`);
+		}
+	});
+
 	it("falls back when nothing is left", () => {
 		expect(slugify("---")).toBe("slide");
 		expect(slugify("!!!", "layout")).toBe("layout");
