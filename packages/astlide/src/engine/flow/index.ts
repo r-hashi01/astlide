@@ -169,18 +169,26 @@ export class Flow {
 	/**
 	 * A box's min-content and max-content contributions (css-sizing-3 §5.2):
 	 * its margin-box width from its set width, or else its content's sizes,
-	 * within min / max-width. Percentage sizes count as auto (§5.2.1).
+	 * within min / max-width. Percentage widths count as auto (§5.2.1);
+	 * percentage heights resolve against `pctH`, the containing block's
+	 * definite content height, when there is one — so an aspect ratio can
+	 * give the width (css-sizing-4 §5.1).
 	 */
-	contribution(box: ElementBox | TextRun): Sizes {
+	contribution(box: ElementBox | TextRun, pctH?: number): Sizes {
 		if (box.type === "text") return this.contentSizes(box);
-		const hit = this.contributions.get(box);
+		const hit = pctH === undefined ? this.contributions.get(box) : undefined;
 		if (hit) return hit;
 		const { style } = box;
-		// Intrinsic: percentages count as auto (css-sizing-3 §5.2.1).
-		const bm = boxModel(this.ctx, style);
+		const bm = boxModel(this.ctx, style, pctH === undefined ? {} : { height: pctH });
+		/** The box's own definite content height, for its children's percentages. */
+		const ownHeight = bm.height === undefined ? undefined : contentHeight(bm, bm.height);
 		let own: Sizes;
 		if (bm.width !== undefined) own = { min: bm.width, max: bm.width };
-		else if (box.kind === "replaced") {
+		else if (box.kind !== "replaced" && bm.ratio && bm.height !== undefined) {
+			// A definite height and an aspect ratio give the width (css-sizing-4 §5.1).
+			const w = contentHeight(bm, bm.height) * bm.ratio + bm.inset.x;
+			own = { min: w, max: w };
+		} else if (box.kind === "replaced") {
 			const nat = this.natural(box);
 			const ratio = bm.ratio || nat.ratio;
 			const w =
@@ -191,14 +199,14 @@ export class Flow {
 			const pct = value(style, "width").endsWith("%");
 			own = { min: pct ? 0 : w, max: w };
 		} else {
-			const c = this.contentSizes(box);
+			const c = this.contentSizes(box, ownHeight);
 			own = { min: c.min + bm.inset.x, max: c.max + bm.inset.x };
 		}
 		const out = {
 			min: outerWidth(bm, clampWidth(bm, own.min)),
 			max: outerWidth(bm, clampWidth(bm, own.max)),
 		};
-		this.contributions.set(box, out);
+		if (pctH === undefined) this.contributions.set(box, out);
 		return out;
 	}
 
@@ -209,25 +217,29 @@ export class Flow {
 	 * The content size suggestion of a flex item and a table cell's minimum
 	 * come from here, not from the contribution.
 	 */
-	contentSizes(box: ElementBox | TextRun): Sizes {
-		const hit = this.contents.get(box);
+	contentSizes(box: ElementBox | TextRun, height?: number): Sizes {
+		const hit = height === undefined ? this.contents.get(box) : undefined;
 		if (hit) return hit;
-		const out = box.type === "text" ? textSizes(this, box) : this.childSizes(box);
-		this.contents.set(box, out);
+		const out = box.type === "text" ? textSizes(this, box) : this.childSizes(box, height);
+		if (height === undefined) this.contents.set(box, out);
 		return out;
 	}
 
-	/** The children's sizes, combined the way the box's formatting context places them. */
-	private childSizes(box: ElementBox): Sizes {
+	/**
+	 * The children's sizes, combined the way the box's formatting context
+	 * places them; `height`: the box's definite content height, which the
+	 * children's percentage heights resolve against.
+	 */
+	private childSizes(box: ElementBox, height?: number): Sizes {
 		switch (box.kind) {
 			case "flex":
-				return flexSizes(this, box);
+				return flexSizes(this, box, height);
 			case "grid":
 				return gridSizes(this, box);
 			case "table":
 				return tableSizes(this, box);
 			default:
-				return blockSizes(this, box);
+				return blockSizes(this, box, height);
 		}
 	}
 

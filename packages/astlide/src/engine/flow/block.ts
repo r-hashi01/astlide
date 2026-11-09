@@ -87,8 +87,10 @@ export function layoutBlock(
 }
 
 /** A block container's content sizes: its widest child. */
-export function blockSizes(flow: Flow, box: ElementBox): Sizes {
-	const each = box.children.filter((c) => !flow.absolute(c)).map((k) => flow.contribution(k));
+export function blockSizes(flow: Flow, box: ElementBox, height?: number): Sizes {
+	const each = box.children
+		.filter((c) => !flow.absolute(c))
+		.map((k) => flow.contribution(k, height));
 	return {
 		min: Math.max(0, ...each.map((c) => c.min)),
 		max: Math.max(0, ...each.map((c) => c.max)),
