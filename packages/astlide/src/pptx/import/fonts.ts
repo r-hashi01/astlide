@@ -6,11 +6,15 @@
 
 import type { SlideContext } from "./presentation";
 
-/** @internal */
-export function fontStack(face: string): string {
-	// Single quotes: this goes inside style="…". The name is already safe (resolveFont).
-	const name = safeFontName(face);
-	return name ? `'${name}', sans-serif` : "sans-serif";
+/**
+ * @internal A CSS font stack: the faces in order — the Latin font, then the
+ * East Asian one, which draws the characters the first lacks (as PowerPoint
+ * uses a run's `a:ea` font for East Asian text).
+ */
+export function fontStack(...faces: (string | undefined)[]): string {
+	// Single quotes: this goes inside style="…". The names are made safe here.
+	const names = [...new Set(faces.map((f) => safeFontName(f)).filter(Boolean))];
+	return [...names.map((n) => `'${n}'`), "sans-serif"].join(", ");
 }
 
 /**
@@ -36,7 +40,10 @@ export function resolveFont(
 	fonts: SlideContext["fonts"],
 ): string | undefined {
 	if (!face) return undefined;
-	if (face.startsWith("+mj")) return fonts.major;
-	if (face.startsWith("+mn")) return fonts.minor;
+	// +mj-lt / +mn-lt: the theme's Latin fonts; +mj-ea / +mn-ea: its East Asian ones.
+	if (face.startsWith("+mj"))
+		return face === "+mj-ea" ? (fonts.majorEa ?? fonts.major) : fonts.major;
+	if (face.startsWith("+mn"))
+		return face === "+mn-ea" ? (fonts.minorEa ?? fonts.minor) : fonts.minor;
 	return face;
 }

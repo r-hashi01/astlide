@@ -272,7 +272,7 @@ export function canvasOpen(p: Presentation, ctx: SlideContext, slide?: Element):
 		],
 		ctx,
 	);
-	return `<div class="astlide-pptx-canvas" style="left:${r2(p.offsetX)}px;top:${r2(p.offsetY)}px;width:${r2(p.width * p.scale)}px;height:${r2(p.height * p.scale)}px;${background}${ctx.fonts.minor ? `font-family:${fontStack(ctx.fonts.minor)};` : ""}color:${cssColor(schemeEl("tx1"), ctx.colors) ?? "#000"}">`;
+	return `<div class="astlide-pptx-canvas" style="left:${r2(p.offsetX)}px;top:${r2(p.offsetY)}px;width:${r2(p.width * p.scale)}px;height:${r2(p.height * p.scale)}px;${background}${ctx.fonts.minor || ctx.fonts.minorEa ? `font-family:${fontStack(ctx.fonts.minor, ctx.fonts.minorEa)};` : ""}color:${cssColor(schemeEl("tx1"), ctx.colors) ?? "#000"}">`;
 }
 
 /** @internal Resets the slide's theme CSS would otherwise apply to the imported markup. */
