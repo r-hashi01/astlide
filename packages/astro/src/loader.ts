@@ -45,6 +45,8 @@ import {
 	htmlWithoutNotes,
 	PPTX_EXTENSION,
 	pptxSlideId,
+	SLIDE_EXTENSION,
+	sameNameSlides,
 	splitFrontmatter,
 	toEntryId,
 } from "@astlide/core/deck/files";
@@ -153,7 +155,9 @@ export function astlideDeckLoader(options: AstlideDeckLoaderOptions = {}): Loade
 				wiredWatchers.add(watcher);
 				const onChange = (changedPath: string) => {
 					if (HTML_EXTENSION.test(changedPath)) {
-						void syncHtmlSlides(context, baseUrl);
+						syncHtmlSlides(context, baseUrl).catch((error) =>
+							context.logger.error(error instanceof Error ? error.message : String(error)),
+						);
 					}
 					if (PPTX_EXTENSION.test(changedPath)) {
 						void syncPptxSlides(context, baseUrl);
@@ -301,13 +305,17 @@ async function syncHtmlSlides(context: LoaderContext, baseUrl: URL): Promise<voi
 	const { store, parseData, generateDigest, config, logger } = context;
 	const baseDir = fileURLToPath(baseUrl);
 
-	let files: string[];
+	let slides: string[];
 	try {
-		files = await filesIn(baseDir, (name) => HTML_EXTENSION.test(name));
+		slides = await filesIn(baseDir, (name) => SLIDE_EXTENSION.test(name));
 	} catch {
 		// Base directory missing — the integration already warns about this.
-		files = [];
+		slides = [];
 	}
+	// Names that differ only in extension would be one entry: refused.
+	const clash = sameNameSlides(slides);
+	if (clash) throw clash;
+	const files = slides.filter((f) => HTML_EXTENSION.test(f));
 
 	const seen = new Set<string>();
 	for (const relPath of files) {

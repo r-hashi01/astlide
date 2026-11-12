@@ -37,6 +37,7 @@ import {
 	pptxSlideId,
 	readDeckConfig,
 	SLIDE_EXTENSION,
+	sameNameSlides,
 	splitFrontmatter,
 	toEntryId,
 } from "./files";
@@ -130,10 +131,13 @@ export async function readDeck(dir: string, options: ReadDeckOptions = {}): Prom
 	};
 
 	const slides: Omit<DeckSlide, "number">[] = [];
-	for (const file of await filesIn(
+	const files = await filesIn(
 		dir,
 		(name) => SLIDE_EXTENSION.test(name) || PPTX_EXTENSION.test(name),
-	)) {
+	);
+	const clash = sameNameSlides(files);
+	if (clash) throw clash;
+	for (const file of files) {
 		if (PPTX_EXTENSION.test(file)) {
 			const { pptxToSlides } = await import("../pptx/index");
 			const pages = pptxToSlides(await readFile(join(dir, file)), {
