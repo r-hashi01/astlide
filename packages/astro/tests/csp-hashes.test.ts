@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { cspHashable, DEFAULT_DECK_CSP } from "@astlide/astro/internal/csp";
 import { slideContentComments, slideContentMarks } from "@astlide/astro/internal/slide-mark";
-import island from "astro/runtime/server/astro-island.prebuilt.js";
 import { describe, expect, it } from "vitest";
 import {
+	astroIslandScripts,
 	hashBuiltPages,
 	inlineScripts,
 	markedCspMeta,
@@ -35,7 +35,15 @@ describe("inlineScripts", () => {
 		expect(inlineScripts(html, MARK).map((s) => s.hash)).toEqual([sha(a), sha("b()"), sha("c()")]);
 	});
 
-	it("tells slide content apart, except Astro's island scripts", () => {
+	it("finds Astro's island scripts in the installed Astro", async () => {
+		// The island runtime and the five client: directives, wherever this Astro keeps them.
+		const scripts = await astroIslandScripts();
+		expect(scripts.size).toBe(6);
+		for (const text of scripts) expect(text.length).toBeGreaterThan(50);
+	});
+
+	it("tells slide content apart, except Astro's island scripts", async () => {
+		const [island] = [...(await astroIslandScripts())];
 		const html = page(
 			"<script>layout()</script>",
 			`${slide(`<script>slideOwn()</script><script>${island}</script>`)}<script>after()</script>`,
