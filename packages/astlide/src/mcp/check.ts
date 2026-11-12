@@ -24,15 +24,16 @@ import {
 	type LayoutIssue,
 	layoutBuiltPage,
 } from "../check/layout";
-import { buildSite, deckDir, printView, projectRoot } from "./project";
+import { buildSite, checkBuildDir, deckDir, printView, projectRoot } from "./project";
 
 export interface CheckDeckOptions extends CheckOptions {
 	projectRoot: string;
 	deck: string;
 	/**
-	 * Build the site first: `true` always, `false` never (use `dist/` as is),
-	 * `"auto"` (default) when the deck's print view is missing or older than
-	 * its source files.
+	 * Build the site first (into its own folder, {@link checkBuildDir}):
+	 * `true` always, `false` never (use the last build, else `dist/`), `"auto"`
+	 * (default) when the deck's print view is missing or older than its source
+	 * files.
 	 */
 	build?: boolean | "auto";
 }
@@ -102,16 +103,20 @@ export function siteView(page: string, dist: string): { dir: string; dispose(): 
 export async function checkDeck(options: CheckDeckOptions): Promise<CheckDeckResult> {
 	const root = projectRoot(options.projectRoot);
 	deckDir(root, options.deck);
-	const page = printView(root, options.deck);
+	// Its own build (whatever the project's outDir); without one and not building, dist/.
+	const own = checkBuildDir(root);
 	const mode = options.build ?? "auto";
+	const site = mode === false && !existsSync(own) ? join(root, "dist") : own;
+	let page = printView(site, options.deck);
 	const stale = !existsSync(page) || statSync(page).mtimeMs < newestSource(root, options.deck);
-	if (mode === true || (mode === "auto" && stale)) await buildSite(root);
+	if (mode === true || (mode === "auto" && stale)) {
+		await buildSite(root, own);
+		page = printView(site, options.deck);
+	}
 	if (!existsSync(page))
 		throw new Error(`no built deck at ${page} — build the site (astro build) first`);
-	// The layout check reads dist/ (a plain `astro build`): it needs no speaker
-	// notes, so it doesn't use the export's own build (utils/export-build).
-	const dist = join(root, "dist");
-	const view = siteView(page, dist);
+	// The layout check needs no speaker notes: a plain build, not the export's (utils/export-build).
+	const view = siteView(page, site);
 	let result: Awaited<ReturnType<typeof layoutBuiltPage>>;
 	try {
 		result = await layoutBuiltPage(

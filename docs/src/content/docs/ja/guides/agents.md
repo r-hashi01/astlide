@@ -64,7 +64,7 @@ Claude Desktop などほかの MCP クライアントでも、コマンドは `b
 
 `check_deck` と `render_deck` は自分でサイトをビルドします。開発サーバーを起動しておく必要はありません。ビルドするかどうかは、ツールによって次のように違います。
 
-- `check_deck` は、`dist/` がない場合か、デッキのファイルや Astro の設定より古い場合にだけビルドします。`build: true` なら毎回ビルドし、`build: false` ならビルドしません。
+- `check_deck` は専用のフォルダー（`node_modules/.astro/astlide-check`）にビルドするので、`dist/` や `outDir` には触れません。そのビルドがない場合か、デッキのファイルや Astro の設定より古い場合にだけビルドします。`build: true` なら毎回ビルドし、`build: false` ならビルドしません（そのときは前回のビルドを、なければ `dist/` を読みます）。
 - `render_deck` は毎回ビルドします。`build: false` を渡すと、前回のエクスポート用ビルドを使います。それもなければ `dist/` を使います。
 
 `render_deck` の出力先は、`outDir` を指定しなければプロジェクトの `exports/` です。PDF のエクスポートには Playwright の Chromium が必要です（`bunx playwright install chromium`）。

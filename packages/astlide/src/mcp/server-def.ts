@@ -300,7 +300,7 @@ export function createServer(options: ServerOptions = {}): McpServer {
 		{
 			title: "Check a deck's layout",
 			description:
-				"Lay out a deck's slides (1920×1080, the same layout engine as the PowerPoint export) and report text and boxes that don't fit: cut off by the slide or an `overflow: hidden` box (text-clipped / box-clipped), spilling out of their box or the slide's content area (text-overflow / box-overflow), or outside the slide (off-slide) — with the slide number and title, the text, and by how many px on which side. Fix each one (shorten the text, split the slide, use a roomier layout) and check again. Builds the site when dist/ is missing or older than the deck's files (writing dist/); build: false only reads. " +
+				"Lay out a deck's slides (1920×1080, the same layout engine as the PowerPoint export) and report text and boxes that don't fit: cut off by the slide or an `overflow: hidden` box (text-clipped / box-clipped), spilling out of their box or the slide's content area (text-overflow / box-overflow), or outside the slide (off-slide) — with the slide number and title, the text, and by how many px on which side. Fix each one (shorten the text, split the slide, use a roomier layout) and check again. Builds the site into a folder of its own (node_modules/.astro/astlide-check, whatever the project's outDir) when that build is missing or older than the deck's files; build: false only reads (that build, else dist/). " +
 				RUNS_PROJECT_CODE,
 			inputSchema: {
 				projectRoot,
@@ -310,7 +310,7 @@ export function createServer(options: ServerOptions = {}): McpServer {
 					.optional()
 					.describe('Build first: true always, false never, "auto" (default) when out of date'),
 			},
-			// Not read-only: building runs the project's code and writes dist/.
+			// Not read-only: building runs the project's code and writes its own build folder.
 			annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
 		},
 		(args) =>
