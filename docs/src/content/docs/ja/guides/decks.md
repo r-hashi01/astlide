@@ -3,7 +3,7 @@ title: デッキを作成する
 description: デッキのフォルダーと _config.json の作り方、.mdx・.md・.html でのスライドの書き方、frontmatter、発表者ノート、ブラウザでの編集、スライドの非表示を説明します。
 ---
 
-デッキは `src/content/decks/` の下に作るフォルダーです。中には `_config.json` と、スライド 1 枚につき 1 つのファイルを置きます。フォルダー名はそのまま URL になり、`src/content/decks/my-talk/` のデッキは `/my-talk/` で開けます。
+デッキは `src/content/decks/` の下に作るフォルダーです。中には `_config.json` と、スライド 1 枚につき 1 つのファイルを置きます。フォルダー名はそのまま URL になり、`src/content/decks/my-talk/` のデッキは `/my-talk/` で開けます。フォルダー名には `#`・`?`・`%` を使えません。
 
 ## CLI で雛形を作る
 

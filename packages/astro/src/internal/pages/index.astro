@@ -59,7 +59,7 @@ const decks = await Promise.all(
 
       <div class="deck-grid">
         {decks.map((deck) => (
-          <a href={pageUrl(`/${deck.name}/1`)} class="deck-card">
+          <a href={pageUrl(`/${encodeURIComponent(deck.name)}/1`)} class="deck-card">
             <h2>{deck.title}</h2>
             {deck.author && <p class="author">{deck.author}</p>}
             {deck.formattedDate && <p class="date">{deck.formattedDate}</p>}

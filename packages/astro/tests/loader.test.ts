@@ -108,6 +108,25 @@ describe("astlideDeckLoader — HTML slides", () => {
 		await astlideDeckLoader().load(ctx);
 		expect(store.has("deck-a/03-temp")).toBe(false);
 	});
+
+	it("refuses deck folders whose names can't be in a URL, naming them", async () => {
+		mkdirSync(join(root, "src", "content", "decks", "q#3"));
+		mkdirSync(join(root, "src", "content", "decks", "50%"));
+		await expect(astlideDeckLoader().load(createContext(root, createStore()))).rejects.toThrow(
+			/deck folder names can't contain #, \? or %.*(q#3, 50%|50%, q#3)/,
+		);
+	});
+
+	it("reads a deck folder with a space in its name", async () => {
+		const spaced = join(root, "src", "content", "decks", "q 3");
+		mkdirSync(spaced);
+		writeFileSync(join(spaced, "01-a.html"), "<h1>Spaced</h1>");
+		const store = createStore();
+		await astlideDeckLoader().load(createContext(root, store));
+		expect((store.get("q 3/01-a") as { rendered: { html: string } }).rendered.html).toContain(
+			"Spaced",
+		);
+	});
 });
 
 describe("speaker notes in a trailing comment", () => {

@@ -3,7 +3,7 @@ title: Creating a Deck
 description: Set up a deck folder with _config.json, write slides in .mdx, .md or .html, and use frontmatter, speaker notes, the in-browser editor and hidden slides.
 ---
 
-A deck is a folder under `src/content/decks/`. It holds a `_config.json` file and one file per slide. The folder name becomes the deck's URL: the deck in `src/content/decks/my-talk/` is served at `/my-talk/`.
+A deck is a folder under `src/content/decks/`. It holds a `_config.json` file and one file per slide. The folder name becomes the deck's URL: the deck in `src/content/decks/my-talk/` is served at `/my-talk/`. The name can't contain `#`, `?` or `%`.
 
 ## Scaffold with the CLI
 
