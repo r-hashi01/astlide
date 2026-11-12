@@ -36,22 +36,68 @@
  */
 
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { readdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { slideContentMarks } from "@astlide/astro/internal/slide-mark";
-import idle from "astro/runtime/client/idle.prebuilt.js";
-import load from "astro/runtime/client/load.prebuilt.js";
-import media from "astro/runtime/client/media.prebuilt.js";
-import only from "astro/runtime/client/only.prebuilt.js";
-import visible from "astro/runtime/client/visible.prebuilt.js";
-import island from "astro/runtime/server/astro-island.prebuilt.js";
 import { Parser } from "htmlparser2";
 
 /** Attribute on a CSP `<meta>` whose `script-src` gets the page's script hashes. */
 export const CSP_HASH_MARKER = "data-astlide-csp";
 
+/** Astro's island scripts, by their path in its runtime. */
+const ISLAND_SCRIPTS = [
+	"server/astro-island",
+	"client/idle",
+	"client/load",
+	"client/media",
+	"client/only",
+	"client/visible",
+];
+
+/**
+ * The texts of Astro's island scripts, from the installed Astro: in
+ * `@astrojs/runtime` (Astro 7.4.11 on), else in Astro itself. Not imported by
+ * name: they're Astro's internals and move between releases. Those it can't
+ * find are left out — inside a slide they then count as slide content and are
+ * blocked, never allowed.
+ *
+ * @internal
+ */
+export async function astroIslandScripts(): Promise<Set<string>> {
+	const texts = new Set<string>();
+	let astro: string;
+	try {
+		astro = createRequire(import.meta.url).resolve("astro/package.json");
+	} catch {
+		return texts;
+	}
+	const fromAstro = createRequire(astro);
+	for (const name of ISLAND_SCRIPTS) {
+		const candidates = [
+			() => fromAstro.resolve(`@astrojs/runtime/_internal/${name}.prebuilt.js`),
+			() => join(dirname(astro), "dist", "runtime", `${name}.prebuilt.js`),
+		];
+		for (const candidate of candidates) {
+			let file: string;
+			try {
+				file = candidate();
+			} catch {
+				continue;
+			}
+			if (!existsSync(file)) continue;
+			const text = ((await import(pathToFileURL(file).href)) as { default?: unknown }).default;
+			if (typeof text === "string") texts.add(text);
+			break;
+		}
+	}
+	return texts;
+}
+
 /** Inline scripts Astro itself may write inside a slide (islands), by exact text. */
-const ASTRO_RUNTIME = new Set<string>([island, idle, load, media, only, visible]);
+const ASTRO_RUNTIME = await astroIslandScripts();
 
 const sha256 = (text: string) =>
 	`'sha256-${createHash("sha256").update(text, "utf8").digest("base64")}'`;
