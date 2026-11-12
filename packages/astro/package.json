@@ -46,6 +46,7 @@
 	"dependencies": {
 		"@astlide/core": "workspace:*",
 		"@astrojs/mdx": "^8.1.3",
+		"htmlparser2": "^12.0.0",
 		"katex": "^0.19.1",
 		"zod": "^4.6.7"
 	},

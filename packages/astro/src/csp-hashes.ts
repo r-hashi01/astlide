@@ -88,7 +88,9 @@ export async function astroIslandScripts(): Promise<Set<string>> {
 				continue;
 			}
 			if (!existsSync(file)) continue;
-			const text = ((await import(pathToFileURL(file).href)) as { default?: unknown }).default;
+			// A file found at build time, not a module to bundle.
+			const url = pathToFileURL(file).href;
+			const text = ((await import(/* @vite-ignore */ url)) as { default?: unknown }).default;
 			if (typeof text === "string") texts.add(text);
 			break;
 		}
