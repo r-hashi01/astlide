@@ -148,6 +148,16 @@ describe("deck problems", () => {
 		expect((await readDeck(dir)).configIssue).toMatch(/^Malformed _config.json/);
 	});
 
+	it("refuses two slide files with the same name", async () => {
+		const dir = join(base, "twins");
+		mkdirSync(dir);
+		writeFileSync(join(dir, "01-intro.md"), "# Markdown\n");
+		writeFileSync(join(dir, "01-intro.html"), "<h1>HTML</h1>\n");
+		await expect(readDeck(dir)).rejects.toThrow(
+			"slides with the same name (only the extension differs): 01-intro.html and 01-intro.md",
+		);
+	});
+
 	it("names the file with invalid frontmatter", async () => {
 		const dir = join(base, "bad-slide");
 		mkdirSync(dir);

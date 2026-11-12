@@ -40,7 +40,7 @@ It creates `src/content/decks/my-talk/` with a `_config.json` and three starter 
    └── 03-demo.html
    ```
 
-Slides are sorted by file name, and the slide number in the URL (`/my-talk/2`) follows that order. Names are compared as text, so pad the numbers to the same width: `02` sorts before `10`, but `2` would sort after it.
+Slides are sorted by file name, and the slide number in the URL (`/my-talk/2`) follows that order. Names are compared as text, so pad the numbers to the same width: `02` sorts before `10`, but `2` would sort after it. Two slides can't have the same name with different extensions (`03-intro.md` and `03-intro.html`): the build stops and names them.
 
 A deck folder can also hold a `.pptx` file, which is shown as slides as it is. See [Import PowerPoint & Google Slides](/guides/import/).
 

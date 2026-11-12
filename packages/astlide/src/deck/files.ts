@@ -40,6 +40,27 @@ export function toEntryId(relPath: string): string {
 }
 
 /**
+ * An error when slide files share a name and differ only in extension
+ * (`03-intro.md` and `03-intro.html`): they would be the same slide, so
+ * which one shows would depend on the framework. Null when names are unique.
+ */
+export function sameNameSlides(files: readonly string[]): Error | null {
+	const byId = new Map<string, string[]>();
+	for (const file of files) {
+		if (!SLIDE_EXTENSION.test(file)) continue;
+		const id = toEntryId(file);
+		byId.set(id, [...(byId.get(id) ?? []), file.replace(/\\/g, "/")]);
+	}
+	const clashes = [...byId.values()].filter((group) => group.length > 1);
+	if (clashes.length === 0) return null;
+	return new Error(
+		`slides with the same name (only the extension differs): ${clashes
+			.map((group) => group.sort().join(" and "))
+			.join("; ")} — rename or remove one of each`,
+	);
+}
+
+/**
  * The files below `dir` whose name passes `test`, relative to it with `/`.
  * Office's lock files for open documents (`~$talk.pptx`) are never slides.
  */
