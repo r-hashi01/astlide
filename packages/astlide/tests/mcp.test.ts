@@ -29,6 +29,7 @@ import {
 	explicitRoots,
 	isBroadFolder,
 	MIN_PROJECT_CLI,
+	printView,
 	projectRootWithin,
 } from "../src/mcp/project";
 import { exportArgs, outputDir } from "../src/mcp/render";
@@ -404,6 +405,20 @@ describe("check_deck", () => {
 			expect(issues[0]).toMatchObject({ kind: "box-overflow", element: "div.slide-content" });
 			expect(issues[0]?.overflow.bottom).toBe(48);
 		}
+	});
+});
+
+describe("printView", () => {
+	it("finds a deck's print view as all/index.html, or all.html (build.format: file)", () => {
+		const site = mkdtempSync(join(tmpdir(), "astlide-mcp-site-"));
+		mkdirSync(join(site, "a", "all"), { recursive: true });
+		writeFileSync(join(site, "a", "all", "index.html"), "");
+		mkdirSync(join(site, "b"));
+		writeFileSync(join(site, "b", "all.html"), "");
+		expect(printView(site, "a")).toBe(join(site, "a", "all", "index.html"));
+		expect(printView(site, "b")).toBe(join(site, "b", "all.html"));
+		// Not built yet: where a build puts it.
+		expect(printView(site, "c")).toBe(join(site, "c", "all", "index.html"));
 	});
 });
 

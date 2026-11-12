@@ -273,21 +273,38 @@ export function runAstlide(root: string, args: string[]): Promise<RunResult> {
 	return run(bun(), [astlideCli(root), ...astlideArgs(root, args)], root);
 }
 
-/** Run `astro build` in the project (with Node, as `astlide export` does). */
-export async function buildSite(root: string): Promise<void> {
+/**
+ * Where `check_deck` builds a project: a folder of its own (gitignored with
+ * node_modules), whatever the project's `outDir` — as `astlide export` has one.
+ */
+export function checkBuildDir(root: string): string {
+	return join(root, "node_modules", ".astro", "astlide-check");
+}
+
+/** Run `astro build` in the project (with Node, as `astlide export` does), into `outDir` if given. */
+export async function buildSite(root: string, outDir?: string): Promise<void> {
 	const astro = join(
 		dirname(createRequire(join(root, "package.json")).resolve("astro/package.json")),
 		"bin",
 		"astro.mjs",
 	);
-	const r = await run("node", [astro, "build", "--root", root], root);
+	const r = await run(
+		"node",
+		[astro, "build", "--root", root, ...(outDir ? ["--outDir", outDir] : [])],
+		root,
+	);
 	if (r.code !== 0) {
 		const log = `${r.stdout}\n${r.stderr}`.trim().split("\n").slice(-30).join("\n");
 		throw new Error(`astro build failed:\n${log}`);
 	}
 }
 
-/** The deck's built print view (all slides in one page). */
-export function printView(root: string, deck: string): string {
-	return join(root, "dist", deck, "all", "index.html");
+/**
+ * The deck's print view (all slides in one page) in a built site: `all/index.html`,
+ * or `all.html` with Astro's `build.format: "file"`.
+ */
+export function printView(site: string, deck: string): string {
+	const page = join(site, deck, "all", "index.html");
+	const file = join(site, deck, "all.html");
+	return !existsSync(page) && existsSync(file) ? file : page;
 }

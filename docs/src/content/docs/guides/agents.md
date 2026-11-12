@@ -64,7 +64,7 @@ If your team keeps its PowerPoint templates in a [template store](/guides/templa
 
 You don't need a dev server running. `check_deck` and `render_deck` build the site themselves:
 
-- `check_deck` builds only when `dist/` is missing or older than the deck's files or the Astro config. Pass `build: true` to always build, or `build: false` to never build.
+- `check_deck` builds into a folder of its own (`node_modules/.astro/astlide-check`), so your `dist/` and `outDir` are left alone. It builds only when that build is missing or older than the deck's files or the Astro config. Pass `build: true` to always build, or `build: false` to never build (then it reads its last build, or `dist/`).
 - `render_deck` builds every time. With `build: false` it reuses the last export build, or `dist/` if there is none.
 
 `render_deck` writes to `exports/` in the project unless you set `outDir`. PDF export needs Playwright's Chromium (`bunx playwright install chromium`).
