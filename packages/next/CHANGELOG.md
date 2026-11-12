@@ -1,5 +1,13 @@
 # @astlide/next
 
+## 3.1.1
+
+### Patch Changes
+
+- Updated dependencies [[`748a0b0`](https://github.com/r-hashi01/astlide/commit/748a0b008a8b1404ef60533bc566b254ab50f69e), [`a44ddb8`](https://github.com/r-hashi01/astlide/commit/a44ddb8df60e85be613c318d907554938f486fbb), [`786ee54`](https://github.com/r-hashi01/astlide/commit/786ee54e2709e6a305b3e810e6a38ea012d84c73), [`8f0d79d`](https://github.com/r-hashi01/astlide/commit/8f0d79d29a932e3a0a5380ef5b652246823767df), [`346054c`](https://github.com/r-hashi01/astlide/commit/346054ccff9accccbc1150d1b7dfa00908e4dcc6), [`e605bf6`](https://github.com/r-hashi01/astlide/commit/e605bf62c428733cedce903f4eb92339192544cd), [`e332e68`](https://github.com/r-hashi01/astlide/commit/e332e688a0b8bed85f78d874d77e9eb9edb64f9f), [`1c52e9e`](https://github.com/r-hashi01/astlide/commit/1c52e9e7520a8796251220f4099b7714e1a23159), [`c3fde1c`](https://github.com/r-hashi01/astlide/commit/c3fde1cd4616137430a327083ec03e6386f9e9d7), [`8a3883b`](https://github.com/r-hashi01/astlide/commit/8a3883bc9a839db9c2c2f59f187227447c30e47c), [`f60f70f`](https://github.com/r-hashi01/astlide/commit/f60f70f8d63a5a41fc124bc84763782d2ff2e94f), [`ee0510b`](https://github.com/r-hashi01/astlide/commit/ee0510bc564b28674db46b258b76614bcca97263), [`c3908f2`](https://github.com/r-hashi01/astlide/commit/c3908f28467762d5163071426379a71d830bc4b7), [`049ec05`](https://github.com/r-hashi01/astlide/commit/049ec05c8ec3c3ecf1da9128264c16aa363c6f83), [`6dd0f31`](https://github.com/r-hashi01/astlide/commit/6dd0f31fb6905918c054a0db4f9bc924bf806035), [`da197f7`](https://github.com/r-hashi01/astlide/commit/da197f733f5f851d397a450493e52a636ad7362b), [`e35df10`](https://github.com/r-hashi01/astlide/commit/e35df107dcddb6c72115890a242b68405e5f3204), [`037f939`](https://github.com/r-hashi01/astlide/commit/037f939a6250eec66bf53701f056259fca84cc05), [`749db0d`](https://github.com/r-hashi01/astlide/commit/749db0d6ece13ddac1b40aeac8693dda2d8fd04b), [`73bb40b`](https://github.com/r-hashi01/astlide/commit/73bb40bdd737acf1f27198d1bb4d2af9325b6df1), [`c65bd0d`](https://github.com/r-hashi01/astlide/commit/c65bd0d9ca5a175f918e734d35c3f22738a22e85), [`f0e6d7b`](https://github.com/r-hashi01/astlide/commit/f0e6d7b4e1bab82c6f8a4ce1f831a8498c46c4bc), [`19c8911`](https://github.com/r-hashi01/astlide/commit/19c8911cc88f0cafe55c6c517c16ad747b4e1398), [`32e082a`](https://github.com/r-hashi01/astlide/commit/32e082ab406e9fab76af3c4e3da497997e1d6557)]:
+  - @astlide/core@3.1.1
+  - @astlide/react@3.1.1
+
 ## 3.1.0
 
 ### Minor Changes

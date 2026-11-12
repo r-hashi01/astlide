@@ -1,5 +1,11 @@
 # create-astlide
 
+## 0.3.1
+
+### Patch Changes
+
+- [#464](https://github.com/r-hashi01/astlide/pull/464) [`786ee54`](https://github.com/r-hashi01/astlide/commit/786ee54e2709e6a305b3e810e6a38ea012d84c73) Thanks [@r-hashi01](https://github.com/r-hashi01)! - Command-line fixes. `astlide export`: `--width` / `--height` take whole numbers only (`1e3`, `720px` are errors), and an option's value can't be the next option (`--base-url --pdf`). `astlide import`: failures say "Import failed", and a URL that isn't a Google Slides deck says so. `create-astlide deck`: the deck name is found after options (`deck --theme dark my-talk`), and an unknown `--theme` or `--format` is an error instead of being ignored.
+
 ## 0.3.0
 
 ### Minor Changes
