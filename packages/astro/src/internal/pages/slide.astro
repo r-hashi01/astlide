@@ -110,7 +110,7 @@ const notes = frontmatterNotes ?? extractCommentNotes(slide.body ?? '');
 
 // A hidden slide in production: on to the next visible one.
 if (page.redirectTo !== undefined) {
-  return Astro.redirect(pageUrl(`/${deckName}/${page.redirectTo}`));
+  return Astro.redirect(pageUrl(`/${encodeURIComponent(deckName)}/${page.redirectTo}`));
 }
 
 // Publish typed deck/slide metadata for components rendered inside this slide

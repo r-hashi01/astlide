@@ -34,9 +34,9 @@
  */
 
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { relative } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readdir, readFile } from "node:fs/promises";
+import { join, relative } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { slideScriptsKept } from "@astlide/astro/internal/slide-scripts-option";
 import {
 	DECKS_DIR,
@@ -141,8 +141,10 @@ export function astlideDeckLoader(options: AstlideDeckLoaderOptions = {}): Loade
 			const context = slideScriptsKept(loaderContext.config)
 				? withoutNotes
 				: withoutSlideScripts(withoutNotes);
-			await markdownLoader.load(context);
 			const baseUrl = new URL(`${base.replace(/\/?$/, "/")}`, context.config.root);
+			// Before Astro's loader, which fails on these with an error about module ids.
+			await refuseUnbuildableDeckNames(fileURLToPath(baseUrl));
+			await markdownLoader.load(context);
 			await syncHtmlSlides(context, baseUrl);
 			await syncPptxSlides(context, baseUrl);
 
@@ -245,7 +247,8 @@ async function syncPptxSlides(context: LoaderContext, baseUrl: URL): Promise<voi
 		const media = (file: { name: string; data: Buffer }) =>
 			storePptxAsset(assets, config.base ?? "/", file);
 		for (const relPath of files) {
-			const fileUrl = new URL(relPath, baseUrl);
+			// A file URL from the path: `#`, `?` or `%` in a folder name stay part of it.
+			const fileUrl = pathToFileURL(join(fileURLToPath(baseUrl), relPath));
 			const raw = await readFile(fileUrl);
 			const filePath = relative(fileURLToPath(config.root), fileURLToPath(fileUrl)).replace(
 				/\\/g,
@@ -289,6 +292,26 @@ async function syncPptxSlides(context: LoaderContext, baseUrl: URL): Promise<voi
 }
 
 /**
+ * Deck folders whose names Astro can't build (`#`, `?` or `%` end or escape
+ * a URL): an error naming them, instead of Astro's about module ids.
+ */
+async function refuseUnbuildableDeckNames(baseDir: string): Promise<void> {
+	let names: string[];
+	try {
+		names = (await readdir(baseDir, { withFileTypes: true }))
+			.filter((d) => d.isDirectory())
+			.map((d) => d.name);
+	} catch {
+		return;
+	}
+	const bad = names.filter((n) => /[#?%]/.test(n));
+	if (bad.length)
+		throw new Error(
+			`deck folder names can't contain #, ? or % (they're part of the URL): ${bad.join(", ")} — rename ${bad.length > 1 ? "them" : "it"}`,
+		);
+}
+
+/**
  * Read every `.html`/`.htm` file under `baseUrl`, store each as a pre-rendered
  * slide entry, and drop store entries whose HTML source has been deleted.
  *
@@ -313,7 +336,8 @@ async function syncHtmlSlides(context: LoaderContext, baseUrl: URL): Promise<voi
 	for (const relPath of files) {
 		const id = toEntryId(relPath);
 		seen.add(id);
-		const fileUrl = new URL(relPath, baseUrl);
+		// A file URL from the path: `#`, `?` or `%` in a folder name stay part of it.
+		const fileUrl = pathToFileURL(join(fileURLToPath(baseUrl), relPath));
 		const raw = await readFile(fileUrl, "utf-8");
 		const { data, body } = splitFrontmatter(raw);
 		const filePath = relative(fileURLToPath(config.root), fileURLToPath(fileUrl)).replace(
