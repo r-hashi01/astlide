@@ -31,7 +31,7 @@ const TYPES: Record<string, string> = {
 
 beforeAll(async () => {
 	out = mkdtempSync(join(tmpdir(), "astlide-vue-e2e-"));
-	await buildVueHarness(["tour"], out);
+	await buildVueHarness(["tour", "example-deck"], out);
 	// The app's pages, and the playground's public files (pictures) after them.
 	const roots = [out, resolve("playground", "dist")];
 	server = createServer((req, res) => {
@@ -136,6 +136,28 @@ describe("@astlide/vue deck page", () => {
 
 	// The harness renders the same <DeckPage> for each slide, as an app's router
 	// does, so the runtime mounts again on the same elements (#309).
+	it("downloads the deck it's on after moving to another deck without a reload", async () => {
+		const page = await open("/tour/1/");
+		const printed = () =>
+			page.evaluate(async () => {
+				const w = window as unknown as {
+					__astlide_download_pdf?: (o: { deck: string }) => Promise<unknown>;
+					__astlide_test_print?: string;
+				};
+				await w.__astlide_download_pdf?.({ deck: "" });
+				return w.__astlide_test_print;
+			});
+		expect(await printed()).toBe("/tour/all/");
+		// The same <DeckPage>, another deck (as a router reusing the component).
+		await page.evaluate(() => {
+			history.pushState(null, "", "/example-deck/1/");
+			dispatchEvent(new PopStateEvent("popstate"));
+		});
+		await expect.poll(() => page.title()).toMatch(/^Example Presentation/);
+		expect(await printed()).toBe("/example-deck/all/");
+		await page.close();
+	});
+
 	it("adds no listeners when moving between slides", async () => {
 		const page = await open("/tour/2/?presenter");
 		const cdp = await page.context().newCDPSession(page);
