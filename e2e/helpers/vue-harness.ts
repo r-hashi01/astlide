@@ -123,6 +123,15 @@ createApp({
 				outline: deck.slides.map((s, i) => ({ n: i + 1, title: s.title ?? \`Slide \${i + 1}\` })),
 				presenter: new URLSearchParams(location.search).has("presenter") || window.name === "astlide-presenter",
 				loadMermaid: () => import("mermaid"),
+				// Records the print view a toolbar download would render, instead of rendering it.
+				loadPdfExport: () =>
+					Promise.resolve({
+						exportDeckToPdf: async ({ url }) => {
+							window.__astlide_test_print = url;
+							return { blob: new Blob() };
+						},
+						downloadBlob() {},
+					}),
 				navigate,
 			},
 			{

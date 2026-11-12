@@ -90,8 +90,9 @@ export const DeckPage = defineComponent({
 				loadMermaid: props.loadMermaid,
 			});
 		};
-		onMounted(() => {
-			// Camera, recording and the toolbar's PDF download, set up once per page.
+		// Camera, recording and the toolbar's PDF download: for this deck, again when
+		// the component moves to another one (a router reusing it), as in React.
+		const setUpTools = () =>
 			setUpDeckPageTools({
 				deck: props.deck,
 				loadPdfExport: props.loadPdfExport,
@@ -100,8 +101,19 @@ export const DeckPage = defineComponent({
 					trailingSlash: props.trailingSlash,
 				}),
 			});
+		onMounted(() => {
+			setUpTools();
 			mount();
 		});
+		watch(
+			[
+				() => props.deck,
+				() => props.basePath,
+				() => props.trailingSlash,
+				() => props.loadPdfExport,
+			],
+			setUpTools,
+		);
 		// Again for each slide, when the slide moves to / from the presenter panel (a new
 		// element), and when the Mermaid loader arrives (Nuxt sets it once mounted), as in React.
 		watch([config, () => props.presenter, () => props.loadMermaid], () => mount(), {
