@@ -282,6 +282,27 @@ describe("untrusted files", () => {
 		);
 	});
 
+	it("sets East Asian text in the theme's East Asian font", async () => {
+		// The theme names a Japanese minor font, as Japanese Office themes do.
+		const pptx = patched(await fixture(), (name, text) => {
+			if (/^ppt\/theme\/theme\d+\.xml$/.test(name))
+				return text.replace(
+					/(<a:minorFont>\s*<a:latin [^>]*\/>\s*)<a:ea typeface="[^"]*"\/>/,
+					'$1<a:ea typeface="Yu Gothic"/>',
+				);
+			if (name === "ppt/slides/slide1.xml")
+				return text.replace(
+					"</p:spTree>",
+					`${textBox("", "", "eaonly").replace("<a:r><a:t>", '<a:r><a:rPr><a:ea typeface="+mn-ea"/></a:rPr><a:t>')}${textBox("", "", "both").replace("<a:r><a:t>", '<a:r><a:rPr><a:latin typeface="Arial"/><a:ea typeface="Meiryo"/></a:rPr><a:t>')}</p:spTree>`,
+				);
+			return text;
+		});
+		const html = pptxToSlides(pptx).slides[0]?.html ?? "";
+		// Latin text in the paragraph's font (the theme's), East Asian text in Yu Gothic.
+		expect(html).toMatch(/font-family:'Calibri', 'Yu Gothic', sans-serif[^>]*>eaonly/);
+		expect(html).toMatch(/font-family:'Arial', 'Meiryo', sans-serif[^>]*>both/);
+	});
+
 	it("keeps numbered lists within PowerPoint's range", async () => {
 		const html = async (startAt: string) =>
 			pptxToSlides(

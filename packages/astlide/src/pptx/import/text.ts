@@ -37,6 +37,8 @@ export interface TextProps {
 	strike?: boolean;
 	color?: Element;
 	font?: string;
+	/** The East Asian font (`a:ea`), for the characters `font` lacks. */
+	eaFont?: string;
 	cap?: string;
 	baseline?: number;
 	spc?: number;
@@ -100,9 +102,10 @@ function runProps(base: TextProps, el: Element | undefined): TextProps {
 	if (a.spc !== undefined) p.spc = Number(a.spc);
 	const fill = kid(el, "a:solidFill");
 	if (fill) p.color = colorChild(fill);
-	const latin = kid(el, "a:latin") ?? kid(el, "a:ea");
-	const face = safeFontName(latin?.attribs.typeface);
-	if (face) p.font = face;
+	const latin = safeFontName(kid(el, "a:latin")?.attribs.typeface);
+	const ea = safeFontName(kid(el, "a:ea")?.attribs.typeface);
+	if (latin) p.font = latin;
+	if (ea) p.eaFont = ea;
 	return p;
 }
 
@@ -313,7 +316,8 @@ export function textBody(
 			if (rp.sz !== undefined && rp.sz !== firstRun.sz)
 				rcss.push(`font-size:${r2((rp.sz / 100) * ptPx * fontScale)}px`);
 			const face = resolveFont(rp.font, ctx.fonts);
-			if (face) rcss.push(`font-family:${fontStack(face)}`);
+			const ea = resolveFont(rp.eaFont, ctx.fonts);
+			if (face || ea) rcss.push(`font-family:${fontStack(face, ea)}`);
 			if (rp.b) rcss.push("font-weight:700");
 			if (rp.i) rcss.push("font-style:italic");
 			const deco = [rp.u ? "underline" : "", rp.strike ? "line-through" : ""]
