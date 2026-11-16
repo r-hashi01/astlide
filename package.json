@@ -30,7 +30,7 @@
 	},
 	"devDependencies": {
 		"@astrojs/language-server": "^2.17.3",
-		"@biomejs/biome": "^2.6.5",
+		"@biomejs/biome": "^2.6.7",
 		"@changesets/changelog-github": "^1.0.1",
 		"@changesets/cli": "^3.0.3",
 		"jszip": "3.10.2",
@@ -41,6 +41,6 @@
 		"zod": "^4.6.7"
 	},
 	"dependencies": {
-		"astro": "^7.4.7"
+		"astro": "^7.4.11"
 	}
 }
