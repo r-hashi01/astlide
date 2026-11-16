@@ -151,7 +151,7 @@
 		"@aws-sdk/client-s3": "^3.1163.0",
 		"@azure/identity": "^4.14.1",
 		"@azure/storage-blob": "^12.34.0",
-		"@google-cloud/storage": "^8.4.0",
+		"@google-cloud/storage": "^9.0.0",
 		"@types/fontkit": "^2.0.9",
 		"@types/jsdom": "^30.0.0",
 		"@types/react": "^19.3.0",
