@@ -82,3 +82,4 @@ src/
 - スライドに何を書けるかは[デッキを作成する](/ja/guides/decks/)で説明しています。
 - キー操作と発表者ウィンドウの使い方は[プレゼンテーション](/ja/guides/presenting/)にまとめています。
 - レイアウトとテーマの見本は[ギャラリー](/ja/gallery/)にあります。[ライブデモ](https://astlide.dev/demo/tour/1/)でも実際に操作できます。
+- 質問や感想は [GitHub Discussions](https://github.com/r-hashi01/astlide/discussions) に書き込んでください。日本語で大丈夫です。
