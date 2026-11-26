@@ -32,15 +32,15 @@
 	},
 	"dependencies": {
 		"@astlide/core": "workspace:*",
-		"@aws-sdk/client-s3": "^3.1163.0",
+		"@aws-sdk/client-s3": "^3.1175.0",
 		"@azure/identity": "^4.14.1",
 		"@azure/storage-blob": "^12.34.0",
 		"@google-cloud/storage": "^8.4.0",
-		"astro": "^7.4.7",
+		"astro": "^7.4.13",
 		"js-yaml": "^5.5.0",
-		"satteri": "^0.11.6"
+		"satteri": "^0.11.7"
 	},
 	"optionalDependencies": {
-		"playwright": "^1.65.0"
+		"playwright": "^1.65.1"
 	}
 }
