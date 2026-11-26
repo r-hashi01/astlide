@@ -1,5 +1,11 @@
 # create-astlide
 
+## 0.3.2
+
+### Patch Changes
+
+- [#492](https://github.com/r-hashi01/astlide/pull/492) [`9c96f83`](https://github.com/r-hashi01/astlide/commit/9c96f83509820fcd9ff3e9808b3743e1278b9786) Thanks [@r-hashi01](https://github.com/r-hashi01)! - After scaffolding, point to GitHub Discussions for questions and feedback.
+
 ## 0.3.1
 
 ### Patch Changes
