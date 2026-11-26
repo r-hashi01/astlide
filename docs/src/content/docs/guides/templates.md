@@ -28,6 +28,8 @@ Then use that name as the deck's theme:
 { "title": "Q3 review", "theme": "brand" }
 ```
 
+![A cover slide in the Title Slide layout of a PowerPoint template: its dark background and corner block, serif title font and orange accent line](../../../assets/gallery/from-template-1.png)
+
 The file can be a presentation (`.pptx`), a template (`.potx`) or an Office theme (`.thmx`). For a Google Slides template, choose File → Download → Microsoft PowerPoint and use the downloaded file. While `astro dev` is running, saving the template file reloads the deck.
 
 If your team keeps its templates in a [template store](/guides/template-storage/) (a shared folder or a bucket), name the store instead, and every template in it becomes a theme:
@@ -52,6 +54,8 @@ slideLayout: default
 ```
 
 In a layout with two content placeholders side by side, `<Left>` fills the first and `<Right>` the second, with the same gap between them as in the template. If the layout has a slide-number placeholder, the slide's number appears there.
+
+![A two-column slide: the title in the template's title placeholder, two lists in its two content placeholders, and the slide number at the bottom right](../../../assets/gallery/from-template-4.png)
 
 ## Layouts
 
