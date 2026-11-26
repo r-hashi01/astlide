@@ -18,6 +18,8 @@ Astlide is an [Astro](https://astro.build) integration for presentations. Write 
 
 📖 **Documentation:** https://astlide.dev/ · 🎬 **Live demo:** https://astlide.dev/demo/tour/1/ · 🇯🇵 [日本語ドキュメント](https://astlide.dev/ja/)
 
+![Slides from the demo deck, a deck drawn with a PowerPoint template, the presenter window and the overview](.github/assets/demo.gif)
+
 ## Why Astlide
 
 - **Keep every deck in one site.** A deck is a folder under `src/content/decks/`. Talks, weekly reports and training decks sit side by side: they share themes and components, deploy together and get an index page. Most slide tools give you one project per deck.
@@ -615,9 +617,9 @@ bun run lint:fix   # Auto-fix lint issues
 bun run format     # Format with Biome
 ```
 
-## Contact
+## Feedback
 
-Questions and feedback: [hello@astlide.dev](mailto:hello@astlide.dev), or [GitHub Discussions](https://github.com/r-hashi01/astlide/discussions). Security issues: see [SECURITY.md](SECURITY.md).
+Tried Astlide? Tell us what worked and what didn't in [GitHub Discussions](https://github.com/r-hashi01/astlide/discussions): questions, ideas and decks you made are all welcome. A PowerPoint template that doesn't come out right is especially useful. You can also write to [hello@astlide.dev](mailto:hello@astlide.dev). Security issues: see [SECURITY.md](SECURITY.md).
 
 ## License
 

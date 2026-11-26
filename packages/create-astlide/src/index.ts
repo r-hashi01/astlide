@@ -256,6 +256,10 @@ async function main() {
 	console.log();
 	console.log(`  Then open ${cyan("http://localhost:4321")}`);
 	console.log();
+	console.log(
+		`  Questions or feedback: ${cyan("https://github.com/r-hashi01/astlide/discussions")}`,
+	);
+	console.log();
 }
 
 /** A deck folder name: letters, digits, `_`, `.`, `-`, not starting with `.` or `-`. */

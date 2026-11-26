@@ -82,3 +82,4 @@ Each folder under `src/content/decks/` is one deck, and its name is part of the 
 - Read [Creating a Deck](/guides/decks/) to see what you can put on a slide.
 - Learn the keys and the presenter window in [Presenting](/guides/presenting/).
 - Browse every layout and theme in the [Gallery](/gallery/), or open the [live demo](https://astlide.dev/demo/tour/1/).
+- Questions or feedback? Post them in [GitHub Discussions](https://github.com/r-hashi01/astlide/discussions).
