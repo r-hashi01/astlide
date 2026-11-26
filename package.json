@@ -30,18 +30,18 @@
 	},
 	"devDependencies": {
 		"@astrojs/language-server": "^2.17.3",
-		"@biomejs/biome": "^2.6.5",
+		"@biomejs/biome": "^2.6.8",
 		"@changesets/changelog-github": "^1.0.1",
 		"@changesets/cli": "^3.0.3",
 		"jszip": "3.10.2",
-		"playwright": "^1.65.0",
+		"playwright": "^1.65.1",
 		"pptxgenjs": "^4.0.1",
 		"sharp": "^0.35.5",
 		"typescript": "^7.0.2",
-		"vitest": "^5.1.0",
+		"vitest": "^5.1.1",
 		"zod": "^4.6.7"
 	},
 	"dependencies": {
-		"astro": "^7.4.7"
+		"astro": "^7.4.13"
 	}
 }

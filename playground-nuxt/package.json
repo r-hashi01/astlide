@@ -11,6 +11,6 @@
 		"@astlide/nuxt": "workspace:*",
 		"mermaid": "^12.3.0",
 		"nuxt": "^4.6.4",
-		"vue": "^3.5.45"
+		"vue": "^3.5.46"
 	}
 }
